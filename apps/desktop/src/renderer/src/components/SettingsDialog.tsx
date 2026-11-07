@@ -30,6 +30,8 @@ import {
   type PreferencesFileValues,
 } from "../data/preferencesFile";
 import { compactionDraft, compactionFields, compactionSourceLabel, type CompactionSettingDraft } from "../data/compactionSettings";
+import { currentCommandPlatform } from "../data/shortcuts";
+import { shortcutKeyLabel } from "../data/shortcutLabels";
 import type { ThemePreference } from "../data/themePreference";
 import { harnessErrorText, readConfig, setAutoCompactionSettings } from "../data/harnessBridge";
 import "../styles/settings.css";
@@ -157,6 +159,8 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   const closeRef = useRef(onClose);
   const titleId = useId();
   const aboutClipboard = useClipboardCopy();
+  // 键盘页与快捷键面板共用同一条平台规则，说明才能与真实接线一致。
+  const shortcutPlatform = currentCommandPlatform();
   const preferencesFileRef = useRef<HTMLInputElement>(null);
   closeRef.current = onClose;
 
@@ -528,7 +532,7 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
             {section === "keyboard" && (
               <>
                 <p className="settings-intro">使用键盘在工作区中更快地移动。</p>
-                {[{ title: "新聊天", keys: ["⌘", "N"] }, { title: "切换侧栏", keys: ["⌘", "B"] }, { title: "发送消息", keys: ["Enter"] }, { title: "输入框换行", keys: ["Shift", "Enter"] }, { title: "关闭对话框", keys: ["Esc"] }].map((shortcut) => <SettingRow key={shortcut.title} title={shortcut.title}><span className="settings-shortcut">{shortcut.keys.map((key) => <kbd key={key}>{key}</kbd>)}</span></SettingRow>)}
+                {[{ title: "新聊天", keys: ["⌘", "N"] }, { title: "切换侧栏", keys: ["⌘", "B"] }, { title: "发送消息", keys: ["Enter"] }, { title: "输入框换行", keys: ["Shift", "Enter"] }, { title: "关闭对话框", keys: ["Esc"] }].map((shortcut) => <SettingRow key={shortcut.title} title={shortcut.title}><span className="settings-shortcut">{shortcut.keys.map((key) => <kbd key={key}>{shortcutKeyLabel(key, shortcutPlatform)}</kbd>)}</span></SettingRow>)}
                 <div className="settings-keyboard-footer"><button type="button" className="settings-button" onClick={openShortcuts}>查看全部快捷键<IconChevronRight size={13} /></button></div>
               </>
             )}

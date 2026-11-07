@@ -4,6 +4,7 @@ import { Popover } from "../components/Popover";
 import { ModalSurface } from "../components/ModalSurface";
 import type { SettingsSection } from "../components/SettingsDialog";
 import { UI_STORAGE_PREFIX } from "../data/uiStorage";
+import { currentShortcutLabel } from "../data/shortcutLabels";
 import "../styles/navigation-menus.css";
 
 export type WorkspacePage = "home" | "recents" | "library" | "skills";
@@ -169,7 +170,7 @@ export function NavigationRail(props: Props) {
     return () => { clearHoverTimers(); document.removeEventListener("pointermove", pointerMove); window.removeEventListener("keydown", keyboard, true); };
   }, [clearHoverTimers, scheduleHoverClose]);
   useEffect(() => { if (menu !== "explore") clearHoverTimers(); }, [menu, clearHoverTimers]);
-  const railItem = (item: typeof ITEMS[number]) => <button key={item.id} className={`rail-button ${item.page === props.page ? "selected" : ""}`} onClick={() => act(item.id)} aria-label={item.title} aria-current={item.page === props.page ? "page" : undefined} title={item.title + (item.shortcut ? " · " + item.shortcut : "")}><item.icon size={20} /></button>;
+  const railItem = (item: typeof ITEMS[number]) => <button key={item.id} className={`rail-button ${item.page === props.page ? "selected" : ""}`} onClick={() => act(item.id)} aria-label={item.title} aria-current={item.page === props.page ? "page" : undefined} title={item.title + (item.shortcut ? " · " + currentShortcutLabel(item.shortcut) : "")}><item.icon size={20} /></button>;
   return <>
     <nav className="navigation-rail popover-anchor" aria-label="快捷导航" onContextMenu={event => {
       event.preventDefault(); (event.target as HTMLElement).closest<HTMLButtonElement>("button")?.focus();
@@ -226,8 +227,8 @@ export function NavigationRail(props: Props) {
           {profileView === "main" ? <>
             <div className="profile-menu-identity"><span className="profile-avatar">BO</span><span><strong>本地工作区</strong><small>{props.harnessUp ? "已连接招聘 Harness" : "BOSS Harness"}</small></span></div>
             <div className="menu-divider" />
-            <button onClick={() => openSettings()}><IconSettings />设置<span className="menu-shortcut">⌘,</span></button>
-            <button onClick={() => { setMenu(null); props.onOpenShortcuts(); }}><span className="menu-text-icon">⌘</span>键盘快捷键<span className="menu-shortcut">⌘/</span></button>
+            <button onClick={() => openSettings()}><IconSettings />设置<span className="menu-shortcut">{currentShortcutLabel("⌘,")}</span></button>
+            <button onClick={() => { setMenu(null); props.onOpenShortcuts(); }}><span className="menu-text-icon">⌘</span>键盘快捷键<span className="menu-shortcut">{currentShortcutLabel("⌘/")}</span></button>
             <button data-menu-keep-open aria-haspopup="menu" onClick={() => setProfileView("appearance")}><IconSun />外观<IconChevronRight className="menu-check" /></button>
             <button onClick={openCustomize}><IconSliders />自定导航栏</button>
             <div className="menu-divider" />

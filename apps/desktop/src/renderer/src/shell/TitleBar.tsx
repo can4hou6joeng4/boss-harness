@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { IconPanel, IconPanelRight, IconMore, IconFolder, IconPlus, IconChevronRight, IconCopy, IconHistory, IconSettings, IconEdit, IconPin, IconBranch, IconSliders, IconTrash } from "../components/Icons";
 import { Popover } from "../components/Popover";
+import { currentShortcutLabel } from "../data/shortcutLabels";
 interface Props {
   title: string; hasConversation: boolean; summaryAvailable: boolean; isSidebarOpen: boolean; isSummaryOpen: boolean; canGoBack: boolean; canGoForward: boolean;
   onBack: () => void; onForward: () => void; onToggleSidebar: () => void; onToggleSummary: () => void;
@@ -35,9 +36,9 @@ export function TitleBar(props: Props) {
   return <header className="titlebar">
     <div className="titlebar-window-controls" aria-hidden="true"><i /><i /><i /></div>
     <div className="titlebar-navigation">
-      <button className="titlebar-btn" title="后退 · ⌘[" aria-label="后退" disabled={!props.canGoBack} onClick={props.onBack}><IconChevronRight size={16} className="rotate-back" /></button>
-      <button className="titlebar-btn" title="前进 · ⌘]" aria-label="前进" disabled={!props.canGoForward} onClick={props.onForward}><IconChevronRight size={16} /></button>
-      <button className="titlebar-btn" title="切换侧边栏 · ⌘B" aria-label="切换侧边栏" aria-pressed={props.isSidebarOpen} onClick={props.onToggleSidebar}><IconPanel size={16} /></button>
+      <button className="titlebar-btn" title={`后退 · ${currentShortcutLabel("⌘[")}`} aria-label="后退" disabled={!props.canGoBack} onClick={props.onBack}><IconChevronRight size={16} className="rotate-back" /></button>
+      <button className="titlebar-btn" title={`前进 · ${currentShortcutLabel("⌘]")}`} aria-label="前进" disabled={!props.canGoForward} onClick={props.onForward}><IconChevronRight size={16} /></button>
+      <button className="titlebar-btn" title={`切换侧边栏 · ${currentShortcutLabel("⌘B")}`} aria-label="切换侧边栏" aria-pressed={props.isSidebarOpen} onClick={props.onToggleSidebar}><IconPanel size={16} /></button>
     </div>
     <div className="titlebar-thread"><IconFolder size={15} /><span>{props.title}</span></div>
     <div className="titlebar-right">
@@ -62,12 +63,12 @@ export function TitleBar(props: Props) {
           {props.onOpenBranches && <button disabled={!props.hasConversation} onClick={() => { props.onOpenBranches?.(); setMenu(false); }}><IconBranch />会话分支</button>}
           {props.onOpenUsage && <button disabled={!props.hasConversation} onClick={() => { props.onOpenUsage?.(); setMenu(false); }}><IconSliders />会话用量</button>}
           <div className="menu-divider" />
-          <button onClick={() => { props.onOpenSettings(); setMenu(false); }}><IconSettings />设置<span className="menu-shortcut">⌘,</span></button>
+          <button onClick={() => { props.onOpenSettings(); setMenu(false); }}><IconSettings />设置<span className="menu-shortcut">{currentShortcutLabel("⌘,")}</span></button>
         </Popover>
       </div>
-      <button className={`titlebar-btn ${props.hasConversation && props.summaryAvailable && props.isSummaryOpen ? "active" : ""}`} title="切换摘要面板 · ⌘⌥B" aria-label="切换摘要面板" aria-pressed={props.hasConversation && props.summaryAvailable && props.isSummaryOpen} disabled={!props.hasConversation || !props.summaryAvailable} onClick={props.onToggleSummary}><IconPanelRight size={17} /></button>
+      <button className={`titlebar-btn ${props.hasConversation && props.summaryAvailable && props.isSummaryOpen ? "active" : ""}`} title={`切换摘要面板 · ${currentShortcutLabel("⌘⌥B")}`} aria-label="切换摘要面板" aria-pressed={props.hasConversation && props.summaryAvailable && props.isSummaryOpen} disabled={!props.hasConversation || !props.summaryAvailable} onClick={props.onToggleSummary}><IconPanelRight size={17} /></button>
       <span className="titlebar-separator" />
-      <button className="titlebar-btn" title="新聊天 · ⌘N" aria-label="新聊天" onClick={props.onNewTask}><IconPlus size={17} /></button>
+      <button className="titlebar-btn" title={`新聊天 · ${currentShortcutLabel("⌘N")}`} aria-label="新聊天" onClick={props.onNewTask}><IconPlus size={17} /></button>
     </div>
   </header>;
 }
