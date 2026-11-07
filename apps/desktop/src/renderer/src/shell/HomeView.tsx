@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Composer } from "./Composer";
 import { IconFolder, IconChevronDown, IconSparkles, IconSearch, IconChat, IconCockpit, IconCheck, IconPlus } from "../components/Icons";
 import { Popover } from "../components/Popover";
+import { currentShortcutLabel } from "../data/shortcutLabels";
 import type { ProjectFolder, ConversationMode } from "../data/mockData";
 import type { ModelDescriptor, SkillDescriptor, SkillProblem } from "@boss-harness/protocol";
 import type { SkillCatalogState } from "../data/harnessBridge";
@@ -59,7 +60,7 @@ export function HomeView(props: Props) {
         <button type="button" onClick={() => { setValue(pendingSuggestion); ref.current?.focus(); }}>替换</button>
         <button type="button" onClick={() => setPendingSuggestion(null)}>取消</button>
       </div>}
-      <div className="home-keyboard-hint"><span><kbd>/</kbd> 快捷指令</span><span><kbd>⇧ Enter</kbd> 换行</span></div>
+      <div className="home-keyboard-hint"><span><kbd>/</kbd> 快捷指令</span><span><kbd>{currentShortcutLabel("⇧ Enter")}</kbd> 换行</span></div>
     </div>
     <div className="workspace-status" role="status"><span className={props.preview || !props.harnessUp ? "status-dot preview" : "status-dot"} />{props.preview ? "界面预览 · 使用示例数据" : props.harnessUp ? "已连接本地招聘 Harness" : "本地招聘 Harness 未连接"}<span className="status-divider">·</span>{props.preview ? "对外操作由你确认" : "新会话默认只读"}</div>
   </div>;

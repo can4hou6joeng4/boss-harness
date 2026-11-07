@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { harnessErrorText } from "../data/harnessBridge";
 import { quickAskNotice, type SessionStartOutcome } from "../data/sessionStart";
+import { currentShortcutLabel } from "../data/shortcutLabels";
 import { IconClose, IconSend, IconChat } from "./Icons";
 
 export interface SideChatModalProps {
@@ -97,7 +98,7 @@ export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, c
           <IconChat size={14} style={{ color: "var(--accent-color)" }} />
           <span>{live ? "快速提问" : "快速提问 · 示例"}</span>
         </div>
-        <button className="titlebar-btn" onClick={onClose} title="关闭 (⌘;)" aria-label="关闭快速提问">
+        <button className="titlebar-btn" onClick={onClose} title={`关闭 (${currentShortcutLabel("⌘;")})`} aria-label="关闭快速提问">
           <IconClose size={12} />
         </button>
       </div>

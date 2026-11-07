@@ -6,6 +6,7 @@ import type { ProjectFolder, SessionItem } from "../data/mockData";
 import { UI_STORAGE_PREFIX } from "../data/uiStorage";
 import { archivedSessions, attentionSessions, hideActionLabel, hiddenSessionCount, nonArchivedSessions, sessionFailed } from "../data/sidebarVisibility";
 import { booleanRecord } from "../data/preferenceShapes";
+import { currentShortcutLabel } from "../data/shortcutLabels";
 import "../styles/sidebar-menus.css";
 
 export interface SidebarPreferences { grouping: "project" | "list"; sort: "updated" | "name"; showRecent: boolean; showHidden: boolean; /** 显示独立「已归档」分组；关闭时归档会话完全不出现在侧栏。 */ showArchived: boolean; }
@@ -140,18 +141,18 @@ export function ProjectSidebar(props: Props) {
         <button className="workspace-brand" onClick={() => toggle("brand")} aria-haspopup="menu" aria-expanded={context?.key === "brand"}>BOSS Harness<IconChevronDown size={12} /></button>
         <Popover open={context?.key === "brand"} onClose={close} label="工作区选项">
           <div className="menu-label">招聘工作台</div>
-          <button onClick={() => { props.onNewTask(); close(); }}><IconNewChat />新聊天<span className="menu-shortcut">⌘N</span></button>
+          <button onClick={() => { props.onNewTask(); close(); }}><IconNewChat />新聊天<span className="menu-shortcut">{currentShortcutLabel("⌘N")}</span></button>
           <button onClick={() => { props.onNewProject(); close(); }}><IconFolder />新建项目</button>
           <div className="menu-divider" />
-          <button onClick={() => { props.onOpenSettings(); close(); }}><IconSettings />设置<span className="menu-shortcut">⌘,</span></button>
+          <button onClick={() => { props.onOpenSettings(); close(); }}><IconSettings />设置<span className="menu-shortcut">{currentShortcutLabel("⌘,")}</span></button>
         </Popover>
       </div>
       <div className="sidebar-header-actions">
         <button className={"titlebar-btn" + (props.pendingApprovals ? " has-badge" : "")} onClick={props.onNotifications} aria-label={approvalLabel ? `通知（${approvalLabel}）` : "通知"} title={approvalLabel ? `通知 · ${approvalLabel}` : "通知"}><IconNotification size={16} />{props.pendingApprovals && <span className="notification-badge" aria-hidden="true">{approvalBadgeText(props.pendingApprovals)}</span>}</button>
-        <button className="titlebar-btn" onClick={props.onSearch} aria-label="搜索聊天" title="搜索聊天 · ⌘K"><IconSearch size={16} /></button>
+        <button className="titlebar-btn" onClick={props.onSearch} aria-label="搜索聊天" title={`搜索聊天 · ${currentShortcutLabel("⌘K")}`}><IconSearch size={16} /></button>
       </div>
     </div>
-    <button className="sidebar-new-chat" onClick={props.onNewTask}><IconNewChat size={17} /><span>新聊天</span><kbd>⌘N</kbd></button>
+    <button className="sidebar-new-chat" onClick={props.onNewTask}><IconNewChat size={17} /><span>新聊天</span><kbd>{currentShortcutLabel("⌘N")}</kbd></button>
     <div className="sidebar-scroll">
       {attention.length > 0 && <section className="sidebar-section sidebar-attention-section"><h2>待你处理（{attention.length}）</h2>{sort(attention).map(session => sessionRow(session, "attention-"))}</section>}
       {pinnedSessions.length > 0 && <section className="sidebar-section"><h2>已置顶</h2>{sort(pinnedSessions).map(session => sessionRow(session, "pinned-"))}</section>}
