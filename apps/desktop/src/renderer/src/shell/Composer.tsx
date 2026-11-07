@@ -342,7 +342,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
       aria-activedescendant={slashListVisible && slashActiveIndex >= 0 ? `${slashListId}-option-${slashActiveIndex}` : undefined}
       ref={element => { inputRef.current = element; if (typeof forwardedRef === "function") forwardedRef(element); else if (forwardedRef) forwardedRef.current = element; }} rows={2}
       placeholder={archived ? "已归档，恢复后可继续对话" : isRunning ? queueIntent === "steering" ? "补充当前任务要求…" : "安排当前任务结束后的下一步…" : blocked ? "另一个任务正在运行，请等待完成" : "和 BOSS Harness 一起工作"}
-      title={history.length ? "↑ 调取上一条已发送消息 · ↓ 返回草稿 · Esc 退出历史" : undefined}
+      title={history.length ? "↑ 调取已发送消息：有输入时只在该前缀的消息间移动 · ↓ 返回草稿 · Esc 退出历史" : undefined}
       value={value} onChange={event => { recall.current = { index: -1, draft: "" }; change(event.target.value); }}
       onPaste={event => {
         const files = [...event.clipboardData.files];
@@ -372,6 +372,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
         const input = event.currentTarget;
         const direction = recallKeyDirection({
           key: event.key, selectionStart: input.selectionStart, selectionEnd: input.selectionEnd,
+          singleLine: !value.includes("\n"),
           shiftKey: event.shiftKey, altKey: event.altKey, metaKey: event.metaKey, ctrlKey: event.ctrlKey,
         }, browsing);
         if (direction) {

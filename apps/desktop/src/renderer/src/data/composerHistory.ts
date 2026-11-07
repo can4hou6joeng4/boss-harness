@@ -1,4 +1,5 @@
 import type { MessageItem } from "./mockData";
+import { searchText } from "./searchText";
 
 /**
  * 输入区的已发送消息历史。
@@ -15,6 +16,11 @@ export interface PromptRecallState {
   index: number;
   /** 进入历史前的草稿，回到 -1 时原样恢复。 */
   draft: string;
+  /**
+   * 前缀过滤词（已归一化）。进入历史时输入框非空且存在匹配才有值：此后上下键只在
+   * 以它开头的条目之间移动，而不是逐条翻阅全部历史。没有匹配时按普通历史浏览处理。
+   */
+  prefix?: string;
 }
 
 export interface PromptRecallResult {
@@ -40,26 +46,57 @@ export function recallablePrompts(messages: readonly RecallMessage[]): string[] 
 /**
  * ↑：空闲时从草稿进入最新一条并记住草稿；在历史中向更早移动。
  * 已在最早一条时保持原样，让原生光标行为继续生效。
+ *
+ * 输入框非空时优先前缀过滤：只在以当前内容开头的条目之间移动。一条都不匹配时
+ * 回退到逐条翻阅全部历史——按 ↑ 仍然有结果，草稿也照旧由 ↓ / Esc 恢复。
  */
 export function recallOlder(prompts: readonly string[], state: PromptRecallState, value: string): PromptRecallResult {
   const count = prompts.length;
   if (!count) return { state, text: value };
   // 历史在下一次渲染前缩短（例如发送后清空）时，回到空闲草稿，不用旧下标猜内容。
   if (state.index >= count) return { state: { index: -1, draft: state.draft }, text: value };
-  if (state.index === -1) return { state: { index: count - 1, draft: value }, text: prompts[count - 1] ?? value };
+  if (state.index === -1) {
+    const prefix = searchText(value.trim());
+    const index = prefix ? findMatchingPrompt(prompts, prefix, count - 1, -1) : -1;
+    if (index >= 0) return { state: { index, draft: value, prefix }, text: prompts[index] ?? value };
+    return { state: { index: count - 1, draft: value }, text: prompts[count - 1] ?? value };
+  }
+  if (state.prefix) {
+    const index = findMatchingPrompt(prompts, state.prefix, state.index - 1, -1);
+    return index < 0 ? { state, text: value } : { state: { ...state, index }, text: prompts[index] ?? value };
+  }
   if (state.index === 0) return { state, text: value };
   const index = state.index - 1;
   return { state: { index, draft: state.draft }, text: prompts[index] ?? value };
 }
 
-/** ↓：在历史中向更近移动；越过最新一条回到进入历史前的草稿。空闲时保持原样。 */
+/**
+ * ↓：在历史中向更近移动；越过最新一条回到进入历史前的草稿。空闲时保持原样。
+ * 前缀过滤时「最新一条」指匹配集中最新的一条，越过它同样恢复草稿。
+ */
 export function recallNewer(prompts: readonly string[], state: PromptRecallState, value: string): PromptRecallResult {
   const count = prompts.length;
   if (!count || state.index < 0) return { state, text: value };
   if (state.index >= count) return { state: { index: -1, draft: state.draft }, text: value };
+  if (state.prefix) {
+    const index = findMatchingPrompt(prompts, state.prefix, state.index + 1, 1);
+    return index < 0
+      ? { state: { index: -1, draft: state.draft }, text: state.draft }
+      : { state: { ...state, index }, text: prompts[index] ?? value };
+  }
   if (state.index === count - 1) return { state: { index: -1, draft: state.draft }, text: state.draft };
   const index = state.index + 1;
   return { state: { index, draft: state.draft }, text: prompts[index] ?? value };
+}
+
+/** 从 `from` 沿 `step` 方向找第一条以 `prefix` 开头的历史；找不到返回 -1。 */
+function findMatchingPrompt(prompts: readonly string[], prefix: string, from: number, step: 1 | -1): number {
+  for (let index = from; index >= 0 && index < prompts.length; index += step) {
+    const prompt = prompts[index];
+    // 与聊天内查找共用同一套 NFKC + 不区分大小写归一化，避免两处对同一关键词给出不同结果。
+    if (prompt !== undefined && searchText(prompt).startsWith(prefix)) return index;
+  }
+  return -1;
 }
 
 /**
@@ -79,6 +116,11 @@ export interface RecallKeyEvent {
   key: string;
   selectionStart: number | null;
   selectionEnd: number | null;
+  /**
+   * 输入框当前内容是否只有一行。单行时内容非空也可以从行内任意位置按 ↑：
+   * 多行编辑里的 ↑ 用于移动光标，单行没有这个用途，交给前缀搜索更合适。
+   */
+  singleLine: boolean;
   shiftKey: boolean;
   altKey: boolean;
   metaKey: boolean;
@@ -88,13 +130,14 @@ export interface RecallKeyEvent {
 /**
  * 箭头键是否交给历史调取。
  *
- * 空闲时只有「↑ + 无选区 + 光标在开头」进入历史，避免打断多行编辑中的正常移动；
- * 进入历史后上下键始终用于浏览，光标位置不再参与判定。⇧ / ⌥ / ⌘ / Ctrl 组合
- * 保留原生的选择、按词或按行移动。
+ * 空闲时只有「↑ + 无选区」才进入历史，且要求光标在开头或输入只有一行，避免打断
+ * 多行编辑中的正常移动；进入历史后上下键始终用于浏览，光标位置不再参与判定。
+ * ⇧ / ⌥ / ⌘ / Ctrl 组合保留原生的选择、按词或按行移动。
  */
 export function recallKeyDirection(event: RecallKeyEvent, browsing: boolean): "older" | "newer" | null {
   if (event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) return null;
-  if (event.key === "ArrowUp" && (browsing || (event.selectionStart === 0 && event.selectionEnd === 0))) return "older";
+  const collapsed = event.selectionStart !== null && event.selectionStart === event.selectionEnd;
+  if (event.key === "ArrowUp" && (browsing || (collapsed && (event.selectionStart === 0 || event.singleLine)))) return "older";
   if (event.key === "ArrowDown" && browsing) return "newer";
   return null;
 }
