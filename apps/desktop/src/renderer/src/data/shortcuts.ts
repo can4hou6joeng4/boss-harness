@@ -4,6 +4,8 @@ export interface CommandChordEvent {
   ctrlKey: boolean;
   shiftKey: boolean;
   altKey: boolean;
+  /** 键盘事件的标准方法；旧事件对象与测试替身可能没有。 */
+  getModifierState?: (key: string) => boolean;
 }
 
 /** 主修饰键所属平台：macOS 使用 Command，其余平台使用 Control。 */
@@ -43,8 +45,10 @@ export function currentCommandPlatform(): CommandPlatform {
  * `⌘ /` 永远无法触发。因此符号键在调用方未声明 shift 时只按字符匹配；
  * 显式声明 shift 时仍按声明精确匹配。
  *
- * AltGr 产生的符号（德语 `[` = AltGr+8）仍不匹配：Windows / Linux 上 AltGr 报告为
- * Ctrl+Alt，放宽 Alt 会让 Ctrl+Alt+字母 误触 Ctrl+字母，代价大于收益。
+ * AltGr 产生的符号（德语 `[` = AltGr+8、`]` = AltGr+9，法语 `[` = AltGr+5）在
+ * Windows / Linux 上报告为 Ctrl+Alt。事件明确标记 `AltGraph`、目标键是非字母符号且
+ * 调用方未声明 Alt 时放行；其余 Ctrl+Alt+符号 仍拒绝，避免把普通三键组合当成 ⌘ 组合。
+ * 显式声明 alt 时以声明为准，`⌘ ⌥ B` 的匹配不受影响。
  */
 export function isCommandChord(
   event: CommandChordEvent,
@@ -59,10 +63,16 @@ export function isCommandChord(
   const shiftMatches = symbolKey && modifiers.shift === undefined
     ? true
     : event.shiftKey === (modifiers.shift === true);
+  // AltGr 报告为 Ctrl+Alt；只认事件自带的 AltGraph 标记，且不覆盖显式 alt 声明。
+  const altGraph = platform === "other" && symbolKey && modifiers.alt === undefined
+    && event.altKey
+    && typeof event.getModifierState === "function"
+    && event.getModifierState("AltGraph") === true;
+  const altMatches = event.altKey === (modifiers.alt === true) || altGraph;
   return !foreign && command
     && event.key.toLowerCase() === key
     && shiftMatches
-    && event.altKey === (modifiers.alt === true);
+    && altMatches;
 }
 
 /** 通知面板快捷键：⌘⇧A（Windows / Linux 为 Ctrl+Shift+A）；带 Alt、缺少 Shift 或按下另一平台修饰键时不匹配。 */
