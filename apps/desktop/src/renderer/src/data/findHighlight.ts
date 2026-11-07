@@ -1,5 +1,13 @@
 import { kernelSearchText, kernelSearchTextWithMap, searchText, searchTextWithMap, type MappedSearchText } from "./searchText";
 
+/**
+ * 会话内查找保留的高亮区间总数上限。
+ *
+ * CSS Custom Highlight 一次挂载过多区间会拖慢滚动与输入；上限之外的命中不再逐处
+ * 高亮。计数文案与区间收集共用这个值，界面必须如实说明「仅前 N 处高亮」。
+ */
+export const FIND_HIGHLIGHT_LIMIT = 200;
+
 export interface TextRange { start: number; end: number }
 
 /** 在已归一化的文本中查找命中区间，并把偏移量还原到原文。 */
@@ -23,14 +31,14 @@ function scanRanges(mapped: MappedSearchText, needle: string, limit: number): Te
  * 在文本中查找所有命中区间，返回原文偏移量（不重叠，按出现顺序）。
  * 与 messageSearch 共用同一套整串 NFKC + 不区分大小写归一化，`limit` 限制单段文本的区间数。
  */
-export function findTextRanges(text: string, query: string, limit = 200): TextRange[] {
+export function findTextRanges(text: string, query: string, limit = FIND_HIGHLIGHT_LIMIT): TextRange[] {
   const needle = searchText(query).trim();
   if (!needle || limit <= 0) return [];
   return scanRanges(searchTextWithMap(text), needle, limit);
 }
 
 /** 标注内核搜索命中：内核使用逐码点 NFKC + casefold，与小写归一化在 `ß`/`ss` 等处不同。 */
-export function findKernelTextRanges(text: string, query: string, limit = 200): TextRange[] {
+export function findKernelTextRanges(text: string, query: string, limit = FIND_HIGHLIGHT_LIMIT): TextRange[] {
   const needle = kernelSearchText(query.trim());
   if (!needle || limit <= 0) return [];
   return scanRanges(kernelSearchTextWithMap(text), needle, limit);
@@ -115,11 +123,11 @@ function collectRanges(
 }
 
 /** 会话内查找的命中区间：与消息匹配共用整串 NFKC 小写归一化。 */
-export function collectTextRanges(root: Node, query: string, limit = 200): Range[] {
+export function collectTextRanges(root: Node, query: string, limit = FIND_HIGHLIGHT_LIMIT): Range[] {
   return collectRanges(root, (text, count) => findTextRanges(text, query, count), limit);
 }
 
 /** 跨会话搜索的命中区间：与内核搜索共用逐码点 NFKC + casefold 归一化。 */
-export function collectKernelTextRanges(root: Node, query: string, limit = 200): Range[] {
+export function collectKernelTextRanges(root: Node, query: string, limit = FIND_HIGHLIGHT_LIMIT): Range[] {
   return collectRanges(root, (text, count) => findKernelTextRanges(text, query, count), limit);
 }

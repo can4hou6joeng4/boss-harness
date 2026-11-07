@@ -32,7 +32,7 @@ import { findSeedFromSelection, isEditableTarget } from "../data/findSeed";
 import { mergeLocalMessageState } from "../data/messageMerge";
 import { retryBlockReason, retryRequestForMessage } from "../data/messageRetry";
 import { messageCopyText } from "../data/messageCopy";
-import { collectKernelTextRanges, collectTextRanges } from "../data/findHighlight";
+import { FIND_HIGHLIGHT_LIMIT, collectKernelTextRanges, collectTextRanges } from "../data/findHighlight";
 import { compactTitle, stripProjectPrefix } from "../data/sessionTitle";
 import { feedbackEntryKey, feedbackForThread, readStoredMessageFeedback, saveStoredMessageFeedback, withMessageFeedback, type MessageFeedbackChoice, type MessageFeedbackStore } from "../data/messageFeedback";
 
@@ -127,6 +127,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   const [findQuery, setFindQuery] = useState("");
   const [findCursor, setFindCursor] = useState<FindCursor>({ message: 0, offset: 0 });
   const [findCounts, setFindCounts] = useState<number[]>([]);
+  const [findCapped, setFindCapped] = useState(false);
   const [findDetails, setFindDetails] = useState(false);
   const [focusFlash, setFocusFlash] = useState<string | null>(null);
   const findMatches = useMemo(
@@ -185,18 +186,34 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
     const HighlightCtor = (globalThis as unknown as { Highlight?: new (...ranges: Range[]) => unknown }).Highlight;
     registry?.delete("find-match");
     registry?.delete("find-current");
-    if (!findOpen || !findQuery.trim()) { findScrollKey.current = ""; setFindCounts(previous => previous.length ? [] : previous); return; }
+    if (!findOpen || !findQuery.trim()) {
+      findScrollKey.current = "";
+      setFindCounts(previous => previous.length ? [] : previous);
+      setFindCapped(previous => previous ? false : previous);
+      return;
+    }
     const all: Range[] = [];
     const counts: number[] = [];
     let currentRange: Range | null = null;
+    // 多取一处判断「后面还有没有」：恰好用满上限且没有更多命中时不能误报截断。
+    let capped = false;
     for (const id of findMatches) {
       const root = document.getElementById("message-" + id);
+      const room = FIND_HIGHLIGHT_LIMIT - all.length;
       // 超出高亮上限或界面没有渲染出对应文本时，这条消息仍算一处，退化为消息级定位。
-      const ranges = root && all.length < 200 ? collectTextRanges(root, findQuery, 200 - all.length) : [];
+      if (!root || room <= 0) {
+        capped ||= Boolean(root);
+        counts.push(0);
+        if (id === currentFindId) currentRange = null;
+        continue;
+      }
+      const ranges = collectTextRanges(root, findQuery, room + 1);
+      if (ranges.length > room) { capped = true; ranges.length = room; }
       all.push(...ranges);
       counts.push(ranges.length);
       if (id === currentFindId) currentRange = ranges[cursor.offset] ?? null;
     }
+    setFindCapped(previous => previous === capped ? previous : capped);
     setFindCounts(previous => previous.length === counts.length && previous.every((count, index) => count === counts[index]) ? previous : counts);
     if (registry && HighlightCtor) {
       if (all.length) registry.set("find-match", new HighlightCtor(...all));
@@ -481,7 +498,9 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
           <input type="checkbox" checked={findDetails} onChange={event => { setFindDetails(event.target.checked); resetFindCursor(); }} />
           含工具、审批与思考
         </label>
-        <span className="thread-find-count" role="status" title="计数按命中处统计；同一消息内的多处命中可逐个跳转">{findStatusText({ query: findQuery, total: findStepCount, position: findPosition, detailHits: findDetailHits })}</span>
+        <span className="thread-find-count" role="status" title={findCapped
+          ? `计数按可停靠的位置统计；高亮上限为 ${FIND_HIGHLIGHT_LIMIT} 处，超出后不再逐处高亮，其后的匹配消息按消息定位`
+          : "计数按命中处统计；同一消息内的多处命中可逐个跳转"}>{findStatusText({ query: findQuery, total: findStepCount, position: findPosition, detailHits: findDetailHits, capped: findCapped, highlightLimit: FIND_HIGHLIGHT_LIMIT })}</span>
         <button type="button" disabled={!findMatches.length} onClick={() => stepFind(-1)}>上一个</button>
         <button type="button" disabled={!findMatches.length} onClick={() => stepFind(1)}>下一个</button>
         <button type="button" className="thread-find-close" aria-label="关闭查找" title="关闭查找（Esc）" onClick={closeFind}><IconClose size={14} /></button>
