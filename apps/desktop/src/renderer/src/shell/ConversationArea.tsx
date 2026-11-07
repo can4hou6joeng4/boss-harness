@@ -16,6 +16,7 @@ import type { ContextBranchSummary, ContextCompactJob, ContextEditReadResponse, 
 import { type MessageItem, type ConversationMode } from "../data/mockData";
 import type { SkillCatalogState, ApprovalDelivery, ApprovalOutcome } from "../data/harnessBridge";
 import { approvalBlockReason, approvalRejectionNotice } from "../data/approvalFailure";
+import { recallablePrompts } from "../data/composerHistory";
 import type { SessionReasoningControl } from "../data/useSessionReasoning";
 import type { QueueRefreshResult } from "../data/queueRefresh";
 import type { QueueActionOutcome } from "../data/queueAction";
@@ -103,6 +104,8 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   const updateDraft = onDraftChange ?? setLocalDraft;
   const inputText = composerDraft.text;
   const setInputText = (text: string) => updateDraft(previous => withDraftText(previous, text));
+  // 上下键调取的用户输入；会话切换时组件重新挂载，历史随当前会话重置。
+  const recallHistory = useMemo(() => recallablePrompts(messages), [messages]);
   const currentContinuationCheck = continuationCheck?.threadId === threadId ? continuationCheck : null;
   const currentModelRetry = !simulateLocal && modelRetry?.threadId === threadId ? modelRetry : undefined;
   const [approvalDrafts, setApprovalDrafts] = useState<Record<string, string>>({});
@@ -975,7 +978,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
           {archived && <div className="composer-notice archived-notice" role="status">此聊天已归档，可查看历史；在侧栏「已归档」中恢复后可继续对话。</div>}
           {loginGuide}
           {approvalError && <div className="composer-notice" role="alert">{approvalError}</div>}
-          <div className="thread-composer-input"><Composer ref={textareaRef} value={inputText} onChange={setInputText} onSend={onSendMessage} onQueue={simulateLocal ? undefined : onQueueMessage} onCheckQueueSubmission={simulateLocal ? undefined : onCheckQueueSubmission} draft={composerDraft} onDraftChange={updateDraft} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={onRefreshSkills} skillProblems={skillProblems}
+          <div className="thread-composer-input"><Composer ref={textareaRef} value={inputText} onChange={setInputText} onSend={onSendMessage} onQueue={simulateLocal ? undefined : onQueueMessage} onCheckQueueSubmission={simulateLocal ? undefined : onCheckQueueSubmission} draft={composerDraft} onDraftChange={updateDraft} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={onRefreshSkills} skillProblems={skillProblems} history={recallHistory}
             readOnly={readOnly} archived={archived} isRunning={running} blocked={taskBlocked} onInterrupt={onInterrupt} preview={simulateLocal}
             currentMode={currentMode} onModeChange={onModeChange} models={models} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel}
             onSelectModel={onSelectModel} sessionReasoning={sessionReasoning} onOpenSettings={onOpenSettings} onLogin={onLogin} /></div>

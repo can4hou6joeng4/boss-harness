@@ -12,6 +12,7 @@ import { attachmentFailureNotice, readTextAttachments } from "../data/attachment
 import type { SessionReasoningControl } from "../data/useSessionReasoning";
 import { createComposerDraft, clearTransferredDraft, composerSendResult, composedMessageText, MAX_MESSAGE_TEXT_LENGTH, type ComposerDraft, type UpdateComposerDraft, type ComposerSend, type ComposerSendOutcome, type ComposerQueue, type QueueIntent, type CheckQueueSubmission } from "../data/composerDraft";
 import { queueSkillNotice } from "../data/queueSkillNotice";
+import { recallKeyDirection, recallNewer, recallOlder, type PromptRecallState } from "../data/composerHistory";
 import "../styles/composer-menus.css";
 
 export interface ComposerProps {
@@ -26,6 +27,8 @@ export interface ComposerProps {
   onSelectModel?: (provider: string, id: string) => void | boolean | Promise<void | boolean>; onOpenSettings?: () => void;
   sessionReasoning?: SessionReasoningControl;
   skills?: SkillDescriptor[]; skillCatalogState?: SkillCatalogState; skillCatalogError?: string; onRefreshSkills?: () => void; skillProblems?: SkillProblem[];
+  /** 本会话已发送的用户输入（从旧到新）；空数组表示不启用上下键调取。 */
+  history?: readonly string[];
   home?: boolean;
   onLogin?: () => void;
 }
@@ -42,6 +45,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   onQueue, onCheckQueueSubmission,
   currentMode = "agent", onModeChange, models = [], activeModelProvider, activeModelId, configuredModelLabel, onSelectModel, onOpenSettings, home = false, onLogin,
   skills = [], skillCatalogState = "unavailable", skillCatalogError, onRefreshSkills, skillProblems = [],
+  history = [],
   sessionReasoning,
 }, forwardedRef) {
   const [menu, setMenu] = useState<"add" | "permissions" | "mode" | "model" | "skills" | null>(null);
@@ -66,6 +70,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   const [queueIntent, setQueueIntent] = useState<QueueIntent>("steering");
   const lastValue = useRef(value), valueVersion = useRef(0);
   if (lastValue.current !== value) { lastValue.current = value; valueVersion.current += 1; }
+  // 上下键调取历史的游标：-1 表示当前草稿，draft 保存进入历史前的输入。
+  const recall = useRef<PromptRecallState>({ index: -1, draft: "" });
   // 记录本组件最后写入的文本；父层或其他入口改写 value 后，已请求打开的快捷指令菜单立即失效。
   const ownedText = useRef(value);
   const composerDraft = draft && onDraftChange ? draft : { ...localDraft, text: value, textVersion: valueVersion.current };
@@ -89,6 +95,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     else if (alive.current) setLocalDraft(previous => change({ ...previous, text: lastValue.current, textVersion: valueVersion.current }));
   };
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  // 发送成功或外部清空输入后退出历史；下一次 ↑ 从最新一条重新开始。
+  useEffect(() => { if (!value) recall.current = { index: -1, draft: "" }; }, [value]);
   const dragDepth = useRef(0);
   const slashQuery = value.match(/^\/([^\s]*)$/)?.[1] ?? "";
   // 渲染时以当前 value 为准：建议词、编辑消息、恢复队列消息会绕过 change() 直接改写输入。
@@ -333,7 +341,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
       aria-activedescendant={slashListVisible && slashActiveIndex >= 0 ? `${slashListId}-option-${slashActiveIndex}` : undefined}
       ref={element => { inputRef.current = element; if (typeof forwardedRef === "function") forwardedRef(element); else if (forwardedRef) forwardedRef.current = element; }} rows={2}
       placeholder={archived ? "已归档，恢复后可继续对话" : isRunning ? queueIntent === "steering" ? "补充当前任务要求…" : "安排当前任务结束后的下一步…" : blocked ? "另一个任务正在运行，请等待完成" : "和 BOSS Harness 一起工作"}
-      value={value} onChange={event => change(event.target.value)}
+      title={history.length ? "↑ 调取上一条已发送消息 · ↓ 返回草稿 · Esc 退出历史" : undefined}
+      value={value} onChange={event => { recall.current = { index: -1, draft: "" }; change(event.target.value); }}
       onPaste={event => {
         const files = [...event.clipboardData.files];
         if (files.length) { event.preventDefault(); void addFiles(files); return; }
@@ -355,6 +364,33 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
             setSlashOpen(false);
           }
           if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setSlashOpen(false); return; }
+        }
+        // 上下键调取已发送消息：↑ 从草稿进入最新一条并向更早移动，↓ 向更近移动并最终恢复草稿。
+        // 带修饰键时保留原生的选择与按词移动；输入法组合期间由上面的 composing 判断提前返回。
+        const browsing = recall.current.index !== -1;
+        const input = event.currentTarget;
+        const direction = recallKeyDirection({
+          key: event.key, selectionStart: input.selectionStart, selectionEnd: input.selectionEnd,
+          shiftKey: event.shiftKey, altKey: event.altKey, metaKey: event.metaKey, ctrlKey: event.ctrlKey,
+        }, browsing);
+        if (direction) {
+          const next = direction === "older" ? recallOlder(history, recall.current, value) : recallNewer(history, recall.current, value);
+          if (next.text !== value || next.state.index !== recall.current.index) {
+            event.preventDefault();
+            recall.current = next.state;
+            writeText(next.text); setNotice(""); setSelectedIndex(0); setSlashOpen(false);
+            const atEnd = direction === "newer";
+            requestAnimationFrame(() => { const area = inputRef.current; if (area) { const position = atEnd ? area.value.length : 0; area.setSelectionRange(position, position); } });
+          }
+          return;
+        }
+        if (event.key === "Escape" && browsing) {
+          event.preventDefault(); event.stopPropagation();
+          const draft = recall.current.draft;
+          recall.current = { index: -1, draft: "" };
+          change(draft);
+          requestAnimationFrame(() => { const area = inputRef.current; if (area) area.setSelectionRange(area.value.length, area.value.length); });
+          return;
         }
         if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); }
       }} />
