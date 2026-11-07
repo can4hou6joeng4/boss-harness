@@ -62,6 +62,19 @@ export function recallNewer(prompts: readonly string[], state: PromptRecallState
   return { state: { index, draft: state.draft }, text: prompts[index] ?? value };
 }
 
+/**
+ * 输入框文本变化后如何收敛历史游标。
+ *
+ * `owned` 是输入区最近一次自己写回的文本：只有历史调取（以及同源的快捷指令补全）
+ * 会同步它。其余变化来自「编辑消息」「恢复队列消息」或父层清空，当前内容已经不是
+ * 调取的那一条，旧下标与进入历史前的草稿都不再对应输入框。继续保留会让下一次 ↑
+ * 覆盖新填入的正文，Esc 也会用旧草稿替换它，因此必须回到空闲态。
+ */
+export function recallAfterValueChange(state: PromptRecallState, value: string, owned: string): PromptRecallState {
+  if (state.index === -1 || value === owned) return state;
+  return { index: -1, draft: "" };
+}
+
 export interface RecallKeyEvent {
   key: string;
   selectionStart: number | null;
