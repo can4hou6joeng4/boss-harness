@@ -8,6 +8,7 @@ import type { SkillCatalogState, ToolCatalogState } from "../data/harnessBridge"
 import { WorkspaceSkills } from "../components/WorkspaceSkills";
 import { WorkspaceInstructionsSection } from "../components/WorkspaceInstructionsSection";
 import { collectLibraryFiles, collectLibrarySources, filterLibraryFiles, filterLibrarySources, formatSourceQueriedAt, shortLibraryId } from "../data/libraryFiles";
+import { formatRelativeTime } from "@boss-harness/shared";
 import type { WorkspacePage } from "./NavigationRail";
 interface Props { page: WorkspacePage; folders: ProjectFolder[]; messages: MessageItem[]; onSelect: (session: SessionItem) => void; onNewTask: () => void; onDraft: (text: string) => void; tools: ToolDescriptor[]; toolCatalogState: ToolCatalogState; toolCatalogError: string; skills: SkillDescriptor[]; skillCatalogState: SkillCatalogState; skillCatalogError?: string; onRefreshSkills: () => void; skillsReadable: boolean; skillsCreatable: boolean; skillsWritable: boolean; skillsDeletable: boolean; skillRoot?: string | null; skillProblems: SkillProblem[]; onUseSkill: (skillId: string) => void; workspaceInstructionsEditable: boolean; harnessUp: boolean; preview: boolean; focusSkillId?: string | null; onFocusSkill?: () => void; }
 export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, onDraft, tools, toolCatalogState, toolCatalogError, skills, skillCatalogState, skillCatalogError = "", onRefreshSkills, skillsReadable, skillsCreatable, skillsWritable, skillsDeletable, skillRoot = null, skillProblems = [], onUseSkill, workspaceInstructionsEditable, harnessUp, preview, focusSkillId = null, onFocusSkill }: Props) {
@@ -28,7 +29,7 @@ export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, o
   };
   const recentRows = sessionRows(folders, query);
   if (page === "recents") return <div className="workspace-page" data-screen-label="最近聊天"><div className="page-heading"><div><h1>最近聊天</h1><p>从上次停下的地方继续。</p></div><button className="subtle-button" onClick={onNewTask}><IconPlus size={15} />新聊天</button></div><div className="page-search"><IconSearch size={16} /><input aria-label="筛选最近聊天" placeholder="搜索聊天…" value={query} onChange={event => setQuery(event.target.value)} /></div>
-    <div className="recent-table">{recentRows.map(({ session, project }) => <button className="recent-row" key={session.id} onClick={() => onSelect(session)}><span className="recent-row-icon"><IconHistory size={18} /></span><span><strong>{session.title}</strong><small>{project}</small></span><time dateTime={session.updatedAt}>{session.timeAgo}</time><IconChevronRight size={14} /></button>)}
+    <div className="recent-table">{recentRows.map(({ session, project }) => <button className="recent-row" key={session.id} onClick={() => onSelect(session)}><span className="recent-row-icon"><IconHistory size={18} /></span><span><strong>{session.title}</strong><small>{project}</small></span><time dateTime={session.updatedAt}>{session.updatedAt ? formatRelativeTime(session.updatedAt) : session.timeAgo}</time><IconChevronRight size={14} /></button>)}
     {!recentRows.length && <p className="page-empty-note">{query.trim() ? "没有找到匹配的聊天" : "还没有聊天，创建一个任务开始吧"}</p>}</div></div>;
   if (page === "library") {
     const files = collectLibraryFiles(messages);

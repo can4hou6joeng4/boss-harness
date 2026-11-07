@@ -9,6 +9,7 @@ import { splitKernelHighlight } from "../data/findHighlight";
 import { visibleThreadSearchHits, type ThreadSearchBatch } from "../data/messageSearch";
 import { searchThreadMessages } from "../data/harnessBridge";
 import { clearRecentSearches, readRecentSearches, rememberRecentSearch, RECENT_SEARCH_MIN_LENGTH } from "../data/recentSearches";
+import { formatRelativeTime } from "@boss-harness/shared";
 
 /** 用 `mark` 标出关键词；无命中时原样输出。内核命中片段按内核的 casefold 归一化标注。 */
 function Highlighted({ text, query }: { text: string; query: string }) {
@@ -123,7 +124,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
         </>}
         {sessionOptions.map(option => {
           const { row } = option;
-          return <button type="button" key={option.key} {...optionProps(option)}><IconChat size={17} /><span><strong><Highlighted text={row.session.title} query={query} /></strong><small>{row.session.archived === true ? "已归档 · " : ""}{row.project} · {row.session.timeAgo}</small></span><IconChevronRight size={13} /></button>;
+          return <button type="button" key={option.key} {...optionProps(option)}><IconChat size={17} /><span><strong><Highlighted text={row.session.title} query={query} /></strong><small>{row.session.archived === true ? "已归档 · " : ""}{row.project} · {row.session.updatedAt ? formatRelativeTime(row.session.updatedAt) : row.session.timeAgo}</small></span><IconChevronRight size={13} /></button>;
         })}
       </div>
       {!sessionOptions.length && !messageOptions.length && messageState !== "loading" && <div className="search-empty"><IconSearch size={28} /><strong>{empty.title}</strong><span>{empty.hint}</span></div>}
