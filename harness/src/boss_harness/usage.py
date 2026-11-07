@@ -38,7 +38,7 @@ def _int(value: Any) -> bool:
 
 def verify_usage(provider: Any, usage: Any) -> tuple[dict | None, str | None]:
     """Return (normalized usage, None) or (None, reason)."""
-    if provider not in _REPORTED:
+    if not isinstance(provider, str) or provider not in _REPORTED:
         return None, "unknownProvider"
     if usage is None:
         return None, "missing"
@@ -149,8 +149,8 @@ def _job_metadata(entry_type: str, payload: dict) -> dict:
     origin = payload.get("origin")
     return {"kind": "compaction", "turnId": _identifier(payload.get("turnId")),
             "throughTurnId": _identifier(payload.get("throughTurnId")),
-            "reason": reason if reason in {"threshold", "budget", "overflow"} else None,
-            "origin": origin if origin in {"user", "model"} else None}
+            "reason": reason if isinstance(reason, str) and reason in {"threshold", "budget", "overflow"} else None,
+            "origin": origin if isinstance(origin, str) and origin in {"user", "model"} else None}
 
 
 def summarize_usage(entries: Iterable[dict], active_turn_ids: set[str] | None = None,

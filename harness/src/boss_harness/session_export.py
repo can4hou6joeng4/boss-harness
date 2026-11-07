@@ -520,7 +520,8 @@ class _Exporter:
             anchor = payload.get("throughTurnId")
             if not isinstance(anchor, str) or anchor not in self.positions:
                 continue
-            origin = payload.get("origin") if payload.get("origin") in {"model", "user"} else "unknown"
+            source = payload.get("origin")
+            origin = source if isinstance(source, str) and source in {"model", "user"} else "unknown"
             after.setdefault(anchor, []).append({
                 "kind": "compactionSummary", "origin": origin, "entryId": entry.get("id"),
                 "label": {"model": "模型生成的上下文压缩摘要（原始记录仍保留）",
@@ -528,7 +529,8 @@ class _Exporter:
                               origin, "来源未知的上下文压缩摘要（原始记录仍保留）"),
                 "createdAt": entry.get("timestamp"), "text": self.redactor.text(payload.get("summary")),
                 "summaryJobId": _identifier(payload.get("summaryJobId")),
-                "reason": payload.get("reason") if payload.get("reason") in _JOB_REASON else None})
+                "reason": payload.get("reason") if isinstance(payload.get("reason"), str)
+                and payload["reason"] in _JOB_REASON else None})
         units: list[tuple[str, dict]] = [("", unit) for unit in after.get(None, [])]
         for index, turn in enumerate(self.turns):
             turn_id = turn["turnId"]
@@ -601,7 +603,8 @@ class _Exporter:
             queue_id = payload.get("id")
             if not isinstance(queue_id, str) or not queue_id or len(queue_id) > 120:
                 continue
-            if payload.get("status") not in {"queued", "delivering", "paused", "cancelled"}:
+            if not isinstance(payload.get("status"), str) or payload["status"] not in {
+                    "queued", "delivering", "paused", "cancelled"}:
                 continue
             latest[queue_id] = (str(entry.get("timestamp") or ""), payload)
         ordered = sorted(latest.items(), key=lambda pair: (pair[1][0], pair[0]))
@@ -624,7 +627,7 @@ class _Exporter:
             failure = payload.get("failureCode")
             items.append({
                 "queueId": queue_id,
-                "kind": kind if kind in {"steering", "followUp"} else "unknown",
+                "kind": kind if isinstance(kind, str) and kind in {"steering", "followUp"} else "unknown",
                 "status": payload["status"],
                 "input": self.redactor.text(payload.get("input"), limit=MAX_QUEUE_INPUT_CHARS) or "",
                 "skillCount": len(skill_ids),

@@ -686,7 +686,7 @@ class ContextService:
             summary, anchor = payload.get("summary"), payload.get("targetTurnId")
             abandoned = payload.get("abandonedTurnIds")
             if (not isinstance(summary, str) or not summary.strip() or len(summary) > MAX_BRANCH_SUMMARY_CHARS
-                    or (anchor is not None and anchor not in positions)
+                    or (anchor is not None and (not isinstance(anchor, str) or anchor not in positions))
                     or not isinstance(abandoned, list) or not abandoned
                     or not all(isinstance(turn_id, str) for turn_id in abandoned)):
                 # A damaged optional summary never hides original records.

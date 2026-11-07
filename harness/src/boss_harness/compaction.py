@@ -124,5 +124,6 @@ class CompactionPolicy:
                        value.get("triggerPercent", base.get("triggerPercent", 80)),
                        value.get("keepRecentTokens", base.get("keepRecentTokens", 20_000)),
                        value.get("provider"), value.get("model"), value.get("effort"))
-        except (TypeError, ValueError, UnicodeError):
+        except (TypeError, ValueError, UnicodeError, RecursionError):
+            # 4096 字节以内仍可容纳上千层嵌套数组；json 模块对过深输入抛 RecursionError。
             raise ValueError("BOSS_HARNESS_COMPACTION 配置无效；请检查自动压缩字段与类型") from None
