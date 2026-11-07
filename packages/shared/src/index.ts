@@ -2,10 +2,25 @@
  * 跨包共享的小工具。对应 Codex 的 shared-node。
  */
 
-export function formatRelativeTime(iso: string): string {
+const pad2 = (part: number) => String(part).padStart(2, "0");
+
+/**
+ * 本机时区的补零日期 `YYYY-MM-DD`。与桌面 `timeFormat` 的日期时间同一约定，
+ * 不依赖 ICU 区域数据，避免英文或其他区域给出 `10/9/2026` 一类格式。
+ */
+export function formatLocalDate(at: Date): string {
+  return `${at.getFullYear()}-${pad2(at.getMonth() + 1)}-${pad2(at.getDate())}`;
+}
+
+/**
+ * 相对时间：不足 1 分钟为「刚刚」，其后按分钟 / 小时 / 天取整；满 30 天回退本机日期
+ * `YYYY-MM-DD`。`now` 让调用方与离线验证固定参考时刻，缺省取当前时间。
+ */
+export function formatRelativeTime(iso: string, now: number = Date.now()): string {
   const then = Date.parse(iso);
   if (Number.isNaN(then)) return "";
-  const seconds = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  const reference = Number.isFinite(now) ? now : Date.now();
+  const seconds = Math.max(0, Math.floor((reference - then) / 1000));
   if (seconds < 60) return "刚刚";
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes} 分钟前`;
@@ -13,7 +28,7 @@ export function formatRelativeTime(iso: string): string {
   if (hours < 24) return `${hours} 小时前`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days} 天前`;
-  return new Date(then).toLocaleDateString("zh-CN");
+  return formatLocalDate(new Date(then));
 }
 
 /**
