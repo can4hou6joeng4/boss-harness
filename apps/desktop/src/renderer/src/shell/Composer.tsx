@@ -12,7 +12,7 @@ import { attachmentFailureNotice, readTextAttachments } from "../data/attachment
 import type { SessionReasoningControl } from "../data/useSessionReasoning";
 import { createComposerDraft, clearTransferredDraft, composerSendResult, composedMessageText, MAX_MESSAGE_TEXT_LENGTH, type ComposerDraft, type UpdateComposerDraft, type ComposerSend, type ComposerSendOutcome, type ComposerQueue, type QueueIntent, type CheckQueueSubmission } from "../data/composerDraft";
 import { queueSkillNotice } from "../data/queueSkillNotice";
-import { recallKeyDirection, recallNewer, recallOlder, type PromptRecallState } from "../data/composerHistory";
+import { recallAfterValueChange, recallKeyDirection, recallNewer, recallOlder, type PromptRecallState } from "../data/composerHistory";
 import "../styles/composer-menus.css";
 
 export interface ComposerProps {
@@ -95,8 +95,9 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     else if (alive.current) setLocalDraft(previous => change({ ...previous, text: lastValue.current, textVersion: valueVersion.current }));
   };
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  // 发送成功或外部清空输入后退出历史；下一次 ↑ 从最新一条重新开始。
-  useEffect(() => { if (!value) recall.current = { index: -1, draft: "" }; }, [value]);
+  // 外部改写（编辑消息、恢复队列消息、发送后清空）会让历史游标与草稿失去对应关系，
+  // 统一由共享判定退出历史；本组件自己写回的文本仍保留浏览位置。
+  useEffect(() => { recall.current = recallAfterValueChange(recall.current, value, ownedText.current); }, [value]);
   const dragDepth = useRef(0);
   const slashQuery = value.match(/^\/([^\s]*)$/)?.[1] ?? "";
   // 渲染时以当前 value 为准：建议词、编辑消息、恢复队列消息会绕过 change() 直接改写输入。
