@@ -3,15 +3,14 @@ import { ModalSurface } from "./ModalSurface";
 import type { MessageItem } from "../data/mockData";
 import { isSettledTurn, type BranchSupport, type SessionBranchState } from "../data/useSessionBranches";
 import { compactTitle } from "../data/sessionTitle";
-import { formatLocalDateTime } from "../data/timeFormat";
+import { formatIsoDateTime } from "../data/timeFormat";
 import type { ThreadBranchEndpoint } from "@boss-harness/protocol";
 
 type Target = BranchTarget;
 
+/** 分支端点时间只接受完整 ISO；坏值不显示时间，避免 `new Date` 把 `"1"` 猜成 2001 年。 */
 function timeOf(value: string | null | undefined): string {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : formatLocalDateTime(date);
+  return formatIsoDateTime(value);
 }
 function clip(text: string | null | undefined, fallback: string): string {
   return compactTitle(text, 80, fallback);
