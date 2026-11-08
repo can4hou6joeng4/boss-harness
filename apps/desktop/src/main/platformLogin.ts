@@ -3,6 +3,7 @@ import { BrowserWindow, WebContentsView, session, type Session } from "electron"
 import type { PlatformLoginStatus, PlatformLoginContext } from "@boss-harness/protocol";
 import { isLoginVerificationUrl, isOfficialLoginUrl, loginCaptureReadiness, loginViewBounds } from "./security";
 import { loginFailureDetail, loginViewGoneSummary } from "./loginFailure";
+import { selectLoginCookies } from "./loginCookies";
 
 type Attempt = PlatformLoginStatus & { id?: string };
 type Request = <T>(method: string, params?: unknown) => Promise<T>;
@@ -180,13 +181,12 @@ export class PlatformLogin {
       if (generation !== this.generation || this.status.state !== "waiting") return;
       if (view.webContents.isDestroyed()) return;
       if (view.webContents.getURL() !== url) { this.scheduleCapture(generation); return; }
-      const cookies: Record<string, string> = Object.create(null);
-      for (const cookie of values) {
-        const domain = cookie.domain?.replace(/^\./, "").toLowerCase();
-        if (domain !== "zhipin.com" && domain !== "www.zhipin.com") continue;
-        if (cookies[cookie.name] !== undefined && cookies[cookie.name] !== cookie.value) throw new Error("conflicting cookies");
-        cookies[cookie.name] = cookie.value;
+      const selection = selectLoginCookies(values);
+      if (selection.superseded) {
+        // 只记录条数；同名 cookie 的域与路径虽不含凭据，也无需写进日志。
+        console.warn("platform login ignored same-name cookies", selection.superseded);
       }
+      const cookies = selection.cookies;
       // QR confirmation can set wt2 before navigation and token generation
       // finish. Both job-seeker and recruiter accounts can connect; the page
       // identity is a hint, never proof of access to recruiter tools.
