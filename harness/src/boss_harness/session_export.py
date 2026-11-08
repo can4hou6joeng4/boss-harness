@@ -250,9 +250,14 @@ def _pagination(value: Any) -> dict | None:
     return out
 
 
+def _inline_text(value: Any) -> str:
+    """Neutralise Markdown delimiters in a single line of platform/user-supplied text."""
+    return str(value).replace("`", "'").replace("\r", " ").replace("\n", " ")
+
+
 def _inline_code(value: Any) -> str:
-    """A code span that cannot be broken by backticks or newlines in platform-supplied text."""
-    return "`" + str(value).replace("`", "'").replace("\n", " ") + "`"
+    """A code span that cannot be broken by backticks or line breaks in platform-supplied text."""
+    return "`" + _inline_text(value) + "`"
 
 
 def _duration_text(ms: int) -> str:
@@ -718,11 +723,12 @@ def _render_unit(unit: dict, view_log: bool) -> str:
     if kind == "turn":
         lines = [f"## 回合 {unit['index']} · {_inline_code(unit['turnId'])} · "
                  f"{_turn_status_label(unit['status'])}", ""]
-        meta = [f"开始：{unit['startedAt'] or '—'}", f"结束：{unit['completedAt'] or '—'}"]
+        meta = [f"开始：{_inline_text(unit['startedAt'] or '—')}",
+                f"结束：{_inline_text(unit['completedAt'] or '—')}"]
         if "durationMs" in unit:
             meta.append(f"用时：{_duration_text(unit['durationMs'])}（{unit['durationMs']} 毫秒）")
         if unit["model"]:
-            meta.append(f"模型：{unit['provider'] or '—'} / {unit['model']}")
+            meta.append(f"模型：{_inline_text(unit['provider'] or '—')} / {_inline_text(unit['model'])}")
         if view_log:
             meta.append("在当前分支：" + ("是" if unit["onCurrentBranch"] else "否（已切离的分支）"))
         if unit["failureCode"]:
@@ -739,11 +745,12 @@ def _render_unit(unit: dict, view_log: bool) -> str:
         parts = [title, "", _fence(unit["text"] or "（空）")]
         if unit["attachments"]:
             parts.append("\n附件 " + str(len(unit["attachments"])) + " 个（文件名与内容未导出）："
-                         + "、".join(f"{a['mediaType'] or '未知类型'} {a['bytes'] if a['bytes'] is not None else '?'} 字节"
+                         + "、".join(f"{_inline_text(a['mediaType'] or '未知类型')} "
+                                    f"{a['bytes'] if a['bytes'] is not None else '?'} 字节"
                                     for a in unit["attachments"]))
         return "\n".join(parts)
     if kind == "modelOutput":
-        status = "" if unit["status"] == "completed" else f"（状态：{unit['status']}，可能不完整）"
+        status = "" if unit["status"] == "completed" else f"（状态：{_inline_text(unit['status'])}，可能不完整）"
         parts = [f"### 模型输出（模型判断，未经平台核实）{status}", "", _fence(unit["text"] or "（无文本）")]
         if unit["thinkingCharacters"]:
             parts.append(f"\n模型推理内容 {unit['thinkingCharacters']} 字符，未导出。")
@@ -752,7 +759,8 @@ def _render_unit(unit: dict, view_log: bool) -> str:
         execution = unit["execution"]
         lines = [f"### 工具调用 {_inline_code(unit['toolName'])} — {execution['label']}", ""]
         executed = {True: "是", False: "否", None: "未知，需核对平台状态"}[execution["executed"]]
-        lines.append(f"- 执行状态：`{execution['state']}`（记录状态 `{unit['status']}`）；已执行：{executed}"
+        lines.append(f"- 执行状态：{_inline_code(execution['state'])}"
+                     f"（记录状态 {_inline_code(unit['status'])}）；已执行：{executed}"
                      + ("；外部写操作" if execution["externalWrite"] else "；只读"))
         if "durationMs" in unit:
             lines.append(f"- 耗时：{_duration_text(unit['durationMs'])}（{unit['durationMs']} 毫秒）")
@@ -761,20 +769,21 @@ def _render_unit(unit: dict, view_log: bool) -> str:
             decision = _approval_label(approval.get("decision"))
             line = f"- 审批：{decision}"
             if approval["decidedAt"]:
-                line += f"（{approval['decidedAt']}）"
+                line += f"（{_inline_text(approval['decidedAt'])}）"
             elif approval.get("deadline"):
                 line += f"（审批期限：{approval['deadline']}）"
             lines.append(line)
         if unit["errorCode"]:
             lines.append(f"- 错误码：{_inline_code(unit['errorCode'])}")
         if unit["recoveryAction"]:
-            lines.append(f"- 恢复建议：{unit['recoveryAction']}")
+            lines.append(f"- 恢复建议：{_inline_text(unit['recoveryAction'])}")
         if unit.get("source"):
-            lines.append("- 来源：" + "；".join(f"{key}={value}" for key, value in unit["source"].items()))
+            lines.append("- 来源：" + "；".join(f"{key}={_inline_text(value)}"
+                                              for key, value in unit["source"].items()))
         if unit["arguments"]:
-            lines.append("- 参数：" + "，".join(f"{key}={json.dumps(value, ensure_ascii=False)}"
+            lines.append("- 参数：" + "，".join(f"{_inline_text(key)}={json.dumps(value, ensure_ascii=False)}"
                                               if not (isinstance(value, str) and value.startswith(OMITTED))
-                                              else f"{key}={value}"
+                                              else f"{_inline_text(key)}={value}"
                                               for key, value in unit["arguments"].items()))
         result = unit["result"]
         if result is None:
@@ -785,27 +794,23 @@ def _render_unit(unit: dict, view_log: bool) -> str:
             lines.append(_fence(result["text"], "json"))
         else:
             facts = _result_facts(result)
-            lines.append("- 结果（仅结构与状态，明文已省略）：" + "；".join(facts))
+            lines.append("- 结果（仅结构与状态，明文已省略）：" + _inline_text("；".join(facts)))
         return "\n".join(lines)
     if kind in {"branchSummary", "compactionSummary"}:
         extra = ""
         if kind == "branchSummary" and unit.get("abandonedTurnCount"):
             extra = f"；被放弃回合 {unit['abandonedTurnCount']} 个"
         if unit.get("summaryModel"):
-            extra += f"；摘要模型 {unit['summaryModel']}"
+            extra += f"；摘要模型 {_inline_text(unit['summaryModel'])}"
         if unit.get("summaryJobId"):
             extra += f"；摘要任务 {_inline_text(unit['summaryJobId'])}"
         if unit.get("reason") in _JOB_REASON:
             extra += f"；{_JOB_REASON[unit['reason']]}"
-        return "\n".join([f"### {unit['label']}", "", f"- 生成时间：{unit.get('createdAt') or '—'}{extra}",
+        return "\n".join([f"### {unit['label']}", "",
+                          f"- 生成时间：{_inline_text(unit.get('createdAt') or '—')}{extra}",
                           "- 其中平台事实以原始工具结果为准，结论与推断属于模型判断。", "",
                           _fence(unit["text"] or "（空）")])
     return ""
-
-
-def _inline_text(value: Any) -> str:
-    """Neutralise Markdown delimiters in a single line of platform/user-supplied text."""
-    return str(value).replace("`", "'").replace("\r", " ").replace("\n", " ")
 
 
 _QUEUE_STATUS = {"queued": "排队中", "delivering": "正在投递", "paused": "已暂停", "cancelled": "已撤回"}
@@ -868,7 +873,7 @@ def _render_queue_markdown(queue: dict) -> str:
         parts += [f"### {_queue_heading(item)}", ""]
         facts = _queue_facts(item, code=True)
         if facts:
-            parts += ["- " + "；".join(facts), ""]
+            parts += ["- " + _inline_text("；".join(facts)), ""]
         parts += [_fence(item["input"] or "（空）"), ""]
     return "\n".join(parts).rstrip()
 
