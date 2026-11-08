@@ -565,7 +565,12 @@ class ContextService:
         if [item["id"] for turn in turns for item in by_turn[turn["turnId"]]] != [item["id"] for item in items]:
             raise ValueError("回合条目交错，无法在完整回合边界压缩")
         positions = {turn["turnId"]: index for index, turn in enumerate(turns)}
-        checkpoint = self._validated_checkpoint(thread_id, entries, items=items, turns=turns)
+        try:
+            checkpoint = self._validated_checkpoint(thread_id, entries, items=items, turns=turns)
+        except ValueError:
+            # 与 context/read 一致：失效摘要不生效，压缩从完整历史重新开始。
+            # 旧检查点保留在记录中，新检查点提交后取代它，用户因此有恢复路径。
+            checkpoint = None
         previous_index = -1
         if checkpoint is not None:
             previous_turn = checkpoint["payload"]["throughTurnId"]
