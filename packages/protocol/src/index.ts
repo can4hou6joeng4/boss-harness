@@ -1019,6 +1019,8 @@ export interface ContextReadResponse extends ContextBudget {
     summaryModel?: string;
     summaryEffort?: string | null;
   }) | null;
+  /** 最近一条摘要检查点未生效的原因；此时完整原文已重新进入模型上下文。旧内核不返回。 */
+  checkpointIssue?: string;
   usage: Record<string, unknown> | null;
   summaryUsage?: Record<string, unknown> | null;
   lastBudget?: ContextBudget & { turnId: string } | null;
