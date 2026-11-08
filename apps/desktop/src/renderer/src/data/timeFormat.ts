@@ -12,6 +12,24 @@ import { formatLocalDate } from "@boss-harness/shared";
 
 const pad = (part: number) => String(part).padStart(2, "0");
 
+// 内核输出形如 `2026-11-05T08:00:00.123456+00:00`；演示与导出数据也用 `Z`。
+const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * 严格解析内核与持久记录中的 ISO 日期时间。
+ *
+ * `Date.parse` 会把 `"1"`、`"2026"`、只有日期的字符串或带空格的本地时间都猜成具体
+ * 时刻；这里只接受带秒与时区的完整 ISO 时间，缺失、空白或无法解析时返回 null。
+ * 工具来源、回合耗时、用量行与会话排序共用这一判定，同一时间在各界面得到相同结论。
+ */
+export function parseIsoDateTime(value: unknown): Date | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!ISO_DATE_TIME.test(trimmed)) return null;
+  const at = new Date(trimmed);
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
 /** 本机时区的完整日期时间：`YYYY-MM-DD HH:mm`。 */
 export function formatLocalDateTime(at: Date): string {
   return `${formatLocalDate(at)} ${pad(at.getHours())}:${pad(at.getMinutes())}`;

@@ -1,4 +1,5 @@
 import type { ProjectFolder, SessionItem } from "./mockData";
+import { parseIsoDateTime } from "./timeFormat";
 
 export interface SessionRow { session: SessionItem; project: string; }
 export interface SessionRowOptions { includeArchived?: boolean }
@@ -7,10 +8,8 @@ export function sessionRows(folders: ProjectFolder[], query = "", options: Sessi
   const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase("zh-CN");
   const keywords = normalize(query).trim().split(/\s+/).filter(Boolean);
   const seen = new Set<string>();
-  const timestamp = (session: SessionItem) => {
-    const value = session.updatedAt ? Date.parse(session.updatedAt) : 0;
-    return Number.isFinite(value) ? value : 0;
-  };
+  // 坏时间与缺失时间同样按 0 处理，落到列表末尾；不再被 Date.parse 猜成 2001 年之类的位置。
+  const timestamp = (session: SessionItem) => parseIsoDateTime(session.updatedAt)?.getTime() ?? 0;
   return folders.flatMap(folder => folder.sessions.map(session => ({ session, project: folder.name })))
     .filter(row => {
       // 已归档聊天默认只在侧栏「已归档」分组出现；只有显式要求时才纳入全局搜索。
