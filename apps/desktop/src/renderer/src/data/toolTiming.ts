@@ -24,10 +24,17 @@ export function toolDurationMs(value: unknown): number | undefined {
   return validTime(value) ? value : undefined;
 }
 
+/**
+ * 尚未产生完成耗时的状态：排队、等待审批、已批准未开始、执行中、未获批准与未执行。
+ * 这些状态即使条目误带 `durationMs`，也不能显示成一次已完成的执行。
+ */
+const NON_TERMINAL_STATES: ReadonlySet<NonNullable<ToolTimingInput["executionState"]>> =
+  new Set(["queued", "pending_approval", "approved", "executing", "not_approved", "not_executed"]);
+
 /** 已完成工具的内核 / 回退耗时文案；运行中、等待审批与未执行不返回，供复制与导出复用。 */
 export function toolCompletedTimingLabel(toolUse: ToolTimingInput): string | null {
-  // 未获批准或未执行的调用没有执行耗时；即使条目误带内核耗时也不显示成一次执行。
-  if (toolUse.executionState === "not_approved" || toolUse.executionState === "not_executed") return null;
+  // 未进入执行、仍在执行或明确未执行的调用没有完成耗时；即使条目误带内核耗时也不显示成一次执行。
+  if (toolUse.executionState && NON_TERMINAL_STATES.has(toolUse.executionState)) return null;
   const duration = toolDurationMs(toolUse.durationMs);
   if (duration !== undefined) return `耗时 ${formatDuration(duration)}`;
   if (toolUse.endedAt === undefined) return null;
@@ -42,10 +49,17 @@ export function toolTimingLabel(toolUse: ToolTimingInput, now = Date.now()): str
   // 有结束时间但时间非法或倒序时不回退成「已运行」，避免显示虚假时长。
   if (toolUse.endedAt !== undefined) return null;
   if (!validTime(now)) return null;
+  // 等待审批只显示等待时长；旧内核可能同时留下开始时间，不能当成已运行。
+  if (toolUse.executionState === "pending_approval") {
+    return validTime(toolUse.waitingSince)
+      ? `已等待 ${formatDuration(Math.max(0, now - toolUse.waitingSince))}` : null;
+  }
+  // 未获批准或未执行没有任何执行过程，不回退成「已运行」。
+  if (toolUse.executionState === "not_approved" || toolUse.executionState === "not_executed") return null;
   if (validTime(toolUse.startedAt)) return `已运行 ${formatDuration(Math.max(0, now - toolUse.startedAt))}`;
-  if (validTime(toolUse.waitingSince)) {
-    if (toolUse.executionState === "pending_approval") return `已等待 ${formatDuration(Math.max(0, now - toolUse.waitingSince))}`;
-    if (toolUse.executionState === "queued") return `排队 ${formatDuration(Math.max(0, now - toolUse.waitingSince))}`;
+  // 排队按 reducer 的既有约定计入执行起点；只有极早期记录带 waitingSince 时显示排队时长。
+  if (validTime(toolUse.waitingSince) && toolUse.executionState === "queued") {
+    return `排队 ${formatDuration(Math.max(0, now - toolUse.waitingSince))}`;
   }
   return null;
 }
