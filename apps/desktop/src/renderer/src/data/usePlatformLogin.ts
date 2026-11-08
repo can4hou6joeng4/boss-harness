@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { PlatformLoginStatus } from "@boss-harness/protocol";
 import { harnessErrorText } from "./harnessBridge";
+import { fallbackLoginStatus, loginActive } from "./platformLoginState";
 
-const active = (status: PlatformLoginStatus) => ["opening", "waiting", "saving"].includes(status.state);
 const focusComposer = () => requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(".thread-composer-inner textarea")?.focus());
 
 /** Login is a desktop interaction attached to a thread, not a model turn. */
@@ -41,7 +41,7 @@ export function usePlatformLogin() {
   const open = async (threadId: string) => {
     if (!window.boss || flight.current) return;
     setDismissed(previous => previous.filter(id => id !== threadId)); setChoiceThreadId(null); setPanelThreadId(threadId); setError(null);
-    if (status.threadId === threadId && active(status)) return;
+    if (status.threadId === threadId && loginActive(status)) return;
     setExpanded(false);
     flight.current = true; setBusy(true);
     const before = revision.current;
@@ -50,7 +50,13 @@ export function usePlatformLogin() {
       if (before === revision.current) setStatus(next);
     } catch (cause) {
       setError({ threadId, message: `无法启动登录：${harnessErrorText(cause)}。请检查本机连接后重试；已有账号登录态仍保留。` });
-      if (before === revision.current) setStatus({ threadId, state: "failed", summary: "官方登录页尚未打开" });
+      if (before === revision.current) {
+        // 主进程可能仍持有其他会话的登录（另一会话等待扫码、宿主断开等）：不能把它的
+        // threadId / browserId 覆盖成本会话的失败态，否则那边会失去可见性与取消入口。
+        setStatus(previous => fallbackLoginStatus(previous, threadId));
+        // 没有新的广播说明失败发生在主进程改动状态之前，分栏不会加载出页面，回到会话内的引导与错误提示。
+        setPanelThreadId(null);
+      }
     } finally { flight.current = false; setBusy(false); }
   };
   const cancel = async (threadId: string) => {
@@ -73,6 +79,6 @@ export function usePlatformLogin() {
     toggleExpanded: () => setExpanded(previous => !previous),
     hideForLater: () => { setPanelThreadId(null); focusComposer(); },
     closePanel: () => { setPanelThreadId(null); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('[aria-label="打开会话浏览器"]')?.focus()); },
-    visibleIn: (threadId: string) => choiceThreadId === threadId || (!dismissed.includes(threadId) && status.threadId === threadId && status.state !== "idle"),
+    visibleIn: (threadId: string) => choiceThreadId === threadId || error?.threadId === threadId || (!dismissed.includes(threadId) && status.threadId === threadId && status.state !== "idle"),
   };
 }
