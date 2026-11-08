@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { BrowserWindow, dialog, shell } from "electron";
 import { isAllowedExternalUrl, isTrustedRendererUrl } from "./security";
 import { rendererCrashPage, rendererFailurePage } from "./rendererFailure";
+import { shouldReportLoadFailure } from "./rendererLoadFailure";
 import { decideRendererRecovery, rendererGoneSummary } from "./rendererRecovery";
 import type { WindowRestore } from "./windowState";
 
@@ -108,7 +109,7 @@ export function createMainWindow(restored?: WindowRestore): BrowserWindow {
       console.error("renderer process gone; reloading", details.reason, details.exitCode);
       const load = loadRenderer();
       void load.catch((error: unknown) => {
-        if (activeLoad !== load) return;
+        if (!shouldReportLoadFailure(error, activeLoad === load)) return;
         showCrashPage(`界面进程异常退出：${rendererGoneSummary(details)}；自动重载失败：${reason(error)}`);
       });
       return;
@@ -119,7 +120,7 @@ export function createMainWindow(restored?: WindowRestore): BrowserWindow {
   });
   const initialLoad = loadRenderer();
   void initialLoad.catch((error: unknown) => {
-    if (activeLoad !== initialLoad) return;
+    if (!shouldReportLoadFailure(error, activeLoad === initialLoad)) return;
     reportFailure(`${devUrl ?? entryFile}：${reason(error)}`);
   });
 
