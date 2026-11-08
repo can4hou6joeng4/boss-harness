@@ -14,7 +14,7 @@ import uuid
 
 from boss_harness.private_files import ensure_private_directory, open_private_file, restrict_private_file
 from boss_harness.queue_view import (ACTIVE_QUEUE_STATUSES, MAX_QUEUE_VIEW_ITEMS,
-                                     MAX_QUEUE_VIEW_TERMINAL_ITEMS, QUEUE_STATUSES, project_queue)
+                                     MAX_QUEUE_VIEW_TERMINAL_ITEMS, project_queue, queue_record)
 from boss_harness.rpc import RpcError
 from boss_harness.session import MAX_SESSION_LINE_BYTES, _decode_session_record
 
@@ -196,15 +196,16 @@ class SnapshotBuilder:
                                     "ON CONFLICT(item_id) DO UPDATE SET entry_id=excluded.entry_id,excluded=excluded.excluded",
                                     (payload["targetItemId"], entry_id, int(replacement is None)))
         elif entry_type == "queue":
-            queue_id = payload.get("id")
-            if not isinstance(queue_id, str):
-                raise ValueError("会话队列记录无效")
-            encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+            # 与运行时队列读取同一契约：结构不完整的记录跳过，不让整次快照构建失败。
+            record = queue_record(payload)
+            if record is None:
+                return
+            encoded = json.dumps(record, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
             ordinal = self.queue_count
             self.queue_count += 1
             self.connection.execute("""INSERT INTO queue_items(queue_id,ordinal,payload)
                 VALUES(?,?,?) ON CONFLICT(queue_id) DO UPDATE SET payload=excluded.payload""",
-                (queue_id, ordinal, encoded))
+                (record["id"], ordinal, encoded))
 
     def build(self, source: BinaryIO, size: int, live: dict[str, dict], cancelled,
               keep_ids: frozenset[str] | None = None) -> int:
@@ -451,12 +452,11 @@ class SnapshotStore:
                         decoded = json.loads(payload)
                     except (TypeError, ValueError):
                         continue
-                    # 与运行时投影一致：只有带有效 id、且状态已知的记录才计入总数与待处理。
-                    if not (isinstance(decoded, dict) and isinstance(decoded.get("id"), str) and decoded["id"]):
+                    # 与运行时投影一致：只有带有效 id、已知状态与字符串 input 的记录才计入总数与待处理。
+                    record = queue_record(decoded)
+                    if record is None:
                         continue
-                    status = decoded.get("status")
-                    if status not in QUEUE_STATUSES:
-                        continue
+                    status = record["status"]
                     total += 1
                     if status in ACTIVE_QUEUE_STATUSES:
                         active += 1

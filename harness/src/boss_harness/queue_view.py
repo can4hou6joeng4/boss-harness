@@ -6,6 +6,8 @@ queue/list 因此只返回有界投影：全部待处理项、有限的已终结
 """
 from __future__ import annotations
 
+from typing import Any
+
 MAX_QUEUE_VIEW_ITEMS = 200
 MAX_QUEUE_VIEW_TERMINAL_ITEMS = 50
 MAX_QUEUE_VIEW_INPUT_CHARS = 600
@@ -16,6 +18,15 @@ QUEUE_STATUSES = ACTIVE_QUEUE_STATUSES | TERMINAL_QUEUE_STATUSES
 _PENDING_QUEUE_STATUSES = frozenset({"queued", "delivering"})
 
 
+def queue_record(value: Any) -> dict | None:
+    """持久队列记录的结构契约；单条坏记录跳过，不打断整次读取或快照构建。"""
+    if (isinstance(value, dict) and isinstance(value.get("id"), str) and value["id"]
+            and isinstance(value.get("status"), str) and value["status"] in QUEUE_STATUSES
+            and isinstance(value.get("input"), str)):
+        return value
+    return None
+
+
 def project_queue(items: list[dict], *, total_items: int | None = None,
                   active_items: int | None = None) -> dict:
     """Return the bounded list projection plus the durable totals.
@@ -24,9 +35,8 @@ def project_queue(items: list[dict], *, total_items: int | None = None,
     snapshot database) report the exact pending total even when only a bounded
     subset of items is passed in.
     """
-    ordered = [item for item in items
-               if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"]
-               and item.get("status") in QUEUE_STATUSES]
+    ordered = [item for item in (queue_record(value) for value in items)
+               if item is not None]
     pending = [item for item in ordered if item.get("status") in _PENDING_QUEUE_STATUSES]
     paused = [item for item in ordered if item.get("status") == "paused"]
     terminal = [item for item in ordered if item.get("status") in TERMINAL_QUEUE_STATUSES]
