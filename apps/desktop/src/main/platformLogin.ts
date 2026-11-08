@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { BrowserWindow, WebContentsView, session, type Session } from "electron";
 import type { PlatformLoginStatus, PlatformLoginContext } from "@boss-harness/protocol";
 import { isLoginVerificationUrl, isOfficialLoginUrl, loginCaptureReadiness, loginViewBounds } from "./security";
-import { loginFailureDetail } from "./loginFailure";
+import { loginFailureDetail, loginViewGoneSummary } from "./loginFailure";
 
 type Attempt = PlatformLoginStatus & { id?: string };
 type Request = <T>(method: string, params?: unknown) => Promise<T>;
@@ -116,6 +116,12 @@ export class PlatformLogin {
         this.update({ state: "failed", code: "LOGIN_PAGE_UNAVAILABLE", summary: "官方登录页未能加载，请检查网络后重新打开" });
         this.closeBrowser();
       }
+    });
+    view.webContents.on("render-process-gone", (_event, details) => {
+      if (generation !== this.generation || this.status.state !== "waiting") return;
+      this.update({ state: "failed", code: "LOGIN_VIEW_CRASHED", summary: loginViewGoneSummary(details) });
+      // cancel 会释放内核 attempt、作废 generation 并关闭视图；状态已是 failed，不会再被改成已取消。
+      this.cancel();
     });
     isolated.cookies.on("changed", (_event, cookie, _cause, removed) => {
       if (!removed && ["wt2", "__zp_stoken__"].includes(cookie.name)) this.scheduleCapture(generation);
