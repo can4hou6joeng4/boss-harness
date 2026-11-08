@@ -6,7 +6,10 @@ queue/list 因此只返回有界投影：全部待处理项、有限的已终结
 """
 from __future__ import annotations
 
+import json
 from typing import Any
+
+from boss_harness.item_content import wire_value
 
 MAX_QUEUE_VIEW_ITEMS = 200
 MAX_QUEUE_VIEW_TERMINAL_ITEMS = 50
@@ -19,12 +22,28 @@ _PENDING_QUEUE_STATUSES = frozenset({"queued", "delivering"})
 
 
 def queue_record(value: Any) -> dict | None:
-    """持久队列记录的结构契约；单条坏记录跳过，不打断整次读取或快照构建。"""
-    if (isinstance(value, dict) and isinstance(value.get("id"), str) and value["id"]
+    """持久队列记录的结构契约；单条坏记录跳过，不打断整次读取或快照构建。
+
+    记录会直接进入 JSON-RPC 响应帧。损坏或旧版本写入的孤立代理项无法编码为
+    UTF-8，会让 ``queue/list`` 退化成 ``RESPONSE_INVALID``，也会让
+    ``thread/resume`` 被误判为响应过大；这里按 ``wire_text`` 约定把代理项
+    降级为 U+FFFD，仍然无法编码的记录（如 NaN 或过深嵌套）按坏记录跳过。
+    """
+    if not (isinstance(value, dict) and isinstance(value.get("id"), str) and value["id"]
             and isinstance(value.get("status"), str) and value["status"] in QUEUE_STATUSES
             and isinstance(value.get("input"), str)):
-        return value
-    return None
+        return None
+    try:
+        json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except UnicodeEncodeError:
+        try:
+            value = wire_value(value)
+            json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        except (TypeError, ValueError, RecursionError):
+            return None
+    except (TypeError, ValueError, RecursionError):
+        return None
+    return value
 
 
 def project_queue(items: list[dict], *, total_items: int | None = None,
