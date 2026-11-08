@@ -80,13 +80,19 @@ def anthropic_continuation(message: AssistantMessage, assistant_item_id: str | N
     return payload
 
 
+def _tool_arguments(item: dict[str, Any]) -> dict[str, Any]:
+    """持久记录可能带任意 JSON 值；只有对象能恢复为工具参数。"""
+    value = item.get("toolArguments")
+    return value if isinstance(value, dict) else {}
+
+
 def assistant_from_tool_batch(items: list[dict], pending: list[dict]) -> AssistantMessage:
     """Restore an assistant tool batch, including its private signed block order."""
     tool_calls = tuple(
         ToolCallBlock(
             id=str(item.get("toolCallId") or item["id"]),
             name=str(item.get("toolName", "")),
-            arguments=item.get("toolArguments") or {},
+            arguments=_tool_arguments(item),
         )
         for item in pending
     )
