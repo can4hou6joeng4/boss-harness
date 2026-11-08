@@ -1,5 +1,6 @@
 import React from "react";
 import { useClipboardCopy } from "../data/clipboardCopy";
+import { splitMarkdownBlocks } from "../data/markdownBlocks";
 import { IconCopy, IconCheck, IconExternalLink } from "./Icons";
 
 interface RichMarkdownProps {
@@ -27,33 +28,9 @@ export const RichMarkdown: React.FC<RichMarkdownProps> = ({ content }) => {
     void copy(code, String(index));
   };
 
-  // 拆分代码块与常规文本
-  const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
-  const parts: { type: "code" | "text"; lang?: string; content: string }[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = codeBlockRegex.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({
-        type: "text",
-        content: content.slice(lastIndex, match.index),
-      });
-    }
-    parts.push({
-      type: "code",
-      lang: match[1] || "text",
-      content: match[2] ?? "",
-    });
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < content.length) {
-    parts.push({
-      type: "text",
-      content: content.slice(lastIndex),
-    });
-  }
+  // 围栏切分放在纯函数里：流式未闭合、CRLF 与代码正文里的反引号都由它处理，
+  // 展示与「复制代码」共用同一份已裁剪首尾空白行的正文。
+  const parts = splitMarkdownBlocks(content);
 
   // 行内解析器（解析链接、粗体、行内代码）
   const renderInline = (text: string) => {
@@ -172,7 +149,7 @@ export const RichMarkdown: React.FC<RichMarkdownProps> = ({ content }) => {
                 </button>
               </div>
               <pre className="code-block-pre">
-                <code>{part.content.trim()}</code>
+                <code>{part.content}</code>
               </pre>
             </div>
           );
