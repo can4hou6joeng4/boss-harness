@@ -1028,6 +1028,10 @@ export interface ContextReadResponse extends ContextBudget {
   compactionJob?: { jobId: string; status: ContextCompactionJobStatus; active: boolean } | null;
   /** 当前分支上已注入模型上下文的被放弃分支摘要；无则缺省。 */
   branchSummaries?: ContextBranchSummary[];
+  /** 未通过校验、未注入模型上下文的被放弃分支摘要条目；损坏条目不会隐藏原始记录。旧内核不返回。 */
+  branchSummaryIssues?: ContextBranchSummaryIssue[];
+  /** 损坏条目总数；`branchSummaryIssues` 最多列出前 20 条。与 `branchSummaryIssues` 同时返回。 */
+  branchSummaryIssueCount?: number;
   /** 工作区常驻说明的加载状态；旧内核不返回，文件不存在时为 null。 */
   workspaceInstructions?: WorkspaceInstructionsState | null;
   /** 系统提示规模与分段构成；只返回字节数，不返回正文。旧内核不返回。 */
@@ -1081,6 +1085,13 @@ export interface ContextBranchSummary {
   abandonedTurnIds: string[];
   summaryJobId: string | null;
   characters: number;
+}
+/** `context/read.branchSummaryIssues`：未生效的分支摘要条目与固定原因；旧内核不返回。 */
+export interface ContextBranchSummaryIssue {
+  /** 损坏条目的记录 id；记录本身缺少 id 时为空字符串。 */
+  entryId: string;
+  /** 固定中文原因。 */
+  reason: string;
 }
 /** `thread/branchSummary/read`；仅在 `capabilities.sessionBranchSummaryRead` 为真时可用，只读当前分支上的摘要。 */
 export interface ThreadBranchSummaryReadParams { threadId: string; entryId: string }

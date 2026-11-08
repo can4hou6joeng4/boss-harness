@@ -51,6 +51,12 @@ export function BranchDialog({ isOpen, onClose, state, support, messages, block,
       {state.switchError && <p className="branch-error" role="alert">{state.switchError}</p>}
       {state.error && <p className="branch-error" role="alert">{state.error}</p>}
       {state.summaryError && <p className="branch-block" role="status">{state.summaryError}</p>}
+      {state.summaryIssueCount > 0 && <div className="branch-block branch-summary-issues" role="status" data-branch-summary-issues>
+        <strong>{state.summaryIssueCount} 条被放弃分支摘要未生效</strong>
+        <ul>{state.summaryIssues.slice(0, 5).map(issue => <li key={`${issue.entryId}:${issue.reason}`}>
+          <code>{issue.entryId || "缺少条目 id"}</code>：{issue.reason}</li>)}</ul>
+        <span>{state.summaryIssueCount > state.summaryIssues.length ? `仅列出前 ${state.summaryIssues.length} 条；` : ""}这些摘要不会进入模型上下文；被放弃分支的原始记录仍保留在本机，但不会注入当前分支。可在分支切换时重新生成摘要。</span>
+      </div>}
       {state.summaryPollError && <p className="branch-block" role="status">{state.summaryPollError}</p>}
       <section className="branch-section" aria-label="分支端点">
         <div className="branch-section-heading"><strong>分支端点</strong><span>{state.loading ? "正在读取…" : `${state.endpoints.length} 个${state.endpointsTruncated ? "（仅显示前若干页）" : ""}`}</span>
