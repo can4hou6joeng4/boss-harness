@@ -109,6 +109,7 @@ export function ContextPanel(props: ContextPanelProps) {
       <section className="context-panel-section" aria-labelledby="context-plan-heading">
         <h3 id="context-plan-heading">手动压缩</h3>
         {busy && <p className="context-panel-warning" role="status">会话正在运行，只能查看当前预算。请等待回合结束后生成计划。</p>}
+        {state.lifecycleActive === true && !job && !state.starting && !state.unknownStart && !state.error && <p className="context-panel-note">该会话有本面板之外发起的摘要任务正在进行（通常是分支摘要）；完成或取消前不能开始手动压缩。可在分支切换面板查看或取消。</p>}
         <div className="context-panel-plan-input"><label htmlFor="context-keep-recent">近期保留目标（估算 token）<input id="context-keep-recent" inputMode="numeric" type="number" min="1" step="1" value={state.keepRecentTokens} disabled={blocked || state.planning} onChange={event => props.onKeepRecentChange(event.target.value)} /></label><button type="button" className="secondary-button" onClick={props.onPlan} disabled={blocked || state.planning || !keepValid || !budget}>{state.planning ? "正在规划…" : "生成整理计划"}</button></div>
         <p className="context-panel-note">只整理已完成回合，近期完整回合会保留。目标不是精确裁剪；摘要可能遗漏细节，不保证语义无损。</p>
         {noSummaryProvider && <p className="context-panel-warning" role="status">当前没有可用的摘要模型。仍可查看整理计划，但无法开始压缩。</p>}
