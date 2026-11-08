@@ -513,15 +513,18 @@ class ContextService:
             raise ValueError("已有摘要来源已变化，请先核对并恢复摘要与原始记录的一致性")
         return checkpoint
 
-    def _history_snapshot(self, thread_id: str, entries: list[dict]) -> tuple[list[dict], dict | None]:
+    def _history_snapshot(self, thread_id: str, entries: list[dict]
+                          ) -> tuple[list[dict], dict | None, str | None]:
         items, _ = self._compaction_items(thread_id, entries)
+        checkpoint_issue = None
         try:
             checkpoint = self._validated_checkpoint(thread_id, entries)
-        except ValueError:
+        except ValueError as exc:
             # Revisions remain authoritative. An invalid summary must not hide
             # them; the complete request budget still gates the expanded input.
             checkpoint = None
-        return items, checkpoint["payload"] if checkpoint is not None else None
+            checkpoint_issue = (str(exc) or "摘要检查点无效")[:200]
+        return items, checkpoint["payload"] if checkpoint is not None else None, checkpoint_issue
 
     def _compaction_snapshot(self, thread_id: str, through_turn_id: str | None,
                              keep_recent_tokens: int | None = None, *,
@@ -692,7 +695,7 @@ class ContextService:
 
     def history(self, thread_id: str, *, entries: list[dict] | None = None) -> tuple[ChatMessage, ...]:
         entries = self._entries(thread_id, entries)
-        items, checkpoint = self._history_snapshot(thread_id, entries)
+        items, checkpoint, _ = self._history_snapshot(thread_id, entries)
         return self._history_projection(items, checkpoint, self._branch_summaries(thread_id, entries))
 
     def _branch_summaries(self, thread_id: str, entries: list[dict]) -> list[dict]:
@@ -871,7 +874,7 @@ class ContextService:
         if (request is None) != (capabilities is None):
             raise ValueError("request 和 capabilities 必须同时提供")
         entries = self._entries(thread_id, entries)
-        items, checkpoint = self._history_snapshot(thread_id, entries)
+        items, checkpoint, checkpoint_issue = self._history_snapshot(thread_id, entries)
         branch_summaries = self._branch_summaries(thread_id, entries)
         if request is not None and capabilities is not None:
             budget = describe_request(request, capabilities, provider=provider)
@@ -896,6 +899,9 @@ class ContextService:
                   "usage": usage[-1] if usage else None,
                   "summaryUsage": summary_usage[-1] if summary_usage else None,
                   "lastBudget": last_budget}
+        if checkpoint_issue is not None:
+            # 只读诊断：失效摘要不生效，但用户需要知道上下文为何回退到完整原文。
+            result["checkpointIssue"] = checkpoint_issue
         if branch_summaries:
             result["branchSummaries"] = [{key: summary[key] for key in (
                 "entryId", "targetTurnId", "fromTurnId", "abandonedTurnIds", "summaryJobId", "characters")}
