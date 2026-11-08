@@ -141,6 +141,15 @@ class SkillCatalog:
             problems: list[dict] = []
             candidates = self._candidate_paths(limit)
             for skill_id, path in candidates:
+                # Linux 上非 UTF-8 文件名经 surrogateescape 解码后带孤立代理项，这种 id
+                # 无法写成 JSON 响应帧；若进入 skills/problems，整个 skills/list 会变成
+                # RESPONSE_INVALID。与不可加载的技能一样归入问题列表，用 repr 转义展示名。
+                try:
+                    skill_id.encode("utf-8")
+                except UnicodeEncodeError:
+                    problems.append({"id": repr(skill_id)[:200],
+                                     "reason": "目录名不是有效的 UTF-8，无法通过协议读取"})
+                    continue
                 loaded = self._read_bounded(path)
                 if loaded is None:
                     problems.append({"id": skill_id, "reason": self._problem_reason(path)})
