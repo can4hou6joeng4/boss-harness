@@ -23,8 +23,8 @@ from boss_harness.models.types import (
     AssistantMessage, ChatMessage, ModelRequest, TextBlock, ThinkingBlock, ToolCallBlock,
     ToolResultItem, ToolResultsMessage, UserMessage,
 )
-from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, MAX_BRANCH_SUMMARY_CHARS,
-                                  CheckpointCommittedError, Entry, SessionStore)
+from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, CheckpointCommittedError, Entry, SessionStore,
+                                  branch_summary_issue)
 from boss_harness.tool_results import model_result_for_item
 
 
@@ -726,19 +726,7 @@ class ContextService:
                 continue
             summary, anchor = payload.get("summary"), payload.get("targetTurnId")
             abandoned = payload.get("abandonedTurnIds")
-            if not isinstance(summary, str):
-                reason = "摘要正文不是字符串"
-            elif not summary.strip():
-                reason = "摘要正文为空"
-            elif len(summary) > MAX_BRANCH_SUMMARY_CHARS:
-                reason = f"摘要正文超过 {MAX_BRANCH_SUMMARY_CHARS} 字符"
-            elif anchor is not None and (not isinstance(anchor, str) or anchor not in positions):
-                reason = "摘要的目标回合不在当前分支上"
-            elif (not isinstance(abandoned, list) or not abandoned
-                  or not all(isinstance(turn_id, str) for turn_id in abandoned)):
-                reason = "被放弃回合列表为空或无效"
-            else:
-                reason = None
+            reason = branch_summary_issue(payload, positions)
             if reason is not None:
                 entry_id = entry.get("id")
                 issues.append({"entryId": entry_id if isinstance(entry_id, str) else "",

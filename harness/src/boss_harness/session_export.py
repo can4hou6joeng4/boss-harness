@@ -28,8 +28,8 @@ from typing import Any, Iterable
 from boss_harness.compaction import verified_policy
 from boss_harness.context import tool_execution_status
 from boss_harness.models.secret import redact_secrets
-from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, MAX_BRANCH_SUMMARY_CHARS, SessionStore,
-                                  bounded_skill_ids)
+from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, SessionStore, bounded_skill_ids,
+                                  branch_summary_issue)
 from boss_harness.usage import SOURCE as USAGE_SOURCE, summarize_usage
 
 EXPORT_FORMATS = ("markdown", "json", "html")
@@ -382,7 +382,7 @@ class _Exporter:
         order = [turn["turnId"] for turn in self.turns]
         self.positions = {turn_id: index for index, turn_id in enumerate(order)}
         self.orphan_entries = 0
-        self.summaries = self._summaries(selected)
+        self.summaries, self.summary_issues = self._summaries(selected)
         self.checkpoints = [entry for entry in selected if entry.get("type") == "context_checkpoint"
                             and isinstance(entry.get("payload"), dict)]
         for item in self.items:
@@ -394,23 +394,29 @@ class _Exporter:
                 redactor.collect_personal(item.get("toolArguments"))
         redactor.finalize()
 
-    def _summaries(self, entries: list[dict]) -> list[dict]:
-        out = []
+    def _summaries(self, entries: list[dict]) -> tuple[list[dict], list[dict]]:
+        """Exportable branch summaries plus one fixed reason for every record the model never saw.
+
+        Validation is shared with context injection, so a record cannot show up
+        here as an effective summary while the model actually skipped it.
+        """
+        out, issues = [], []
         for entry in entries:
             payload = entry.get("payload")
             if entry.get("type") != BRANCH_SUMMARY_ENTRY_TYPE or not isinstance(payload, dict):
                 continue
-            summary, anchor = payload.get("summary"), payload.get("targetTurnId")
-            if (not isinstance(summary, str) or not summary.strip() or len(summary) > MAX_BRANCH_SUMMARY_CHARS
-                    or (anchor is not None and (not isinstance(anchor, str) or anchor not in self.positions))):
+            reason = branch_summary_issue(payload, self.positions)
+            if reason is not None:
+                entry_id = entry.get("id")
+                issues.append({"entryId": entry_id if isinstance(entry_id, str) else "", "reason": reason})
                 continue
             abandoned = payload.get("abandonedTurnIds")
-            out.append({"entryId": entry.get("id"), "targetTurnId": anchor, "summary": summary.strip(),
-                        "abandonedTurnCount": len(abandoned) if isinstance(abandoned, list) else None,
+            out.append({"entryId": entry.get("id"), "targetTurnId": payload.get("targetTurnId"),
+                        "summary": payload["summary"].strip(), "abandonedTurnCount": len(abandoned),
                         "summaryProvider": payload.get("summaryProvider"),
                         "summaryModel": payload.get("summaryModel"), "createdAt": entry.get("timestamp"),
                         "summaryJobId": _identifier(payload.get("summaryJobId"))})
-        return out
+        return out, issues
 
     # ---------- structured units ----------
 
@@ -579,6 +585,8 @@ class _Exporter:
             "createdAt": self.thread.get("createdAt"), "view": "branch" if self.branch else "log",
             "branched": self.leaf["branched"], "turnCount": len(self.turns),
             "orphanEntries": self.orphan_entries,
+            **({"branchSummaryIssues": self.summary_issues[:20],
+                "branchSummaryIssueCount": len(self.summary_issues)} if self.summary_issues else {}),
             "toolResults": "included" if self.include else "omitted",
             "usage": {"source": USAGE_SOURCE, "costAvailable": False,
                       "totals": self._scrub_usage(self.usage_totals),
@@ -919,6 +927,13 @@ def _render_markdown(meta: dict, units: list[tuple[str, dict]], counts: dict, to
                       "其余回合与条目未导出。")
     if meta.get("orphanEntries"):
         footer.append(f"\n另有 {meta['orphanEntries']} 个条目无法归属到任何回合（记录不完整），未导出。")
+    if meta.get("branchSummaryIssueCount"):
+        listed = "；".join(
+            (_inline_code(issue["entryId"]) if issue["entryId"] else "缺少条目 id")
+            + f"（{_inline_text(issue['reason'])}）"
+            for issue in meta.get("branchSummaryIssues") or [])
+        footer.append(f"\n另有 {meta['branchSummaryIssueCount']} 条被放弃分支摘要记录未通过校验，未导出为摘要"
+                      f"{'：' + listed if listed else ''}；这些摘要不会进入模型上下文，原始记录仍保留在会话日志中。")
     return "\n".join(header) + "\n" + "\n\n".join(body) + "\n" + "\n".join(footer) + "\n"
 
 
@@ -1170,6 +1185,13 @@ def _render_html(meta: dict, units: list[tuple[str, dict]], counts: dict, total_
                      f"{len(units)} / {total_units} 个条目；其余回合与条目未导出。</p>")
     if meta.get("orphanEntries"):
         parts.append(f"<p>另有 {meta['orphanEntries']} 个条目无法归属到任何回合（记录不完整），未导出。</p>")
+    if meta.get("branchSummaryIssueCount"):
+        listed = "；".join(
+            (f"<code>{_h(issue['entryId'])}</code>" if issue["entryId"] else "缺少条目 id")
+            + f"（{_h(issue['reason'])}）"
+            for issue in meta.get("branchSummaryIssues") or [])
+        parts.append(f"<p>另有 {meta['branchSummaryIssueCount']} 条被放弃分支摘要记录未通过校验，未导出为摘要"
+                     f"{'：' + listed if listed else ''}；这些摘要不会进入模型上下文，原始记录仍保留在会话日志中。</p>")
     parts.append("</footer></body></html>")
     return "\n".join(parts) + "\n"
 

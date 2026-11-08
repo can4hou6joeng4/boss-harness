@@ -20,7 +20,7 @@ import threading
 import time
 import unicodedata
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -72,6 +72,31 @@ LEAF_ENTRY_TYPE = "leaf"
 # right after the leaf record it belongs to, so it projects only on that branch.
 BRANCH_SUMMARY_ENTRY_TYPE = "branch_summary"
 MAX_BRANCH_SUMMARY_CHARS = 32_000
+
+
+def branch_summary_issue(payload: dict, positions: Mapping[str, int]) -> str | None:
+    """One fixed Chinese reason a branch-summary payload is unusable, or None when valid.
+
+    Context injection and export share this check so the two read paths cannot
+    disagree about which summary records the model actually saw; ``positions``
+    maps every turn on the reference branch (or log view) to its depth.
+    """
+    summary, anchor = payload.get("summary"), payload.get("targetTurnId")
+    abandoned = payload.get("abandonedTurnIds")
+    if not isinstance(summary, str):
+        return "摘要正文不是字符串"
+    if not summary.strip():
+        return "摘要正文为空"
+    if len(summary) > MAX_BRANCH_SUMMARY_CHARS:
+        return f"摘要正文超过 {MAX_BRANCH_SUMMARY_CHARS} 字符"
+    if anchor is not None and (not isinstance(anchor, str) or anchor not in positions):
+        return "摘要的目标回合不在当前分支上"
+    if (not isinstance(abandoned, list) or not abandoned
+            or not all(isinstance(turn_id, str) for turn_id in abandoned)):
+        return "被放弃回合列表为空或无效"
+    return None
+
+
 MAX_LEAF_ACTIVE_TURN_IDS = 200
 MAX_BRANCH_PREVIEW_CHARS = 120
 _TASK_PHASES = frozenset({"admission", "prepare", "model_request", "tool_execution", "finish"})
