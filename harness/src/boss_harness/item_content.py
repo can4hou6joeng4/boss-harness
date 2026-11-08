@@ -38,12 +38,18 @@ def wire_value(value):
 
 
 def _utf8_size(value: str) -> int:
-    # 与 result_reference 同一约定：摘要与字节数对含孤立代理项的原文给出相同结果。
+    # 内联阈值按原文字节数判断；每个代理项替换为 U+FFFD 后仍占 3 字节，分页长度不变。
     return len(value.encode("utf-8", "surrogatepass"))
 
 
 def item_content_reference(thread_id: str, item_id: str, part: str, text: str,
                            snapshot_id: str | None = None) -> dict:
+    """摘要覆盖实际传输文本，客户端才能对分页拼接结果做一致性校验。
+
+    ``read_item_content`` 返回 ``wire_text`` 后的文本；若摘要按仍含孤立代理项的原文
+    计算，客户端按收到的字节重算会得到不同结果。代理项与 U+FFFD 同为 3 字节，
+    因此 ``byteLength`` 与 ``characterLength`` 不受影响。
+    """
     if not isinstance(part, str) or part not in {"text", "thinking"}:
         raise ValueError("内容字段必须是 text 或 thinking")
     if not isinstance(text, str):
@@ -51,7 +57,7 @@ def item_content_reference(thread_id: str, item_id: str, part: str, text: str,
     digest = hashlib.sha256()
     byte_length = 0
     for offset in range(0, len(text), 16_384):
-        encoded = text[offset:offset + 16_384].encode("utf-8", "surrogatepass")
+        encoded = wire_text(text[offset:offset + 16_384]).encode("utf-8")
         digest.update(encoded)
         byte_length += len(encoded)
     reference = {"threadId": thread_id, "itemId": item_id, "part": part, "encoding": "text",
