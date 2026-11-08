@@ -32,6 +32,7 @@ function savedResult(value: unknown): SessionExportSaveResult | null {
   if (raw.saved !== true || typeof raw.fileName !== "string" || !raw.fileName || raw.fileName.length > 255 ||
     !count(raw.bytes) || typeof raw.truncated !== "boolean" || !count(raw.turnCount) || !count(raw.exportedTurnCount) ||
     (raw.toolResults !== "omitted" && raw.toolResults !== "included") || !counts ||
+    (raw.permissionsUnchanged !== undefined && typeof raw.permissionsUnchanged !== "boolean") ||
     !["secrets", "environment", "paths", "personalInfo"].every(key => count(counts[key]))) return null;
   return value as SessionExportSaveResult;
 }
@@ -107,6 +108,9 @@ export function ExportDialog({ isOpen, onClose, threadId, branchViews, connected
         {status.result.truncated ? "内容超出导出上限，已截断并在文末标注。" : ""}
         {status.result.toolResults === "included" ? "本次包含工具结果明文（已确认）。" : "本次未包含工具结果明文。"}
         脱敏：凭据 {number(status.result.redactions.secrets)} 处、环境变量 {number(status.result.redactions.environment)} 处、本机路径 {number(status.result.redactions.paths)} 处、候选人信息 {number(status.result.redactions.personalInfo)} 处。
+      </p>}
+      {status.kind === "saved" && status.result.permissionsUnchanged && <p className="context-panel-warning" role="status" data-export-status="permissions">
+        文件已写入，但未能把权限收紧为仅本人可读（覆盖已有文件时原权限保持不变）。请检查该文件权限，或换一个位置重新导出。
       </p>}
       {status.kind === "canceled" && <p className="context-panel-note" role="status" data-export-status="canceled">已取消保存，未写入文件。</p>}
       {status.kind === "error" && <p className="context-panel-warning" role="alert" data-export-status="error">导出失败：{status.message}</p>}
