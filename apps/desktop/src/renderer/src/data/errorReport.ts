@@ -6,6 +6,8 @@
  * 可复制详情，避免异常对象本身把界面或剪贴板撑坏。
  */
 
+import { safeSlice } from "@boss-harness/shared";
+
 /** 单行摘要上限；异常消息可能是整段 JSON 或很长路径，界面只显示开头。 */
 export const MAX_ERROR_MESSAGE_LENGTH = 300;
 /** 详情（堆栈 / 序列化值）上限；足够定位问题，又不会把剪贴板写成几 MB。 */
@@ -18,11 +20,11 @@ export interface ErrorReport {
   detail?: string;
 }
 
-/** 按字符数截断并追加省略号；上限本身非法时只返回省略号。 */
+/** 按字符数截断并追加省略号；上限本身非法时只返回省略号。边界落在代理对中间时少取一个码元。 */
 export function truncateErrorText(text: string, limit: number): string {
   if (limit <= 0) return "…";
   if (text.length <= limit) return text;
-  return `${text.slice(0, limit - 1)}…`;
+  return `${safeSlice(text, limit - 1)}…`;
 }
 
 /** 把连续空白折叠成单个空格，摘要始终单行显示。 */

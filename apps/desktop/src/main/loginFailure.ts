@@ -1,4 +1,4 @@
-import { stripIpcErrorWrapper } from "@boss-harness/shared";
+import { safeSlice, stripIpcErrorWrapper } from "@boss-harness/shared";
 import { rendererGoneSummary, type RendererGoneDetails } from "./rendererRecovery";
 
 /**
@@ -13,7 +13,7 @@ export function loginFailureDetail(error: unknown): { code?: string; message?: s
   const data = value?.data && typeof value.data === "object" ? value.data as { code?: unknown } : null;
   const code = typeof data?.code === "string" && data.code ? data.code : undefined;
   const raw = typeof value?.message === "string" ? stripIpcErrorWrapper(value.message).trim() : "";
-  return { ...(code ? { code } : {}), ...(raw ? { message: raw.slice(0, 200) } : {}) };
+  return { ...(code ? { code } : {}), ...(raw ? { message: safeSlice(raw, 200) } : {}) };
 }
 
 /** 登录页渲染进程退出时给用户的说明；正常关闭与意外退出发出不同提示。 */
