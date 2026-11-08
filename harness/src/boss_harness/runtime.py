@@ -11,7 +11,7 @@ import uuid
 import re
 from typing import Any, Callable
 
-from boss_harness.queue_view import QUEUE_STATUSES, project_queue
+from boss_harness.queue_view import project_queue, queue_record
 from boss_harness.rpc import RpcError
 from boss_harness.request_identity import RequestIdentity, resolve_request
 from boss_harness.session import Entry, SessionStore
@@ -215,14 +215,12 @@ class TurnQueue:
         for entry in self.sessions.read_entries(thread_id):
             if entry.get("type") != "queue":
                 continue
-            payload = entry.get("payload")
             # 持久记录不可信：缺 id、未知状态或 input 不是字符串的条目无法定位、转移或展示，
             # 不能让一条坏记录在投影之前就打断整个队列读取。
-            if not (isinstance(payload, dict) and isinstance(payload.get("id"), str) and payload["id"]
-                    and isinstance(payload.get("status"), str) and payload.get("status") in QUEUE_STATUSES
-                    and isinstance(payload.get("input"), str)):
+            record = queue_record(entry.get("payload"))
+            if record is None:
                 continue
-            states[payload["id"]] = dict(payload)
+            states[record["id"]] = dict(record)
         return list(states.values())
 
     def view(self, thread_id: str) -> dict:
