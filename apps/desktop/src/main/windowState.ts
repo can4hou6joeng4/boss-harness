@@ -1,4 +1,4 @@
-import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import type { BrowserWindow, Rectangle } from "electron";
 
 /** 与主窗口的最小尺寸一致；恢复时低于它的值视为不可信，回退到默认窗口。 */
@@ -91,12 +91,56 @@ export function readWindowState(path: string): WindowState | null {
   try { return parseWindowState(readFileSync(path, "utf8")); } catch { return null; }
 }
 
-/** 先写临时文件再改名，避免退出时留下半截 JSON；状态只是便利信息，写入失败不影响运行。 */
-export function writeWindowState(path: string, state: WindowState): void {
+/** 窗口状态写入用到的文件系统操作；注入后可在不写盘的情况下覆盖失败分支。 */
+export interface WindowStateFileSystem {
+  /** 排他创建并写入临时文件；同名路径（含符号链接）已存在时抛 `EEXIST`。 */
+  writeExclusive(path: string, text: string): void;
+  rename(from: string, to: string): void;
+  remove(path: string): void;
+}
+
+const nodeFileSystem: WindowStateFileSystem = {
+  // `wx` 只在新建文件时成功；预植的符号链接会以 EEXIST 失败，不会写穿到链接目标。
+  writeExclusive: (path, text) => writeFileSync(path, text, { encoding: "utf8", mode: 0o600, flag: "wx" }),
+  rename: (from, to) => renameSync(from, to),
+  remove: path => unlinkSync(path),
+};
+
+/** 进程内计数器；同一毫秒内连续保存也能得到不同临时路径。 */
+let tempSequence = 0;
+
+/**
+ * 固定 `${path}.tmp` 会被同目录预植的链接或文件命中，多实例也会互相覆盖；
+ * 临时名带上进程号、时间戳与计数器，保证唯一。
+ */
+export function windowStateTempPath(path: string): string {
+  tempSequence = (tempSequence + 1) % 1_000_000;
+  return `${path}.${process.pid}.${Date.now().toString(36)}.${tempSequence.toString(36)}.tmp`;
+}
+
+/**
+ * 先写唯一临时文件再改名，避免退出时留下半截 JSON；状态只是便利信息，写入失败不影响运行。
+ *
+ * 临时文件以排他方式创建，失败时只清理本次创建的路径：`EEXIST` 说明该路径已被
+ * 预植的链接或文件占用，删除会误伤别人的文件，直接放弃本次保存。
+ */
+export function writeWindowState(path: string, state: WindowState,
+                                 ops: WindowStateFileSystem = nodeFileSystem): void {
+  const temp = windowStateTempPath(path);
+  const text = JSON.stringify(state);
   try {
-    writeFileSync(`${path}.tmp`, JSON.stringify(state), { encoding: "utf8", mode: 0o600 });
-    renameSync(`${path}.tmp`, path);
-  } catch { /* 磁盘只读或目录缺失时保留本次会话，不打断退出。 */ }
+    ops.writeExclusive(temp, text);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== "EEXIST") {
+      try { ops.remove(temp); } catch { /* 写入中途失败才可能留下文件，清理失败也不影响退出。 */ }
+    }
+    return;
+  }
+  try {
+    ops.rename(temp, path);
+  } catch {
+    try { ops.remove(temp); } catch { /* 清理失败也不影响退出。 */ }
+  }
 }
 
 /** 移动、缩放后防抖保存，关闭前再保存一次；最大化时保存的是还原后的位置。 */
