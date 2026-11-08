@@ -1,5 +1,5 @@
 import type { MessageItem } from "./mockData";
-import { formatLocalDateTime } from "./timeFormat";
+import { toolQueriedAt, toolQueriedAtLabel } from "./toolSource";
 
 /**
  * 资料库的纯函数数据层。
@@ -108,7 +108,8 @@ export function collectLibraryFiles(messages: MessageItem[]): LibraryFile[] {
 
 /**
  * 收集工具调用来源；同一 ref 只保留首次出现。
- * 查询时间可解析时按时间倒序（最新在前），否则按 ref 字典序兜底，保证顺序稳定。
+ * 查询时间与工具卡共用同一 ISO 有效性判定：有效时按时间倒序（最新在前），
+ * 无效时按 ref 字典序兜底，保证顺序稳定且不把坏字符串当成真实时间。
  */
 export function collectLibrarySources(messages: MessageItem[]): LibrarySource[] {
   const byRef = new Map<string, LibrarySource>();
@@ -127,10 +128,10 @@ export function collectLibrarySources(messages: MessageItem[]): LibrarySource[] 
     });
   }
   return [...byRef.values()].sort((left, right) => {
-    const leftTime = Date.parse(left.queriedAt);
-    const rightTime = Date.parse(right.queriedAt);
-    const leftValid = Number.isFinite(leftTime);
-    const rightValid = Number.isFinite(rightTime);
+    const leftTime = toolQueriedAt(left.queriedAt)?.getTime();
+    const rightTime = toolQueriedAt(right.queriedAt)?.getTime();
+    const leftValid = leftTime !== undefined;
+    const rightValid = rightTime !== undefined;
     if (leftValid && rightValid && leftTime !== rightTime) return rightTime - leftTime;
     if (leftValid !== rightValid) return leftValid ? -1 : 1;
     return left.ref < right.ref ? -1 : left.ref > right.ref ? 1 : 0;
@@ -157,15 +158,14 @@ export function filterLibrarySources(sources: LibrarySource[], query: string): L
 }
 
 /**
- * 把来源查询时间格式化为本地 `YYYY-MM-DD HH:mm`；空值或不可解析时原样显示，
- * 不把未知时间伪装成有效时间。与工具卡共用同一格式，保证两处一致。
+ * 把来源查询时间格式化为本地 `YYYY-MM-DD HH:mm`；空值显示「查询时间未知」，
+ * 非完整 ISO 原样显示，不把未知时间伪装成有效时间。
+ * 直接复用工具卡的同一入口，同一来源在资料库与工具卡两处显示一致。
  */
 export function formatSourceQueriedAt(value: string): string {
   const trimmed = typeof value === "string" ? value.trim() : "";
   if (!trimmed) return "查询时间未知";
-  const time = Date.parse(trimmed);
-  if (!Number.isFinite(time)) return trimmed;
-  return formatLocalDateTime(new Date(time));
+  return toolQueriedAtLabel(trimmed) ?? trimmed;
 }
 
 /** 截短内部消息 / 回合 id 供界面显示；空值返回空字符串。 */
