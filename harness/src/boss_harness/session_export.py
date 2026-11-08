@@ -331,6 +331,19 @@ def _tokens(bucket: dict) -> str:
 
 _TURN_STATUS = {"completed": "已完成", "interrupted": "已中断", "blocked": "已阻断", "error": "出错",
                 "running": "进行中（导出时尚未结束）"}
+_APPROVAL_DECISIONS = {"approve": "用户批准", "deny": "用户拒绝", "expired": "审批已过期"}
+
+
+def _turn_status_label(value: Any) -> str:
+    """回合状态文案；坏记录中的非字符串值按「状态不明」降级，不让整份导出失败。"""
+    return _TURN_STATUS.get(value, "状态不明") if isinstance(value, str) else "状态不明"
+
+
+def _approval_label(value: Any) -> str:
+    """审批结论文案；None 表示等待审批，未知字符串与非字符串一律「状态不明」。"""
+    if value is None:
+        return "等待审批"
+    return _APPROVAL_DECISIONS.get(value, "状态不明") if isinstance(value, str) else "状态不明"
 
 
 class _Exporter:
@@ -704,7 +717,7 @@ def _render_unit(unit: dict, view_log: bool) -> str:
     kind = unit["kind"]
     if kind == "turn":
         lines = [f"## 回合 {unit['index']} · {_inline_code(unit['turnId'])} · "
-                 f"{_TURN_STATUS.get(unit['status'], '状态不明')}", ""]
+                 f"{_turn_status_label(unit['status'])}", ""]
         meta = [f"开始：{unit['startedAt'] or '—'}", f"结束：{unit['completedAt'] or '—'}"]
         if "durationMs" in unit:
             meta.append(f"用时：{_duration_text(unit['durationMs'])}（{unit['durationMs']} 毫秒）")
@@ -745,8 +758,7 @@ def _render_unit(unit: dict, view_log: bool) -> str:
             lines.append(f"- 耗时：{_duration_text(unit['durationMs'])}（{unit['durationMs']} 毫秒）")
         approval = unit.get("approval")
         if approval:
-            decision = {"approve": "用户批准", "deny": "用户拒绝", "expired": "审批已过期",
-                        None: "等待审批"}.get(approval["decision"], "状态不明")
+            decision = _approval_label(approval.get("decision"))
             line = f"- 审批：{decision}"
             if approval["decidedAt"]:
                 line += f"（{approval['decidedAt']}）"
@@ -968,7 +980,7 @@ def _h(value: Any) -> str:
 
 
 def _turn_heading_html(unit: dict, view_log: bool) -> str:
-    status = _TURN_STATUS.get(unit["status"], "状态不明")
+    status = _turn_status_label(unit["status"])
     meta = [f"开始：{unit['startedAt'] or '—'}", f"结束：{unit['completedAt'] or '—'}"]
     if "durationMs" in unit:
         meta.append(f"用时：{_duration_text(unit['durationMs'])}（{unit['durationMs']} 毫秒）")
@@ -1022,8 +1034,7 @@ def _render_unit_html(unit: dict) -> str:
             parts.append(f'<li>耗时：{_h(_duration_text(unit["durationMs"]))}（{unit["durationMs"]} 毫秒）</li>')
         approval = unit.get("approval")
         if approval:
-            decision = {"approve": "用户批准", "deny": "用户拒绝", "expired": "审批已过期",
-                        None: "等待审批"}.get(approval["decision"], "状态不明")
+            decision = _approval_label(approval.get("decision"))
             line = f'<li>审批：{_h(decision)}'
             if approval["decidedAt"]:
                 line += f'（{_h(approval["decidedAt"])}）'
