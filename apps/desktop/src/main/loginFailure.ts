@@ -1,4 +1,5 @@
 import { stripIpcErrorWrapper } from "@boss-harness/shared";
+import { rendererGoneSummary, type RendererGoneDetails } from "./rendererRecovery";
 
 /**
  * 平台登录流程失败时的诊断信息。
@@ -13,4 +14,10 @@ export function loginFailureDetail(error: unknown): { code?: string; message?: s
   const code = typeof data?.code === "string" && data.code ? data.code : undefined;
   const raw = typeof value?.message === "string" ? stripIpcErrorWrapper(value.message).trim() : "";
   return { ...(code ? { code } : {}), ...(raw ? { message: raw.slice(0, 200) } : {}) };
+}
+
+/** 登录页渲染进程退出时给用户的说明；正常关闭与意外退出发出不同提示。 */
+export function loginViewGoneSummary(details: RendererGoneDetails | null | undefined): string {
+  if (details?.reason === "clean-exit") return "官方登录页已关闭，请重新打开官方页面";
+  return `官方登录页界面进程已退出：${rendererGoneSummary(details)}，请重新打开官方页面`;
 }
