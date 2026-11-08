@@ -14,7 +14,7 @@ import json
 import re
 from typing import Any
 
-from boss_harness.item_content import project_item_content
+from boss_harness.item_content import project_item_content, wire_text, wire_value
 from boss_harness.models.types import (
     DEFAULT_MODEL_TOOL_RESULT_BYTES, MAX_MODEL_TOOL_RESULT_BYTES, MIN_MODEL_TOOL_RESULT_BYTES,
 )
@@ -64,9 +64,7 @@ def _command_text(value: Any) -> str:
             text = json.dumps(value, ensure_ascii=False, allow_nan=False)
         except (TypeError, ValueError):
             text = ""
-    if not any(0xD800 <= ord(char) <= 0xDFFF for char in text):
-        return text
-    return "".join("�" if 0xD800 <= ord(char) <= 0xDFFF else char for char in text)
+    return wire_text(text)
 
 
 def _fit_projection(projected: dict[str, Any], max_bytes: int) -> dict[str, Any]:
@@ -160,11 +158,13 @@ def model_result_for_item(item: dict) -> str:
 
 def project_error(error: dict | None) -> dict | None:
     """An error preview must not reintroduce an omitted result's large body."""
-    if error is None or wire_size(error) <= 4096:
-        return error
+    if error is None:
+        return None
+    if wire_size(error) <= 4096:
+        return wire_value(error)
     preview = {key: str(error.get(key) or "")[:maximum]
                for key, maximum in (("code", 128), ("message", 2000), ("recovery_action", 1000))}
-    return {**preview, "detailsOmitted": True}
+    return wire_value({**preview, "detailsOmitted": True})
 
 
 def project_item(thread_id: str, item: dict, *, snapshot_id: str | None = None) -> dict:
@@ -176,18 +176,22 @@ def project_item(thread_id: str, item: dict, *, snapshot_id: str | None = None) 
     result = item.get("result")
     if isinstance(result, dict):
         text = result_text(result)
-        if len(text.encode("utf-8")) > MAX_INLINE_TOOL_RESULT_BYTES:
+        if len(text.encode("utf-8", "surrogatepass")) > MAX_INLINE_TOOL_RESULT_BYTES:
             projected.pop("result", None)
             projected.update(resultOmitted=True, resultRef=result_reference(thread_id, str(item["id"]), text))
             for key, maximum in (("errorCode", 128), ("recoveryAction", 1000), ("resultSummary", 4000)):
                 if key in projected:
-                    projected[key] = str(projected[key])[:maximum] if projected[key] is not None else None
-    return projected
+                    projected[key] = wire_text(str(projected[key])[:maximum]) if projected[key] is not None else None
+    return wire_value(projected)
 
 
 def wire_size(value: Any) -> int:
     """Match the transport JSON spelling, leaving room for response ID and framing."""
-    return len(json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")) + 512
+    try:
+        return len(json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")) + 512
+    except UnicodeEncodeError:
+        # 含孤立代理项的值无法写成 JSON-RPC 帧：按超过任何预算处理，由调用方省略或分页。
+        return MAX_PAGE_BYTES + 1
 
 
 def _cursor(reference: dict, offset: int) -> str:
@@ -233,5 +237,5 @@ def read_result_text_chunk(thread_id: str, item_id: str, text: str, *, sha256: s
         except (ValueError, TypeError, UnicodeDecodeError, binascii.Error):
             raise ValueError("工具结果游标无效、归属不匹配或结果已变化") from None
     end = min(offset + limit, len(text))
-    return {"text": text[offset:end], "offset": offset, "resultRef": reference,
+    return {"text": wire_text(text[offset:end]), "offset": offset, "resultRef": reference,
             "nextCursor": _cursor(reference, end) if end < len(text) else None}

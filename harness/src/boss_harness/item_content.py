@@ -11,6 +11,36 @@ INLINE_ITEM_CONTENT_BYTES = 64 * 1024
 DEFAULT_ITEM_CONTENT_CHARS = 16_384
 MAX_ITEM_CONTENT_CHARS = 32_768
 
+_REPLACEMENT = "�"
+
+
+def wire_text(value: str) -> str:
+    """传输文本：把无法编码为 UTF-8 的孤立代理项替换为 U+FFFD。
+
+    持久记录可能含孤立代理项（损坏记录、surrogateescape 路径或旧版本写入）。
+    JSON-RPC 帧按 `ensure_ascii=False` 编码，孤立代理项会让整次响应变成
+    `RESPONSE_INVALID`；这里只替换代理项，其余字符与长度不变，分页 offset 仍按原文计算。
+    """
+    if not any(0xD800 <= ord(char) <= 0xDFFF for char in value):
+        return value
+    return "".join(_REPLACEMENT if 0xD800 <= ord(char) <= 0xDFFF else char for char in value)
+
+
+def wire_value(value):
+    """递归清理投影中的字符串；正常数据原样返回，坏记录降级为可传输文本。"""
+    if isinstance(value, str):
+        return wire_text(value)
+    if isinstance(value, list):
+        return [wire_value(item) for item in value]
+    if isinstance(value, dict):
+        return {wire_text(key): wire_value(item) for key, item in value.items()}
+    return value
+
+
+def _utf8_size(value: str) -> int:
+    # 与 result_reference 同一约定：摘要与字节数对含孤立代理项的原文给出相同结果。
+    return len(value.encode("utf-8", "surrogatepass"))
+
 
 def item_content_reference(thread_id: str, item_id: str, part: str, text: str,
                            snapshot_id: str | None = None) -> dict:
@@ -21,7 +51,7 @@ def item_content_reference(thread_id: str, item_id: str, part: str, text: str,
     digest = hashlib.sha256()
     byte_length = 0
     for offset in range(0, len(text), 16_384):
-        encoded = text[offset:offset + 16_384].encode("utf-8")
+        encoded = text[offset:offset + 16_384].encode("utf-8", "surrogatepass")
         digest.update(encoded)
         byte_length += len(encoded)
     reference = {"threadId": thread_id, "itemId": item_id, "part": part, "encoding": "text",
@@ -41,8 +71,11 @@ def project_item_content(thread_id: str, item: dict, *, snapshot_id: str | None 
         projected.pop(part + "Omitted", None)
         projected.pop(part + "Ref", None)
         text = item.get(part)
-        if not isinstance(text, str) or (len(text) <= INLINE_ITEM_CONTENT_BYTES
-                and len(text.encode("utf-8")) <= INLINE_ITEM_CONTENT_BYTES):
+        if not isinstance(text, str):
+            continue
+        if len(text) <= INLINE_ITEM_CONTENT_BYTES and _utf8_size(text) <= INLINE_ITEM_CONTENT_BYTES:
+            # 未省略的正文直接进入响应帧，先把孤立代理项换成可编码的替换字符。
+            projected[part] = wire_text(text)
             continue
         projected.pop(part, None)
         projected[part + "Omitted"] = True
@@ -93,8 +126,8 @@ def read_item_content(thread_id: str, item: dict, *, part: str, sha256: str,
         payload = [thread_id, str(item["id"]), part, sha256, snapshot_id, end]
         raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         next_cursor = "ic1_" + base64.urlsafe_b64encode(raw).decode().rstrip("=")
-    return {"text": text[offset:end], "offset": offset, "nextCursor": next_cursor,
-            "contentRef": reference}
+    return {"text": wire_text(text[offset:end]), "offset": offset, "nextCursor": next_cursor,
+            "contentRef": wire_value(reference)}
 
 
 def _stale() -> None:
