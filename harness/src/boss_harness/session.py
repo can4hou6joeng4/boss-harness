@@ -1345,7 +1345,9 @@ class SessionStore:
                         "turnId": item.get("turnId"), "itemId": item["id"],
                         "toolName": item.get("toolName"), "decision": existing,
                         "executed": (True if item.get("executionState") == "completed" else
-                                     False if item.get("executionState") in {"not_executed", "not_approved"} else None),
+                                     False if (isinstance(item.get("executionState"), str)
+                                               and item.get("executionState") in {"not_executed", "not_approved"})
+                                     else None),
                         "changed": False, "errorCode": item.get("errorCode"),
                         "resultSummary": item.get("resultSummary"),
                         "recoveryAction": item.get("recoveryAction")}
@@ -1449,7 +1451,8 @@ class SessionStore:
                     seen_turns.add(turn_id)
                 if payload.get("status") == "running":
                     active = turn_id
-                elif payload.get("status") in _TERMINAL and active == turn_id:
+                elif (isinstance(payload.get("status"), str)
+                      and payload.get("status") in _TERMINAL and active == turn_id):
                     active = None
         return owners
 
@@ -1498,7 +1501,7 @@ class SessionStore:
                         lastOrdinal=ordinal, updatedAt=entry.get("timestamp", ""))
             if boundary_ordinal is not None:
                 turn["boundaryOrdinal"] = boundary_ordinal
-            if turn.get("status") in _TERMINAL:
+            if isinstance(turn.get("status"), str) and turn.get("status") in _TERMINAL:
                 turn.setdefault("boundaryOrdinal", ordinal)
                 turn.setdefault("completedAt", entry.get("timestamp", ""))
                 previous_end = ordinal
@@ -1567,10 +1570,11 @@ class SessionStore:
              turns[-1]["turnId"] if turns else None, _json(metadata), stat.st_size, stat.st_mtime_ns))
         connection.execute("DELETE FROM turns WHERE thread_id=?", (thread_id,))
         for turn in turns:
+            status = turn.get("status")
             connection.execute("""INSERT INTO turns
                 (thread_id,turn_id,status,first_ordinal,last_ordinal,metadata_json) VALUES(?,?,?,?,?,?)""",
-                (thread_id, turn["turnId"], turn.get("status", "error"), turn["firstOrdinal"],
-                 turn["lastOrdinal"], _json(self._public_turn(turn))))
+                (thread_id, turn["turnId"], status if isinstance(status, str) else "error",
+                 turn["firstOrdinal"], turn["lastOrdinal"], _json(self._public_turn(turn))))
         connection.execute("DELETE FROM approvals WHERE thread_id=?", (thread_id,))
         for item in self._project_items(thread_id, entries):
             if not self._valid_approval_item(item, pending_only=False):
@@ -2535,7 +2539,7 @@ class SessionStore:
                 "inputPreview": previews.get(turn_id),
                 "containsLeaf": leaf["leafTurnId"] in path,
                 "isLeaf": leaf["leafTurnId"] == turn_id,
-                "selectable": turn.get("status") in _TERMINAL})
+                "selectable": isinstance(turn.get("status"), str) and turn.get("status") in _TERMINAL})
         next_cursor = (_page_cursor("branches", scope, [position[page[-1]], page[-1]])
                        if len(endpoints) > limit else None)
         return {"threadId": thread_id, "branched": leaf["branched"], "leafTurnId": leaf["leafTurnId"],
@@ -2659,11 +2663,13 @@ class SessionStore:
                 records = [entry for entry in entries if entry.get("type") == "turn"
                            and isinstance(entry.get("payload"), dict)
                            and entry["payload"].get("turnId") == turn_id]
-                if not records or records[-1]["payload"].get("status") not in _TERMINAL:
+                if (not records or not isinstance(records[-1]["payload"].get("status"), str)
+                        or records[-1]["payload"].get("status") not in _TERMINAL):
                     raise ValueError("仅可把分支指针移到已经结束的回合")
                 target_id = records[-1]["id"]
             all_turns = self._turns(entries, thread_id)
-            if any(turn.get("status") not in _TERMINAL for turn in all_turns):
+            if any(not isinstance(turn.get("status"), str) or turn.get("status") not in _TERMINAL
+                   for turn in all_turns):
                 raise ValueError("会话仍有未结束的回合，不能切换分支")
             for item in self._project_items(thread_id, entries):
                 approval = item.get("approval") or {}
@@ -2750,7 +2756,8 @@ class SessionStore:
             else:
                 _identifier(turn_id, "turnId")
                 selected = next((turn for turn in turns if turn["turnId"] == turn_id), None)
-            if selected is None or selected.get("status") not in _TERMINAL:
+            if (selected is None or not isinstance(selected.get("status"), str)
+                    or selected.get("status") not in _TERMINAL):
                 raise ValueError("仅可从已经结束的回合创建分支")
             cutoff = selected.get("boundaryOrdinal", selected["lastOrdinal"])
             turn_positions = {turn["turnId"]: position for position, turn in enumerate(turns)}
@@ -2856,7 +2863,7 @@ class SessionStore:
                 turn = turns_by_id.get(task_id)
                 if turn is None:
                     continue
-                if turn.get("status") in _TERMINAL:
+                if isinstance(turn.get("status"), str) and turn.get("status") in _TERMINAL:
                     status = turn["status"]
                     reason = "terminalStateRecovered"
                     policy = "closed"

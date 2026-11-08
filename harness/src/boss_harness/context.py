@@ -28,19 +28,26 @@ from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, MAX_BRANCH_SUMMARY_
 from boss_harness.tool_results import model_result_for_item
 
 
+_FINISHED_TURN_STATUSES = frozenset({"completed", "interrupted", "blocked", "error"})
+
+
+def _is_one_of(value: Any, choices: frozenset[str] | set[str]) -> bool:
+    """持久记录可能带任意 JSON 值；只有字符串能作为集合成员参与比较。"""
+    return isinstance(value, str) and value in choices
+
+
 def messages_from_items(items: list[dict]) -> tuple[ChatMessage, ...]:
     messages: list[ChatMessage] = []
     pending: list[dict] = []
     batch: str | None = None
-    continuation_agent_ids = {
-        item[ANTHROPIC_CONTINUATION_FIELD].get("assistantItemId")
-        for item in items
-        if isinstance(item.get(ANTHROPIC_CONTINUATION_FIELD), dict)
-    }
-    continuation_agent_ids.update(
-        item.get("toolBatchAssistantItemId") for item in items
-        if isinstance(item.get("toolBatchAssistantItemId"), str)
-    )
+    continuation_agent_ids: set[str] = set()
+    for item in items:
+        marker = item.get(ANTHROPIC_CONTINUATION_FIELD)
+        if isinstance(marker, dict) and isinstance(marker.get("assistantItemId"), str):
+            continuation_agent_ids.add(marker["assistantItemId"])
+        batch_assistant_id = item.get("toolBatchAssistantItemId")
+        if isinstance(batch_assistant_id, str):
+            continuation_agent_ids.add(batch_assistant_id)
 
     def flush() -> None:
         if not pending:
@@ -58,8 +65,9 @@ def messages_from_items(items: list[dict]) -> tuple[ChatMessage, ...]:
             flush()
         if kind == "userMessage":
             messages.append(UserMessage(text=str(item.get("text", ""))))
-        elif (kind == "agentMessage" and item.get("status") not in {"running", "failed"} and item.get("text")
-              and item.get("id") not in continuation_agent_ids):
+        elif (kind == "agentMessage" and not _is_one_of(item.get("status"), {"running", "failed"})
+              and item.get("text")
+              and not _is_one_of(item.get("id"), continuation_agent_ids)):
             messages.append(AssistantMessage(blocks=(TextBlock(text=str(item["text"])),)))
         elif kind == "toolCall" and item.get("status") != "running":
             batch = item.get("toolBatchId")
@@ -90,11 +98,13 @@ _WRITE_TOOLS = frozenset({"boss_hr_greet"})
 def tool_execution_status(item: dict[str, Any]) -> dict[str, Any]:
     """Structured execution label of one tool-call item (summary sources and exports); never persisted."""
     state = item.get("executionState") or item.get("status")
-    write = item.get("toolName") in _WRITE_TOOLS or "approval" in item
-    label = _EXECUTION_LABELS.get(state, "状态不明，不得视为已执行")
+    write = _is_one_of(item.get("toolName"), _WRITE_TOOLS) or "approval" in item
+    label = (_EXECUTION_LABELS.get(state, "状态不明，不得视为已执行")
+             if isinstance(state, str) else "状态不明，不得视为已执行")
     if write and state == "outcome_unknown":
         label = "结果未知，需核对"
-    executed = True if state == "completed" else False if state in {"not_approved", "not_executed"} else None
+    executed = (True if state == "completed" else
+                False if _is_one_of(state, {"not_approved", "not_executed"}) else None)
     return {"state": state, "label": label, "externalWrite": write, "executed": executed}
 
 
@@ -347,7 +357,8 @@ class ContextService:
             edit = edits.get(item["id"])
             if edit is None:
                 continue
-            if item.get("kind") not in {"userMessage", "agentMessage"} or not isinstance(item.get("text"), str):
+            if (not _is_one_of(item.get("kind"), {"userMessage", "agentMessage"})
+                    or not isinstance(item.get("text"), str)):
                 raise ValueError("会话上下文编辑目标无效；已停止生成模型上下文")
             # originalInput duplicates the raw user text; it must not bypass the edit projection.
             item.pop("originalInput", None)
@@ -392,7 +403,8 @@ class ContextService:
         all_edits = self._context_edit_entries(entries)
         edit = all_edits.get(item_id)
         current_text = edit["replacementText"] if edit is not None else item.get("text")
-        if item.get("kind") not in {"userMessage", "agentMessage"} or not isinstance(item.get("text"), str):
+        if (not _is_one_of(item.get("kind"), {"userMessage", "agentMessage"})
+                or not isinstance(item.get("text"), str)):
             raise ValueError("仅支持编辑用户消息或助手文本")
         turns = self.sessions._turns(entries, thread_id)
         owner = owners.get(item_id)
@@ -401,16 +413,16 @@ class ContextService:
         covered = (set(self._checkpoint_source_item_ids(checkpoint["payload"], raw_items))
                    if checkpoint else set())
         reason = None
-        continuation_item_ids = {
-            value.get(ANTHROPIC_CONTINUATION_FIELD, {}).get("assistantItemId")
-            for value in raw_items
-            if isinstance(value.get(ANTHROPIC_CONTINUATION_FIELD), dict)
-        }
+        continuation_item_ids: set[str] = set()
+        for value in raw_items:
+            marker = value.get(ANTHROPIC_CONTINUATION_FIELD)
+            if isinstance(marker, dict) and isinstance(marker.get("assistantItemId"), str):
+                continuation_item_ids.add(marker["assistantItemId"])
         if item_id in continuation_item_ids:
             reason = "该助手回复包含 Anthropic 工具续接签名；当前版本暂不支持编辑。"
         elif item_id in covered:
             reason = "该消息已纳入摘要检查点；请从摘要之后的会话分支继续编辑。"
-        elif turn is None or turn.get("status") not in {"completed", "interrupted", "blocked", "error"}:
+        elif turn is None or not _is_one_of(turn.get("status"), _FINISHED_TURN_STATUSES):
             reason = "只能编辑已经结束回合中的消息。"
         elif item.get("kind") == "agentMessage" and item.get("status") == "running":
             reason = "不能编辑仍在生成的助手消息。"
@@ -463,7 +475,7 @@ class ContextService:
         if not isinstance(through, str) or through not in positions:
             raise ValueError("已有摘要的来源回合不完整")
         prefix = turns[:positions[through] + 1]
-        if any(turn.get("status") not in {"completed", "interrupted", "blocked", "error"} for turn in prefix):
+        if any(not _is_one_of(turn.get("status"), _FINISHED_TURN_STATUSES) for turn in prefix):
             raise ValueError("已有摘要的来源回合不完整")
         items = self._compaction_items(thread_id, entries)[0] if items is None else items
         by_turn: dict[str, list[dict]] = {turn["turnId"]: [] for turn in prefix}
@@ -526,7 +538,7 @@ class ContextService:
         if _active_turn_id is not None and (not turns or running != [_active_turn_id]
                                             or turns[-1]["turnId"] != _active_turn_id):
             raise ValueError("只能保留最新且唯一运行中的活动回合")
-        if any(turn.get("status") not in {"completed", "interrupted", "blocked", "error"}
+        if any(not _is_one_of(turn.get("status"), _FINISHED_TURN_STATUSES)
                and not (turn["turnId"] == _active_turn_id and turn.get("status") == "running")
                for turn in turns) or any(item.get("status") == "running" for item in items):
             raise ValueError("只能为已收尾的完整回合生成压缩计划")
@@ -958,7 +970,7 @@ class ContextService:
                 _active_turn_id: str | None = None) -> dict:
         if not isinstance(summary, str) or not summary.strip() or len(summary) > 32_000:
             raise ValueError("summary 必须是 1 到 32000 字符的会话摘要")
-        if origin not in {"user", "model"}:
+        if not _is_one_of(origin, {"user", "model"}):
             raise ValueError("压缩来源无效")
         if metadata is not None and not isinstance(metadata, dict):
             raise ValueError("压缩元数据必须是对象")

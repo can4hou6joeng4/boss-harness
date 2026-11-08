@@ -2949,9 +2949,12 @@ class ApplicationService:
                 return fail("CONTINUATION_APPROVAL_PENDING", "来源回合仍有未决审批。")
             if any(item.get("executionState") == "outcome_unknown" for item in source_tool_items):
                 return fail("CONTINUATION_TOOL_OUTCOME_UNKNOWN", "来源回合含有结果未知的工具操作。")
-            if any(item.get("status") == "running" or item.get("executionState") in {
-                    "approved", "executing", "pending_approval", "not_executed", "not_approved",
-                    "outcome_unknown"} for item in source_tool_items):
+            if any(item.get("status") == "running"
+                   or (isinstance(item.get("executionState"), str)
+                       and item.get("executionState") in {
+                           "approved", "executing", "pending_approval", "not_executed", "not_approved",
+                           "outcome_unknown"})
+                   for item in source_tool_items):
                 return fail("CONTINUATION_TOOL_STATE_UNRESOLVED", "来源回合存在未完成或未执行的工具调用。")
 
             manifests: dict[str, list[tuple[int, dict, str]]] = {}
@@ -3016,8 +3019,11 @@ class ApplicationService:
                     return fail("CONTINUATION_TOOL_BATCH_INVALID", "工具批次与对应模型请求指纹不一致。")
                 calls = calls_by_batch.get(batch_id, [])
                 observed_ids = [item.get("toolCallId") for item in calls]
-                if (observed_ids != call_ids or any(item.get("status") not in {"completed", "failed"}
-                        or item.get("executionState") not in {"completed", "failed"}
+                if (observed_ids != call_ids or any(
+                        not (isinstance(item.get("status"), str)
+                             and item.get("status") in {"completed", "failed"})
+                        or not (isinstance(item.get("executionState"), str)
+                                and item.get("executionState") in {"completed", "failed"})
                         for item in calls)):
                     return fail("CONTINUATION_TOOL_BATCH_INCOMPLETE", "工具批次缺少已确认的结果。")
                 if any(item.get("toolBatchAssistantItemId") != start_payload.get("assistantItemId")

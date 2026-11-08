@@ -91,7 +91,7 @@ def assistant_from_tool_batch(items: list[dict], pending: list[dict]) -> Assista
         for item in pending
     )
     assistant_ids = {item.get("toolBatchAssistantItemId") for item in pending
-                     if item.get("toolBatchAssistantItemId") is not None}
+                     if isinstance(item.get("toolBatchAssistantItemId"), str)}
     if len(assistant_ids) > 1:
         raise ValueError("Tool batch assistant reference is duplicated")
     linked_assistant_id = next(iter(assistant_ids), None)
@@ -99,7 +99,8 @@ def assistant_from_tool_batch(items: list[dict], pending: list[dict]) -> Assista
     if linked_assistant_id is not None:
         linked_assistant = next((item for item in items if item.get("id") == linked_assistant_id), None)
         failed_batch_is_settled = all(
-            item.get("status") in {"completed", "failed"}
+            isinstance(item.get("status"), str) and item.get("status") in {"completed", "failed"}
+            and isinstance(item.get("executionState"), str)
             and item.get("executionState") in {
                 "completed", "failed", "not_executed", "not_approved"
             }
