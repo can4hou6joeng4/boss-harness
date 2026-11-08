@@ -415,7 +415,12 @@ class ContextService:
         turns = self.sessions._turns(entries, thread_id)
         owner = owners.get(item_id)
         turn = next((value for value in turns if value["turnId"] == owner), None)
-        checkpoint = self._validated_checkpoint(thread_id, entries)
+        try:
+            checkpoint = self._validated_checkpoint(thread_id, entries)
+        except ValueError:
+            # 与 context/read 一致：失效摘要不生效，完整原文重新进入模型上下文，
+            # 覆盖范围因此为空；读取编辑状态不能因摘要失效而整体失败。
+            checkpoint = None
         covered = (set(self._checkpoint_source_item_ids(checkpoint["payload"], raw_items))
                    if checkpoint else set())
         reason = None
