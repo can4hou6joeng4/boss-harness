@@ -18,18 +18,24 @@ ACTIVE_QUEUE_STATUSES = frozenset({"queued", "delivering", "paused"})
 TERMINAL_QUEUE_STATUSES = frozenset({"delivered", "cancelled"})
 # 持久记录不可信：缺失或未知状态不进入投影，否则渲染层会整份拒绝，隐藏真实队列。
 QUEUE_STATUSES = ACTIVE_QUEUE_STATUSES | TERMINAL_QUEUE_STATUSES
+# kind 决定投递语义（steering 只属于当前回合）。缺失或未知 kind 的记录无法 claim、
+# 恢复或展示，下游直接读取 kind 时还会抛 KeyError。
+QUEUE_KINDS = frozenset({"steering", "followUp"})
 _PENDING_QUEUE_STATUSES = frozenset({"queued", "delivering"})
 
 
 def queue_record(value: Any) -> dict | None:
     """持久队列记录的结构契约；单条坏记录跳过，不打断整次读取或快照构建。
 
+    ``kind`` 是投递语义的一部分：缺失或未知时记录无法 claim、暂停结算或恢复，
+    ``TurnQueue.recover`` 等下游直接读取时会抛 ``KeyError``，让内核启动失败。
     记录会直接进入 JSON-RPC 响应帧。损坏或旧版本写入的孤立代理项无法编码为
     UTF-8，会让 ``queue/list`` 退化成 ``RESPONSE_INVALID``，也会让
     ``thread/resume`` 被误判为响应过大；这里按 ``wire_text`` 约定把代理项
     降级为 U+FFFD，仍然无法编码的记录（如 NaN 或过深嵌套）按坏记录跳过。
     """
     if not (isinstance(value, dict) and isinstance(value.get("id"), str) and value["id"]
+            and isinstance(value.get("kind"), str) and value["kind"] in QUEUE_KINDS
             and isinstance(value.get("status"), str) and value["status"] in QUEUE_STATUSES
             and isinstance(value.get("input"), str)):
         return None
