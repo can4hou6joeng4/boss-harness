@@ -219,7 +219,7 @@ class TurnQueue:
             # 持久记录不可信：缺 id、未知状态或 input 不是字符串的条目无法定位、转移或展示，
             # 不能让一条坏记录在投影之前就打断整个队列读取。
             if not (isinstance(payload, dict) and isinstance(payload.get("id"), str) and payload["id"]
-                    and payload.get("status") in QUEUE_STATUSES
+                    and isinstance(payload.get("status"), str) and payload.get("status") in QUEUE_STATUSES
                     and isinstance(payload.get("input"), str)):
                 continue
             states[payload["id"]] = dict(payload)
