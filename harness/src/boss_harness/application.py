@@ -3104,9 +3104,11 @@ class ApplicationService:
                     return fail("CONTINUATION_HISTORY_CHANGED", "来源模型请求之后的上下文摘要发生变化。")
                 if entry.get("type") == "thread_info" and ({"provider", "model"} & set(payload)):
                     return fail("CONTINUATION_CONTEXT_CHANGED", "来源回合之后会话模型线路已切换。")
-                if entry.get("type") == "context_edit" and payload.get("targetItemId") in included_item_ids:
+                if (entry.get("type") == "context_edit" and isinstance(payload.get("targetItemId"), str)
+                        and payload["targetItemId"] in included_item_ids):
                     return fail("CONTINUATION_HISTORY_CHANGED", "来源模型请求之后的上下文条目发生变化。")
-                if entry.get("type") == "item" and payload.get("revises") in included_item_ids:
+                if (entry.get("type") == "item" and isinstance(payload.get("revises"), str)
+                        and payload["revises"] in included_item_ids):
                     return fail("CONTINUATION_HISTORY_CHANGED", "来源模型请求之后的历史条目发生变化。")
                 if (entry.get("type") == "item" and payload.get("kind") == "agentMessage"
                         and payload.get("status") == "completed"

@@ -55,6 +55,16 @@ def _is_hangul_jamo(char: str) -> bool:
     return 0x1100 <= code <= 0x11FF or 0xA960 <= code <= 0xA97C or 0xD7B0 <= code <= 0xD7FB
 
 
+# 持久记录不可信：编号字段只有字符串才有定位意义。其余类型若继续参与集合成员或
+# 映射键查询会抛 TypeError，让一条坏记录打断整个会话的读取与投影。
+_ITEM_ID_FIELDS = ("turnId", "revises", "toolBatchId", "queueId")
+
+
+def _record_id(value: object) -> str | None:
+    """把编号字段收敛为字符串或缺失；非字符串一律按缺失处理。"""
+    return value if isinstance(value, str) else None
+
+
 # In-session branch pointer (Pi session-manager leafId).  Sessions that never
 # record one keep the historical linear projection byte-for-byte.
 LEAF_ENTRY_TYPE = "leaf"
@@ -1094,11 +1104,15 @@ class SessionStore:
                 continue
             payload = dict(entry.get("payload") or {})
             entry_id = str(entry.get("id") or "")
-            target_id = str(payload.get("revises") or "")
+            target_id = _record_id(payload.get("revises")) or ""
             if not target_id and payload.get("kind") == "toolCall" and payload.get("status") != "running":
                 parent_id = str(entry.get("parentId") or "")
                 if parent_id in index_by_id and items[index_by_id[parent_id]].get("kind") == "toolCall":
                     target_id = parent_id
+            # 投影出口收敛编号字段：上下文、请求身份与分叉会把它们用作集合成员。
+            for field in _ITEM_ID_FIELDS:
+                if field in payload and not isinstance(payload[field], str):
+                    del payload[field]
             if target_id and target_id in index_by_id:
                 slot = index_by_id[target_id]
                 items[slot] = {**items[slot], **payload, "id": items[slot]["id"], "threadId": thread_id}
@@ -1416,11 +1430,11 @@ class SessionStore:
         for entry in entries:
             payload = entry["payload"]
             if entry.get("type") == "item":
-                target = payload.get("revises")
+                target = _record_id(payload.get("revises"))
                 if not target and payload.get("kind") == "toolCall" and payload.get("status") != "running":
-                    target = entry.get("parentId")
-                explicit = payload.get("turnId")
-                owner = explicit if isinstance(explicit, str) else owners.get(target) or active
+                    target = _record_id(entry.get("parentId"))
+                explicit = _record_id(payload.get("turnId"))
+                owner = explicit if explicit is not None else owners.get(target) or active
                 owners[entry["id"]] = owner
                 if owner is None:
                     pending.append(entry["id"])
@@ -2393,7 +2407,7 @@ class SessionStore:
         while cursor is not None:
             path.add(cursor)
             cursor = previous[cursor]
-        included_turns = {entry["payload"].get("turnId") for entry in entries
+        included_turns = {_record_id(entry["payload"].get("turnId")) for entry in entries
                           if entry["id"] in path and entry.get("type") == "turn"
                           and isinstance(entry.get("payload"), dict)}
         included_turns.discard(None)
@@ -2415,11 +2429,11 @@ class SessionStore:
                 # every branch; only content owned by abandoned turns is dropped.
                 return True
             if kind in {"turn", "task_phase", "tool_batch"}:
-                return payload.get("turnId", payload.get("taskId")) in included_turns
+                return _record_id(payload.get("turnId", payload.get("taskId"))) in included_turns
             if kind == "context_edit":
-                return owners.get(payload.get("targetItemId")) in included_turns
+                return owners.get(_record_id(payload.get("targetItemId"))) in included_turns
             if kind == "context_checkpoint":
-                return payload.get("throughTurnId") in included_turns
+                return _record_id(payload.get("throughTurnId")) in included_turns
             return False
 
         return [entry for entry in entries if keep(entry)]
@@ -2750,16 +2764,18 @@ class SessionStore:
 
             prefix = [entry for entry in entries[:cutoff + 1]
                       if entry.get("type") != "context_checkpoint" or checkpoint_in_branch(entry)]
-            included_turns = {entry["payload"]["turnId"] for entry in prefix
+            included_turns = {_record_id(entry["payload"]["turnId"]) for entry in prefix
                               if entry.get("type") == "turn" and "turnId" in entry["payload"]}
+            included_turns.discard(None)
             owners = self._item_owners(entries)
             # Recovery may append a revision after later settled turns. Include only
             # corrections owned by the selected prefix, never those unrelated turns.
             for entry in entries[cutoff + 1:]:
                 if ((entry.get("type") == "item" and owners.get(entry["id"]) in included_turns)
-                        or (entry.get("type") == "turn" and entry["payload"].get("turnId") in included_turns)
+                        or (entry.get("type") == "turn"
+                            and _record_id(entry["payload"].get("turnId")) in included_turns)
                         or (entry.get("type") == "context_edit"
-                            and owners.get(entry["payload"].get("targetItemId")) in included_turns)
+                            and owners.get(_record_id(entry["payload"].get("targetItemId"))) in included_turns)
                         or (entry.get("type") == "context_checkpoint" and checkpoint_in_branch(entry))):
                     prefix.append(entry)
             projected = self._project_items(thread_id, prefix)
@@ -2805,7 +2821,7 @@ class SessionStore:
                         and entry["payload"].get("turnId") == selected["turnId"]):
                     entry["payload"]["continuationRequestOffset"] = request_offset
                 if (entry["type"] == "context_edit"
-                        and owners.get(entry["payload"].get("targetItemId")) not in included_turns):
+                        and owners.get(_record_id(entry["payload"].get("targetItemId"))) not in included_turns):
                     continue
                 if entry.get("parentId") not in copied_ids:
                     entry["parentId"] = copied[-1]["id"] if copied else None
