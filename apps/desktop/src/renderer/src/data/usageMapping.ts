@@ -2,6 +2,7 @@ import type {
   AutoCompactionPolicy, ThreadUsageBucket, ThreadUsageSummaryJob, ThreadUsageTurn,
 } from "@boss-harness/protocol";
 import { safeSlice } from "@boss-harness/shared";
+import { parseIsoDateTime } from "./timeFormat";
 
 const COUNT_KEYS = ["requests", "verifiedRequests", "unverifiedRequests", "promptTokens",
   "uncachedInputTokens", "outputTokens"] as const;
@@ -88,8 +89,9 @@ function compactionPolicyOf(value: unknown): Partial<AutoCompactionPolicy> | und
 
 const TURN_STATUSES = new Set(["running", "completed", "interrupted", "blocked", "error"]);
 const timestampOf = (value: unknown): string | undefined =>
-  // 只接受可解析的 ISO 字符串；非法时间只影响耗时展示，不丢弃整行用量。
-  typeof value === "string" && value.length > 0 && value.length <= 64 && Number.isFinite(Date.parse(value)) ? value : undefined;
+  // 只接受带秒与时区的完整 ISO 时间，与工具来源和回合耗时共用同一判定；
+  // 非法时间只影响耗时展示，不丢弃整行用量。
+  typeof value === "string" && value.length <= 64 && parseIsoDateTime(value) ? value : undefined;
 
 export function turnOf(value: unknown): ThreadUsageTurn | null {
   const bucket = bucketOf(value);
