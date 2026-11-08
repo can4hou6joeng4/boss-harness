@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import { writeFile, chmod, lstat } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { app, dialog, ipcMain, Notification, BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import { HarnessHostManager, HarnessRpcError, type HarnessHostConnection } from "@boss-harness/app-client";
@@ -10,6 +9,7 @@ import { isTrustedRendererUrl, sessionExportFileName, validateHarnessRequest, va
 import { PlatformLogin } from "./platformLogin";
 import { preservesRpcError } from "./rpcErrors";
 import { sessionExportWriteError } from "./exportErrors";
+import { writeSessionExport } from "./sessionExportWrite";
 import { approvalNotificationContent, rememberApproval } from "./approvalNotification";
 import { readTurnEvent, recordTurnStart, turnNotificationContent } from "./turnNotification";
 import { normalizeBadgeCount } from "./notificationBadge";
@@ -220,24 +220,20 @@ function registerIPC(): void {
       });
       if (choice.canceled || !choice.filePath) return { saved: false, canceled: true };
       // Never follow a symlink picked (or pre-planted) at the save path, and do not report OS paths back.
-      try {
-        const existing = await lstat(choice.filePath).catch((error: NodeJS.ErrnoException) => {
-          if (error.code === "ENOENT") return null;
-          throw error;
-        });
-        if (existing?.isSymbolicLink()) throw new Error("symlink");
-        await writeFile(choice.filePath, exported.content, { encoding: "utf8", mode: 0o600 });
-        // `mode` only applies to new files; an overwritten file keeps its old permissions without this.
-        await chmod(choice.filePath, 0o600);
-      } catch (error) {
+      const written = await writeSessionExport(choice.filePath, exported.content).catch((error: unknown) => {
         // 提示只带 errno，不带系统路径；日志同样避免写入选中路径。
         const message = sessionExportWriteError(error);
         console.error("session export write failed", message);
         throw new Error(message);
+      });
+      if (written.permissionError) {
+        // 内容已经写入；权限收紧失败只记录 errno，不影响保存结果。
+        console.error("session export permission update failed", sessionExportWriteError(written.permissionError));
       }
       return { saved: true, fileName: basename(choice.filePath), bytes: Buffer.byteLength(exported.content, "utf8"),
         truncated: exported.truncated, turnCount: exported.turnCount, exportedTurnCount: exported.exportedTurnCount,
-        toolResults: exported.toolResults, redactions: { ...exported.redactions } };
+        toolResults: exported.toolResults, redactions: { ...exported.redactions },
+        ...(written.permissionsUnchanged ? { permissionsUnchanged: true } : {}) };
     } finally {
       exportInFlight = false;
     }

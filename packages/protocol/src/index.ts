@@ -1209,7 +1209,9 @@ export interface SessionExportSaveRequest {
 export type SessionExportSaveResult =
   | { saved: false; canceled: true }
   | { saved: true; fileName: string; bytes: number; truncated: boolean; turnCount: number; exportedTurnCount: number;
-      toolResults: "omitted" | "included"; redactions: ThreadExportResponse["redactions"] };
+      toolResults: "omitted" | "included"; redactions: ThreadExportResponse["redactions"];
+      /** 覆盖已有文件时权限收紧失败：内容已写入，但旧权限保持不变。 */
+      permissionsUnchanged?: boolean };
 
 /** `thread/usage/read` 参数；仅在 `capabilities.threadUsage` 为真时可用。 */
 export interface ThreadUsageReadParams { threadId: string; view?: "log" | "branch"; cursor?: string; limit?: number }
