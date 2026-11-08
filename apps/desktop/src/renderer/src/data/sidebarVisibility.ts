@@ -37,13 +37,21 @@ export function sessionFailed(session: SessionItem): boolean {
     && (session.lastTurnStatus === "error" || session.lastTurnStatus === "blocked");
 }
 
-/** 需要用户处理的会话：上一回合异常、等待预检，或有已暂停的队列项。 */
-export function sessionNeedsAttention(session: SessionItem): boolean {
+/**
+ * 需要用户处理的会话：上一回合异常、等待预检、有已暂停的队列项，或存在待审批调用。
+ *
+ * 审批挂起时回合仍是 running，既不算失败也不算中断，队列也没有暂停项；但审批有到期时间
+ * 且必须由人裁决，漏掉它会让「待你处理」分组少算真正需要行动的事项。
+ */
+export function sessionNeedsAttention(session: SessionItem, approvalCount = 0): boolean {
   return session.archived !== true
-    && (sessionFailed(session) || session.status === "interrupted" || (session.queueCounts?.paused ?? 0) > 0);
+    && (sessionFailed(session) || session.status === "interrupted"
+      || (session.queueCounts?.paused ?? 0) > 0 || approvalCount > 0);
 }
 
-/** 「待你处理」分组的候选会话，遵守归档与本地隐藏规则。 */
-export function attentionSessions(sessions: SessionItem[], hidden: ReadonlySet<string>, showHidden: boolean): SessionItem[] {
-  return nonArchivedSessions(sessions, hidden, showHidden).filter(sessionNeedsAttention);
+/** 「待你处理」分组的候选会话，遵守归档与本地隐藏规则；审批计数按会话 id 查。 */
+export function attentionSessions(sessions: SessionItem[], hidden: ReadonlySet<string>, showHidden: boolean,
+                                  approvalCounts: Readonly<Record<string, number>> = {}): SessionItem[] {
+  return nonArchivedSessions(sessions, hidden, showHidden)
+    .filter(session => sessionNeedsAttention(session, approvalCounts[session.id] ?? 0));
 }

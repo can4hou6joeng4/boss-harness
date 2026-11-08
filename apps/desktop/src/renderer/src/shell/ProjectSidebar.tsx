@@ -45,8 +45,8 @@ export function ProjectSidebar(props: Props) {
   // 菜单计数与分组使用同一份结果，避免菜单按全部归档、分组却按可见条目计数。
   const hiddenCount = hiddenSessionCount(allSessions, hidden);
   const pinnedSessions = all.filter(session => props.pinned.includes(session.id));
-  // 待处理分组只做聚合，不改变各会话在项目/最近列表中的原有位置。
-  const attention = dedupe(attentionSessions(allSessions, hidden, preferences.showHidden));
+  // 待处理分组只做聚合，不改变各会话在项目/最近列表中的原有位置；待审批也计入。
+  const attention = dedupe(attentionSessions(allSessions, hidden, preferences.showHidden, props.approvalCounts));
   const sort = (sessions: SessionItem[]) => [...sessions].sort((a, b) => preferences.sort === "name"
     ? a.title.localeCompare(b.title, "zh-CN", { numeric: true })
     : a.updatedAt && b.updatedAt ? Date.parse(b.updatedAt) - Date.parse(a.updatedAt) : 0);
