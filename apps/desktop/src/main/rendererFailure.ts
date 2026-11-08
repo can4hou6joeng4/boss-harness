@@ -1,3 +1,5 @@
+import { safeSlice } from "@boss-harness/shared";
+
 /**
  * 主窗口界面无法正常显示时的诊断页面。
  *
@@ -22,9 +24,16 @@ export function rendererCrashPage(cause: string): string {
   });
 }
 
-/** 只允许内联样式的静态页；所有插入文本先转义，并限制长度。 */
+/** 孤立代理项无法被 `encodeURIComponent` 编码；替换为 U+FFFD 保留可读性。 */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+function wellFormed(text: string): string {
+  return text.replace(LONE_SURROGATE, "�");
+}
+
+/** 只允许内联样式的静态页；所有插入文本先转义，并限制长度（不切开代理对）。 */
 function rendererPage(input: { heading: string; detail: string; hint: string }): string {
-  const detail = input.detail.trim().slice(0, 300) || "未知原因";
+  const detail = wellFormed(safeSlice(input.detail.trim(), 300)) || "未知原因";
   const escape = (value: string): string => value.replace(/[&<>"']/g, char => (
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char] ?? char));
   const html = `<!doctype html>
