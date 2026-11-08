@@ -58,6 +58,24 @@ def _validate_json_value(value: Any, *, depth: int = 0) -> None:
             _validate_json_value(item, depth=depth + 1)
 
 
+def _enable_surrogateescape_stdin() -> None:
+    """让 stdin 按字节级 surrogateescape 解码，坏字节只影响单帧。
+
+    默认文本流使用 strict 错误策略，帧内非法 UTF-8 字节会让 ``readline`` 抛
+    ``UnicodeDecodeError`` 并终止读取循环。surrogateescape 保留原始字节，
+    随后逐帧用 ``encode("utf-8", "surrogateescape")`` 还原、再严格解码，
+    非法 UTF-8 帧便降级为 ``-32700``；LF 是 ASCII，分帧不受影响。
+    """
+    reconfigure = getattr(sys.stdin, "reconfigure", None)
+    if reconfigure is None:
+        return
+    try:
+        reconfigure(errors="surrogateescape")
+    except (AttributeError, OSError, ValueError):
+        # 被替换或已关闭的流可能不支持重配置；读取处仍会兜住解码失败。
+        pass
+
+
 def _decode_json_frame(raw: str) -> Any:
     try:
         value = json.loads(raw, object_pairs_hook=_unique_json_object,
@@ -192,9 +210,16 @@ class JsonRpcServer:
             self._out.flush()
 
     def serve_forever(self) -> None:
+        _enable_surrogateescape_stdin()
         try:
             while True:
-                raw = sys.stdin.readline(MAX_FRAME_BYTES + 1)
+                try:
+                    raw = sys.stdin.readline(MAX_FRAME_BYTES + 1)
+                except UnicodeDecodeError:
+                    # 无法重配置的流仍可能在分帧前解码失败；此时缓冲状态不可信，
+                    # 回一帧错误后有序停止，避免未捕获异常让进程整体崩溃。
+                    self.respond_error(None, -32700, "无效的 JSON 帧")
+                    break
                 if not raw:
                     break
                 try:
