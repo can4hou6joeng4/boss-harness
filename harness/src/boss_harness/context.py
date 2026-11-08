@@ -705,22 +705,44 @@ class ContextService:
 
     def _branch_summaries(self, thread_id: str, entries: list[dict]) -> list[dict]:
         """Abandoned-branch summaries on the projected branch, each anchored after its target turn."""
+        return self._branch_summary_scan(thread_id, entries)[0]
+
+    def _branch_summary_scan(self, thread_id: str,
+                             entries: list[dict]) -> tuple[list[dict], list[dict]]:
+        """Valid branch summaries plus one fixed reason for every damaged record.
+
+        A damaged optional summary never hides original records and is never
+        injected; the issue list only lets callers tell "no summary was made"
+        apart from "the summary record no longer validates".
+        """
         if not any(entry.get("type") == BRANCH_SUMMARY_ENTRY_TYPE for entry in entries):
-            return []
+            return [], []
         order = [turn["turnId"] for turn in self.sessions._turns(entries, thread_id)]
         positions = {turn_id: index for index, turn_id in enumerate(order)}
-        result = []
+        result, issues = [], []
         for entry in entries:
             payload = entry.get("payload")
             if entry.get("type") != BRANCH_SUMMARY_ENTRY_TYPE or not isinstance(payload, dict):
                 continue
             summary, anchor = payload.get("summary"), payload.get("targetTurnId")
             abandoned = payload.get("abandonedTurnIds")
-            if (not isinstance(summary, str) or not summary.strip() or len(summary) > MAX_BRANCH_SUMMARY_CHARS
-                    or (anchor is not None and (not isinstance(anchor, str) or anchor not in positions))
-                    or not isinstance(abandoned, list) or not abandoned
-                    or not all(isinstance(turn_id, str) for turn_id in abandoned)):
-                # A damaged optional summary never hides original records.
+            if not isinstance(summary, str):
+                reason = "摘要正文不是字符串"
+            elif not summary.strip():
+                reason = "摘要正文为空"
+            elif len(summary) > MAX_BRANCH_SUMMARY_CHARS:
+                reason = f"摘要正文超过 {MAX_BRANCH_SUMMARY_CHARS} 字符"
+            elif anchor is not None and (not isinstance(anchor, str) or anchor not in positions):
+                reason = "摘要的目标回合不在当前分支上"
+            elif (not isinstance(abandoned, list) or not abandoned
+                  or not all(isinstance(turn_id, str) for turn_id in abandoned)):
+                reason = "被放弃回合列表为空或无效"
+            else:
+                reason = None
+            if reason is not None:
+                entry_id = entry.get("id")
+                issues.append({"entryId": entry_id if isinstance(entry_id, str) else "",
+                               "reason": reason})
                 continue
             start = positions[anchor] + 1 if anchor is not None else 0
             text = ("被放弃分支摘要（切换分支时由模型对已放弃的探索生成；被放弃分支的操作不属于当前分支，"
@@ -732,7 +754,7 @@ class ContextService:
                            "fromTurnId": payload.get("fromTurnId"), "abandonedTurnIds": abandoned,
                            "summaryJobId": payload.get("summaryJobId"), "characters": len(summary.strip()),
                            "later": frozenset(order[start:]), "message": UserMessage(text=text)})
-        return result
+        return result, issues
 
     @staticmethod
     def _within(summaries: list[dict], turn_ids: set[str]) -> list[dict]:
@@ -880,7 +902,7 @@ class ContextService:
             raise ValueError("request 和 capabilities 必须同时提供")
         entries = self._entries(thread_id, entries)
         items, checkpoint, checkpoint_issue = self._history_snapshot(thread_id, entries)
-        branch_summaries = self._branch_summaries(thread_id, entries)
+        branch_summaries, branch_summary_issues = self._branch_summary_scan(thread_id, entries)
         if request is not None and capabilities is not None:
             budget = describe_request(request, capabilities, provider=provider)
             if provider:
@@ -911,6 +933,10 @@ class ContextService:
             result["branchSummaries"] = [{key: summary[key] for key in (
                 "entryId", "targetTurnId", "fromTurnId", "abandonedTurnIds", "summaryJobId", "characters")}
                 for summary in branch_summaries]
+        if branch_summary_issues:
+            # 只读诊断：损坏的摘要不会进入模型上下文，但用户需要知道记录为何失效。
+            result["branchSummaryIssues"] = branch_summary_issues[:20]
+            result["branchSummaryIssueCount"] = len(branch_summary_issues)
         return result
 
     def active_summary_job_id(self, thread_id: str, *, entries: list[dict] | None = None) -> str | None:

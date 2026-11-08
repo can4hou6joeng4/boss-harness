@@ -553,6 +553,10 @@ button.user-skill-chip:hover { border-color: var(--text-muted); color: var(--tex
 .branch-badge { font-weight: 500; font-size: 10px; padding: 1px 6px; border-radius: 6px; color: var(--accent-green); border: 1px solid color-mix(in srgb, var(--accent-green) 40%, var(--border-color)); }
 .branch-badge.muted { color: var(--text-faint); border-color: var(--border-color); }
 .dialog-form p.branch-block { color: var(--accent-warning); font-size: 12px; }
+.dialog-form .branch-summary-issues { color: var(--accent-warning); font-size: 12px; overflow-wrap: anywhere; }
+.dialog-form .branch-summary-issues ul { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; padding-left: 18px; color: var(--text-muted); }
+.dialog-form .branch-summary-issues li { font-size: 11px; }
+.dialog-form .branch-summary-issues code { font-family: var(--font-mono); font-size: 10px; }
 .dialog-form p.branch-error { color: var(--accent-error); font-size: 12px; overflow-wrap: anywhere; }
 .branch-confirm { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 10px; border: 1px solid var(--border-active); }
 .dialog-form p.branch-confirm-target { color: var(--text-main); font-size: 12px; }

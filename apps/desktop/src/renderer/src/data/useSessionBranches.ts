@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ContextBranchSummary, ContextCompactJob, InitializeResponse, QueueItem, ThreadBranchEndpoint, TurnSummary } from "@boss-harness/protocol";
+import type { ContextBranchSummary, ContextBranchSummaryIssue, ContextCompactJob, InitializeResponse, QueueItem, ThreadBranchEndpoint, TurnSummary } from "@boss-harness/protocol";
 import { abortContextCompaction, harnessErrorText, listBranchTurns, listThreadBranches, readContext, readContextCompaction, setThreadLeaf } from "./harnessBridge";
 import { readPagedItems } from "./pagedRead";
 
@@ -27,6 +27,10 @@ export interface SessionBranchState {
   /** 回合过多，界面只载入了前面的若干页；更晚的回合（可能含当前位置）未读取。 */
   turnsTruncated: boolean;
   summaries: ContextBranchSummary[];
+  /** 未通过校验、未注入模型上下文的分支摘要条目（内核最多列出 20 条）。 */
+  summaryIssues: ContextBranchSummaryIssue[];
+  /** 失效条目总数；内核未返回时为已列出的条目数。 */
+  summaryIssueCount: number;
   /** 摘要标记（被放弃分支的摘要条目）未能读取的原因；分支端点与切换不受影响。 */
   summaryError: string;
   /** 摘要任务状态读取或轮询失败的原因；事件推送仍然有效，显示的任务状态可能缺失或已过期。 */
@@ -38,7 +42,8 @@ export interface SessionBranchState {
 }
 
 const initial = (): SessionBranchState => ({ loading: false, loaded: false, error: "", branched: false, leafTurnId: null, turnCount: 0,
-  endpoints: [], endpointsTruncated: false, turns: [], turnsTruncated: false, summaries: [], summaryError: "", summaryPollError: "", switching: false, switchError: "", cancelInFlight: false });
+  endpoints: [], endpointsTruncated: false, turns: [], turnsTruncated: false, summaries: [], summaryIssues: [], summaryIssueCount: 0,
+  summaryError: "", summaryPollError: "", switching: false, switchError: "", cancelInFlight: false });
 const MAX_PAGES = 10;
 const TERMINAL_TURN = new Set(["completed", "interrupted", "blocked", "error"]);
 export const isSettledTurn = (status: string | null | undefined): boolean => Boolean(status && TERMINAL_TURN.has(status));
@@ -120,6 +125,8 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
         return { items: page.turns.filter(turn => turn.threadId === id), nextCursor: page.nextCursor ?? null };
       }, MAX_PAGES);
       let summaries: ContextBranchSummary[] = [];
+      let summaryIssues: ContextBranchSummaryIssue[] = [];
+      let summaryIssueCount = 0;
       let summaryError = "";
       let jobId: string | undefined;
       try {
@@ -127,6 +134,13 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
         if (!valid()) return;
         if (context.threadId === id) {
           summaries = Array.isArray(context.branchSummaries) ? context.branchSummaries : [];
+          // 损坏条目不影响有效摘要与切换；但界面不能把「摘要记录失效」显示成「没有生成摘要」。
+          summaryIssues = (Array.isArray(context.branchSummaryIssues) ? context.branchSummaryIssues : [])
+            .filter(issue => Boolean(issue) && typeof issue === "object"
+              && typeof issue.entryId === "string" && typeof issue.reason === "string");
+          const total = context.branchSummaryIssueCount;
+          summaryIssueCount = typeof total === "number" && Number.isSafeInteger(total) && total >= summaryIssues.length
+            ? total : summaryIssues.length;
           if (context.compactionJob?.active) jobId = context.compactionJob.jobId;
         }
       } catch (error) {
@@ -136,7 +150,8 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       pollFailures.current.delete(id);
       update(id, state => ({ ...state, loading: false, loaded: true, error: "", branched: head?.branched ?? false,
         leafTurnId: head?.leafTurnId ?? null, turnCount: head?.turnCount ?? 0, endpoints: endpointPage.items,
-        endpointsTruncated: endpointPage.truncated, turns: turnPage.items, turnsTruncated: turnPage.truncated, summaries, summaryError, summaryPollError: "" }));
+        endpointsTruncated: endpointPage.truncated, turns: turnPage.items, turnsTruncated: turnPage.truncated, summaries,
+        summaryIssues, summaryIssueCount, summaryError, summaryPollError: "" }));
       const known = stateRef.current[id]?.summaryJob;
       const watch = jobId ?? (known?.status === "running" ? known.jobId : undefined);
       if (watch) {
