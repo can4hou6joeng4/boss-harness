@@ -5,6 +5,7 @@ import { Popover } from "../components/Popover";
 import type { ProjectFolder, SessionItem } from "../data/mockData";
 import { UI_STORAGE_PREFIX } from "../data/uiStorage";
 import { archivedSessions, attentionSessions, hideActionLabel, hiddenSessionCount, nonArchivedSessions, sessionFailed } from "../data/sidebarVisibility";
+import { sessionUpdatedAt } from "../data/sessionOrder";
 import { booleanRecord } from "../data/preferenceShapes";
 import { currentShortcutLabel } from "../data/shortcutLabels";
 import "../styles/sidebar-menus.css";
@@ -49,7 +50,7 @@ export function ProjectSidebar(props: Props) {
   const attention = dedupe(attentionSessions(allSessions, hidden, preferences.showHidden, props.approvalCounts));
   const sort = (sessions: SessionItem[]) => [...sessions].sort((a, b) => preferences.sort === "name"
     ? a.title.localeCompare(b.title, "zh-CN", { numeric: true })
-    : a.updatedAt && b.updatedAt ? Date.parse(b.updatedAt) - Date.parse(a.updatedAt) : 0);
+    : sessionUpdatedAt(b) - sessionUpdatedAt(a));
   const toggle = (key: string) => { setView("main"); setContext(previous => previous?.key === key ? null : { key }); };
   const rightClick = (key: string, event: MouseEvent<HTMLElement>) => {
     event.preventDefault(); event.stopPropagation();
