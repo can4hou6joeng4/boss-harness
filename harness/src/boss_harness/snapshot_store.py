@@ -14,7 +14,7 @@ import uuid
 
 from boss_harness.private_files import ensure_private_directory, open_private_file, restrict_private_file
 from boss_harness.queue_view import (ACTIVE_QUEUE_STATUSES, MAX_QUEUE_VIEW_ITEMS,
-                                     MAX_QUEUE_VIEW_TERMINAL_ITEMS, project_queue)
+                                     MAX_QUEUE_VIEW_TERMINAL_ITEMS, QUEUE_STATUSES, project_queue)
 from boss_harness.rpc import RpcError
 from boss_harness.session import MAX_SESSION_LINE_BYTES, _decode_session_record
 
@@ -447,15 +447,18 @@ class SnapshotStore:
                 total = 0
                 active = 0
                 for ordinal, payload in rows:
-                    total += 1
                     try:
                         decoded = json.loads(payload)
                     except (TypeError, ValueError):
                         continue
-                    status = decoded.get("status") if isinstance(decoded, dict) else None
-                    # 与运行时投影一致：只有带有效 id 的记录才计入待处理。
-                    valid = isinstance(decoded, dict) and isinstance(decoded.get("id"), str) and bool(decoded["id"])
-                    if valid and status in ACTIVE_QUEUE_STATUSES:
+                    # 与运行时投影一致：只有带有效 id、且状态已知的记录才计入总数与待处理。
+                    if not (isinstance(decoded, dict) and isinstance(decoded.get("id"), str) and decoded["id"]):
+                        continue
+                    status = decoded.get("status")
+                    if status not in QUEUE_STATUSES:
+                        continue
+                    total += 1
+                    if status in ACTIVE_QUEUE_STATUSES:
                         active += 1
                     if status in {"queued", "delivering"}:
                         pending.append((ordinal, payload))

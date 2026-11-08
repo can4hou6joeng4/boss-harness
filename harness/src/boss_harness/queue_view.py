@@ -10,6 +10,9 @@ MAX_QUEUE_VIEW_ITEMS = 200
 MAX_QUEUE_VIEW_TERMINAL_ITEMS = 50
 MAX_QUEUE_VIEW_INPUT_CHARS = 600
 ACTIVE_QUEUE_STATUSES = frozenset({"queued", "delivering", "paused"})
+TERMINAL_QUEUE_STATUSES = frozenset({"delivered", "cancelled"})
+# 持久记录不可信：缺失或未知状态不进入投影，否则渲染层会整份拒绝，隐藏真实队列。
+QUEUE_STATUSES = ACTIVE_QUEUE_STATUSES | TERMINAL_QUEUE_STATUSES
 _PENDING_QUEUE_STATUSES = frozenset({"queued", "delivering"})
 
 
@@ -22,10 +25,11 @@ def project_queue(items: list[dict], *, total_items: int | None = None,
     subset of items is passed in.
     """
     ordered = [item for item in items
-               if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"]]
+               if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"]
+               and item.get("status") in QUEUE_STATUSES]
     pending = [item for item in ordered if item.get("status") in _PENDING_QUEUE_STATUSES]
     paused = [item for item in ordered if item.get("status") == "paused"]
-    terminal = [item for item in ordered if item.get("status") not in ACTIVE_QUEUE_STATUSES]
+    terminal = [item for item in ordered if item.get("status") in TERMINAL_QUEUE_STATUSES]
 
     # 未投递的排队项优先保留；超限时保留最新的，暂停项随后占用剩余名额。
     kept_pending = pending[-MAX_QUEUE_VIEW_ITEMS:]
