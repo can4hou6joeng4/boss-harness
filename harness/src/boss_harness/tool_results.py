@@ -33,10 +33,65 @@ def result_text(result: Any) -> str:
 
 
 def result_reference(thread_id: str, item_id: str, text: str) -> dict:
-    encoded = text.encode("utf-8")
+    # 持久记录可能含孤立代理项；surrogatepass 让摘要与读取路径对同一文本给出相同结果。
+    encoded = text.encode("utf-8", "surrogatepass")
     return {"threadId": thread_id, "itemId": item_id, "encoding": "json",
             "sha256": hashlib.sha256(encoded).hexdigest(), "byteLength": len(encoded),
             "characterLength": len(text)}
+
+
+def _json_size(value: Any, *, ensure_ascii: bool = False) -> int | None:
+    """JSON 拼写的 UTF-8 字节数；无法编码的值返回 None，由调用方按超限处理。"""
+    try:
+        return len(json.dumps(value, ensure_ascii=ensure_ascii, allow_nan=False).encode("utf-8"))
+    except (TypeError, ValueError, UnicodeEncodeError):
+        return None
+
+
+def _fits(projected: dict[str, Any], max_bytes: int) -> bool:
+    """正常路径按 ensure_ascii=False 输出，兜底路径按 True；两种拼写都必须落在预算内。"""
+    plain = _json_size(projected)
+    escaped = _json_size(projected, ensure_ascii=True)
+    return plain is not None and escaped is not None and plain <= max_bytes and escaped <= max_bytes
+
+
+def _command_text(value: Any) -> str:
+    """命令来自模型输入或持久记录；非字符串按 JSON 拼写投影。"""
+    if isinstance(value, str):
+        text = value
+    else:
+        try:
+            text = json.dumps(value, ensure_ascii=False, allow_nan=False)
+        except (TypeError, ValueError):
+            text = ""
+    if not any(0xD800 <= ord(char) <= 0xDFFF for char in text):
+        return text
+    return "".join("�" if 0xD800 <= ord(char) <= 0xDFFF else char for char in text)
+
+
+def _fit_projection(projected: dict[str, Any], max_bytes: int) -> dict[str, Any]:
+    """固定字段同样受预算约束：超长 command 保留前缀并标注，可选 source 在必要时让位。"""
+    if _fits(projected, max_bytes):
+        return projected
+    # 固定字段中只有 command 与 source 可能无界。保留 source 时连空命令都放不下，
+    # 才丢弃仅用于溯源的 source；丢弃后完整命令已能放下时也不必误标截断。
+    if not _fits({**projected, "command": ""}, max_bytes):
+        without_source = {key: value for key, value in projected.items() if key != "source"}
+        if _fits(without_source, max_bytes):
+            return without_source
+        projected = without_source
+    projected = {**projected, "commandTruncated": True}
+    # 留一半预算给结果预览；二分查找 JSON 转义后仍能放下的最长前缀。
+    text = _command_text(projected.get("command"))
+    low, high = 0, min(len(text), max_bytes // 2)
+    while low < high:
+        middle = (low + high + 1) // 2
+        if _fits({**projected, "command": text[:middle]}, max_bytes):
+            low = middle
+        else:
+            high = middle - 1
+    projected["command"] = text[:low]
+    return projected
 
 
 def model_result_content(result: dict, item_id: str | None, *, source: dict | None,
@@ -46,9 +101,9 @@ def model_result_content(result: dict, item_id: str | None, *, source: dict | No
             or not MIN_MODEL_TOOL_RESULT_BYTES <= max_bytes <= MAX_MODEL_TOOL_RESULT_BYTES):
         max_bytes = DEFAULT_MODEL_TOOL_RESULT_BYTES
     payload = {**result, **({"source": source} if source is not None else {})}
-    encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False)
-    if len(encoded.encode("utf-8")) <= max_bytes:
-        return encoded
+    size = _json_size(payload)
+    if size is not None and size <= max_bytes:
+        return json.dumps(payload, ensure_ascii=False, allow_nan=False)
 
     projected: dict[str, Any] = {
         "ok": result.get("ok"),
@@ -64,6 +119,7 @@ def model_result_content(result: dict, item_id: str | None, *, source: dict | No
                                   ("itemId", "sha256", "byteLength", "characterLength")}
     else:
         projected["resultUnavailable"] = True
+    projected = _fit_projection(projected, max_bytes)
 
     preview = preview if isinstance(preview, str) else ""
     keep = min(len(preview), max_bytes // 2)
