@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextCompactJob, ContextCompactPlan, ContextReadResponse } from "@boss-harness/protocol";
 import { isContextJob, manualCompactionJob } from "./contextJob";
+import { disconnectPatch } from "./contextPanelState";
 import { abortContextCompaction, harnessErrorText, planContextCompaction, readContext, readContextCompaction, startContextCompaction } from "./harnessBridge";
 
 interface StartAttempt {
@@ -161,8 +162,7 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
         epoch.current += 1;
         readFlights.current.clear();
         refreshAgain.current.clear();
-        for (const id of Object.keys(stateRef.current)) update(id, state => ({ ...state, plan: undefined, reading: false, planning: false, starting: false, cancelInFlight: false,
-          error: state.unknownStart ? "开始压缩的回执未知。重连后只核对原任务，不会重复开始。" : state.job && !terminal(state.job) ? "连接已断开，摘要任务状态待核对。" : state.error }));
+        for (const id of Object.keys(stateRef.current)) update(id, state => ({ ...state, ...disconnectPatch(state) }));
         return;
       }
       if (event.method === "harness/connectionStatus" && params.state === "ready") {
