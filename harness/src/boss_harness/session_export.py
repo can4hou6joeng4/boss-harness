@@ -604,22 +604,25 @@ class _Exporter:
             if not isinstance(queue_id, str) or not queue_id or len(queue_id) > 120:
                 continue
             if not isinstance(payload.get("status"), str) or payload["status"] not in {
-                    "queued", "delivering", "paused", "cancelled"}:
+                    "queued", "delivering", "paused", "cancelled", "delivered"}:
                 continue
             latest[queue_id] = (str(entry.get("timestamp") or ""), payload)
         ordered = sorted(latest.items(), key=lambda pair: (pair[1][0], pair[0]))
+        # delivered 表示输入已持久化并进入回合；它不再是「未形成回合的队列项」，但必须
+        # 参与合并，才能覆盖同一 queueId 更早的 queued / delivering 记录。
+        pending = [(queue_id, record) for queue_id, record in ordered if record[1]["status"] != "delivered"]
         # 暂停项需要人工核对；即使之后又积累了更多历史项，也优先保留最近 20 个暂停项。
-        keep_ids = {queue_id for queue_id, _ in ordered[-MAX_QUEUE_ITEMS:]}
-        paused_ids = [queue_id for queue_id, (_, payload) in ordered if payload["status"] == "paused"]
+        keep_ids = {queue_id for queue_id, _ in pending[-MAX_QUEUE_ITEMS:]}
+        paused_ids = [queue_id for queue_id, (_, payload) in pending if payload["status"] == "paused"]
         keep_ids.update(paused_ids[-MAX_QUEUE_ITEMS:])
         if len(keep_ids) > MAX_QUEUE_ITEMS:
-            for queue_id, (_, payload) in ordered:
+            for queue_id, (_, payload) in pending:
                 if len(keep_ids) <= MAX_QUEUE_ITEMS:
                     break
                 if queue_id in keep_ids and payload["status"] != "paused":
                     keep_ids.discard(queue_id)
         items = []
-        for queue_id, (_, payload) in ordered:
+        for queue_id, (_, payload) in pending:
             if queue_id not in keep_ids:
                 continue
             kind = payload.get("kind")
@@ -639,7 +642,7 @@ class _Exporter:
                 "autoCompaction": verified_policy(payload.get("autoCompaction"),
                                                   _QUEUE_OVERRIDE_FIELDS),
             })
-        return {"items": items, "totalItems": len(ordered), "maxItems": MAX_QUEUE_ITEMS}
+        return {"items": items, "totalItems": len(pending), "maxItems": MAX_QUEUE_ITEMS}
 
 
 # ---------- rendering ----------
