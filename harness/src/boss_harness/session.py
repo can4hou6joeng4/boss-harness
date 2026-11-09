@@ -2825,7 +2825,8 @@ class SessionStore:
                 records = [entry for entry in raw_entries if entry.get("type") == "turn"
                            and isinstance(entry.get("payload"), dict)
                            and entry["payload"].get("turnId") == turn_id]
-                if records and records[-1]["payload"].get("status") in _TERMINAL:
+                last_status = records[-1]["payload"].get("status") if records else None
+                if isinstance(last_status, str) and last_status in _TERMINAL:
                     synthetic = Entry(type=LEAF_ENTRY_TYPE, parent_id=records[-1]["id"],
                                       payload={"targetId": records[-1]["id"], "turnId": turn_id})
                     entries = self._active_entries(raw_entries + [synthetic.to_dict()])

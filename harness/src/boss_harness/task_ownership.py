@@ -197,7 +197,8 @@ def user_message_refs(entries: Iterable[dict], queue_ids: set[str], *, per_queue
                 pending.clear()
             if payload.get("status") == "running":
                 active_turn = turn_id
-            elif payload.get("status") in _TERMINAL_TURNS and active_turn == turn_id:
+            elif (isinstance(payload.get("status"), str)
+                  and payload.get("status") in _TERMINAL_TURNS and active_turn == turn_id):
                 active_turn = None
             continue
         if entry.get("type") != "item":
