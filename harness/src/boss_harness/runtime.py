@@ -19,6 +19,8 @@ from boss_harness.shutdown import TrackedAbort, join_until
 
 MAX_PENDING_QUEUE_ITEMS = 128
 MAX_PENDING_QUEUE_INPUT_BYTES = 4 * 1024 * 1024
+# 暂停来源只作为可核对的有限枚举写入队列记录；界面据此提供重试入口，不猜原因。
+PAUSE_REASON_COMPACTION_FAILED = "COMPACTION_FAILED"
 
 
 class RuntimeManager:
@@ -208,7 +210,8 @@ class TurnQueue:
     def __init__(self, sessions: SessionStore) -> None:
         self.sessions = sessions
         self.lock = threading.RLock()
-        self._pending_pauses: dict[str, set[str | None]] = {}
+        # kind -> 暂停来源；None 表示调用方没有说明来源（启动失败、恢复等既有路径）。
+        self._pending_pauses: dict[str, dict[str | None, str | None]] = {}
 
     def list(self, thread_id: str) -> list[dict]:
         states: dict[str, dict] = {}
@@ -372,11 +375,21 @@ class TurnQueue:
                          and (kind != "steering" or q["expectedTurnId"] == turn_id)), None)
             return self.transition(thread_id, item["id"], "delivering") if item else None
 
-    def pause(self, thread_id: str, *, kind: str | None = None) -> list[str]:
+    def pause(self, thread_id: str, *, kind: str | None = None,
+              reason: str | None = None) -> list[str]:
+        """Pause matching pending work, remembering why it was paused.
+
+        ``reason`` is written into each paused record so the desktop can explain
+        the state and offer an explicit retry. It is a bounded enum owned by the
+        kernel; callers that pause for internal recovery keep ``None``.
+        """
         with self.lock:
             # Register responsibility before touching storage. A failed write
             # must not leave old work eligible for a later successful turn.
-            self._pending_pauses.setdefault(thread_id, set()).add(kind)
+            scopes = self._pending_pauses.setdefault(thread_id, {})
+            # 同一作用域已有具体来源时保留它；后到的无来源暂停不能抹掉前一次原因。
+            if reason is not None or kind not in scopes:
+                scopes[kind] = reason
             return self.settle_pauses(thread_id)
 
     def settle_pauses(self, thread_id: str, *, maximum_session_bytes: int | None = None) -> list[str]:
@@ -390,10 +403,22 @@ class TurnQueue:
             scopes = self._pending_pauses.get(thread_id)
             if not scopes:
                 return []
-            updates = [Entry(type="queue", payload={**item, "status": "paused"})
-                       for item in self.list(thread_id)
-                       if item["status"] in {"queued", "delivering"}
-                       and (None in scopes or item["kind"] in scopes)]
+            updates = []
+            for item in self.list(thread_id):
+                if item["status"] not in {"queued", "delivering"}:
+                    continue
+                # 具体 kind 的来源优先于无作用域兜底：两者同时登记时，
+                # 压缩失败的 follow-up 仍应保留自己的原因。
+                if item["kind"] in scopes:
+                    reason = scopes[item["kind"]]
+                elif None in scopes:
+                    reason = scopes[None]
+                else:
+                    continue
+                payload = {**item, "status": "paused"}
+                if reason is not None:
+                    payload["pausedReason"] = reason
+                updates.append(Entry(type="queue", payload=payload))
             self.sessions.append_many(thread_id, updates, maximum_bytes=maximum_session_bytes)
             self._pending_pauses.pop(thread_id, None)
             return [entry.payload["id"] for entry in updates]

@@ -7,6 +7,7 @@ import { useClipboardCopy } from "../data/clipboardCopy";
 import { harnessErrorText } from "../data/harnessBridge";
 import { queueRefreshErrorText, type QueueRefreshResult } from "../data/queueRefresh";
 import { queueActionNotice, type QueueActionOutcome } from "../data/queueAction";
+import { queueItemRetryable, queuePauseReasonText } from "../data/queueRetry";
 import { queueSkillLabels } from "../data/queueSkillLabels";
 import { compactionLabel, compactionTitle } from "./queueCompaction";
 
@@ -64,8 +65,7 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
       setRefreshing(false);
     }
   };
-  const canRetry = (item: QueueItem) => Boolean(onRetry) && item.kind === "followUp"
-    && item.status === "paused" && item.failureCode === "TURN_START_FAILED" && item.inputPersisted === false;
+  const canRetry = (item: QueueItem) => Boolean(onRetry) && queueItemRetryable(item);
   const showFullInput = async (item: QueueItem) => {
     if (!onReadFull || reading) return;
     clipboard.reset();
@@ -160,6 +160,7 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
         <div className="turn-queue-item-copy">
           <span className={`turn-queue-kind is-${item.kind}`}>{item.kind === "steering" ? "当前回合" : "后续回合"}</span>
           <span className="turn-queue-status">{item.status === "paused" && item.failureCode === "TURN_START_FAILED" ? "启动失败，未执行"
+            : item.status === "paused" && item.pausedReason === "COMPACTION_FAILED" ? "摘要失败，已暂停"
             : item.status === "delivered" && item.deduplicated ? "已关联已有回合" : LABELS[item.status]}</span>
           {(() => {
             const labels = queueSkillLabels(item.skillIds, skills);
@@ -180,6 +181,10 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
           {item.status === "paused" && item.deduplicated && item.failureCode !== "TURN_START_FAILED" && <p className="turn-queue-error">
             已关联旧请求，请核对当前会话后决定是否发起新任务。
           </p>}
+          {(() => {
+            const reason = queuePauseReasonText(item);
+            return reason ? <p className="turn-queue-error">{reason}</p> : null;
+          })()}
         </div>
         {onUpdateInput && item.status === "queued" && <button type="button" className="turn-queue-edit" title="编辑排队中的正文；不会提前投递" disabled={reading !== null || saving} onClick={() => { void startEditing(item); }}>编辑</button>}
         {canRetry(item) && <button type="button" className="turn-queue-retry" disabled={pending !== null || !connected}
