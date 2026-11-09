@@ -2877,7 +2877,12 @@ class SessionStore:
         """Finalize abandoned work, including archived sessions; never execute a tool."""
         for thread in self.list_threads(include_archived=True):
             thread_id = thread["id"]
-            entries = self.read_entries(thread_id)
+            try:
+                entries = self.read_entries(thread_id)
+            except (OSError, ValueError):
+                # Reads of a damaged thread keep reporting the damaged line;
+                # startup recovery still has to finalize every other session.
+                continue
             turns = self._turns(entries, thread_id)
             # The last record written before this process started is the closest
             # known point to the previous exit. Recovered turns use it as their

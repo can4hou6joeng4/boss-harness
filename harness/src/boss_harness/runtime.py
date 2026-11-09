@@ -399,10 +399,16 @@ class TurnQueue:
     def recover(self) -> None:
         for thread in self.sessions.list_threads(include_archived=True):
             thread_id = thread["id"]
-            delivered = {item.get("queueId") for item in self.sessions.read_items(thread_id)
-                         if item.get("kind") == "userMessage"}
             with self.lock:
-                for item in self.list(thread_id):
+                try:
+                    delivered = {item.get("queueId") for item in self.sessions.read_items(thread_id)
+                                 if item.get("kind") == "userMessage"}
+                    items = self.list(thread_id)
+                except (OSError, ValueError):
+                    # A damaged log cannot say which inputs were delivered; leave
+                    # that thread untouched and keep recovering the other sessions.
+                    continue
+                for item in items:
                     if item["status"] in {"queued", "delivering"}:
                         if item["kind"] == "steering":
                             self.transition(thread_id, item["id"],
