@@ -88,6 +88,14 @@ class _ParallelUnavailable(RuntimeError):
     """并行批次在任何调用落库或 handler 启动前即无法获得独立工具桥。"""
 
 
+def _interrupted_tool_result(name: str) -> ToolResult:
+    """异常收尾的兜底结果：调用已 prepare，必须写入终态而不是停在 running。"""
+    return ToolResult(ok=False, command=name, error={
+        "code": "TOOL_ERROR",
+        "message": "工具调用被中断，结果未确认",
+    })
+
+
 @dataclass
 class _PreparedTool:
     """已在主线程完成校验、策略与 start 持久化、等待派发的一次工具调用。"""
@@ -794,6 +802,8 @@ class TurnRunner:
                                 pending[next_index] = (item, None, None, item.invalid)
                                 stopped = True
                             else:
+                                # 先登记再派发：派发或提交抛 BaseException 时仍由清理路径收尾。
+                                pending[next_index] = (item, None, None, None)
                                 outcome = self._begin_dispatch(thread_id, item)
                                 if outcome is None:
                                     pending[next_index] = (item, executor.submit(self._call_handler, item, bridge),
@@ -807,25 +817,39 @@ class TurnRunner:
                         if index >= next_index:
                             break
                         item, future, bridge, outcome = pending.pop(index)
-                        if isinstance(item, ToolResultItem):
-                            results.append(item)
-                        else:
-                            if future is not None:
-                                outcome = future.result()
-                                free.append(bridge)
-                            results.append(self._finish_tool(thread_id, item, outcome))
+                        try:
+                            if isinstance(item, ToolResultItem):
+                                results.append(item)
+                            else:
+                                if future is not None:
+                                    outcome = future.result()
+                                    free.append(bridge)
+                                results.append(self._finish_tool(thread_id, item, outcome))
+                        except BaseException:
+                            # 当前调用已出队：放回清理表，以中断结果收尾后再原样传播。
+                            if isinstance(item, _PreparedTool):
+                                pending[index] = (item, None, None, _interrupted_tool_result(item.name))
+                            raise
                         if self._blocked is not None or self.cancelled():
                             stopped = True
                 except BaseException:
                     # 异常前已 prepare 的调用：等待在途 handler 并按序收尾，不留孤儿 start，再原样传播。
                     for index in sorted(pending):
                         item, future, _bridge, outcome = pending.pop(index)
-                        try:
-                            if future is not None:
+                        if not isinstance(item, _PreparedTool):
+                            continue
+                        if future is not None:
+                            try:
                                 outcome = future.result()
-                            if isinstance(item, _PreparedTool):
-                                self._finish_tool(thread_id, item, outcome)
-                        except Exception:
+                            except BaseException:
+                                # handler 抛出 BaseException（如中断）：结果无法确认，但条目仍须收尾。
+                                outcome = _interrupted_tool_result(item.name)
+                        try:
+                            self._finish_tool(thread_id, item,
+                                              outcome if outcome is not None
+                                              else _interrupted_tool_result(item.name))
+                        except BaseException:
+                            # 收尾本身失败时不覆盖正在传播的原始异常；该条目已尽力写入终态。
                             pass
                     raise
             if next_index < len(calls):
