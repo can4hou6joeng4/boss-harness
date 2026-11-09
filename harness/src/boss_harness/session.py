@@ -1608,16 +1608,19 @@ class SessionStore:
                         createdAt=header.get("createdAt", ""),
                         updatedAt=datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
                         archived=bool(metadata.get("archived", False)))
-        # Persisted metadata is untrusted. Validate the values bound to SQL columns
-        # so a malformed record surfaces as per-thread damage (ValueError) instead
-        # of an unhandled SQLite binding error escaping startup recovery.
+        # Persisted metadata is untrusted. These fields only feed listing and
+        # display, never an authorization or execution decision, so a malformed
+        # value falls back to its neutral default instead of making the whole
+        # session unreadable. The fallback keeps every value bound to its SQL
+        # column the expected type: a raw binding error must not escape startup.
         if not isinstance(metadata["sessionId"], str):
-            raise ValueError("会话 sessionId 字段无效")
-        for key in ("title", "createdAt"):
-            if not isinstance(metadata[key], str):
-                raise ValueError(f"会话 {key} 字段无效")
+            metadata["sessionId"] = thread_id
+        if not isinstance(metadata["title"], str):
+            metadata["title"] = "未命名会话"
+        if not isinstance(metadata["createdAt"], str):
+            metadata["createdAt"] = ""
         if metadata.get("projectId") is not None and not isinstance(metadata["projectId"], str):
-            raise ValueError("会话 projectId 字段无效")
+            metadata["projectId"] = None
         turns = self._turns(entries, thread_id)
         metadata["lastTurn"] = self._public_turn(turns[-1]) if turns else None
         queue_counts = self._queue_status_counts(entries)
