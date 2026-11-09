@@ -1174,6 +1174,9 @@ class ApplicationService:
             raise ValueError("limit 必须是 1 到 200 的整数")
         offset = 0
         snapshot_id = params.get("snapshotId")
+        if snapshot_id is not None and (not isinstance(snapshot_id, str)
+                or not re.fullmatch(r"[a-f0-9]{32}", snapshot_id)):
+            raise ValueError("snapshotId 格式无效")
         branch = _branch_view(params)
         scope_id = thread_id + (":" + snapshot_id if isinstance(snapshot_id, str) else "") + (":branch" if branch else "")
         cursor = params.get("cursor")
