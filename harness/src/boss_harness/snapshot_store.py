@@ -138,7 +138,12 @@ class SnapshotBuilder:
         row = self.connection.execute("SELECT payload FROM items WHERE ordinal=?", (ordinal,)).fetchone()
         if row is None:
             raise ValueError("冻结快照索引不一致")
-        return json.loads(row[0])
+        try:
+            return json.loads(row[0])
+        except (TypeError, ValueError, RecursionError):
+            # 快照库属于持久数据：深嵌套 payload 同样视为快照损坏，
+            # 不能让 RecursionError 逃逸成 -32603。
+            raise ValueError("会话快照已损坏；请重新打开会话") from None
 
     def _write_item(self, ordinal: int, item: dict, *, is_new: bool, previous_size: int = 0) -> None:
         encoded = json.dumps(item, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
@@ -407,7 +412,11 @@ class SnapshotStore:
                     payload_bytes += len(row[0].encode("utf-8"))
                     if result and payload_bytes > max_payload_bytes:
                         break
-                    result.append((json.loads(row[0]), {"entryId": row[1], "excluded": bool(row[2])}
+                    try:
+                        item = json.loads(row[0])
+                    except (TypeError, ValueError, RecursionError):
+                        raise ValueError("会话快照已损坏；请重新打开会话") from None
+                    result.append((item, {"entryId": row[1], "excluded": bool(row[2])}
                                    if row[1] is not None else None))
             finally:
                 connection.close()
@@ -422,7 +431,10 @@ class SnapshotStore:
                 row = connection.execute("SELECT payload FROM items WHERE item_id=?", (item_id,)).fetchone()
             finally:
                 connection.close()
-            return json.loads(row[0]) if row else None
+            try:
+                return json.loads(row[0]) if row else None
+            except (TypeError, ValueError, RecursionError):
+                raise ValueError("会话快照已损坏；请重新打开会话") from None
 
     def edit_state(self, snapshot_id: str, thread_id: str, item_id: str) -> dict | None:
         with self._lock:
@@ -450,7 +462,7 @@ class SnapshotStore:
                 for ordinal, payload in rows:
                     try:
                         decoded = json.loads(payload)
-                    except (TypeError, ValueError):
+                    except (TypeError, ValueError, RecursionError):
                         continue
                     # 与运行时投影一致：只有带有效 id、已知状态与字符串 input 的记录才计入总数与待处理。
                     record = queue_record(decoded)
@@ -471,7 +483,7 @@ class SnapshotStore:
                 for _, payload in selected:
                     try:
                         item = json.loads(payload)
-                    except (TypeError, ValueError):
+                    except (TypeError, ValueError, RecursionError):
                         continue
                     if isinstance(item, dict):
                         items.append(item)
