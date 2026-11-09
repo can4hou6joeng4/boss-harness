@@ -14,6 +14,7 @@ export interface QueuePage {
 
 const QUEUE_KINDS: ReadonlySet<string> = new Set(["steering", "followUp"]);
 const QUEUE_STATUSES: ReadonlySet<string> = new Set(["queued", "delivering", "delivered", "paused", "cancelled"]);
+const QUEUE_PAUSE_REASONS: ReadonlySet<string> = new Set(["COMPACTION_FAILED", "THREAD_ARCHIVED"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -44,7 +45,8 @@ export function isQueueItem(value: unknown): value is QueueItem {
     && !(Array.isArray(value.skillIds) && value.skillIds.every(id => typeof id === "string"))) return false;
   if (value.autoCompaction !== undefined && !isAutoCompaction(value.autoCompaction)) return false;
   if (value.failureCode !== undefined && value.failureCode !== "TURN_START_FAILED") return false;
-  if (value.pausedReason !== undefined && value.pausedReason !== "COMPACTION_FAILED") return false;
+  if (value.pausedReason !== undefined && (typeof value.pausedReason !== "string"
+    || !QUEUE_PAUSE_REASONS.has(value.pausedReason))) return false;
   if (value.executionStarted !== undefined && value.executionStarted !== false) return false;
   if (value.turnId !== undefined && typeof value.turnId !== "string") return false;
   if (value.inputPersisted !== undefined && typeof value.inputPersisted !== "boolean") return false;

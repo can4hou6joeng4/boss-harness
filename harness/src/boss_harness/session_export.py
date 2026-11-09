@@ -733,7 +733,8 @@ class _Exporter:
                 # 暂停来源只导出内核拥有的有限枚举，避免损坏记录把任意文本带进导出。
                 "pausedReason": payload["pausedReason"]
                 if payload["status"] == "paused"
-                and payload.get("pausedReason") == "COMPACTION_FAILED" else None,
+                and isinstance(payload.get("pausedReason"), str)
+                and payload["pausedReason"] in _QUEUE_PAUSE_REASONS else None,
                 "inputPersisted": payload.get("inputPersisted")
                 if type(payload.get("inputPersisted")) is bool else None,
                 "deduplicated": payload.get("deduplicated") is True,
@@ -895,6 +896,9 @@ def _render_unit(unit: dict, view_log: bool) -> str:
 
 _QUEUE_STATUS = {"queued": "排队中", "delivering": "正在投递", "paused": "已暂停", "cancelled": "已撤回"}
 _QUEUE_KIND = {"steering": "转向当前回合", "followUp": "后续回合", "unknown": "类型不明"}
+# 与 runtime.PAUSE_REASON_* 保持一致；未知来源不进入导出。
+_QUEUE_PAUSE_REASONS = frozenset({"COMPACTION_FAILED", "THREAD_ARCHIVED"})
+_QUEUE_PAUSE_REASON_LABELS = {"COMPACTION_FAILED": "摘要未完成", "THREAD_ARCHIVED": "会话已归档"}
 _AUTO_COMPACTION_FIELDS = ("enabled", "triggerPercent", "keepRecentTokens",
                            "provider", "model", "effort")
 _QUEUE_OVERRIDE_FIELDS = _AUTO_COMPACTION_FIELDS[:3]
@@ -924,8 +928,9 @@ def _queue_facts(item: dict, *, code: bool = False) -> list[str]:
         facts.append("输入是否已写入会话：" + ("是" if item["inputPersisted"] else "否"))
     if item["status"] == "paused" and item["failureCode"]:
         facts.append(f"失败码：{item['failureCode']}")
-    if item["status"] == "paused" and item["pausedReason"] == "COMPACTION_FAILED":
-        facts.append("暂停原因：摘要未完成")
+    pause_label = _QUEUE_PAUSE_REASON_LABELS.get(item["pausedReason"] or "")
+    if item["status"] == "paused" and pause_label:
+        facts.append(f"暂停原因：{pause_label}")
     if item["deduplicated"]:
         facts.append("与既有请求关联")
     if item["skillIds"]:

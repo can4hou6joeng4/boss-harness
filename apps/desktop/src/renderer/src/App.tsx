@@ -714,6 +714,8 @@ export function App(): JSX.Element {
     const session = activeRef.current;
     if (!session || session.projectId !== HARNESS_PROJECT_ID) return { status: "skipped", reason: "当前会话不连接本机内核" };
     if (!harnessUp) return { status: "skipped", reason: "本机内核未连接" };
+    // 归档会话没有派发路径，入队只会被内核拒绝；在发出前说明恢复步骤。
+    if (session.archived === true) return { status: "skipped", reason: "会话已归档，请先在侧栏恢复会话再重新排队" };
     // 列表与会话读取会截断长正文，重新排队必须使用持久化的完整输入。
     let full: QueueItem;
     try {

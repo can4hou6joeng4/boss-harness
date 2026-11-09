@@ -161,6 +161,7 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
           <span className={`turn-queue-kind is-${item.kind}`}>{item.kind === "steering" ? "当前回合" : "后续回合"}</span>
           <span className="turn-queue-status">{item.status === "paused" && item.failureCode === "TURN_START_FAILED" ? "启动失败，未执行"
             : item.status === "paused" && item.pausedReason === "COMPACTION_FAILED" ? "摘要失败，已暂停"
+            : item.status === "paused" && item.pausedReason === "THREAD_ARCHIVED" ? "归档时暂停"
             : item.status === "delivered" && item.deduplicated ? "已关联已有回合" : LABELS[item.status]}</span>
           {(() => {
             const labels = queueSkillLabels(item.skillIds, skills);
@@ -178,7 +179,7 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
             {item.inputPersisted === true ? "输入已保留在当前会话，核对后可发起新任务。" : item.inputPersisted === false
               ? onRetry ? "输入尚未写入当前会话，可直接重新排队。" : "输入尚未写入当前会话，核对后可发起新任务。" : "请先核对当前会话，再决定是否发起新任务。"}
           </p>}
-          {item.status === "paused" && item.deduplicated && item.failureCode !== "TURN_START_FAILED" && item.kind === "followUp" && <p className="turn-queue-error">
+          {item.status === "paused" && item.deduplicated && item.failureCode !== "TURN_START_FAILED" && item.kind === "followUp" && item.pausedReason === undefined && <p className="turn-queue-error">
             已暂停且不会自动投递；该输入已关联旧请求，请核对当前会话后决定是否撤回或发起新任务。
           </p>}
           {(() => {

@@ -39,7 +39,8 @@ from boss_harness.resources import AttachmentQuotaExceeded, AttachmentStore, Ski
 from boss_harness.request_identity import resolve_request, valid_client_id
 from boss_harness.request_policy import ModelRequestRejected, check_model_request, record_model_rejection
 from boss_harness.rpc import JsonRpcServer, RpcError
-from boss_harness.runtime import PAUSE_REASON_COMPACTION_FAILED, RuntimeManager, TurnQueue
+from boss_harness.runtime import (PAUSE_REASON_COMPACTION_FAILED, PAUSE_REASON_THREAD_ARCHIVED,
+                                  RuntimeManager, TurnQueue)
 from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, CheckpointCommittedError, CheckpointCommitUncertain, Entry,
                                   ApprovalDecisionError, ItemLookupError, SessionEntriesSnapshot,
                                   SessionSizeLimitExceeded, SessionStore, ThreadNotFound,
@@ -1297,9 +1298,15 @@ class ApplicationService:
         thread_id = _text(params, "threadId")
         with self._follow_up_admission_lock, self.runtimes.lock:
             self._idle(thread_id)
-            self.queue.pause(thread_id)
+            paused_queue_ids = self.queue.pause(thread_id, reason=PAUSE_REASON_THREAD_ARCHIVED)
             self._forget_capacity_waiter_locked(thread_id)
             thread = self.sessions.archive_thread(thread_id)
+        # 归档已经持久化；逐项通知界面刷新暂停状态，观察者信号失败不能把归档变成失败。
+        for queue_id in paused_queue_ids:
+            try:
+                self.events.emit("queue/updated", {"threadId": thread_id, "queueId": queue_id})
+            except Exception:
+                pass
         self.events.emit("thread/archived", {"threadId": thread_id})
         return {"thread": thread}
 
