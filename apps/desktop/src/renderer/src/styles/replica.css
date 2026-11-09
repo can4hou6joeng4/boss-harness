@@ -129,6 +129,10 @@ kbd { font: 10px var(--font-sans); color: var(--text-faint); }
 .turn-queue-heading .turn-queue-more { margin-left: auto; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .turn-queue-heading .turn-queue-refresh { margin-left: auto; flex: 0 0 auto; padding: 0 2px; border: 0; background: transparent; color: var(--text-faint); font-size: 10px; cursor: pointer; }
 .turn-queue-heading .turn-queue-more + .turn-queue-refresh { margin-left: 0; }
+.turn-queue-heading .turn-queue-show-all { flex: 0 0 auto; padding: 0 2px; border: 0; background: transparent; color: var(--text-faint); font-size: 10px; cursor: pointer; }
+.turn-queue-heading .turn-queue-show-all:hover { color: var(--accent-color); }
+.turn-queue-heading .turn-queue-show-all:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+.turn-queue-heading .turn-queue-show-all + .turn-queue-refresh { margin-left: 0; }
 .turn-queue-heading .turn-queue-refresh:hover { color: var(--accent-color); }
 .turn-queue-heading .turn-queue-refresh:disabled { opacity: .45; cursor: default; }
 .turn-queue-stale { margin: 0 4px 5px; color: var(--accent-warning); font-size: 10px; }
