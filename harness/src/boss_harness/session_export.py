@@ -897,8 +897,9 @@ def _render_unit(unit: dict, view_log: bool) -> str:
 _QUEUE_STATUS = {"queued": "排队中", "delivering": "正在投递", "paused": "已暂停", "cancelled": "已撤回"}
 _QUEUE_KIND = {"steering": "转向当前回合", "followUp": "后续回合", "unknown": "类型不明"}
 # 与 runtime.PAUSE_REASON_* 保持一致；未知来源不进入导出。
-_QUEUE_PAUSE_REASONS = frozenset({"COMPACTION_FAILED", "THREAD_ARCHIVED"})
-_QUEUE_PAUSE_REASON_LABELS = {"COMPACTION_FAILED": "摘要未完成", "THREAD_ARCHIVED": "会话已归档"}
+_QUEUE_PAUSE_REASONS = frozenset({"COMPACTION_FAILED", "THREAD_ARCHIVED", "TURN_NOT_COMPLETED"})
+_QUEUE_PAUSE_REASON_LABELS = {"COMPACTION_FAILED": "摘要未完成", "THREAD_ARCHIVED": "会话已归档",
+                              "TURN_NOT_COMPLETED": "回合未完成"}
 _AUTO_COMPACTION_FIELDS = ("enabled", "triggerPercent", "keepRecentTokens",
                            "provider", "model", "effort")
 _QUEUE_OVERRIDE_FIELDS = _AUTO_COMPACTION_FIELDS[:3]

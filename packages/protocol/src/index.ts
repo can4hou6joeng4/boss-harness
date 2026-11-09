@@ -772,7 +772,7 @@ export interface QueueItem {
   autoCompaction?: Partial<TurnAutoCompactionOverride>;
   failureCode?: "TURN_START_FAILED";
   /** 内核记录的可识别暂停来源；缺少时按未知原因展示，不推测。 */
-  pausedReason?: "COMPACTION_FAILED" | "THREAD_ARCHIVED";
+  pausedReason?: "COMPACTION_FAILED" | "THREAD_ARCHIVED" | "TURN_NOT_COMPLETED";
   executionStarted?: false;
   turnId?: string;
   inputPersisted?: boolean;

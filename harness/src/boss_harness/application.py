@@ -40,7 +40,7 @@ from boss_harness.request_identity import resolve_request, valid_client_id
 from boss_harness.request_policy import ModelRequestRejected, check_model_request, record_model_rejection
 from boss_harness.rpc import JsonRpcServer, RpcError
 from boss_harness.runtime import (PAUSE_REASON_COMPACTION_FAILED, PAUSE_REASON_THREAD_ARCHIVED,
-                                  RuntimeManager, TurnQueue)
+                                  PAUSE_REASON_TURN_NOT_COMPLETED, RuntimeManager, TurnQueue)
 from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, CheckpointCommittedError, CheckpointCommitUncertain, Entry,
                                   ApprovalDecisionError, ItemLookupError, SessionEntriesSnapshot,
                                   SessionSizeLimitExceeded, SessionStore, ThreadNotFound,
@@ -3835,7 +3835,9 @@ class ApplicationService:
                             pass
                     try:
                         if status != "completed":
-                            self.queue.pause(thread_id)
+                            # 失败、阻断或中断的回合不会自动派发剩余项；记录来源，
+                            # 让从未投递的 follow-up 能在界面显式重新排队。
+                            self.queue.pause(thread_id, reason=PAUSE_REASON_TURN_NOT_COMPLETED)
                         else:
                             self.queue.pause(thread_id, kind="steering")
                     except Exception:

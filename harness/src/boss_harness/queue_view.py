@@ -27,7 +27,7 @@ MAX_QUEUE_SKILL_IDS = 10
 _QUEUE_OPTIONAL_STRINGS = ("expectedTurnId", "clientUserMessageId")
 _QUEUE_FLAGS = ("inputPersisted", "deduplicated", "inputTruncated")
 # 与 runtime.PAUSE_REASON_* 保持一致；只有这里列出的来源能进入只读投影。
-_QUEUE_PAUSE_REASONS = frozenset({"COMPACTION_FAILED", "THREAD_ARCHIVED"})
+_QUEUE_PAUSE_REASONS = frozenset({"COMPACTION_FAILED", "THREAD_ARCHIVED", "TURN_NOT_COMPLETED"})
 _MAX_SAFE_INTEGER = 2 ** 53 - 1
 
 
