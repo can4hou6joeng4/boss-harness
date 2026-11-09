@@ -1000,6 +1000,12 @@ class TurnRunner:
                     break
 
                 calls = assistant.tool_calls()
+                # 持久化上限先于长度截断与续接处理：否则截断响应会逐条落库超限批次。
+                if len(calls) > MAX_TOOL_BATCH_CALLS:
+                    self.append_agent(thread_id, "模型工具调用数量超过单批次持久化上限；本批操作均未执行。")
+                    self.notify(N_SESSION_ERROR, {"threadId": thread_id,
+                        "code": "TOOL_BATCH_LIMIT", "message": "模型工具调用数量超过单批次上限，本批操作均未执行。"})
+                    return "error"
                 continuation = None
                 if calls and self.config.provider == "anthropic":
                     try:
@@ -1039,12 +1045,6 @@ class TurnRunner:
                         messages.extend(steering)
                         continue
                     return "completed"
-
-                if len(calls) > MAX_TOOL_BATCH_CALLS:
-                    self.append_agent(thread_id, "模型工具调用数量超过单批次持久化上限；本批操作均未执行。")
-                    self.notify(N_SESSION_ERROR, {"threadId": thread_id,
-                        "code": "TOOL_BATCH_LIMIT", "message": "模型工具调用数量超过单批次上限，本批操作均未执行。"})
-                    return "error"
 
                 request_fingerprint = (self.last_preparation[1].get("requestFingerprint")
                                        if self.last_preparation is not None else None)
