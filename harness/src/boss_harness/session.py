@@ -6,6 +6,7 @@ Pi reference: 5ba1cbaf3d96d204d847c84ce235c62dae23e0fd, SessionManager.
 """
 from __future__ import annotations
 
+import array
 import base64
 import binascii
 import hashlib
@@ -20,7 +21,7 @@ import threading
 import time
 import unicodedata
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -54,6 +55,26 @@ def _is_hangul_jamo(char: str) -> bool:
     """谚文 jamo（含扩展区）：NFKC 会把连续的 L / V / T 合成一个音节。"""
     code = ord(char)
     return 0x1100 <= code <= 0x11FF or 0xA960 <= code <= 0xA97C or 0xD7B0 <= code <= 0xD7FB
+
+
+def _search_clusters(value: str) -> Iterator[tuple[int, int, str]]:
+    """逐个组合簇产出 (原文起点, 原文终点, NFKC + casefold 后的片段)。
+
+    NFKC 会把基字符与后续组合记号、分解状态的谚文 jamo 组合成一个字符；逐码点
+    归一化做不到跨码点组合，NFC / NFD 正文互相查询会漏命中。casefold 逐码点进行，
+    与旧实现的语义一致（上下文无关，不改变词尾 sigma 等结果）。
+    """
+    index = 0
+    length = len(value)
+    while index < length:
+        end = index + 1
+        if _is_hangul_jamo(value[index]):
+            while end < length and _is_hangul_jamo(value[end]):
+                end += 1
+        while end < length and unicodedata.combining(value[end]):
+            end += 1
+        yield index, end, unicodedata.normalize("NFKC", value[index:end]).casefold()
+        index = end
 
 
 # 持久记录不可信：编号字段只有字符串才有定位意义。其余类型若继续参与集合成员或
@@ -2273,32 +2294,31 @@ class SessionStore:
             return self._with_repaired_index(read)
 
     @staticmethod
-    def _search_normalized(value: str) -> tuple[str, list[int], list[int]]:
+    def _search_normalized(value: str) -> tuple[str, array.array | None, array.array | None]:
         """按组合簇 NFKC + casefold 归一化，返回文本与每个字符对应的原文起止索引。
 
-        NFKC 会把基字符与后续组合记号、分解状态的谚文 jamo 组合成一个字符；逐码点
-        归一化做不到跨码点组合，NFC / NFD 正文互相查询会漏命中。casefold 逐码点进行，
-        与旧实现的语义一致（上下文无关，不改变词尾 sigma 等结果）。
+        单码点簇归一化后仍是单字符时映射恒等，返回 `None` 让调用方直接用下标，
+        常见正文因此不必为每个码点保留索引。需要映射时用 `array('I')` 紧凑存放：
+        文本上限为 `_SEARCH_THREAD_BYTES`，索引远小于 2**32；逐码点的 Python 整数
+        列表会让长文本的搜索内存放大到文本大小的上百倍。
         """
-        parts: list[str] = []
-        starts: list[int] = []
-        ends: list[int] = []
-        index = 0
-        length = len(value)
-        while index < length:
-            end = index + 1
-            if _is_hangul_jamo(value[index]):
-                while end < length and _is_hangul_jamo(value[end]):
-                    end += 1
-            while end < length and unicodedata.combining(value[end]):
-                end += 1
-            part = unicodedata.normalize("NFKC", value[index:end]).casefold()
-            if part:
-                parts.append(part)
-                starts.extend([index] * len(part))
-                ends.extend([end] * len(part))
-            index = end
-        return "".join(parts), starts, ends
+        parts = io.StringIO()
+        identity = True
+        for index, end, part in _search_clusters(value):
+            if not part:
+                continue
+            parts.write(part)
+            if end - index != 1 or len(part) != 1:
+                identity = False
+        normalized = parts.getvalue()
+        if identity:
+            return normalized, None, None
+        starts = array.array("I")
+        ends = array.array("I")
+        for index, end, part in _search_clusters(value):
+            starts.extend([index] * len(part))
+            ends.extend([end] * len(part))
+        return normalized, starts, ends
 
     @staticmethod
     def _search_snippet(text: str, start: int, end: int) -> str:
@@ -2361,6 +2381,10 @@ class SessionStore:
             scanned_threads += 1
             per_thread = 0
             for item in items:
+                if scanned_chars >= _SEARCH_TEXT_BUDGET:
+                    # 预算按消息粒度生效：单个大会话里的长消息不能越过上限继续扫描。
+                    truncated = True
+                    break
                 kind = item.get("kind")
                 if kind == "toolCall":
                     text, role = self._search_tool_text(item), "tool"
@@ -2370,13 +2394,21 @@ class SessionStore:
                     text, role = item["text"], "user" if kind == "userMessage" else "agent"
                 else:
                     continue
+                remaining = _SEARCH_TEXT_BUDGET - scanned_chars
+                if len(text) > remaining:
+                    # 搜索是有界尽力而为：单条超长文本按剩余预算截断，不整条归一化。
+                    text = text[:remaining]
+                    truncated = True
                 scanned_chars += len(text)
                 normalized, starts, ends = self._search_normalized(text)
                 index = normalized.find(needle)
                 if index < 0:
                     continue
-                start = starts[index]
-                end = ends[index + len(needle) - 1]
+                if starts is None:
+                    start, end = index, index + len(needle)
+                else:
+                    start = starts[index]
+                    end = ends[index + len(needle) - 1]
                 title = thread.get("title")
                 matches.append({
                     "threadId": thread["id"],
