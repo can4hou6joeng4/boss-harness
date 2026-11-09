@@ -234,7 +234,7 @@ def read_result_text_chunk(thread_id: str, item_id: str, text: str, *, sha256: s
                     or type(value[3]) is not int or not 0 <= value[3] < len(text)):
                 raise ValueError()
             offset = value[3]
-        except (ValueError, TypeError, UnicodeDecodeError, binascii.Error):
+        except (ValueError, TypeError, UnicodeDecodeError, binascii.Error, RecursionError):
             raise ValueError("工具结果游标无效、归属不匹配或结果已变化") from None
     end = min(offset + limit, len(text))
     return {"text": wire_text(text[offset:end]), "offset": offset, "resultRef": reference,

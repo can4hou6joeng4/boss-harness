@@ -441,7 +441,9 @@ def _read_page_cursor(cursor: str | None, kind: str, scope: dict) -> list | None
     try:
         raw = base64.b64decode(encoded + "=" * (-len(encoded) % 4), altchars=b"-_", validate=True)
         payload = json.loads(raw)
-    except (ValueError, UnicodeDecodeError, binascii.Error):
+    except (ValueError, UnicodeDecodeError, binascii.Error, RecursionError):
+        # 长度上限内可容纳上千层嵌套；json.loads 对这种输入抛 RecursionError，
+        # 与解码失败一样是游标无效，不能让内部异常逃逸成 -32603。
         raise ValueError("分页游标无效") from None
     if (not isinstance(payload, dict) or set(payload) != {"kind", "scope", "key"}
             or payload["kind"] != kind or payload["scope"] != scope
@@ -573,7 +575,7 @@ class SessionStore:
         try:
             raw = _read_bounded_file(path, maximum=MAX_DELETE_INTENT_BYTES, label="会话删除标记")
             value = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
             raise ValueError("会话删除标记损坏，会话暂不可操作") from None
         thread_id = match.group(1)
         if (not isinstance(value, dict) or set(value) != {"version", "threadId", "attachmentDigests", "eventId"}
@@ -2107,7 +2109,7 @@ class SessionStore:
                     manifest = json.loads(_read_bounded_file(
                         manifest_path, maximum=MAX_REPAIR_MANIFEST_BYTES,
                         label="修复备份清单").decode("utf-8"))
-                except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
                     raise ValueError("修复备份清单损坏，清理已暂停") from None
                 if not isinstance(manifest, list) or any(not isinstance(item, dict) for item in manifest):
                     raise ValueError("修复备份清单格式无效，清理已暂停")
