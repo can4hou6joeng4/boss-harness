@@ -1232,6 +1232,14 @@ export type SessionExportSaveResult =
 
 /** `thread/usage/read` 参数；仅在 `capabilities.threadUsage` 为真时可用。 */
 export interface ThreadUsageReadParams { threadId: string; view?: "log" | "branch"; cursor?: string; limit?: number }
+/**
+ * 缓存未命中估算：按相邻两次已验证请求比较，取两次输入 token 的较小值减去本次缓存读取；
+ * 只累计严格超过 1024 的部分，不估算费用。
+ */
+export interface ThreadUsageCacheWaste {
+  missedTokens: number;
+  missCount: number;
+}
 /** 仅累计可验证的 provider usage；provider 未上报的字段为 null，费用无价目来源时为 null。 */
 export interface ThreadUsageBucket {
   requests: number;
@@ -1295,6 +1303,8 @@ export interface ThreadUsageReadResponse {
   summaryJobs?: ThreadUsageSummaryJob[];
   summaryJobCount?: number;
   summaryJobsTruncated?: boolean;
+  /** 缓存未命中估算；仅“全部记录”视图返回，旧内核或“当前分支”视图不返回。 */
+  cacheWaste?: ThreadUsageCacheWaste;
   totals: ThreadUsageBucket;
   branch?: ThreadLeafState;
 }

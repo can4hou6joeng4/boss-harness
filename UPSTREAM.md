@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 第一百一十四轮：缓存未命中估算
+
+参考 Pi MIT 固定提交 `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `packages/coding-agent/src/core/cache-stats.ts`：`scan()` 按条目顺序维护上一次请求基线，遇到 `compaction` / `branch_summary` 重置；对每条 assistant 消息先检测、再以当前请求更新基线，`missedTokens = min(prev.promptTokens, promptTokens) - cacheRead`，只有严格大于 `NOISE_FLOOR_TOKENS`（1024）才累计 `missedTokens` / `missCount`；当前请求缓存读写为零且此前从未报告缓存活动时不检测；模型切换不重置基线。本轮独立实现，不复制 Pi 源码或新增依赖。
+
+适配差异：Pi 面向 assistant 消息并带模型价目计算 `missedCost`；本项目的持久记录是每次请求的 `model_usage` 条目，没有可信价目来源，只累计未命中 token 与次数，不计算费用。检测只使用通过 `verify_usage` 的记录，未验证记录既不计入也不成为基线；数据源与条目顺序完全来自既有持久格式，不新增写路径。`thread/usage/read` 仅在 `view=log` 时返回可选 `cacheWaste`：分支视图的条目流包含不同分支交错的请求，线性「上一次请求」没有可解释含义，因此不报告而不是给出可疑数字；`thread/export` 的用量结构保持不变。桌面只在响应携带该字段时展示，旧内核缺省不显示。
+
 ## 第一百一十三轮：脱敏会话导出
 
 参考 Pi MIT 固定提交 `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `packages/coding-agent/src/core/session-export.ts`（`serializeSessionBranch()` 按当前分支序列化会话条目）与 `export-html/`（读取完整条目与 leaf，渲染为可阅读文档，工具调用与结果分开展示）。本轮只参考设计，独立实现，不复制 Pi 源码或模板、不新增依赖。

@@ -2791,6 +2791,8 @@ class SessionStore:
         checkpoint job; it only marks the matching summary job, never resolves
         jobs from usage records on its own. ``entries`` may pin the snapshot a
         caller already read so usage and its marker describe the same records.
+        Only the log view reports ``cacheWaste``; the branch projection
+        interleaves abandoned requests, so its linear baseline is not reported.
         """
         from boss_harness.usage import SOURCE, summarize_usage
         _limit(limit)
@@ -2836,6 +2838,9 @@ class SessionStore:
                "summaryTasks": result["summaryTasks"], "totals": result["totals"],
                "summaryJobs": result["summaryJobs"], "summaryJobCount": result["summaryJobCount"],
                "summaryJobsTruncated": result["summaryJobsTruncated"]}
+        if "cacheWaste" in result:
+            # 只在“全部记录”视图返回：分支视图的请求流交错，线性基线不可解释。
+            out["cacheWaste"] = result["cacheWaste"]
         if leaf is not None:
             out["branch"] = leaf
         return out
