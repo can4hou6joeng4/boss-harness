@@ -404,7 +404,7 @@ def _tokens(bucket: dict) -> str:
 
 _TURN_STATUS = {"completed": "已完成", "interrupted": "已中断", "blocked": "已阻断", "error": "出错",
                 "running": "进行中（导出时尚未结束）"}
-_APPROVAL_DECISIONS = {"approve": "用户批准", "deny": "用户拒绝", "expired": "审批已过期"}
+_APPROVAL_DECISIONS = {"approve": "用户批准", "deny": "用户拒绝", "expired": "审批已失效"}
 
 
 def _turn_status_label(value: Any) -> str:

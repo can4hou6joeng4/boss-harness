@@ -135,7 +135,7 @@ export interface ApprovalData {
   consequential?: boolean;
   description: string;
   params: Record<string, unknown>;
-  /** `expired` 是内核在等待超时后给的结论：按未批准处理。 */
+  /** `expired` 是内核在审批失效后给的结论：按未批准处理，不一定等到期限。 */
   decision?: "approve" | "deny" | "expired";
   submitted?: boolean;
   remember?: boolean;

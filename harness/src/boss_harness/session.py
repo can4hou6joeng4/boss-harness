@@ -1388,7 +1388,7 @@ class SessionStore:
                                resultSummary="用户在恢复会话后拒绝了该操作。", recoveryAction=None)
             else:
                 payload.update(executionState="not_executed", errorCode="APPROVAL_EXPIRED",
-                               resultSummary="审批已过期；工具未执行。", recoveryAction=None)
+                               resultSummary="审批已失效；工具未执行。", recoveryAction=None)
         self.append(thread_id, Entry(type="item", parent_id=self.last_entry_id(thread_id), payload=payload))
         return {"approval": approval, "executionState": payload["executionState"],
                 "status": payload.get("status", item.get("status")),
