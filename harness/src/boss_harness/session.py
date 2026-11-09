@@ -574,7 +574,7 @@ class SessionStore:
             raw = _read_bounded_file(path, maximum=MAX_DELETE_INTENT_BYTES, label="会话删除标记")
             value = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
-            raise ValueError("会话删除标记损坏；状态恢复已停止") from None
+            raise ValueError("会话删除标记损坏，会话暂不可操作") from None
         thread_id = match.group(1)
         if (not isinstance(value, dict) or set(value) != {"version", "threadId", "attachmentDigests", "eventId"}
                 or value.get("version") != 1 or value.get("threadId") != thread_id
@@ -583,20 +583,26 @@ class SessionStore:
                        for item in value["attachmentDigests"])
                 or not isinstance(value.get("eventId"), str)
                 or not _EVENT_ID.fullmatch(value["eventId"])):
-            raise ValueError("会话删除标记损坏；状态恢复已停止")
+            raise ValueError("会话删除标记损坏，会话暂不可操作")
         value["attachmentDigests"] = sorted(set(value["attachmentDigests"]))
         return value
 
     def _pending_deletion_ids(self) -> set[str]:
         pending: set[str] = set()
         for path in self.root.glob(".delete-*.json"):
-            try:
-                intent = self._read_delete_intent(path)
-            except FileNotFoundError:
-                # The listing is a snapshot; a marker removed before it is read
-                # no longer describes pending deletion work.
+            # The marker name identifies the blocked session even when its
+            # contents are damaged; listings must not depend on reading it.
+            match = _DELETE_INTENT.fullmatch(path.name)
+            if match is None:
                 continue
-            pending.add(intent["threadId"])
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                # A marker that vanished after the glob no longer blocks anything.
+                continue
+            except OSError:
+                pass
+            pending.add(match.group(1))
         return pending
 
     def _write_delete_intent(self, thread_id: str, entries: list[dict]) -> dict[str, Any]:
@@ -630,7 +636,18 @@ class SessionStore:
                 # Same snapshot rule as _pending_deletion_ids: a vanished
                 # marker means there is nothing left to finish.
                 continue
-            self._finish_deletion(intent)
+            except ValueError:
+                # A damaged marker cannot describe what to finish. Keep it so the
+                # session stays blocked, and let an explicit repair handle it
+                # instead of preventing every other session from starting.
+                continue
+            try:
+                self._finish_deletion(intent)
+            except (OSError, ValueError):
+                # The target cannot be removed yet (foreign file, unexpected link,
+                # untrusted attachment directory). Keep the marker and retry on the
+                # next start; one stuck deletion must not stop the kernel.
+                continue
 
     def require_thread(self, thread_id: str) -> dict:
         path = self.path_for(thread_id)
