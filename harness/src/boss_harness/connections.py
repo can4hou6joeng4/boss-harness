@@ -35,6 +35,12 @@ PUBLIC_CHECK_CODES = PAUSE_CODES | {
     "INVALID_PARAM", "NOT_SUPPORTED", "LOGIN_CREDENTIAL_EXTRACTION_FAILED", "CONNECTION_FAILED",
 }
 _PLATFORM_DISABLED = "当前工具组合未启用平台连接与登录"
+_AUTH_STATES = frozenset({"complete", "partial", "broken", "missing"})
+
+
+def _auth_state(value: object) -> str:
+    """上游 status 的 auth_state 属于进程边界数据；非字符串或未知值一律按 unknown。"""
+    return value if isinstance(value, str) and value in _AUTH_STATES else "unknown"
 
 
 def _disabled() -> dict:
@@ -330,8 +336,7 @@ class ConnectionChecks:
                 # This second call is local-only. Never silently replay a live probe.
                 local = bridge.call("status", timeout=15)
                 data = local.data if local.ok and isinstance(local.data, dict) else {}
-                auth = data.get("auth_state")
-                auth = auth if auth in {"complete", "partial", "broken", "missing"} else "unknown"
+                auth = _auth_state(data.get("auth_state"))
                 if not local.ok or data.get("logged_in") is not True or auth in {"broken", "missing"}:
                     outcome = {"state": "failed", "code": "LOGIN_READBACK_FAILED", "summary": "登录保存后未能读取本地状态，请检查本机连接"}
                 elif auth != "complete":
@@ -369,8 +374,7 @@ class ConnectionChecks:
             self._set("platform", **self._error(result), authState="unknown", checkedAt=_now())
             return False
         data = result.data if isinstance(result.data, dict) else {}
-        auth = data.get("auth_state")
-        auth = auth if auth in {"complete", "partial", "broken", "missing"} else "unknown"
+        auth = _auth_state(data.get("auth_state"))
         self._set("platform", authState=auth)
         risk = data.get("cdp_risk_lock") or {}
         if isinstance(risk, dict) and (risk.get("locked") or risk.get("group_locked")):
