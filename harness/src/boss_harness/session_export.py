@@ -82,10 +82,59 @@ _URL_USERINFO = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@")
 _ENV_ASSIGNMENT = re.compile(r"\b([A-Z][A-Z0-9_]{2,})\s*=\s*(\"[^\"]*\"|'[^']*'|\S+)")
 _SENSITIVE_ENV = re.compile(r"(?i)(key|token|secret|password|passwd|cookie|auth|credential|session)")
 _PATH_SEGMENT = r"[^\s/\\\"'`<>|()\[\]，。；：、！？（）《》“”‘’]+"
+# 常见单段系统根路径。通用分支要求至少两段，避免把正文中的 `/help` 当成路径；
+# 单段根目录（如 `/etc`）单独识别。
+_ROOT_NAMES = ("Applications", "Library", "System", "Users", "Volumes", "bin", "boot",
+               "dev", "etc", "home", "media", "mnt", "nix", "opt", "private", "proc",
+               "root", "run", "sbin", "srv", "sys", "tmp", "usr", "var")
+_SINGLE_SEGMENT_PATH = re.compile(
+    r"(?<![A-Za-z0-9_:/.~-])/(?:" + "|".join(_ROOT_NAMES) + r")(?![A-Za-z0-9_/-])")
+# 中文紧邻路径（`配置见/etc`）也应匹配，因此禁止位只看 ASCII 标识符字符；
+# URL、分数与 `and/or` 这类斜杠词仍由前一位字母或数字挡住。
 _ABSOLUTE_PATH = re.compile(
     rf"file://(?:/{_PATH_SEGMENT})+/?"
-    rf"|(?<![\w:/.~-])(?:~|/{_PATH_SEGMENT})(?:/{_PATH_SEGMENT})+/?"
-    r"|(?<![\w])[A-Za-z]:[\\/](?:[^\s\\/\"'<>|]+[\\/]?)+")
+    rf"|(?<![A-Za-z0-9_:/.~-])(?:~|/{_PATH_SEGMENT})(?:/{_PATH_SEGMENT})+/?"
+    r"|(?<![A-Za-z0-9_])[A-Za-z]:[\\/](?:[^\s\\/\"'<>|]+[\\/]?)+")
+# 路径可以包含空格；只要后续 token 仍像同一条路径的延续，就一并脱敏，
+# 避免 `Job Search/resume.pdf` 只遮住 `Job` 而泄漏其余部分。
+_MAX_PATH_CONTINUATIONS = 8
+_PATH_TOKEN_STOP = frozenset("\"'`<>|()[]{}\n\r\t，。；：、！？（）《》“”‘’")
+_DOTTED_NAME = re.compile(r"[^./\\\s]+\.[A-Za-z0-9]{1,10}")
+
+
+def _last_path_segment(value: str) -> str:
+    return re.split(r"[/\\]", value.rstrip("/\\"))[-1]
+
+
+def _continues_path(token: str, *, previous_upper: bool) -> bool:
+    """判断空白后的 token 是否仍是同一条路径，而不是紧邻的普通正文。"""
+    if "/" in token or "\\" in token:
+        return True
+    if _DOTTED_NAME.fullmatch(token) is not None:
+        return True
+    # `/Users/x/Job Search`：与已匹配末段同为 ASCII 大写开头的目录名。
+    return previous_upper and token[:1].isupper()
+
+
+def _path_end(text: str, start: int, end: int) -> int:
+    """把已匹配路径延伸到包含空格的后续 token；无法确认是路径时保留原空白。"""
+    upper = _last_path_segment(text[start:end])[:1].isupper()
+    for _ in range(_MAX_PATH_CONTINUATIONS):
+        token_start = end
+        while token_start < len(text) and text[token_start] in " \t":
+            token_start += 1
+        if token_start == end:
+            break
+        token_end = token_start
+        while (token_end < len(text) and text[token_end] not in _PATH_TOKEN_STOP
+               and not text[token_end].isspace()):
+            token_end += 1
+        token = text[token_start:token_end]
+        if not token or not _continues_path(token, previous_upper=upper):
+            break
+        end = token_end
+        upper = _last_path_segment(token)[:1].isupper()
+    return end
 
 
 def _normalize_key(key: Any) -> str:
@@ -140,6 +189,25 @@ class Redactor:
         self.counts[counter] += count
         return result
 
+    def _sub_paths(self, pattern: re.Pattern, text: str) -> str:
+        """Replace each path match, extending it over space-separated path tokens."""
+        parts: list[str] = []
+        cursor = 0
+        count = 0
+        for match in pattern.finditer(text):
+            if match.start() < cursor:
+                continue
+            end = _path_end(text, match.start(), match.end())
+            parts.append(text[cursor:match.start()])
+            parts.append(PATH_MARK)
+            cursor = end
+            count += 1
+        if not count:
+            return text
+        parts.append(text[cursor:])
+        self.counts["paths"] += count
+        return "".join(parts)
+
     def sensitive(self, text: str) -> str:
         """Credentials, tokens, environment values and local paths; applied to every exported string."""
         for value in self.secrets:
@@ -157,9 +225,9 @@ class Redactor:
         text = self._sub(_URL_USERINFO, lambda m: m.group(1) + SECRET_MARK + "@", text, "secrets")
         text = self._sub(_ENV_ASSIGNMENT, lambda m: m.group(1) + "=" + ENV_MARK, text, "environment")
         for pattern in self.path_patterns:
-            text, count = pattern.subn(PATH_MARK, text)
-            self.counts["paths"] += count
-        text = self._sub(_ABSOLUTE_PATH, PATH_MARK, text, "paths")
+            text = self._sub_paths(pattern, text)
+        text = self._sub_paths(_ABSOLUTE_PATH, text)
+        text = self._sub_paths(_SINGLE_SEGMENT_PATH, text)
         return self._sub(_TOKEN_PATTERNS[3], SECRET_MARK, text, "secrets")
 
     def personal(self, text: str) -> str:
