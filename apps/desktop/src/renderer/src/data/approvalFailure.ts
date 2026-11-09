@@ -39,6 +39,8 @@ export function approvalRejectionNotice(code: string | undefined, reason: string
       return `审批记录无效${detail}；正在刷新会话状态。`;
     case "APPROVAL_AMBIGUOUS":
       return `审批记录重复，内核拒绝裁决${detail}；正在刷新会话状态。`;
+    case "APPROVAL_EXPIRED":
+      return `审批已失效，不再接受新的裁决${detail}；正在刷新会话状态。`;
     default:
       return `审批未被受理${detail || "（可能已过期或状态已刷新）"}；请刷新会话后再试。`;
   }
@@ -50,5 +52,6 @@ export function approvalRejectionNotice(code: string | undefined, reason: string
  */
 export function approvalRejectionRefreshes(code: string | undefined): boolean {
   return code === "APPROVAL_CLOSED" || code === "APPROVAL_CONFLICT"
-    || code === "APPROVAL_NOT_FOUND" || code === "APPROVAL_INVALID" || code === "APPROVAL_AMBIGUOUS";
+    || code === "APPROVAL_NOT_FOUND" || code === "APPROVAL_INVALID" || code === "APPROVAL_AMBIGUOUS"
+    || code === "APPROVAL_EXPIRED";
 }

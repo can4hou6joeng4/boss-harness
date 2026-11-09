@@ -482,7 +482,9 @@ export async function respondApproval(approvalId: string, approved: boolean): Pr
     // 回报不可读不等于内核拒绝：只有布尔值才代表明确受理或不受理。
     if (!response || typeof response.accepted !== "boolean") return { delivery: "unconfirmed", reason: "内核审批回执无法识别" };
     if (response.accepted) return { delivery: "accepted" };
-    return { delivery: "rejected", reason: response.expired === true ? "审批已失效，工具未执行" : undefined };
+    // 失效回执已经伴随持久化的 expired 决策：带上错误码，让调用方刷新会话。
+    if (response.expired === true) return { delivery: "rejected", reason: "审批已失效，工具未执行", code: "APPROVAL_EXPIRED" };
+    return { delivery: "rejected", reason: undefined };
   } catch (cause) {
     // contextRequest 解出的内核拒绝是明确不受理；其余断连、IPC 或解析失败才算未送达。
     if (isHarnessRpcRejection(cause)) {
