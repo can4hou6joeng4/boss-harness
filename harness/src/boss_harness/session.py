@@ -1585,24 +1585,39 @@ class SessionStore:
                         createdAt=header.get("createdAt", ""),
                         updatedAt=datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
                         archived=bool(metadata.get("archived", False)))
+        # Persisted metadata is untrusted. Validate the values bound to SQL columns
+        # so a malformed record surfaces as per-thread damage (ValueError) instead
+        # of an unhandled SQLite binding error escaping startup recovery.
+        if not isinstance(metadata["sessionId"], str):
+            raise ValueError("会话 sessionId 字段无效")
+        for key in ("title", "createdAt"):
+            if not isinstance(metadata[key], str):
+                raise ValueError(f"会话 {key} 字段无效")
+        if metadata.get("projectId") is not None and not isinstance(metadata["projectId"], str):
+            raise ValueError("会话 projectId 字段无效")
         turns = self._turns(entries, thread_id)
         metadata["lastTurn"] = self._public_turn(turns[-1]) if turns else None
         queue_counts = self._queue_status_counts(entries)
         metadata["queueActiveItems"] = sum(queue_counts.values())
         if metadata["queueActiveItems"]:
             metadata["queueCounts"] = queue_counts
-        connection.execute("""INSERT INTO threads
-            (id,session_id,rollout_path,title,project_id,archived,created_at,updated_at,
-             last_turn_id,metadata_json,indexed_size,indexed_mtime_ns)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
-            session_id=excluded.session_id,rollout_path=excluded.rollout_path,title=excluded.title,
-            project_id=excluded.project_id,archived=excluded.archived,created_at=excluded.created_at,
-            updated_at=excluded.updated_at,last_turn_id=excluded.last_turn_id,
-            metadata_json=excluded.metadata_json,indexed_size=excluded.indexed_size,
-            indexed_mtime_ns=excluded.indexed_mtime_ns""",
-            (thread_id, metadata["sessionId"], str(path), metadata["title"], metadata.get("projectId"),
-             int(metadata["archived"]), metadata["createdAt"], metadata["updatedAt"],
-             turns[-1]["turnId"] if turns else None, _json(metadata), stat.st_size, stat.st_mtime_ns))
+        try:
+            connection.execute("""INSERT INTO threads
+                (id,session_id,rollout_path,title,project_id,archived,created_at,updated_at,
+                 last_turn_id,metadata_json,indexed_size,indexed_mtime_ns)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+                session_id=excluded.session_id,rollout_path=excluded.rollout_path,title=excluded.title,
+                project_id=excluded.project_id,archived=excluded.archived,created_at=excluded.created_at,
+                updated_at=excluded.updated_at,last_turn_id=excluded.last_turn_id,
+                metadata_json=excluded.metadata_json,indexed_size=excluded.indexed_size,
+                indexed_mtime_ns=excluded.indexed_mtime_ns""",
+                (thread_id, metadata["sessionId"], str(path), metadata["title"], metadata.get("projectId"),
+                 int(metadata["archived"]), metadata["createdAt"], metadata["updatedAt"],
+                 turns[-1]["turnId"] if turns else None, _json(metadata), stat.st_size, stat.st_mtime_ns))
+        except sqlite3.ProgrammingError:
+            raise ValueError("会话元数据字段类型无效") from None
+        except sqlite3.IntegrityError:
+            raise ValueError("会话 sessionId 与其他会话重复") from None
         connection.execute("DELETE FROM turns WHERE thread_id=?", (thread_id,))
         for turn in turns:
             status = turn.get("status")
