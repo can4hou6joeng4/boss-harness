@@ -85,6 +85,12 @@ def messages_from_items(items: list[dict]) -> tuple[ChatMessage, ...]:
 _SAFETY_TOKENS = 4096
 _ESTIMATE_METHOD = "characters/2+message-overhead"
 _BUDGET_MESSAGE = "完整模型请求估算超过输入预算；请通过 context/compact 提供可追溯摘要，或新建会话后明确继续。"
+_CAPACITY_MESSAGE = (
+    f"模型上下文窗口扣除输出预留与 {_SAFETY_TOKENS} 安全余量后没有可用输入预算；"
+    "请调低 BOSS_HARNESS_MAX_TOKENS 或该模型的 maxOutputTokens，或改用更大窗口的模型。")
+_OVERHEAD_MESSAGE = (
+    "系统提示与工具定义等固定开销已超过输入预算，压缩历史无法解决；"
+    "请减少技能或工具、调低输出预留，或改用更大窗口的模型。")
 _CONTEXT_EDIT_MAX_CHARS = 32_000
 _CONTEXT_EDIT_MAX_BYTES = 128 * 1024
 
@@ -121,11 +127,28 @@ def _annotate_tool_execution(item: dict[str, Any]) -> dict[str, Any]:
     return {**item, "summaryExecutionStatus": tool_execution_status(item)}
 
 
+def _budget_message(budget: dict[str, Any]) -> str:
+    """Pick an actionable reason without changing the budget arithmetic."""
+    input_budget = budget.get("inputBudget")
+    if type(input_budget) is not int:
+        return _BUDGET_MESSAGE
+    if input_budget <= 0:
+        return _CAPACITY_MESSAGE
+    breakdown = budget.get("breakdown")
+    fixed = 0
+    if isinstance(breakdown, dict):
+        for key in ("system", "tools", "options"):
+            value = breakdown.get(key)
+            if type(value) is int:
+                fixed += value
+    return _OVERHEAD_MESSAGE if fixed > input_budget else _BUDGET_MESSAGE
+
+
 class ContextBudgetExceeded(ValueError):
     """A request cannot fit without silently reducing its reserved response."""
 
     def __init__(self, budget: dict[str, Any]) -> None:
-        super().__init__(_BUDGET_MESSAGE)
+        super().__init__(_budget_message(budget))
         self.budget = budget
 
 
