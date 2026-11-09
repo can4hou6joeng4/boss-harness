@@ -2143,6 +2143,12 @@ class SessionStore:
                     ("" if include_archived else " WHERE archived=0") + " ORDER BY updated_at DESC,id DESC").fetchall()
         return [thread for row in rows if (thread := json.loads(row["metadata_json"]))["id"] not in pending]
 
+    def unreadable_thread_ids(self) -> list[str]:
+        """本进程刷新索引时跳过的会话 id 快照，按字典序排列供运行诊断读取。"""
+        with self._lock:
+            self._refresh_threads()
+            return sorted(self.unreadable_threads)
+
     def list_threads_page(self, *, cursor: str | None = None, limit: int = 50,
                           archived: bool = False, project_id: str | None = None) -> dict:
         _limit(limit)

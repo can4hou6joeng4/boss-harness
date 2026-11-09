@@ -885,6 +885,10 @@ export interface ConfigReadResponse {
   autoCompactionSource?: AutoCompactionSource;
   approvalPolicy?: string;
   approvalTimeoutSeconds?: number;
+  /** 无法建立索引的会话文件数量；仅在存在时返回。 */
+  unreadableThreadCount?: number;
+  /** 无法建立索引的会话 id，最多 20 个；仅在存在时返回。 */
+  unreadableThreadIds?: string[];
 }
 
 /** `environment` 表示由 BOSS_HARNESS_COMPACTION 管理；`stored` 为状态目录配置；`default` 为内置默认；`explicit` 为调用方显式传入。 */
