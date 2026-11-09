@@ -1168,6 +1168,9 @@ class SessionStore:
             for field in _ITEM_ID_FIELDS:
                 if field in payload and not isinstance(payload[field], str):
                     del payload[field]
+            # 非对象 approval 不描述任何审批；分支操作应按「没有待决审批」处理。
+            if "approval" in payload and not isinstance(payload["approval"], dict):
+                del payload["approval"]
             if target_id and target_id in index_by_id:
                 slot = index_by_id[target_id]
                 items[slot] = {**items[slot], **payload, "id": items[slot]["id"], "threadId": thread_id}
