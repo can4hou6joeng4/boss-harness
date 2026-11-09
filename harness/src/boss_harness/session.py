@@ -587,7 +587,12 @@ class SessionStore:
     def _pending_deletion_ids(self) -> set[str]:
         pending: set[str] = set()
         for path in self.root.glob(".delete-*.json"):
-            intent = self._read_delete_intent(path)
+            try:
+                intent = self._read_delete_intent(path)
+            except FileNotFoundError:
+                # The listing is a snapshot; a marker removed before it is read
+                # no longer describes pending deletion work.
+                continue
             pending.add(intent["threadId"])
         return pending
 
@@ -616,7 +621,12 @@ class SessionStore:
 
     def _recover_deletions(self) -> None:
         for path in sorted(self.root.glob(".delete-*.json")):
-            intent = self._read_delete_intent(path)
+            try:
+                intent = self._read_delete_intent(path)
+            except FileNotFoundError:
+                # Same snapshot rule as _pending_deletion_ids: a vanished
+                # marker means there is nothing left to finish.
+                continue
             self._finish_deletion(intent)
 
     def require_thread(self, thread_id: str) -> dict:

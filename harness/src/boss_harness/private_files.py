@@ -207,9 +207,15 @@ def ensure_private_directory(path: Path, mode: int = 0o700) -> None:
 
 
 def open_private_file(path: Path, flags: int) -> int:
-    """Open an owned regular file without following links and restrict its mode."""
+    """Open an owned regular file without following links and restrict its mode.
+
+    Only write access creates a missing file. A read-only caller that races
+    with a removal sees FileNotFoundError instead of silently leaving an empty
+    state file behind that later reads back as a corrupt durable marker.
+    """
     uid = ensure_private_file_support()
-    descriptor = os.open(path, flags | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    create = os.O_CREAT if flags & (os.O_WRONLY | os.O_RDWR) else 0
+    descriptor = os.open(path, flags | create | getattr(os, "O_NOFOLLOW", 0), 0o600)
     try:
         opened = os.fstat(descriptor)
         current = path.lstat()
