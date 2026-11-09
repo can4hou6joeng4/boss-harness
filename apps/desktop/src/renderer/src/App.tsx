@@ -33,7 +33,7 @@ import { sessionStartNotice, type SessionStartOutcome } from "./data/sessionStar
 import { HarnessReplica } from "./data/harnessReplica";
 import { queueItemsOf, queueSubmissionLookup, type QueuePage } from "./data/queueMapping";
 import { queueItemRetryable } from "./data/queueRetry";
-import type { QueueActionOutcome } from "./data/queueAction";
+import { queueRetryLocalItems, queueRetryRejection, type QueueActionOutcome } from "./data/queueAction";
 import type { QueueRefreshResult } from "./data/queueRefresh";
 import { reduceModelRetry, settleModelRetryOnTurnEnd, type ModelRetryStatus } from "./data/modelRetry";
 import { toMessage } from "./data/harnessBridge";
@@ -726,24 +726,41 @@ export function App(): JSX.Element {
       if (activeRef.current?.id === session.id) setError("队列项状态已变化或当前不支持重新排队，请刷新队列后再决定。");
       return { status: "skipped", reason: "队列项状态已变化或当前不支持重新排队，请先刷新队列" };
     }
-    const created = await queueFollowUp({ threadId: session.id, input: full.input,
-      clientUserMessageId: crypto.randomUUID(), skillIds: full.skillIds ?? [],
-      ...(full.autoCompaction ? { autoCompaction: full.autoCompaction } : {}) });
+    let created: QueueItem;
+    try {
+      created = await queueFollowUp({ threadId: session.id, input: full.input,
+        clientUserMessageId: crypto.randomUUID(), skillIds: full.skillIds ?? [],
+        ...(full.autoCompaction ? { autoCompaction: full.autoCompaction } : {}) });
+    } catch (cause) {
+      // 内核明确拒绝时请求没有入队；断连或回执不可读才交给面板按未确认处理。
+      const rejection = queueRetryRejection(cause);
+      if (rejection) return rejection;
+      throw cause;
+    }
+    let removed = true;
     try {
       await removeQueuedItem(session.id, item.id);
     } catch {
-      // 新请求已受理；旧项保持暂停，刷新后仍可手动撤回。
+      // 新请求已受理；旧项保持暂停，本地列表必须继续展示它并提示手动撤回。
+      removed = false;
     }
     let page: QueuePage | null = null;
+    let refreshFailure: unknown = null;
     try {
       page = await listQueue(session.id);
     } catch (cause) {
-      // 新请求已受理；刷新失败时按本地结果更新并说明其余条目可能过期，不回滚这次重新排队。
-      if (activeRef.current?.id === session.id) setError(`重新排队已受理，但队列刷新失败：${harnessErrorText(cause)}。界面按本地结果更新，其余条目可能已过期。`);
+      refreshFailure = cause;
     }
     if (activeRef.current?.id === session.id) {
       if (page) applyQueuePage(page);
-      else setQueueItems(previous => [...previous.filter(existing => existing.id !== item.id && existing.id !== created.id), created]);
+      else setQueueItems(previous => queueRetryLocalItems(previous, item.id, created, removed));
+      const notices: string[] = [];
+      if (refreshFailure) {
+        // 新请求已受理；刷新失败时按本地结果更新并说明其余条目可能过期，不回滚这次重新排队。
+        notices.push(`重新排队已受理，但队列刷新失败：${harnessErrorText(refreshFailure)}。界面按本地结果更新，其余条目可能已过期。`);
+      }
+      if (!removed) notices.push("重新排队已受理，但旧队列项未能撤回；它仍保留在会话中，请刷新队列后手动撤回。");
+      if (notices.length) setError(notices.join(""));
     }
     return { status: "done" };
   }, [applyQueuePage, harnessUp]);
