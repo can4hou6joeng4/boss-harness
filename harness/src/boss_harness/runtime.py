@@ -372,29 +372,31 @@ class TurnQueue:
                          and (kind != "steering" or q["expectedTurnId"] == turn_id)), None)
             return self.transition(thread_id, item["id"], "delivering") if item else None
 
-    def pause(self, thread_id: str, *, kind: str | None = None) -> None:
+    def pause(self, thread_id: str, *, kind: str | None = None) -> list[str]:
         with self.lock:
             # Register responsibility before touching storage. A failed write
             # must not leave old work eligible for a later successful turn.
             self._pending_pauses.setdefault(thread_id, set()).add(kind)
-            self.settle_pauses(thread_id)
+            return self.settle_pauses(thread_id)
 
-    def settle_pauses(self, thread_id: str, *, maximum_session_bytes: int | None = None) -> None:
+    def settle_pauses(self, thread_id: str, *, maximum_session_bytes: int | None = None) -> list[str]:
         """Finish earlier pauses before accepting or claiming more work.
 
         Reads remain read-only. New work can only be added after these scopes
         settle, so a delayed retry cannot accidentally pause a new request.
+        Returns the queue ids actually paused by this settlement.
         """
         with self.lock:
             scopes = self._pending_pauses.get(thread_id)
             if not scopes:
-                return
+                return []
             updates = [Entry(type="queue", payload={**item, "status": "paused"})
                        for item in self.list(thread_id)
                        if item["status"] in {"queued", "delivering"}
                        and (None in scopes or item["kind"] in scopes)]
             self.sessions.append_many(thread_id, updates, maximum_bytes=maximum_session_bytes)
             self._pending_pauses.pop(thread_id, None)
+            return [entry.payload["id"] for entry in updates]
 
     def recover(self) -> None:
         for thread in self.sessions.list_threads(include_archived=True):
