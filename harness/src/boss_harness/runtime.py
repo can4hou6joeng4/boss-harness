@@ -21,6 +21,8 @@ MAX_PENDING_QUEUE_ITEMS = 128
 MAX_PENDING_QUEUE_INPUT_BYTES = 4 * 1024 * 1024
 # 暂停来源只作为可核对的有限枚举写入队列记录；界面据此提供重试入口，不猜原因。
 PAUSE_REASON_COMPACTION_FAILED = "COMPACTION_FAILED"
+# 归档会暂停全部待处理项（_idle 保证没有运行中的回合或投递），恢复后可安全重新排队。
+PAUSE_REASON_THREAD_ARCHIVED = "THREAD_ARCHIVED"
 
 
 class RuntimeManager:

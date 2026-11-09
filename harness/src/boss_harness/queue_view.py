@@ -26,6 +26,8 @@ _PENDING_QUEUE_STATUSES = frozenset({"queued", "delivering"})
 MAX_QUEUE_SKILL_IDS = 10
 _QUEUE_OPTIONAL_STRINGS = ("expectedTurnId", "clientUserMessageId")
 _QUEUE_FLAGS = ("inputPersisted", "deduplicated", "inputTruncated")
+# 与 runtime.PAUSE_REASON_* 保持一致；只有这里列出的来源能进入只读投影。
+_QUEUE_PAUSE_REASONS = frozenset({"COMPACTION_FAILED", "THREAD_ARCHIVED"})
 _MAX_SAFE_INTEGER = 2 ** 53 - 1
 
 
@@ -103,7 +105,9 @@ def queue_view_record(record: dict) -> dict:
         del value["failureCode"]
     # 暂停来源是内核拥有的有限枚举：只有暂停项能携带，未知来源按缺失处理，
     # 避免损坏记录把任意字符串带进界面并影响重试入口。
-    if value.get("status") != "paused" or value.get("pausedReason") != "COMPACTION_FAILED":
+    paused_reason = value.get("pausedReason")
+    if (value.get("status") != "paused" or not isinstance(paused_reason, str)
+            or paused_reason not in _QUEUE_PAUSE_REASONS):
         value.pop("pausedReason", None)
     if "executionStarted" in value and value["executionStarted"] is not False:
         del value["executionStarted"]
