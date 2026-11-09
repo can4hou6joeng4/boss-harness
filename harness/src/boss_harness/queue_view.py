@@ -101,6 +101,10 @@ def queue_view_record(record: dict) -> dict:
             del value["autoCompaction"]
     if "failureCode" in value and value["failureCode"] != "TURN_START_FAILED":
         del value["failureCode"]
+    # 暂停来源是内核拥有的有限枚举：只有暂停项能携带，未知来源按缺失处理，
+    # 避免损坏记录把任意字符串带进界面并影响重试入口。
+    if value.get("status") != "paused" or value.get("pausedReason") != "COMPACTION_FAILED":
+        value.pop("pausedReason", None)
     if "executionStarted" in value and value["executionStarted"] is not False:
         del value["executionStarted"]
     for key in _QUEUE_FLAGS:

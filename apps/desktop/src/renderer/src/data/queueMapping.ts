@@ -44,6 +44,7 @@ export function isQueueItem(value: unknown): value is QueueItem {
     && !(Array.isArray(value.skillIds) && value.skillIds.every(id => typeof id === "string"))) return false;
   if (value.autoCompaction !== undefined && !isAutoCompaction(value.autoCompaction)) return false;
   if (value.failureCode !== undefined && value.failureCode !== "TURN_START_FAILED") return false;
+  if (value.pausedReason !== undefined && value.pausedReason !== "COMPACTION_FAILED") return false;
   if (value.executionStarted !== undefined && value.executionStarted !== false) return false;
   if (value.turnId !== undefined && typeof value.turnId !== "string") return false;
   if (value.inputPersisted !== undefined && typeof value.inputPersisted !== "boolean") return false;

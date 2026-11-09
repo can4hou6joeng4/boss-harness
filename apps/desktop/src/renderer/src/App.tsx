@@ -32,6 +32,7 @@ import { sendFailureNotice, sendFailureRecheckNotice } from "./data/sendFailure"
 import { sessionStartNotice, type SessionStartOutcome } from "./data/sessionStart";
 import { HarnessReplica } from "./data/harnessReplica";
 import { queueItemsOf, queueSubmissionLookup, type QueuePage } from "./data/queueMapping";
+import { queueItemRetryable } from "./data/queueRetry";
 import type { QueueActionOutcome } from "./data/queueAction";
 import type { QueueRefreshResult } from "./data/queueRefresh";
 import { reduceModelRetry, settleModelRetryOnTurnEnd, type ModelRetryStatus } from "./data/modelRetry";
@@ -721,9 +722,9 @@ export function App(): JSX.Element {
       // 读取发生在入队之前：重新排队没有发出，不能按「结果未确认」提示。
       return { status: "skipped", reason: `读取完整输入失败（${harnessErrorText(cause)}）` };
     }
-    if (full.status !== "paused" || full.failureCode !== "TURN_START_FAILED" || full.inputPersisted !== false) {
-      if (activeRef.current?.id === session.id) setError("队列项状态已变化，请刷新队列后再决定是否重新排队。");
-      return { status: "skipped", reason: "队列项状态已变化，请先刷新队列" };
+    if (!queueItemRetryable(full)) {
+      if (activeRef.current?.id === session.id) setError("队列项状态已变化或当前不支持重新排队，请刷新队列后再决定。");
+      return { status: "skipped", reason: "队列项状态已变化或当前不支持重新排队，请先刷新队列" };
     }
     const created = await queueFollowUp({ threadId: session.id, input: full.input,
       clientUserMessageId: crypto.randomUUID(), skillIds: full.skillIds ?? [],

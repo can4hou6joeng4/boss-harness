@@ -730,6 +730,10 @@ class _Exporter:
                 "skillCount": len(skill_ids),
                 "skillIds": skill_ids,
                 "failureCode": failure if isinstance(failure, str) and len(failure) <= 120 else None,
+                # 暂停来源只导出内核拥有的有限枚举，避免损坏记录把任意文本带进导出。
+                "pausedReason": payload["pausedReason"]
+                if payload["status"] == "paused"
+                and payload.get("pausedReason") == "COMPACTION_FAILED" else None,
                 "inputPersisted": payload.get("inputPersisted")
                 if type(payload.get("inputPersisted")) is bool else None,
                 "deduplicated": payload.get("deduplicated") is True,
@@ -920,6 +924,8 @@ def _queue_facts(item: dict, *, code: bool = False) -> list[str]:
         facts.append("输入是否已写入会话：" + ("是" if item["inputPersisted"] else "否"))
     if item["status"] == "paused" and item["failureCode"]:
         facts.append(f"失败码：{item['failureCode']}")
+    if item["status"] == "paused" and item["pausedReason"] == "COMPACTION_FAILED":
+        facts.append("暂停原因：摘要未完成")
     if item["deduplicated"]:
         facts.append("与既有请求关联")
     if item["skillIds"]:
