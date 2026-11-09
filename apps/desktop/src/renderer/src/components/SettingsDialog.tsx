@@ -30,6 +30,7 @@ import {
   type PreferencesFileValues,
 } from "../data/preferencesFile";
 import { compactionDraft, compactionFields, compactionSourceLabel, type CompactionSettingDraft } from "../data/compactionSettings";
+import { readSessionIndexHealth, type SessionIndexHealth } from "../data/sessionIndexHealth";
 import { currentCommandPlatform } from "../data/shortcuts";
 import { shortcutKeyLabel } from "../data/shortcutLabels";
 import type { ThemePreference } from "../data/themePreference";
@@ -154,6 +155,9 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   const [compactionBusy, setCompactionBusy] = useState(false);
   const [compactionError, setCompactionError] = useState("");
   const [compactionSaved, setCompactionSaved] = useState(false);
+  const [indexHealth, setIndexHealth] = useState<SessionIndexHealth | null>(null);
+  const [indexHealthBusy, setIndexHealthBusy] = useState(false);
+  const [indexHealthError, setIndexHealthError] = useState("");
   const backdropRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -216,6 +220,30 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
       setCompactionError(`读取自动压缩默认值失败：${harnessErrorText(cause)}。`);
     }).finally(() => {
       if (!cancelled) setCompactionBusy(false);
+    });
+    return () => { cancelled = true; };
+  }, [isOpen, section, harnessUp]);
+
+  // 每次进入「数据管理」分区都重读内核索引健康度；损坏文件可能在本进程运行期间才出现。
+  useEffect(() => {
+    if (!isOpen || section !== "data" || !harnessUp) {
+      setIndexHealth(null);
+      setIndexHealthError("");
+      setIndexHealthBusy(false);
+      return;
+    }
+    let cancelled = false;
+    setIndexHealthBusy(true);
+    setIndexHealthError("");
+    readConfig().then(config => {
+      if (cancelled) return;
+      setIndexHealth(readSessionIndexHealth(config));
+    }).catch(cause => {
+      if (cancelled) return;
+      setIndexHealth(null);
+      setIndexHealthError(`读取会话索引状态失败：${harnessErrorText(cause)}。`);
+    }).finally(() => {
+      if (!cancelled) setIndexHealthBusy(false);
     });
     return () => { cancelled = true; };
   }, [isOpen, section, harnessUp]);
@@ -525,6 +553,24 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
                   <button type="button" className="settings-button" onClick={() => preferencesFileRef.current?.click()}>选择 JSON 文件</button>
                 </SettingRow>
                 <SettingRow title="导出界面偏好" description="将当前设备的显示偏好下载为 JSON 文件"><button type="button" className="settings-button" onClick={exportPreferences}>导出 JSON</button></SettingRow>
+                <SettingRow title="会话索引" description="检查本机无法解析、已跳过索引的会话文件；原始日志不会被修改">
+                  <span className="settings-static-value">
+                    {!harnessUp ? "未连接" : indexHealthError ? "读取失败" : indexHealthBusy && !indexHealth ? "读取中…" : indexHealth ? `${indexHealth.count} 个无法读取` : "正常"}
+                  </span>
+                </SettingRow>
+                {indexHealthError && (
+                  <div className="settings-note"><IconFolder size={17} /><div><h3>无法读取会话索引状态</h3><p>{indexHealthError}</p></div></div>
+                )}
+                {indexHealth && (
+                  <div className="settings-note"><IconFolder size={17} /><div>
+                    <h3>有会话文件无法建立索引</h3>
+                    <p>这些会话文件无法解析，已被跳过索引；原始日志没有被修改或删除，其余会话不受影响。</p>
+                    {indexHealth.ids.length > 0 && (
+                      <p>会话 id：<code>{indexHealth.ids.slice(0, 5).join("、")}</code>{indexHealth.count > 5 ? `（共 ${indexHealth.count} 个）` : ""}</p>
+                    )}
+                    <p>退出应用后可运行 <code>boss-harness --repair-state</code>，在备份索引后从原始日志重建；修复不会改写日志内容。</p>
+                  </div></div>
+                )}
                 <div className="settings-note"><IconFolder size={17} /><div><h3>导出与导入范围</h3><p>仅包含 <code>boss-harness.ui.*</code> 界面偏好，不包含聊天内容、候选人资料或模型凭据。</p><p>导入只接受本应用导出的版本与白名单键，非法值整体拒绝、未知键忽略，文件上限 64 KiB；导入前不会改动现有偏好。</p><p>会话与真实业务数据由 Harness 管理。</p></div></div>
               </>
             )}

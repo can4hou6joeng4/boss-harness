@@ -68,6 +68,7 @@ MAX_RUNTIME_RESOURCE_WAITERS = 32
 MAX_RUNTIME_RESOURCE_OWNERS = 32
 MAX_COMPACTION_ERROR_CHARACTERS = 2_048
 MAX_TASK_RELATIONS = 256
+MAX_UNREADABLE_THREAD_IDS = 20
 MAX_CONTINUATION_HISTORY_BYTES = 64 * 1024 * 1024
 CONTINUATION_WARNING = ("续接会发起新的模型请求，可能重复调用并产生额外费用；已完成工具结果会沿用，"
                         "不会再次执行旧工具，新写操作仍需逐次审批。")
@@ -632,7 +633,8 @@ class ApplicationService:
         return {"tools": self.registry.describe()}
 
     def on_config_read(self, params: dict | None) -> dict:
-        return {"protocolVersion": PROTOCOL_VERSION, "workspace": str(self.workspace),
+        unreadable = self.sessions.unreadable_thread_ids()
+        response = {"protocolVersion": PROTOCOL_VERSION, "workspace": str(self.workspace),
                 "provider": self.config.provider, "model": self.config.model,
                 "maxOutputTokens": self.config.max_tokens, "parallelThreads": self.runtimes.capacity,
                 "maxRetainedTurns": self.runtimes.owner_capacity,
@@ -645,6 +647,11 @@ class ApplicationService:
                 "autoCompaction": self.compaction_policy.describe(),
                 "autoCompactionSource": self._auto_compaction_source,
                 "approvalPolicy": "each-consequential-call", "approvalTimeoutSeconds": self.approval_timeout}
+        if unreadable:
+            # 只暴露有上限的 id 快照；数量完整，避免大量损坏文件把配置响应撑大。
+            response["unreadableThreadCount"] = len(unreadable)
+            response["unreadableThreadIds"] = unreadable[:MAX_UNREADABLE_THREAD_IDS]
+        return response
 
     def on_config_auto_compaction_set(self, params: dict | None) -> dict:
         params = params or {}
