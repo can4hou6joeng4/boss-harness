@@ -36,7 +36,7 @@ from boss_harness.models.types import AssistantMessage, ModelRecoveryBudget, Mod
 from boss_harness.model_tools import MODEL_RESULT_READ_TOOL, model_tool_specs
 from boss_harness.ownership import StateDirectoryOwner
 from boss_harness.resources import AttachmentQuotaExceeded, AttachmentStore, SkillCatalog, ToolRegistry
-from boss_harness.request_identity import resolve_request
+from boss_harness.request_identity import resolve_request, valid_client_id
 from boss_harness.request_policy import ModelRequestRejected, check_model_request, record_model_rejection
 from boss_harness.rpc import JsonRpcServer, RpcError
 from boss_harness.runtime import RuntimeManager, TurnQueue
@@ -4205,7 +4205,7 @@ class ApplicationService:
         try:
             start_params = {"threadId": thread_id, "input": item["input"],
                 "skillIds": item.get("skillIds") or [],
-                "clientUserMessageId": item.get("clientUserMessageId") or "queue-" + item["id"]}
+                "clientUserMessageId": valid_client_id(item.get("clientUserMessageId")) or "queue-" + item["id"]}
             if item.get("autoCompaction") is not None:
                 start_params["autoCompaction"] = item["autoCompaction"]
             self.on_turn_start(start_params, queue_item=item)
