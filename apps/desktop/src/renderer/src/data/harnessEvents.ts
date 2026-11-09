@@ -3,6 +3,9 @@ import type { MessageItem } from "./mockData";
 import { toApproval, toMessage, type ApprovalDelivery } from "./harnessBridge";
 import { approvalDeadlineMs } from "./pendingApprovals";
 import { toolDurationMs } from "./toolTiming";
+import {
+  itemResultRef, itemSource, itemText, itemToolName, plainRecord, toolExecutionState, toolStatus,
+} from "./itemFields";
 
 export interface HarnessEvent {
   method: string;
@@ -36,23 +39,6 @@ export interface HarnessEvent {
   };
 }
 
-const TOOL_STATUSES = new Set<NonNullable<ThreadItem["status"]>>(["running", "completed", "failed"]);
-const TOOL_EXECUTION_STATES = new Set<NonNullable<ThreadItem["executionState"]>>([
-  "queued", "pending_approval", "approved", "not_approved", "executing",
-  "completed", "failed", "not_executed", "outcome_unknown",
-]);
-
-/** 校验事件里的工具状态；未知值按缺失处理，不把内核新增状态当成已知。 */
-function toolStatus(value: unknown): ThreadItem["status"] {
-  return typeof value === "string" && TOOL_STATUSES.has(value as NonNullable<ThreadItem["status"]>)
-    ? value as NonNullable<ThreadItem["status"]> : undefined;
-}
-
-function toolExecutionState(value: unknown): ThreadItem["executionState"] {
-  return typeof value === "string" && TOOL_EXECUTION_STATES.has(value as NonNullable<ThreadItem["executionState"]>)
-    ? value as NonNullable<ThreadItem["executionState"]> : undefined;
-}
-
 /** 启动卡正文与徽标保持一致：等待审批的工具不能显示成正在执行。 */
 function runningToolText(state: ThreadItem["executionState"]): string {
   switch (state) {
@@ -74,16 +60,16 @@ export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent,
   let item: MessageItem = before ?? { id, turnId: params.turnId, role: "agent", paragraphs: [] };
   switch (event.method) {
     case "agentMessage/delta":
-      item = { ...item, paragraphs: [(item.paragraphs?.join("") ?? "") + (params.delta ?? "")] };
+      item = { ...item, paragraphs: [(item.paragraphs?.join("") ?? "") + (itemText(params.delta) ?? "")] };
       break;
     case "agentThinking/delta":
-      item = { ...item, thinkingTime: "思考过程", thinkingContent: (item.thinkingContent ?? "") + (params.delta ?? "") };
+      item = { ...item, thinkingTime: "思考过程", thinkingContent: (item.thinkingContent ?? "") + (itemText(params.delta) ?? "") };
       break;
     case "item/completed": {
       if (params.kind !== "agentMessage" && params.kind !== "userMessage") return previous;
       const message = toMessage({ id, threadId: params.threadId ?? "", turnId: params.turnId,
-        kind: params.kind, text: params.text ?? before?.paragraphs?.join(""),
-        thinking: params.thinking ?? before?.thinkingContent });
+        kind: params.kind, text: itemText(params.text) ?? before?.paragraphs?.join(""),
+        thinking: itemText(params.thinking) ?? before?.thinkingContent });
       item = { ...item, ...message };
       break;
     }
@@ -100,7 +86,7 @@ export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent,
       const executionState = toolExecutionState(params.executionState);
       // 只有等待审批才是真正的等待；queued 表示即将派发，按开始执行计时。
       const waiting = executionState === "pending_approval";
-      item = { ...item, toolUse: { name: params.toolName ?? "tool", input: JSON.stringify(params.arguments ?? {}, null, 2),
+      item = { ...item, toolUse: { name: itemToolName(params.toolName), input: JSON.stringify(plainRecord(params.arguments) ?? {}, null, 2),
         result: runningToolText(executionState), ...(executionState ? { executionState } : {}),
         // 等待审批只记录等待起点；真正开始执行的时间由审批裁决补充。
         ...(at === undefined ? {} : waiting ? { waitingSince: at } : { startedAt: at }) } };
@@ -117,13 +103,14 @@ export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent,
     case "toolCall/completed": {
       const status = toolStatus(params.status);
       const executionState = toolExecutionState(params.executionState);
-      const errorCode = typeof params.error?.code === "string" && params.error.code ? params.error.code : undefined;
+      const errorCode = itemText(params.error?.code);
       const durationMs = toolDurationMs(params.durationMs);
+      const resultRef = itemResultRef(params.resultRef);
       const toolUse: NonNullable<MessageItem["toolUse"]> = { ...item.toolUse,
-        source: params.source ?? item.toolUse?.source,
-        name: params.toolName ?? item.toolUse?.name ?? "tool",
+        source: itemSource(params.source) ?? item.toolUse?.source,
+        name: itemToolName(params.toolName ?? item.toolUse?.name),
         input: item.toolUse?.input ?? "{}",
-        result: params.resultSummary ?? params.error?.message ?? params.status ?? "已结束" };
+        result: itemText(params.resultSummary) ?? itemText(params.error?.message) ?? status ?? "已结束" };
       // 完成事件是终态：内核没带的状态必须清掉，否则新内核的启动态（如等待审批）会残留到结束。
       if (status) toolUse.status = status; else delete toolUse.status;
       if (executionState) toolUse.executionState = executionState; else delete toolUse.executionState;
@@ -133,14 +120,17 @@ export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent,
       if (at !== undefined && item.toolUse?.startedAt !== undefined) toolUse.endedAt = at; else delete toolUse.endedAt;
       item = { ...item, toolUse, ...(params.approval ? { approval: toApproval(params.approval) } : {}) };
       if (params.result) item = { ...item, toolUse: { ...item.toolUse!, resultRef: undefined, output: JSON.stringify(params.result, null, 2) } };
-      else if (params.resultRef) item = { ...item, toolUse: { ...item.toolUse!, resultRef: params.resultRef, output: undefined } };
+      else if (resultRef) item = { ...item, toolUse: { ...item.toolUse!, resultRef, output: undefined } };
       else if (params.resultOmitted) item = { ...item, toolUse: { ...item.toolUse!, resultRef: undefined, output: "结果较大，实时详情已省略；完整结果已保存到会话历史。" } };
       break;
     }
     case "approval/requested": {
       if (!params.approvalId) return previous;
       const deadline = approvalDeadlineMs(params.deadline);
-      item = { ...item, approval: { approvalId: params.approvalId, toolName: params.toolName ?? "tool", description: params.summary ?? "该操作需要你的批准", params: params.params ?? {}, consequential: params.consequential ?? true, ...(deadline !== undefined ? { deadline } : {}) } };
+      item = { ...item, approval: { approvalId: params.approvalId, toolName: itemToolName(params.toolName),
+        description: itemText(params.summary) ?? "该操作需要你的批准", params: plainRecord(params.params) ?? {},
+        consequential: typeof params.consequential === "boolean" ? params.consequential : true,
+        ...(deadline !== undefined ? { deadline } : {}) } };
       break;
     }
     default: return previous;

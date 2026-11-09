@@ -75,6 +75,10 @@ import { TURN_SKILL_PAGE_LIMIT, turnSkillPageOf } from "./turnSkills";
 import { approvalDeadlineMs, mapPendingApprovals, type PendingApprovalList } from "./pendingApprovals";
 import { readPagedItems } from "./pagedRead";
 import { toolDurationMs } from "./toolTiming";
+import {
+  approvalDecision, itemContextEdit, itemResultRef, itemSource, itemText, itemToolName,
+  plainRecord, toolExecutionState, toolStatus,
+} from "./itemFields";
 import type { MessageItem, SessionItem } from "./mockData";
 
 export const HARNESS_PROJECT_ID = "proj-harness";
@@ -492,32 +496,48 @@ export async function respondApproval(approvalId: string, approved: boolean): Pr
 }
 
 export function toMessage(item: ThreadItem): MessageItem | null {
+  // 条目 id 不是字符串时无法稳定引用；跳过而不是渲染无法定位的卡片。
+  if (typeof item.id !== "string" || !item.id) return null;
+  const turnId = itemText(item.turnId);
+  const contextEdit = itemContextEdit(item.contextEdit);
   switch (item.kind) {
     case "userMessage":
-      return { id: item.id, turnId: item.turnId, contextEdit: item.contextEdit, role: "user", content: item.text ?? "" };
-    case "agentMessage":
-      return { id: item.id, turnId: item.turnId, contextEdit: item.contextEdit, role: "agent", paragraphs: item.text ? [item.text] : [],
-        ...(item.thinking ? { thinkingTime: "思考过程", thinkingContent: item.thinking } : {}) };
+      return { id: item.id, ...(turnId !== undefined ? { turnId } : {}), ...(contextEdit ? { contextEdit } : {}),
+        role: "user", content: itemText(item.text) ?? "" };
+    case "agentMessage": {
+      const text = itemText(item.text);
+      const thinking = itemText(item.thinking);
+      return { id: item.id, ...(turnId !== undefined ? { turnId } : {}), ...(contextEdit ? { contextEdit } : {}),
+        role: "agent", paragraphs: text ? [text] : [],
+        ...(thinking ? { thinkingTime: "思考过程", thinkingContent: thinking } : {}) };
+    }
     case "toolCall": {
       const approval = item.approval ? toApproval(item.approval) : undefined;
+      const source = itemSource(item.source);
+      const resultRef = itemResultRef(item.resultRef);
+      const executionState = toolExecutionState(item.executionState);
+      const status = toolStatus(item.status);
+      const errorCode = itemText(item.errorCode);
+      const recoveryAction = itemText(item.recoveryAction);
+      const resultSummary = itemText(item.resultSummary);
       return {
         id: item.id,
-        turnId: item.turnId,
+        ...(turnId !== undefined ? { turnId } : {}),
         role: "agent",
         paragraphs: [],
-              toolUse: {
-                name: item.toolName ?? "tool",
-                source: item.source,
-                resultRef: item.resultRef,
-                executionState: item.executionState,
-                status: item.status,
-                errorCode: item.errorCode,
-                recoveryAction: item.recoveryAction,
-                durationMs: toolDurationMs(item.durationMs),
-                output: item.result ? JSON.stringify(item.result, null, 2) : undefined,
-                input: JSON.stringify(item.toolArguments ?? {}, null, 2),
-                result: item.resultSummary ?? (item.status === "running" ? "正在执行" : item.status ?? ""),
-              },
+        toolUse: {
+          name: itemToolName(item.toolName),
+          ...(source ? { source } : {}),
+          ...(resultRef ? { resultRef } : {}),
+          ...(executionState ? { executionState } : {}),
+          ...(status ? { status } : {}),
+          ...(errorCode !== undefined ? { errorCode } : {}),
+          ...(recoveryAction !== undefined ? { recoveryAction } : {}),
+          durationMs: toolDurationMs(item.durationMs),
+          output: item.result ? JSON.stringify(item.result, null, 2) : undefined,
+          input: JSON.stringify(plainRecord(item.toolArguments) ?? {}, null, 2),
+          result: resultSummary ?? (status === "running" ? "正在执行" : status ?? ""),
+        },
         ...(approval ? { approval } : {}),
       };
     }
@@ -603,14 +623,16 @@ export async function forkThread(threadId: string, turnId: string): Promise<Sess
 
 /** 把内核的审批状态转成渲染层消息：协议里 `deadline` 是 Unix 秒，这里统一换算为毫秒。 */
 export function toApproval(state: ApprovalState): NonNullable<MessageItem["approval"]> {
-  const deadline = approvalDeadlineMs(state.deadline);
+  const value = plainRecord(state) ?? {};
+  const deadline = approvalDeadlineMs(value.deadline);
+  const decision = approvalDecision(value.decision);
   return {
-    approvalId: state.approvalId,
-    toolName: state.toolName,
-    description: state.description,
-    params: state.params,
-    consequential: state.consequential,
-    decision: state.decision,
+    ...(typeof value.approvalId === "string" ? { approvalId: value.approvalId } : {}),
+    toolName: itemToolName(value.toolName),
+    description: itemText(value.description) ?? "",
+    params: plainRecord(value.params) ?? {},
+    ...(typeof value.consequential === "boolean" ? { consequential: value.consequential } : {}),
+    ...(decision !== undefined ? { decision } : {}),
     ...(deadline !== undefined ? { deadline } : {}),
-  } as NonNullable<MessageItem["approval"]>;
+  };
 }
