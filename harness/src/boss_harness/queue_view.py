@@ -22,6 +22,11 @@ QUEUE_STATUSES = ACTIVE_QUEUE_STATUSES | TERMINAL_QUEUE_STATUSES
 # 恢复或展示，下游直接读取 kind 时还会抛 KeyError。
 QUEUE_KINDS = frozenset({"steering", "followUp"})
 _PENDING_QUEUE_STATUSES = frozenset({"queued", "delivering"})
+# 与 queue/add 的上限一致：投影只保留最多 10 项技能，避免损坏记录放大只读响应。
+MAX_QUEUE_SKILL_IDS = 10
+_QUEUE_OPTIONAL_STRINGS = ("expectedTurnId", "clientUserMessageId")
+_QUEUE_FLAGS = ("inputPersisted", "deduplicated", "inputTruncated")
+_MAX_SAFE_INTEGER = 2 ** 53 - 1
 
 
 def queue_record(value: Any) -> dict | None:
@@ -52,6 +57,58 @@ def queue_record(value: Any) -> dict | None:
     return value
 
 
+def _queue_view_auto_compaction(value: Any) -> dict:
+    """只保留协议声明且类型正确的字段；`{}` 本身合法，表示全部继承默认值。"""
+    cleaned: dict = {}
+    if not isinstance(value, dict):
+        return cleaned
+    if type(value.get("enabled")) is bool:
+        cleaned["enabled"] = value["enabled"]
+    for key in ("triggerPercent", "keepRecentTokens"):
+        item = value.get(key)
+        if type(item) is int and 0 <= item <= _MAX_SAFE_INTEGER:
+            cleaned[key] = item
+    return cleaned
+
+
+def queue_view_record(record: dict) -> dict:
+    """按只读展示契约收敛一条已通过 ``queue_record`` 的队列记录。
+
+    ``queue_record`` 保留运行时的完整记录；但 ``queue/list``、``thread/resume``
+    与冻结快照共用 ``project_queue``，桌面会逐项校验可选字段，任一形状不符就拒绝
+    整份列表并清空面板。必填字段已在 ``queue_record`` 校验，这里只删除或收敛
+    类型不符合协议的可选字段，不改变条目身份、状态与计数。
+    """
+    value = dict(record)
+    for key in _QUEUE_OPTIONAL_STRINGS:
+        if key in value and value[key] is not None and not isinstance(value[key], str):
+            del value[key]
+    if "turnId" in value and not isinstance(value["turnId"], str):
+        del value["turnId"]
+    if "skillIds" in value:
+        ids = value["skillIds"]
+        if (isinstance(ids, list) and len(ids) <= MAX_QUEUE_SKILL_IDS
+                and all(isinstance(item, str) and item for item in ids)):
+            value["skillIds"] = list(dict.fromkeys(ids))
+        else:
+            del value["skillIds"]
+    if "autoCompaction" in value:
+        raw = value["autoCompaction"]
+        cleaned = _queue_view_auto_compaction(raw)
+        if cleaned or (isinstance(raw, dict) and not raw):
+            value["autoCompaction"] = cleaned
+        else:
+            del value["autoCompaction"]
+    if "failureCode" in value and value["failureCode"] != "TURN_START_FAILED":
+        del value["failureCode"]
+    if "executionStarted" in value and value["executionStarted"] is not False:
+        del value["executionStarted"]
+    for key in _QUEUE_FLAGS:
+        if key in value and type(value[key]) is not bool:
+            del value[key]
+    return value
+
+
 def project_queue(items: list[dict], *, total_items: int | None = None,
                   active_items: int | None = None) -> dict:
     """Return the bounded list projection plus the durable totals.
@@ -79,7 +136,7 @@ def project_queue(items: list[dict], *, total_items: int | None = None,
     for item in ordered:
         if item["id"] not in kept_ids:
             continue
-        value = dict(item)
+        value = queue_view_record(item)
         text = value.get("input")
         if isinstance(text, str) and len(text) > MAX_QUEUE_VIEW_INPUT_CHARS:
             value["input"] = text[:MAX_QUEUE_VIEW_INPUT_CHARS]
