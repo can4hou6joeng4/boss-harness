@@ -3078,6 +3078,7 @@ class ApplicationService:
                 if (not isinstance(inherited_boundary_id, str)
                         or not isinstance(inherited_boundary_digest, str)
                         or re.fullmatch(r"[a-f0-9]{64}", inherited_boundary_digest) is None
+                        or not isinstance(inherited_boundary_kind, str)
                         or inherited_boundary_kind not in {"user_input", "completed_tool_batch"}
                         or type(inherited_call_count) is not int or inherited_call_count < 0):
                     return fail("CONTINUATION_BOUNDARY_INVALID", "续接来源缺少继承的持久边界。")
