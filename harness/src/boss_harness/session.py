@@ -25,13 +25,14 @@ from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from boss_harness.persistence import PersistenceIndex, SCHEMA_VERSION
 from boss_harness.private_files import ensure_private_directory, open_private_file, restrict_private_file
 from boss_harness.queue_view import ACTIVE_QUEUE_STATUSES
 from boss_harness.models.capabilities import REASONING_EFFORTS
 
+_T = TypeVar("_T")
 _THREAD_ID = re.compile(r"[a-f0-9]{12}\Z")
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
 _EVENT_ID = re.compile(r"[a-f0-9]{32}\Z")
@@ -524,6 +525,14 @@ class ItemLookupError(ValueError):
     def __init__(self, code: str, message: str) -> None:
         self.code = code
         super().__init__(message)
+
+
+class _IndexedMetadataError(ValueError):
+    """投影索引里的 metadata_json 无法作为对象使用；读取方据此触发重建。"""
+
+    def __init__(self, thread_id: str) -> None:
+        super().__init__(thread_id)
+        self.thread_id = thread_id
 
 
 class SessionStore:
@@ -1124,28 +1133,33 @@ class SessionStore:
         with self._lock:
             if self._delete_intent_path(thread_id).exists():
                 raise ValueError("会话正在删除，暂不可读取")
-            with self._index.connection() as connection:
-                thread = connection.execute(
-                    "SELECT metadata_json,indexed_size,indexed_mtime_ns FROM threads WHERE id=?",
-                    (thread_id,)).fetchone()
-                if thread is None:
-                    raise ValueError("会话不存在")
-                stat_result = self.path_for(thread_id).stat()
-                if (thread["indexed_size"], thread["indexed_mtime_ns"]
-                        ) != (stat_result.st_size, stat_result.st_mtime_ns):
-                    raise ValueError("会话索引与日志不同步，请重试冻结快照")
-                turns = []
-                if not include_turns:
-                    return json.loads(thread["metadata_json"]), turns, False
-                rows = connection.execute("""SELECT metadata_json FROM turns
-                    WHERE thread_id=? ORDER BY first_ordinal,turn_id LIMIT 50""", (thread_id,))
-                turn_bytes = 0
-                for row in rows:
-                    turn_bytes += len(row["metadata_json"].encode("utf-8"))
-                    if turn_bytes > max_turn_bytes:
-                        return json.loads(thread["metadata_json"]), turns, True
-                    turns.append(json.loads(row["metadata_json"]))
-            return json.loads(thread["metadata_json"]), turns, False
+
+            def read() -> tuple[dict, list[dict], bool]:
+                with self._index.connection() as connection:
+                    thread = connection.execute(
+                        "SELECT id,metadata_json,indexed_size,indexed_mtime_ns FROM threads WHERE id=?",
+                        (thread_id,)).fetchone()
+                    if thread is None:
+                        raise ValueError("会话不存在")
+                    stat_result = self.path_for(thread_id).stat()
+                    if (thread["indexed_size"], thread["indexed_mtime_ns"]
+                            ) != (stat_result.st_size, stat_result.st_mtime_ns):
+                        raise ValueError("会话索引与日志不同步，请重试冻结快照")
+                    metadata = self._thread_metadata(thread)
+                    turns = []
+                    if not include_turns:
+                        return metadata, turns, False
+                    rows = connection.execute("""SELECT thread_id,metadata_json FROM turns
+                        WHERE thread_id=? ORDER BY first_ordinal,turn_id LIMIT 50""", (thread_id,))
+                    turn_bytes = 0
+                    for row in rows:
+                        turn_bytes += len(row["metadata_json"].encode("utf-8"))
+                        if turn_bytes > max_turn_bytes:
+                            return metadata, turns, True
+                        turns.append(self._turn_metadata(row))
+                return metadata, turns, False
+
+            return self._with_repaired_index(read)
 
     def read(self, thread_id: str) -> list[dict]:
         """Read all rollout entries, including queue/context/approval extension records."""
@@ -1669,6 +1683,47 @@ class SessionStore:
         with self._lock, self._index.transaction() as connection:
             self._index_thread(thread_id, connection)
 
+    @staticmethod
+    def _thread_metadata(row: sqlite3.Row) -> dict[str, Any]:
+        """读取线程投影行；损坏时抛出内部信号，由读取方触发重建。"""
+        try:
+            metadata = json.loads(row["metadata_json"])
+        except (TypeError, ValueError, RecursionError):
+            raise _IndexedMetadataError(row["id"]) from None
+        if not isinstance(metadata, dict):
+            raise _IndexedMetadataError(row["id"])
+        return metadata
+
+    @staticmethod
+    def _turn_metadata(row: sqlite3.Row) -> dict[str, Any]:
+        try:
+            metadata = json.loads(row["metadata_json"])
+        except (TypeError, ValueError, RecursionError):
+            raise _IndexedMetadataError(row["thread_id"]) from None
+        if not isinstance(metadata, dict):
+            raise _IndexedMetadataError(row["thread_id"])
+        return metadata
+
+    def _repair_thread_index(self, thread_id: str) -> None:
+        """投影索引从会话 JSONL 派生：标记过期后按源日志重建该会话。"""
+        with self._lock, self._index.transaction() as connection:
+            connection.execute("UPDATE threads SET indexed_size=-1,indexed_mtime_ns=-1 WHERE id=?",
+                               (thread_id,))
+            self._index_thread(thread_id, connection)
+
+    def _with_repaired_index(self, read: Callable[[], _T]) -> _T:
+        """metadata_json 损坏时逐个会话重建后重试；源日志错误原样向上。"""
+        repaired: set[str] = set()
+        while True:
+            try:
+                return read()
+            except _IndexedMetadataError as exc:
+                if exc.thread_id in repaired:
+                    raise ValueError("会话索引已损坏，请重新打开应用后重试") from None
+                repaired.add(exc.thread_id)
+                self._repair_thread_index(exc.thread_id)
+
+
     def _refresh_threads(self) -> None:
         with self._lock, self._index.transaction() as connection:
             known: set[str] = set()
@@ -1695,11 +1750,16 @@ class SessionStore:
 
     def get_thread(self, thread_id: str) -> dict:
         self._sync_thread(thread_id)
-        with self._index.connection() as connection:
-            row = connection.execute("SELECT metadata_json FROM threads WHERE id=?", (thread_id,)).fetchone()
-        if row is None:
-            raise ValueError("会话不存在")
-        return json.loads(row["metadata_json"])
+
+        def read() -> dict:
+            with self._index.connection() as connection:
+                row = connection.execute(
+                    "SELECT id,metadata_json FROM threads WHERE id=?", (thread_id,)).fetchone()
+            if row is None:
+                raise ValueError("会话不存在")
+            return self._thread_metadata(row)
+
+        return self._with_repaired_index(read)
 
     @staticmethod
     def _validate_changes(changes: dict) -> dict:
@@ -2150,10 +2210,20 @@ class SessionStore:
         with self._lock:
             self._refresh_threads()
             pending = self._pending_deletion_ids()
-            with self._index.connection() as connection:
-                rows = connection.execute("SELECT metadata_json FROM threads" +
-                    ("" if include_archived else " WHERE archived=0") + " ORDER BY updated_at DESC,id DESC").fetchall()
-        return [thread for row in rows if (thread := json.loads(row["metadata_json"]))["id"] not in pending]
+
+            def read() -> list[dict]:
+                with self._index.connection() as connection:
+                    rows = connection.execute("SELECT id,metadata_json FROM threads" +
+                        ("" if include_archived else " WHERE archived=0")
+                        + " ORDER BY updated_at DESC,id DESC").fetchall()
+                threads = []
+                for row in rows:
+                    metadata = self._thread_metadata(row)
+                    if row["id"] not in pending:
+                        threads.append(metadata)
+                return threads
+
+            return self._with_repaired_index(read)
 
     def unreadable_thread_ids(self) -> list[str]:
         """本进程刷新索引时跳过的会话 id 快照，按字典序排列供运行诊断读取。"""
@@ -2190,12 +2260,17 @@ class SessionStore:
                 parameters.extend(pending)
             query += " ORDER BY updated_at DESC,id DESC LIMIT ?"
             parameters.append(limit + 1)
-            with self._index.connection() as connection:
-                rows = connection.execute(query, parameters).fetchall()
-        page = rows[:limit]
-        next_cursor = (_page_cursor("threads", scope, [page[-1]["updated_at"], page[-1]["id"]])
-                       if len(rows) > limit else None)
-        return {"threads": [json.loads(row["metadata_json"]) for row in page], "nextCursor": next_cursor}
+
+            def read() -> dict:
+                with self._index.connection() as connection:
+                    rows = connection.execute(query, parameters).fetchall()
+                page = rows[:limit]
+                next_cursor = (_page_cursor("threads", scope, [page[-1]["updated_at"], page[-1]["id"]])
+                               if len(rows) > limit else None)
+                return {"threads": [self._thread_metadata(row) for row in page],
+                        "nextCursor": next_cursor}
+
+            return self._with_repaired_index(read)
 
     @staticmethod
     def _search_normalized(value: str) -> tuple[str, list[int], list[int]]:
@@ -2399,14 +2474,19 @@ class SessionStore:
     def get_turn(self, thread_id: str, turn_id: str) -> dict:
         _identifier(turn_id, "turnId")
         self._sync_thread(thread_id)
-        with self._index.connection() as connection:
-            row = connection.execute("SELECT * FROM turns WHERE thread_id=? AND turn_id=?", (thread_id, turn_id)).fetchone()
-        if row is None:
-            raise ValueError("回合不存在")
-        rollout = self.read_entries(thread_id)
-        owners = self._item_owners(rollout)
-        entries = [entry for entry in rollout if owners.get(entry["id"]) == turn_id]
-        return {**json.loads(row["metadata_json"]), "items": self._project_items(thread_id, entries)}
+
+        def read() -> dict:
+            with self._index.connection() as connection:
+                row = connection.execute(
+                    "SELECT * FROM turns WHERE thread_id=? AND turn_id=?", (thread_id, turn_id)).fetchone()
+            if row is None:
+                raise ValueError("回合不存在")
+            rollout = self.read_entries(thread_id)
+            owners = self._item_owners(rollout)
+            entries = [entry for entry in rollout if owners.get(entry["id"]) == turn_id]
+            return {**self._turn_metadata(row), "items": self._project_items(thread_id, entries)}
+
+        return self._with_repaired_index(read)
 
     def list_turns(self, thread_id: str, *, cursor: str | None = None, limit: int = 50) -> dict:
         _limit(limit)
@@ -2424,12 +2504,16 @@ class SessionStore:
         query += " ORDER BY first_ordinal,turn_id LIMIT ?"
         parameters.append(limit + 1)
         self._sync_thread(thread_id)
-        with self._index.connection() as connection:
-            rows = connection.execute(query, parameters).fetchall()
-        page = rows[:limit]
-        next_cursor = (_page_cursor("turns", scope, [page[-1]["first_ordinal"], page[-1]["turn_id"]])
-                       if len(rows) > limit else None)
-        return {"turns": [json.loads(row["metadata_json"]) for row in page], "nextCursor": next_cursor}
+
+        def read() -> dict:
+            with self._index.connection() as connection:
+                rows = connection.execute(query, parameters).fetchall()
+            page = rows[:limit]
+            next_cursor = (_page_cursor("turns", scope, [page[-1]["first_ordinal"], page[-1]["turn_id"]])
+                           if len(rows) > limit else None)
+            return {"turns": [self._turn_metadata(row) for row in page], "nextCursor": next_cursor}
+
+        return self._with_repaired_index(read)
 
     def list_branch_turns(self, thread_id: str, *, cursor: str | None = None, limit: int = 50) -> dict:
         """Indexed turn metadata restricted to the current branch (same order/cursor shape as list_turns)."""
@@ -2442,25 +2526,30 @@ class SessionStore:
                 raise ValueError("回合分页游标无效")
             _identifier(key[1], "turnId")
         self._sync_thread(thread_id)
-        with self._lock:
-            entries = self.read_entries(thread_id)
-            active_ids = {turn["turnId"] for turn in self._turns(self._active_entries(entries), thread_id)}
-            with self._index.connection() as connection:
-                rows = connection.execute("SELECT * FROM turns WHERE thread_id=? ORDER BY first_ordinal,turn_id",
-                                          (thread_id,)).fetchall()
-        selected = []
-        for row in rows:
-            if row["turn_id"] not in active_ids:
-                continue
-            if key is not None and (row["first_ordinal"], row["turn_id"]) <= (key[0], key[1]):
-                continue
-            selected.append(row)
-            if len(selected) > limit:
-                break
-        page = selected[:limit]
-        next_cursor = (_page_cursor("turns", scope, [page[-1]["first_ordinal"], page[-1]["turn_id"]])
-                       if len(selected) > limit else None)
-        return {"turns": [json.loads(row["metadata_json"]) for row in page], "nextCursor": next_cursor}
+
+        def read() -> dict:
+            with self._lock:
+                entries = self.read_entries(thread_id)
+                active_ids = {turn["turnId"] for turn in self._turns(self._active_entries(entries), thread_id)}
+                with self._index.connection() as connection:
+                    rows = connection.execute(
+                        "SELECT * FROM turns WHERE thread_id=? ORDER BY first_ordinal,turn_id",
+                        (thread_id,)).fetchall()
+            selected = []
+            for row in rows:
+                if row["turn_id"] not in active_ids:
+                    continue
+                if key is not None and (row["first_ordinal"], row["turn_id"]) <= (key[0], key[1]):
+                    continue
+                selected.append(row)
+                if len(selected) > limit:
+                    break
+            page = selected[:limit]
+            next_cursor = (_page_cursor("turns", scope, [page[-1]["first_ordinal"], page[-1]["turn_id"]])
+                           if len(selected) > limit else None)
+            return {"turns": [self._turn_metadata(row) for row in page], "nextCursor": next_cursor}
+
+        return self._with_repaired_index(read)
 
     def branch_last_turn(self, thread_id: str) -> dict | None:
         """Indexed metadata of the current branch's last turn (None before the first turn)."""
@@ -2469,10 +2558,15 @@ class SessionStore:
         if leaf["leafTurnId"] is None:
             return None
         self._sync_thread(thread_id)
-        with self._index.connection() as connection:
-            row = connection.execute("SELECT metadata_json FROM turns WHERE thread_id=? AND turn_id=?",
-                                     (thread_id, leaf["leafTurnId"])).fetchone()
-        return json.loads(row["metadata_json"]) if row is not None else None
+
+        def read() -> dict | None:
+            with self._index.connection() as connection:
+                row = connection.execute(
+                    "SELECT thread_id,metadata_json FROM turns WHERE thread_id=? AND turn_id=?",
+                    (thread_id, leaf["leafTurnId"])).fetchone()
+            return self._turn_metadata(row) if row is not None else None
+
+        return self._with_repaired_index(read)
 
     _BRANCH_INDEPENDENT_TYPES = frozenset({"attachment", "thread_info", "queue"})
 
