@@ -9,8 +9,9 @@ export function queueItemRetryable(item: QueueItem): boolean {
   if (item.kind !== "followUp" || item.status !== "paused" || item.deduplicated === true) return false;
   // 启动失败沿用原有条件：只有确认输入尚未写入会话才允许重试。
   if (item.failureCode === "TURN_START_FAILED") return item.inputPersisted === false;
-  // 摘要失败发生在投递之前，归档又要求会话空闲；两者仍要求输入没有进入会话，避免重复。
-  if (item.pausedReason === "COMPACTION_FAILED" || item.pausedReason === "THREAD_ARCHIVED") {
+  // 摘要失败、会话归档与回合未完成都发生在投递之前；仍要求输入没有进入会话，避免重复。
+  if (item.pausedReason === "COMPACTION_FAILED" || item.pausedReason === "THREAD_ARCHIVED"
+    || item.pausedReason === "TURN_NOT_COMPLETED") {
     return item.inputPersisted !== true;
   }
   return false;
@@ -27,6 +28,11 @@ export function queuePauseReasonText(item: QueueItem): string | null {
     if (item.deduplicated === true) return "会话归档时暂停，不会自动投递；该输入已关联既有请求，请核对后决定是否撤回。";
     if (item.inputPersisted === true) return "会话归档时暂停，不会自动投递；输入已写入会话，请核对后决定是否撤回。";
     return "会话归档时暂停，不会自动投递；恢复会话后可重新排队或撤回。";
+  }
+  if (item.pausedReason === "TURN_NOT_COMPLETED") {
+    if (item.deduplicated === true) return "上一个回合未完成，已暂停；该输入已关联既有请求，请核对后决定是否撤回。";
+    if (item.inputPersisted === true) return "上一个回合未完成，已暂停；输入已写入会话，请核对后决定是否撤回。";
+    return "上一个回合未完成，已暂停且不会自动投递；可重新排队或撤回。";
   }
   if (item.pausedReason === "COMPACTION_FAILED") {
     if (item.deduplicated === true) return "摘要未完成，已暂停；该输入已关联既有请求，请核对后决定是否撤回。";

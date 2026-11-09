@@ -162,6 +162,7 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
           <span className="turn-queue-status">{item.status === "paused" && item.failureCode === "TURN_START_FAILED" ? "启动失败，未执行"
             : item.status === "paused" && item.pausedReason === "COMPACTION_FAILED" ? "摘要失败，已暂停"
             : item.status === "paused" && item.pausedReason === "THREAD_ARCHIVED" ? "归档时暂停"
+            : item.status === "paused" && item.pausedReason === "TURN_NOT_COMPLETED" ? "回合未完成，已暂停"
             : item.status === "delivered" && item.deduplicated ? "已关联已有回合" : LABELS[item.status]}</span>
           {(() => {
             const labels = queueSkillLabels(item.skillIds, skills);

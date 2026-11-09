@@ -14,7 +14,7 @@ export interface QueuePage {
 
 const QUEUE_KINDS: ReadonlySet<string> = new Set(["steering", "followUp"]);
 const QUEUE_STATUSES: ReadonlySet<string> = new Set(["queued", "delivering", "delivered", "paused", "cancelled"]);
-const QUEUE_PAUSE_REASONS: ReadonlySet<string> = new Set(["COMPACTION_FAILED", "THREAD_ARCHIVED"]);
+const QUEUE_PAUSE_REASONS: ReadonlySet<string> = new Set(["COMPACTION_FAILED", "THREAD_ARCHIVED", "TURN_NOT_COMPLETED"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

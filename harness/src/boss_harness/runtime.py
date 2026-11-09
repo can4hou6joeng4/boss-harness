@@ -23,6 +23,8 @@ MAX_PENDING_QUEUE_INPUT_BYTES = 4 * 1024 * 1024
 PAUSE_REASON_COMPACTION_FAILED = "COMPACTION_FAILED"
 # 归档会暂停全部待处理项（_idle 保证没有运行中的回合或投递），恢复后可安全重新排队。
 PAUSE_REASON_THREAD_ARCHIVED = "THREAD_ARCHIVED"
+# 回合未完成时剩余项从未被领取，输入不会写入会话；界面可据来源提供重新排队入口。
+PAUSE_REASON_TURN_NOT_COMPLETED = "TURN_NOT_COMPLETED"
 
 
 class RuntimeManager:
