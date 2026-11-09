@@ -3019,8 +3019,11 @@ class SessionStore:
         if item.get("kind") == "toolCall":
             payload.update(errorCode=error_code, resultSummary=unknown_summary)
             phase = item.get("executionState")
-            payload["executionState"] = "not_executed" if phase in {
-                "queued", "pending_approval", "approved", "not_approved"} else "outcome_unknown"
+            # 损坏的执行状态无法证明操作未执行，只能按结果不确定处理。
+            payload["executionState"] = "not_executed" if (
+                isinstance(phase, str)
+                and phase in {"queued", "pending_approval", "approved", "not_approved"}
+            ) else "outcome_unknown"
             if payload["executionState"] == "not_executed":
                 payload["resultSummary"] = not_executed_summary
         return payload
