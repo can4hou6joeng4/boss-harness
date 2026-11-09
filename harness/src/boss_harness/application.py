@@ -1454,7 +1454,9 @@ class ApplicationService:
             raise RpcError(-32013, "provider 由会话模型选择决定，不能按回合切换",
                            {"code": "MODEL_PROVIDER_MISMATCH", "provider": provider})
         stored = thread.get("model")
-        model = self._validate_model_id(params.get("model") or (stored if stored in allowed else None) or base.model)
+        selected = params.get("model") or (
+            stored if isinstance(stored, str) and stored in allowed else None) or base.model
+        model = self._validate_model_id(selected)
         if model not in allowed:
             raise RpcError(-32013, "回合模型不属于会话模型线路",
                            {"code": "MODEL_ROUTE_MISMATCH", "provider": provider, "model": model,
