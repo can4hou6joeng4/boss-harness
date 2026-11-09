@@ -53,8 +53,13 @@ def repair_index(root: Path) -> dict:
         store = SessionStore(root / "sessions")
         count = len(store.list_threads(include_archived=True))
         cursor = store.latest_event_cursor()
+        skipped = sorted(store.unreadable_threads)
         store.close()
-        return {"repaired": True, "backupPath": str(backup), "threads": count, "eventCursor": cursor}
+        summary = {"repaired": True, "backupPath": str(backup), "threads": count,
+                   "eventCursor": cursor}
+        if skipped:
+            summary["skipped"] = skipped
+        return summary
     except Exception:
         # Keep the failed candidate as well as the original database set.
         if rebuilding:
