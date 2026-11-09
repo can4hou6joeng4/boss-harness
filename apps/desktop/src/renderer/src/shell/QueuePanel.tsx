@@ -7,17 +7,12 @@ import { useClipboardCopy } from "../data/clipboardCopy";
 import { harnessErrorText } from "../data/harnessBridge";
 import { queueRefreshErrorText, type QueueRefreshResult } from "../data/queueRefresh";
 import { queueActionNotice, type QueueActionOutcome } from "../data/queueAction";
-import { queueItemRetryable, queuePauseReasonText } from "../data/queueRetry";
+import { queueItemRetryable } from "../data/queueRetry";
 import { queueSkillLabels } from "../data/queueSkillLabels";
+import { queuePauseDetail, queueStatusLabel } from "../data/queueStatus";
+import { QueueInputDialog } from "./QueueInputDialog";
 import { compactionLabel, compactionTitle } from "./queueCompaction";
 
-const LABELS: Record<QueueItem["status"], string> = {
-  queued: "排队中",
-  delivering: "正在投递",
-  delivered: "已投递",
-  paused: "已暂停",
-  cancelled: "已撤回",
-};
 const MAX_VISIBLE_ITEMS = 20;
 
 export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove, onRetry, onReadFull, onUpdateInput, skills = [], connected = true, onRefresh }: {
@@ -159,11 +154,7 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
       {visibleItems.map(item => <li key={item.id}>
         <div className="turn-queue-item-copy">
           <span className={`turn-queue-kind is-${item.kind}`}>{item.kind === "steering" ? "当前回合" : "后续回合"}</span>
-          <span className="turn-queue-status">{item.status === "paused" && item.failureCode === "TURN_START_FAILED" ? "启动失败，未执行"
-            : item.status === "paused" && item.pausedReason === "COMPACTION_FAILED" ? "摘要失败，已暂停"
-            : item.status === "paused" && item.pausedReason === "THREAD_ARCHIVED" ? "归档时暂停"
-            : item.status === "paused" && item.pausedReason === "TURN_NOT_COMPLETED" ? "回合未完成，已暂停"
-            : item.status === "delivered" && item.deduplicated ? "已关联已有回合" : LABELS[item.status]}</span>
+          <span className="turn-queue-status">{queueStatusLabel(item)}</span>
           {(() => {
             const labels = queueSkillLabels(item.skillIds, skills);
             return labels.length
@@ -176,16 +167,9 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
           {item.inputTruncated && onReadFull && <button type="button" className="turn-queue-expand" disabled={reading !== null}
             title="读取内核持久化的完整输入，仅供核对，不会重新提交"
             onClick={() => { void showFullInput(item); }}>{reading === item.id ? "读取中…" : "查看完整输入"}</button>}
-          {item.status === "paused" && item.failureCode === "TURN_START_FAILED" && <p className="turn-queue-error">
-            {item.inputPersisted === true ? "输入已保留在当前会话，核对后可发起新任务。" : item.inputPersisted === false
-              ? onRetry ? "输入尚未写入当前会话，可直接重新排队。" : "输入尚未写入当前会话，核对后可发起新任务。" : "请先核对当前会话，再决定是否发起新任务。"}
-          </p>}
-          {item.status === "paused" && item.deduplicated && item.failureCode !== "TURN_START_FAILED" && item.kind === "followUp" && item.pausedReason === undefined && <p className="turn-queue-error">
-            已暂停且不会自动投递；该输入已关联旧请求，请核对当前会话后决定是否撤回或发起新任务。
-          </p>}
           {(() => {
-            const reason = queuePauseReasonText(item);
-            return reason ? <p className="turn-queue-error">{reason}</p> : null;
+            const detail = queuePauseDetail(item, canRetry(item));
+            return detail ? <p className="turn-queue-error">{detail}</p> : null;
           })()}
         </div>
         {onUpdateInput && item.status === "queued" && <button type="button" className="turn-queue-edit" title="编辑排队中的正文；不会提前投递" disabled={reading !== null || saving} onClick={() => { void startEditing(item); }}>编辑</button>}
@@ -207,23 +191,9 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
     </ul>
     {error && <p className="turn-queue-error" role="status">{error}</p>}
     </section>
-    {viewing && <ModalSurface title="队列消息完整输入" onClose={() => setViewing(null)}>
-      <div className="dialog-form queue-input-dialog">
-        <p className="dialog-note">{viewing.item.kind === "steering" ? "当前回合" : "后续回合"} · {LABELS[viewing.item.status]} · 只读展示持久化正文，关闭不会重新提交或修改队列。</p>
-        {(viewingSkillLabels.length > 0 || viewing.item.autoCompaction) && <div className="queue-input-facts">
-          {viewingSkillLabels.length > 0 && <span title={viewingSkillLabels.join("、")}>技能：{viewingSkillLabels.join("、")}</span>}
-          {viewing.item.autoCompaction && <span title={compactionTitle(viewing.item.autoCompaction)}>{compactionLabel(viewing.item.autoCompaction)}</span>}
-        </div>}
-        <pre className="turn-queue-full-input">{viewing.input || "（空输入）"}</pre>
-        <div className="dialog-actions queue-input-actions">
-          {copyFeedback && <span className={copyFeedback.ok ? "queue-input-copy-status" : "queue-input-copy-error"} role="status">
-            {copyFeedback.ok ? "已复制完整输入" : `复制失败：${copyFeedback.reason}；正文仍在窗口中`}
-          </span>}
-          <button className="secondary-button" disabled={!viewing.input} title="复制持久化正文，不会重新提交或修改队列"
-            onClick={() => { void clipboard.copy(viewing.input, viewing.item.id); }}>复制完整输入</button>
-        </div>
-      </div>
-    </ModalSurface>}
+    {viewing && <QueueInputDialog item={viewing.item} input={viewing.input} skillLabels={viewingSkillLabels}
+      retryAvailable={canRetry(viewing.item)} copyFeedback={copyFeedback}
+      onCopy={() => { void clipboard.copy(viewing.input, viewing.item.id); }} onClose={() => setViewing(null)} />}
     {editing && <ModalSurface title="编辑排队消息" onClose={() => { if (!saving) { setEditing(null); setEditError(""); } }}>
       <div className="dialog-form queue-input-dialog">
         <p className="dialog-note">{editing.item.kind === "steering" ? "当前回合" : "后续回合"} · 只修改正文；技能与自动压缩覆盖保持不变，保存后仍需等待投递。</p>
