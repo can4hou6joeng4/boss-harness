@@ -1787,7 +1787,14 @@ class SessionStore:
     @staticmethod
     def _previous_deletion_event(connection: sqlite3.Connection, thread_id: str) -> dict | None:
         for row in connection.execute("SELECT method,params_json FROM events WHERE method='thread/deleted'"):
-            params = json.loads(row["params_json"])
+            try:
+                params = json.loads(row["params_json"])
+            except (TypeError, ValueError, RecursionError):
+                # 无法解析的索引行无法参与匹配；事件索引可从源日志重建，
+                # 下一次同步或回放会自愈，不能阻断删除。
+                continue
+            if not isinstance(params, dict):
+                continue
             if params.get("deletedThreadId") == thread_id:
                 return {"method": row["method"], "params": params}
         return None
@@ -3185,11 +3192,44 @@ class SessionStore:
                     + ")) ORDER BY cursor LIMIT ?")
                 parameters[-1:-1] = pending
             self._sync_events()
-            with self._index.connection() as connection:
-                rows = connection.execute(query, parameters).fetchall()
+            rows = self._event_rows(query, parameters)
+            try:
+                events = self._event_page_entries(rows, limit)
+            except ValueError:
+                # 事件索引从 events.jsonl 派生，可重建：先修复再重试一次，
+                # 避免一行坏索引让整个回放永久不可用。
+                self._rebuild_event_index()
+                rows = self._event_rows(query, parameters)
+                try:
+                    events = self._event_page_entries(rows, limit)
+                except ValueError:
+                    raise ValueError("事件索引已损坏，事件回放暂不可用") from None
         page = rows[:limit]
-        return {"events": [{"method": row["method"], "params": json.loads(row["params_json"])} for row in page],
+        return {"events": events,
                 "nextCursor": str(page[-1]["cursor"]) if page else str(position), "hasMore": len(rows) > limit}
+
+    def _event_rows(self, query: str, parameters: list[Any]) -> list[sqlite3.Row]:
+        with self._index.connection() as connection:
+            return connection.execute(query, parameters).fetchall()
+
+    @staticmethod
+    def _event_page_entries(rows: list[sqlite3.Row], limit: int) -> list[dict[str, Any]]:
+        entries: list[dict[str, Any]] = []
+        for row in rows[:limit]:
+            try:
+                params = json.loads(row["params_json"])
+            except (TypeError, ValueError, RecursionError):
+                # 深嵌套与非法 JSON 同样是索引损坏，不能逃逸成 -32603。
+                raise ValueError("事件索引已损坏") from None
+            if not isinstance(params, dict):
+                raise ValueError("事件索引已损坏")
+            entries.append({"method": row["method"], "params": params})
+        return entries
+
+    def _rebuild_event_index(self) -> None:
+        with self._index.transaction() as connection:
+            connection.execute("DELETE FROM checkpoints WHERE name='events'")
+            self._index_events(connection)
 
     def latest_event_cursor(self) -> str:
         self._sync_events()
