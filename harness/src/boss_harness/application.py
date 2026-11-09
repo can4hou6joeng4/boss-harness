@@ -1194,7 +1194,7 @@ class ApplicationService:
                 scope, offset = json.loads(base64.b64decode(cursor.encode(), altchars=b"-_", validate=True))
                 if scope != scope_id or type(offset) is not int or offset < 0:
                     raise ValueError()
-            except (ValueError, TypeError, AttributeError, UnicodeDecodeError, binascii.Error):
+            except (ValueError, TypeError, AttributeError, UnicodeDecodeError, binascii.Error, RecursionError):
                 raise ValueError("条目分页游标无效") from None
         item_count = None
         if snapshot_id is not None:
