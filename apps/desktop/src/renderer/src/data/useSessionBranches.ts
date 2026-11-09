@@ -68,8 +68,8 @@ export function branchSwitchBlock(options: { connected: boolean; archived: boole
   if (options.switching) return "正在切换分支，请稍候。";
   if (options.running) return "回合运行中，暂不能切换分支：请先停止或等待回合结束（内核 -32004：请先中断该会话的运行回合）。";
   if (options.compacting) return "正在生成摘要，暂不能切换分支：请等待完成或先取消摘要（内核 -32004：该会话正在生成摘要）。";
-  if (options.queueItems.some(item => item.status === "queued" || item.status === "delivering" || item.status === "paused")) {
-    return "队列中仍有未处理的消息，暂不能切换分支：请等待投递完成或先撤回（排队或暂停的消息切换后会投递到新分支，界面先行阻断；投递中时内核返回 -32004）。";
+  if (options.queueItems.some(item => item.status === "queued" || item.status === "delivering")) {
+    return "队列中仍有排队或投递中的消息，暂不能切换分支：请等待投递完成或先撤回（排队消息切换后会自动投递到新分支，界面先行阻断；投递中时内核返回 -32004）。已暂停的消息不会自动投递，可在切换后重新排队或撤回。";
   }
   return null;
 }
