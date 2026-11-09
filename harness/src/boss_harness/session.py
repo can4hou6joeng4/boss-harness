@@ -2994,8 +2994,10 @@ class SessionStore:
                 owner_status = turns_by_id.get(affected_turn, {}).get("status") if affected_turn else None
                 # 只有仍可恢复的回合才保留待决审批：approval/list 也只对 running /
                 # interrupted 回合开放。所属回合已终态却留下待决审批，说明收尾中途
-                # 失败，再等 deadline 只会让它继续不可见。
-                if (pending_approval and owner_status in {"running", "interrupted"}
+                # 失败，再等 deadline 只会让它继续不可见。损坏的状态无法证明回合
+                # 仍可恢复，同样按失效处理，且不能让启动恢复因不可哈希值中断。
+                if (pending_approval and isinstance(owner_status, str)
+                        and owner_status in {"running", "interrupted"}
                         and self._valid_approval_item(item, pending_only=True)
                         and approval["deadline"] > time.time()):
                     continue
