@@ -13,6 +13,29 @@ import re
 from boss_harness.rpc import RpcError
 from boss_harness.session import SessionStore
 
+_CLIENT_ID = re.compile(r"[A-Za-z0-9_-]{1,128}")
+
+
+def valid_client_id(value: object) -> str | None:
+    """The client ID when it is a well-formed string, else None.
+
+    RPC input is rejected before admission; persisted queue and turn records
+    are untrusted, so recovery treats a damaged stored ID as absent and still
+    reconciles the message through its queue-id link.
+    """
+    return value if isinstance(value, str) and _CLIENT_ID.fullmatch(value) else None
+
+
+def _linked_queue_id(item: dict) -> str | None:
+    """A persisted queue link that is safe to use as a dict key."""
+    value = item.get("queueId")
+    return value if isinstance(value, str) else None
+
+
+def _linked_turn_id(queue: dict) -> str | None:
+    value = queue.get("turnId")
+    return value if isinstance(value, str) and value else None
+
 
 @dataclass(frozen=True)
 class RequestIdentity:
@@ -46,8 +69,7 @@ def resolve_request(sessions: SessionStore, thread_id: str, client_id: str | Non
     In particular an external ``queue-<id>`` string cannot claim a pending
     queue whose client ID was omitted.
     """
-    if client_id is not None and (not isinstance(client_id, str)
-            or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", client_id)):
+    if client_id is not None and valid_client_id(client_id) is None:
         raise ValueError("clientUserMessageId 格式无效")
     if client_id is None and queue_id is None:
         return RequestIdentity()
@@ -64,21 +86,27 @@ def resolve_request(sessions: SessionStore, thread_id: str, client_id: str | Non
     matched_turns = {key for key, turn in turns.items()
                      if client_id is not None and turn.get("clientUserMessageId") == client_id}
     def original_user(item: dict) -> bool:
-        return item.get("source") != "steering" and queues.get(item.get("queueId"), {}).get("kind") != "steering"
+        return (item.get("source") != "steering"
+                and queues.get(_linked_queue_id(item), {}).get("kind") != "steering")
     # Persisted queueId/turnId links can connect older records missing a client
     # ID. Never derive such a link merely from a client ID's spelling or text.
+    # One damaged identifier is treated as absent, never hashed as a set member.
     for _ in range(2):
         matched_queues.update(item["queueId"] for item in matched_users
-                              if item.get("queueId") in queues)
+                              if _linked_queue_id(item) in queues)
         matched_queues.update(turns[key]["queueId"] for key in matched_turns
-                              if key in turns and turns[key].get("queueId") in queues)
+                              if key in turns and _linked_queue_id(turns[key]) in queues)
         matched_users = [item for item in items if item.get("kind") == "userMessage" and (
             (client_id is not None and item.get("clientUserMessageId") == client_id)
-            or item.get("queueId") in matched_queues
+            or _linked_queue_id(item) in matched_queues
             or (original_user(item) and (item.get("turnId") or owners.get(item["id"])) in matched_turns))]
-        matched_turns.update(key for key, turn in turns.items() if turn.get("queueId") in matched_queues)
+        matched_turns.update(key for key, turn in turns.items()
+                             if _linked_queue_id(turn) in matched_queues)
         matched_turns.update(item.get("turnId") or owners.get(item["id"]) for item in matched_users)
-        matched_turns.update(queues[key]["turnId"] for key in matched_queues if queues[key].get("turnId"))
+        for key in matched_queues:
+            turn_id = _linked_turn_id(queues[key])
+            if turn_id is not None:
+                matched_turns.add(turn_id)
     if any(queues[key].get("kind") != "followUp" for key in matched_queues) or any(
             item.get("source") == "steering" for item in matched_users):
         _reject("CLIENT_REQUEST_CONFLICT", "请求编号已用于转向消息，不能改为直接或后续任务")
@@ -88,16 +116,17 @@ def resolve_request(sessions: SessionStore, thread_id: str, client_id: str | Non
         item = queues[key]
         if item.get("input") != text:
             _reject("CLIENT_REQUEST_CONFLICT", "clientUserMessageId 已用于不同输入")
-        if client_id is not None and item.get("clientUserMessageId") not in {None, client_id}:
+        if client_id is not None and valid_client_id(item.get("clientUserMessageId")) not in {None, client_id}:
             _reject("CLIENT_REQUEST_CONFLICT", "请求编号与既有队列关联不一致")
     for item in matched_users:
-        if client_id is not None and item.get("clientUserMessageId") not in {None, client_id}:
+        if client_id is not None and valid_client_id(item.get("clientUserMessageId")) not in {None, client_id}:
             _reject("CLIENT_REQUEST_CONFLICT", "请求编号与既有输入身份不一致")
         if item.get("originalInput", item.get("text")) != text:
             _reject("CLIENT_REQUEST_CONFLICT", "clientUserMessageId 已用于不同输入")
     for key in matched_turns:
         turn = turns.get(key)
-        if turn is not None and client_id is not None and turn.get("clientUserMessageId") not in {None, client_id}:
+        if (turn is not None and client_id is not None
+                and valid_client_id(turn.get("clientUserMessageId")) not in {None, client_id}):
             _reject("CLIENT_REQUEST_CONFLICT", "请求编号与既有回合身份不一致")
         if turn is not None and turn.get("requestInputDigest"):
             known_input = True

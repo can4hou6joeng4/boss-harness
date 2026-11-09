@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 from boss_harness.queue_view import project_queue, queue_record
 from boss_harness.rpc import RpcError
-from boss_harness.request_identity import RequestIdentity, resolve_request
+from boss_harness.request_identity import RequestIdentity, resolve_request, valid_client_id
 from boss_harness.session import Entry, SessionStore
 from boss_harness.shutdown import TrackedAbort, join_until
 
@@ -410,10 +410,13 @@ class TurnQueue:
                             continue
                         try:
                             identity = resolve_request(self.sessions, thread_id,
-                                item.get("clientUserMessageId"), item["input"], queue_id=item["id"])
-                        except RpcError:
+                                valid_client_id(item.get("clientUserMessageId")), item["input"],
+                                queue_id=item["id"])
+                        except (RpcError, ValueError):
                             # Inconsistent history is paused, never replayed or
                             # described as a proven failure before execution.
+                            # A damaged persisted client ID is treated as absent;
+                            # ValueError stays a pause, never a startup crash.
                             self.transition(thread_id, item["id"], "paused")
                             continue
                         if identity.turn is not None:
