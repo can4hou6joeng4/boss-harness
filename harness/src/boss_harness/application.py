@@ -412,8 +412,13 @@ class ApplicationService:
 
     def _restore_partial_streams(self) -> None:
         for thread in self.sessions.list_threads(include_archived=True):
-            pending = {i["id"]: i for i in self.sessions.read_items(thread["id"])
-                       if i.get("kind") == "agentMessage" and i.get("status") == "running"}
+            try:
+                pending = {i["id"]: i for i in self.sessions.read_items(thread["id"])
+                           if i.get("kind") == "agentMessage" and i.get("status") == "running"}
+            except (OSError, ValueError):
+                # A damaged log is unreadable for its own thread only; the other
+                # sessions must still start, and the listing keeps its projection.
+                continue
             if not pending:
                 continue
             accumulated = {key: {"text": "", "thinking": ""} for key in pending}
