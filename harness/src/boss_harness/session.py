@@ -1765,6 +1765,8 @@ class SessionStore:
                     # Preserve the last listing projection; session reads report the damaged line.
                     continue
                 self.unreadable_threads.discard(path.stem)
+            # A deleted or renamed damaged log must not linger in the diagnostic set.
+            self.unreadable_threads.intersection_update(known)
             for row in connection.execute("SELECT id,rollout_path FROM threads").fetchall():
                 if Path(row["rollout_path"]).parent == self.root and row["id"] not in known:
                     connection.execute("DELETE FROM threads WHERE id=?", (row["id"],))
