@@ -156,7 +156,7 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   const [compactionError, setCompactionError] = useState("");
   const [compactionSaved, setCompactionSaved] = useState(false);
   const [indexHealth, setIndexHealth] = useState<SessionIndexHealth | null>(null);
-  const [indexHealthBusy, setIndexHealthBusy] = useState(false);
+  const [indexHealthLoaded, setIndexHealthLoaded] = useState(false);
   const [indexHealthError, setIndexHealthError] = useState("");
   const backdropRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -228,22 +228,22 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   useEffect(() => {
     if (!isOpen || section !== "data" || !harnessUp) {
       setIndexHealth(null);
+      setIndexHealthLoaded(false);
       setIndexHealthError("");
-      setIndexHealthBusy(false);
       return;
     }
     let cancelled = false;
-    setIndexHealthBusy(true);
+    setIndexHealthLoaded(false);
     setIndexHealthError("");
     readConfig().then(config => {
       if (cancelled) return;
       setIndexHealth(readSessionIndexHealth(config));
+      setIndexHealthLoaded(true);
     }).catch(cause => {
       if (cancelled) return;
       setIndexHealth(null);
+      setIndexHealthLoaded(true);
       setIndexHealthError(`读取会话索引状态失败：${harnessErrorText(cause)}。`);
-    }).finally(() => {
-      if (!cancelled) setIndexHealthBusy(false);
     });
     return () => { cancelled = true; };
   }, [isOpen, section, harnessUp]);
@@ -555,7 +555,7 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
                 <SettingRow title="导出界面偏好" description="将当前设备的显示偏好下载为 JSON 文件"><button type="button" className="settings-button" onClick={exportPreferences}>导出 JSON</button></SettingRow>
                 <SettingRow title="会话索引" description="检查本机无法解析、已跳过索引的会话文件；原始日志不会被修改">
                   <span className="settings-static-value">
-                    {!harnessUp ? "未连接" : indexHealthError ? "读取失败" : indexHealthBusy && !indexHealth ? "读取中…" : indexHealth ? `${indexHealth.count} 个无法读取` : "正常"}
+                    {!harnessUp ? "未连接" : indexHealthError ? "读取失败" : !indexHealthLoaded ? "读取中…" : indexHealth ? `${indexHealth.count} 个无法读取` : "正常"}
                   </span>
                 </SettingRow>
                 {indexHealthError && (
