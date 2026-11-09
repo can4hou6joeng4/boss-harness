@@ -2164,12 +2164,13 @@ class ApplicationService:
 
     def _finish_compaction(self, job: dict) -> None:
         wake_follow_up = False
+        paused_queue_ids: list[str] = []
         with self.runtimes.lock:
             job["_shutdown_worker_done"] = True
             if (job.get("status") in {"failed", "cancelled"}
                     and self.runtimes.active.get(job["threadId"]) is None):
                 try:
-                    self.queue.pause(job["threadId"], kind="followUp")
+                    paused_queue_ids = self.queue.pause(job["threadId"], kind="followUp")
                 except Exception:
                     # TurnQueue records an in-memory pending pause before
                     # persistence, so future admission still settles it first.
@@ -2181,6 +2182,13 @@ class ApplicationService:
             # without an explicit retry.
             wake_follow_up = released and job.get("status") == "completed"
         self._flush_compaction_terminal(job)
+        for queue_id in paused_queue_ids:
+            try:
+                self.events.emit("queue/updated", {"threadId": job["threadId"], "queueId": queue_id})
+            except Exception:
+                # The pause is already durable; a failed observer signal must
+                # not turn it into a different compaction outcome.
+                pass
         if wake_follow_up:
             try:
                 self._start_follow_up(job["threadId"])
