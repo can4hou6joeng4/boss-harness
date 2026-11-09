@@ -558,7 +558,7 @@ class TurnRunner:
             self._tool_phase(thread_id, entry, decision_phase, approval)
             if decision != "approve":
                 message = ("用户拒绝了这个操作" if decision == "deny" else
-                           "审批已过期或等待已取消，工具未执行")
+                           "审批已失效或等待已取消，工具未执行")
                 error_code = "NOT_APPROVED" if decision == "deny" else (
                     "CANCELLED" if self.cancelled() else "APPROVAL_EXPIRED")
                 execution_state = "not_approved" if decision == "deny" else "not_executed"
