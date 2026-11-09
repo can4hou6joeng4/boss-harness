@@ -1306,7 +1306,7 @@ class SessionStore:
             if (not isinstance(status, str) or status not in {"running", "failed", "completed"}
                     or not isinstance(execution_state, str)
                     or execution_state not in {
-                        "approved", "executing", "completed", "not_executed", "outcome_unknown"
+                        "approved", "executing", "completed", "failed", "not_executed", "outcome_unknown"
                     }):
                 return False
         elif decision == "deny":
