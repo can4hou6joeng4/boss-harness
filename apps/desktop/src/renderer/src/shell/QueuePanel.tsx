@@ -10,10 +10,9 @@ import { queueActionNotice, type QueueActionOutcome } from "../data/queueAction"
 import { queueItemRetryable } from "../data/queueRetry";
 import { queueSkillLabels } from "../data/queueSkillLabels";
 import { queuePauseDetail, queueStatusLabel } from "../data/queueStatus";
+import { selectVisibleQueueItems } from "../data/queueSelection";
 import { QueueInputDialog } from "./QueueInputDialog";
 import { compactionLabel, compactionTitle } from "./queueCompaction";
-
-const MAX_VISIBLE_ITEMS = 20;
 
 export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove, onRetry, onReadFull, onUpdateInput, skills = [], connected = true, onRefresh }: {
   items: QueueItem[];
@@ -46,6 +45,8 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
   const [editing, setEditing] = useState<{ item: QueueItem; draft: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
+  // 折叠状态优先显示暂停项；展开后渲染内核已载入的全部条目。
+  const [showAll, setShowAll] = useState(false);
   const clipboard = useClipboardCopy();
   if (!items.length) return null;
   const refresh = async () => {
@@ -116,14 +117,10 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
       setPending(null);
     }
   };
-  const visibleItems = (() => {
-    const active = items.filter(item => item.status === "queued" || item.status === "delivering" || item.status === "paused");
-    const visibleActive = active.slice(-MAX_VISIBLE_ITEMS);
-    const room = Math.max(0, MAX_VISIBLE_ITEMS - visibleActive.length);
-    const visibleTerminal = room ? items.filter(item => !active.includes(item)).slice(-room) : [];
-    const keep = new Set([...visibleActive, ...visibleTerminal].map(item => item.id));
-    return items.filter(item => keep.has(item.id));
-  })();
+  const collapsedItems = selectVisibleQueueItems(items, false);
+  const visibleItems = showAll ? selectVisibleQueueItems(items, true) : collapsedItems;
+  // 折叠状态下仍有未显示项时提供展开入口；展开后显示全部已载入项。
+  const collapsedHidden = collapsedItems.length < items.length;
   const pendingCount = activeItems ?? items.filter(item => item.status === "queued" || item.status === "delivering" || item.status === "paused").length;
   // 内核投影与界面自身的 20 条上限都可能隐藏记录；总数只用于说明，不参与任何业务判断。
   const total = Math.max(totalItems ?? items.length, items.length);
@@ -145,6 +142,10 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
       {hiddenNote && <span className="turn-queue-more" data-queue-total={total} data-queue-truncated={kernelHidden ? "true" : "false"} data-queue-visible={visibleItems.length}
         title={kernelHidden ? `内核只返回有界投影（待处理与已结束条目各自封顶），更早的队列记录未载入。${activeItems !== undefined
           ? "待处理数量仍按全部持久项统计。" : "待处理数量按已载入项统计。"}` : "任务队列较长，界面只显示最近的项目。"}>{hiddenNote}</span>}
+      {collapsedHidden && <button type="button" className="turn-queue-show-all" aria-expanded={showAll}
+        data-queue-expanded={showAll ? "true" : "false"}
+        title={showAll ? "收起队列，优先显示暂停项与最近的待投递项" : "显示内核已载入的全部队列项"}
+        onClick={() => setShowAll(current => !current)}>{showAll ? "收起" : "展开全部"}</button>}
       {onRefresh && <button type="button" className="turn-queue-refresh" disabled={refreshing || !connected}
         title={connected ? "重新读取当前会话的队列状态" : "本机内核未连接，恢复连接后再刷新"}
         onClick={() => { void refresh(); }}>{refreshing ? "刷新中…" : "刷新"}</button>}
