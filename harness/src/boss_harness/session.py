@@ -545,6 +545,9 @@ class SessionStore:
             restrict_private_file(path)
         self._index = PersistenceIndex(self.database_path)
         self._recover_deletions()
+        # Unindexed logs that could not be projected on the last refresh; repair
+        # reports them so a skipped session does not disappear silently.
+        self.unreadable_threads: set[str] = set()
         self._refresh_threads()
         self._sync_events()
 
@@ -1651,10 +1654,16 @@ class SessionStore:
                 indexed = connection.execute("SELECT 1 FROM threads WHERE id=?", (path.stem,)).fetchone()
                 try:
                     self._index_thread(path.stem, connection)
-                except (OSError, ValueError) as exc:
+                except (OSError, ValueError):
                     if indexed is None:
-                        raise ValueError(f"会话日志 {path.name} 无法读取，索引恢复已停止") from exc
+                        # Leave an unindexed unreadable log untouched so one damaged
+                        # file cannot stop recovery of every other session. A later
+                        # start indexes it once the file is readable again.
+                        self.unreadable_threads.add(path.stem)
+                        continue
                     # Preserve the last listing projection; session reads report the damaged line.
+                    continue
+                self.unreadable_threads.discard(path.stem)
             for row in connection.execute("SELECT id,rollout_path FROM threads").fetchall():
                 if Path(row["rollout_path"]).parent == self.root and row["id"] not in known:
                     connection.execute("DELETE FROM threads WHERE id=?", (row["id"],))
