@@ -178,8 +178,8 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
             {item.inputPersisted === true ? "输入已保留在当前会话，核对后可发起新任务。" : item.inputPersisted === false
               ? onRetry ? "输入尚未写入当前会话，可直接重新排队。" : "输入尚未写入当前会话，核对后可发起新任务。" : "请先核对当前会话，再决定是否发起新任务。"}
           </p>}
-          {item.status === "paused" && item.deduplicated && item.failureCode !== "TURN_START_FAILED" && <p className="turn-queue-error">
-            已关联旧请求，请核对当前会话后决定是否发起新任务。
+          {item.status === "paused" && item.deduplicated && item.failureCode !== "TURN_START_FAILED" && item.kind === "followUp" && <p className="turn-queue-error">
+            已暂停且不会自动投递；该输入已关联旧请求，请核对当前会话后决定是否撤回或发起新任务。
           </p>}
           {(() => {
             const reason = queuePauseReasonText(item);
