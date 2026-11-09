@@ -8,7 +8,7 @@ type ApprovalCopyInput = Pick<
 const DECISION_TEXT: Record<string, string> = {
   approve: "已批准",
   deny: "已拒绝",
-  expired: "等待超时，按未批准处理",
+  expired: "等待超时，已按未批准处理",
 };
 
 // Date 可表示的最大时刻；超出后 toISOString 会抛错。

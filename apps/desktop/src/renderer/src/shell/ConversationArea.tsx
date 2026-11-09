@@ -16,6 +16,7 @@ import type { ContextBranchSummary, ContextCompactJob, ContextEditReadResponse, 
 import { type MessageItem, type ConversationMode } from "../data/mockData";
 import type { SkillCatalogState, ApprovalDelivery, ApprovalOutcome } from "../data/harnessBridge";
 import { approvalBlockReason, approvalRejectionNotice } from "../data/approvalFailure";
+import { approvalDecisionText } from "../data/approvalCopy";
 import { recallablePrompts } from "../data/composerHistory";
 import type { SessionReasoningControl } from "../data/useSessionReasoning";
 import type { QueueRefreshResult } from "../data/queueRefresh";
@@ -756,14 +757,14 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
                         {item.approval.decision === "approve" ? (
                           <>
                             <IconCheck size={12} />
-                            <span>已批准</span>
+                            <span>{approvalDecisionText("approve") ?? ""}</span>
                           </>
                         ) : item.approval.decision === "expired" ? (
-                          <span>等待超时，已按未批准处理</span>
+                          <span>{approvalDecisionText("expired") ?? ""}</span>
                         ) : (
                           <>
                             <IconClose size={12} />
-                            <span>已拒绝</span>
+                            <span>{approvalDecisionText("deny") ?? ""}</span>
                           </>
                         )}
                       </div>
