@@ -1,5 +1,5 @@
 import type {
-  AutoCompactionPolicy, ThreadUsageBucket, ThreadUsageSummaryJob, ThreadUsageTurn,
+  AutoCompactionPolicy, ThreadUsageBucket, ThreadUsageCacheWaste, ThreadUsageSummaryJob, ThreadUsageTurn,
 } from "@boss-harness/protocol";
 import { safeSlice } from "@boss-harness/shared";
 import { parseIsoDateTime } from "./timeFormat";
@@ -35,6 +35,18 @@ export function bucketOf(value: unknown): ThreadUsageBucket | null {
 
 const strings = (value: unknown, limit: number): string[] | null => Array.isArray(value) && value.every(item => typeof item === "string")
   ? (value as string[]).slice(0, limit).map(item => safeSlice(item, 120)) : null;
+
+/**
+ * 缓存未命中估算；旧内核与「当前分支」视图不返回该字段。
+ * 返回 undefined 表示字段缺失，null 表示字段存在但形状非法（由调用方整体报错）。
+ */
+export function cacheWasteOf(value: unknown): ThreadUsageCacheWaste | null | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (!isCount(raw.missedTokens) || !isCount(raw.missCount)) return null;
+  return { missedTokens: raw.missedTokens, missCount: raw.missCount };
+}
 
 const SKILL_LIMIT = 10;
 const SKILL_ID_LIMIT = 200;

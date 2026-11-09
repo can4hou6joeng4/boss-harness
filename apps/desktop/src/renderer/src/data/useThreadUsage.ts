@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ThreadUsageBucket, ThreadUsageReadResponse, ThreadUsageSummaryJob, ThreadUsageTurn } from "@boss-harness/protocol";
+import type { ThreadUsageBucket, ThreadUsageCacheWaste, ThreadUsageReadResponse, ThreadUsageSummaryJob, ThreadUsageTurn } from "@boss-harness/protocol";
 import { harnessErrorText, readThreadUsage } from "./harnessBridge";
 import { readPagedItems } from "./pagedRead";
-import { bucketOf, isCount as count, summaryJobOf, turnOf } from "./usageMapping";
+import { bucketOf, cacheWasteOf, isCount as count, summaryJobOf, turnOf } from "./usageMapping";
 
 /**
  * 会话用量（只在内核声明 capabilities.threadUsage 时启用）。
@@ -17,7 +17,9 @@ export interface ThreadUsageState {
   data?: { threadId: string; view: UsageView; turnCount: number; turns: ThreadUsageTurn[]; truncated: boolean;
     summaryTasks: ThreadUsageBucket; totals: ThreadUsageBucket;
     /** 旧内核不返回摘要任务明细。 */
-    summaryJobs?: ThreadUsageSummaryJob[]; summaryJobCount?: number; summaryJobsTruncated?: boolean };
+    summaryJobs?: ThreadUsageSummaryJob[]; summaryJobCount?: number; summaryJobsTruncated?: boolean;
+    /** 缓存未命中估算；只有“全部记录”视图的新内核返回。 */
+    cacheWaste?: ThreadUsageCacheWaste };
 }
 
 const MAX_PAGES = 10;
@@ -41,6 +43,7 @@ async function readAll(threadId: string, view: UsageView, valid: () => boolean):
   let head: ThreadUsageReadResponse | null = null;
   let summaryTasks: ThreadUsageBucket | null = null, totals: ThreadUsageBucket | null = null;
   let summaryMeta: ReturnType<typeof summaryJobsOf> | null = null;
+  let cacheWaste: ThreadUsageCacheWaste | undefined;
   const reads = await readPagedItems<ThreadUsageTurn>("回合用量", async cursor => {
     const page: ThreadUsageReadResponse = await readThreadUsage(threadId, view, cursor);
     if (!valid()) throw new Error("回合用量读取已过期");
@@ -54,6 +57,9 @@ async function readAll(threadId: string, view: UsageView, valid: () => boolean):
     if (!summaryTasks || !totals) throw new Error("内核返回的用量汇总格式无法识别");
     const pageMeta = page.summaryJobs === undefined ? null : summaryJobsOf(page);
     summaryMeta ??= pageMeta;
+    const waste = cacheWasteOf(page.cacheWaste);
+    if (waste === null) throw new Error("内核返回的缓存未命中统计格式无法识别");
+    cacheWaste ??= waste;
     const turns: ThreadUsageTurn[] = [];
     for (const item of page.turns) {
       const turn = turnOf(item);
@@ -63,7 +69,8 @@ async function readAll(threadId: string, view: UsageView, valid: () => boolean):
     return { items: turns, nextCursor: page.nextCursor ?? null };
   }, MAX_PAGES);
   return { threadId, view, turnCount: head!.turnCount, turns: reads.items, truncated: reads.truncated,
-    summaryTasks: summaryTasks!, totals: totals!, ...(summaryMeta ?? {}) };
+    summaryTasks: summaryTasks!, totals: totals!, ...(summaryMeta ?? {}),
+    ...(cacheWaste ? { cacheWaste } : {}) };
 }
 
 export function useThreadUsage(threadId: string | null, connected: boolean, supported: boolean, branchViews: boolean, running: boolean) {

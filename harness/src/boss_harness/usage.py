@@ -99,7 +99,8 @@ def _provenance(values: list, value: Any, limit: int) -> None:
     values.append(value)
 
 
-def _add(bucket: dict, provider: Any, model: Any, usage: Any) -> None:
+def _add(bucket: dict, provider: Any, model: Any, usage: Any) -> dict | None:
+    """Accumulate one request and return its verified usage for callers that need it."""
     bucket["requests"] += 1
     if "providers" in bucket:
         _provenance(bucket["providers"], provider, MAX_PROVIDER_CHARS)
@@ -112,13 +113,14 @@ def _add(bucket: dict, provider: Any, model: Any, usage: Any) -> None:
             # unverifiedRequests 的子集：provider 没有给出 usage，不是上报为 0。
             bucket["unreportedRequests"] += 1
         bucket["unverifiedReasons"][reason] = bucket["unverifiedReasons"].get(reason, 0) + 1
-        return
+        return None
     bucket["verifiedRequests"] += 1
     for key in ("promptTokens", "uncachedInputTokens", "outputTokens"):
         bucket[key] += normalized[key]
     for key in ("cacheReadTokens", "cacheWriteTokens", "reasoningTokens"):
         if normalized[key] is not None:
             bucket[key] = (bucket[key] or 0) + normalized[key]
+    return normalized
 
 
 def _merge(total: dict, part: dict) -> None:
@@ -134,6 +136,9 @@ def _merge(total: dict, part: dict) -> None:
 
 MAX_SUMMARY_JOBS = 50
 _BRANCH_SUMMARY = "branch_summary"
+# 缓存未命中噪声下限：与 Pi cache-stats.ts 的 NOISE_FLOOR_TOKENS 一致，
+# 只统计严格大于该值的未命中，避免每轮少量不可避免的前缀差异被算作浪费。
+CACHE_MISS_FLOOR = 1024
 
 
 def _identifier(value: Any) -> str | None:
@@ -169,11 +174,25 @@ def summarize_usage(entries: Iterable[dict], active_turn_ids: set[str] | None = 
     ``active_job_id`` marks that job with ``active: True`` when it is among the
     reported jobs; it is the caller's validated current-branch checkpoint job,
     never inferred from the usage records themselves.
+
+    In the log view (``active_turn_ids`` is None) the same scan also estimates
+    cache misses following Pi's ``cache-stats.ts``: each verified request is
+    compared with the previous one, ``min(previousPrompt, prompt) - cacheRead``
+    is charged when it exceeds ``CACHE_MISS_FLOOR``, invalid records neither
+    count nor become the baseline, and ``context_checkpoint`` / branch-summary
+    entries reset the baseline.  The branch view is a projection with
+    interleaved abandoned requests, so a linear baseline is not meaningful
+    there and no miss estimate is reported.
     """
     turns: dict[str, dict] = {}
     summary = _empty()
     jobs: dict[str, dict] = {}
     job_meta: dict[str, dict] = {}
+    track_cache = active_turn_ids is None
+    cache_prev_prompt: int | None = None
+    cache_reported = False
+    cache_missed_tokens = 0
+    cache_miss_count = 0
     for entry in entries:
         kind = entry.get("type")
         payload = entry.get("payload")
@@ -189,6 +208,10 @@ def summarize_usage(entries: Iterable[dict], active_turn_ids: set[str] | None = 
                     for key, value in _job_metadata(kind, payload).items():
                         if meta.get(key) is None:
                             meta[key] = value
+            if track_cache:
+                # 上下文被摘要替换后，相邻请求的前缀不再可比。
+                cache_prev_prompt = None
+                cache_reported = False
         elif kind == "model_usage":
             turn_id = payload.get("turnId")
             if not isinstance(turn_id, str) or (active_turn_ids is not None and turn_id not in active_turn_ids):
@@ -199,7 +222,24 @@ def summarize_usage(entries: Iterable[dict], active_turn_ids: set[str] | None = 
                 policy = verified_policy((turn_policies or {}).get(turn_id))
                 if policy is not None:
                     bucket["compactionPolicy"] = policy
-            _add(bucket, payload.get("provider"), payload.get("model"), payload.get("usage"))
+            normalized = _add(bucket, payload.get("provider"), payload.get("model"), payload.get("usage"))
+            if not track_cache or normalized is None:
+                continue
+            prompt = normalized["promptTokens"]
+            if prompt <= 0:
+                # 没有 prompt 的请求不能作为下一次比较的基线。
+                continue
+            cache_read = normalized["cacheReadTokens"] or 0
+            cache_write = normalized["cacheWriteTokens"] or 0
+            # 只有此前出现过缓存活动时才把零读取算作未命中；
+            # 完全不支持缓存的 provider 不应被计入。
+            if cache_prev_prompt is not None and (cache_read + cache_write > 0 or cache_reported):
+                missed = min(cache_prev_prompt, prompt) - cache_read
+                if missed > CACHE_MISS_FLOOR:
+                    cache_missed_tokens += missed
+                    cache_miss_count += 1
+            cache_prev_prompt = prompt
+            cache_reported = cache_reported or cache_read + cache_write > 0
         elif kind == "context_summary_usage":
             _add(summary, payload.get("provider"), payload.get("model"), payload.get("usage"))
             job_id = _identifier(payload.get("jobId"))
@@ -217,6 +257,9 @@ def summarize_usage(entries: Iterable[dict], active_turn_ids: set[str] | None = 
     for bucket in turns.values():
         _merge(totals, bucket)
     _merge(totals, summary)
-    return {"turns": list(turns.values()), "summaryTasks": summary, "totals": totals,
-            "summaryJobs": list(jobs.values())[-MAX_SUMMARY_JOBS:], "summaryJobCount": len(jobs),
-            "summaryJobsTruncated": len(jobs) > MAX_SUMMARY_JOBS}
+    result = {"turns": list(turns.values()), "summaryTasks": summary, "totals": totals,
+              "summaryJobs": list(jobs.values())[-MAX_SUMMARY_JOBS:], "summaryJobCount": len(jobs),
+              "summaryJobsTruncated": len(jobs) > MAX_SUMMARY_JOBS}
+    if track_cache:
+        result["cacheWaste"] = {"missedTokens": cache_missed_tokens, "missCount": cache_miss_count}
+    return result

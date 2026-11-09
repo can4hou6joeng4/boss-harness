@@ -79,7 +79,13 @@ export function UsageDialog({ isOpen, onClose, state, messages, branchViews, con
         <section className="context-panel-section" aria-label="本会话合计">
           <h3>本会话合计</h3>
           <Facts bucket={data.totals} label="totals" />
+          {data.cacheWaste && <dl className="context-panel-detail usage-facts" data-usage-bucket="cacheWaste">
+            <dt>缓存未命中</dt>
+            <dd data-usage-field="cacheWaste">{number(data.cacheWaste.missedTokens)} token（{number(data.cacheWaste.missCount)} 次）</dd>
+          </dl>}
           <p className="context-panel-note">合计包含业务回合与摘要任务；{state.view === "branch" ? "“当前分支”只统计当前分支上的回合，摘要任务不区分分支。" : "“全部记录”包含已切离分支上的回合。"}</p>
+          {data.cacheWaste && <p className="context-panel-note">缓存未命中按相邻两次已验证请求估算：取两次输入 token 的较小值减去本次缓存读取，只累计超过 1024 token 的部分；压缩或分支摘要后重新建立基线。费用未计价。</p>}
+          {!data.cacheWaste && state.view === "branch" && <p className="context-panel-note">缓存未命中只在“全部记录”视图统计；旧内核不返回该统计。</p>}
         </section>
         {data.summaryTasks.requests > 0 && <section className="context-panel-section" aria-label="摘要任务">
           <h3>摘要任务</h3>
