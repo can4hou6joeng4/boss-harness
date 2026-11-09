@@ -3051,6 +3051,7 @@ class SessionStore:
                 request_offset = max(request_offset, attempt)
             copied: list[dict] = []
             copied_ids: set[str] = set()
+            approval_ids: dict[str, str] = {}
             for entry in json.loads(_json(prefix)):
                 # Queue state belongs to one thread, not its transcript forks.
                 if entry["type"] in {"thread_info", "queue", "task_phase"}:
@@ -3065,6 +3066,14 @@ class SessionStore:
                     entry["parentId"] = copied[-1]["id"] if copied else None
                 if entry["payload"].get("threadId") == thread_id:
                     entry["payload"]["threadId"] = header["id"]
+                approval = entry["payload"].get("approval")
+                approval_id = approval.get("approvalId") if isinstance(approval, dict) else None
+                if isinstance(approval_id, str):
+                    # approval/respond resolves an id globally; a copied decision
+                    # must not make the source approval ambiguous.
+                    if approval_id not in approval_ids:
+                        approval_ids[approval_id] = uuid.uuid4().hex
+                    approval["approvalId"] = approval_ids[approval_id]
                 copied.append(entry)
                 copied_ids.add(entry["id"])
             return self._write_new(header, copied)
