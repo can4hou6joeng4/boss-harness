@@ -584,6 +584,8 @@ button.user-skill-chip:hover { border-color: var(--text-muted); color: var(--tex
 .usage-toolbar { margin-top: 4px; }
 .usage-view { display: flex; gap: 6px; }
 .usage-view .secondary-button.active { border-color: var(--border-active); background: var(--btn-ghost-hover); }
+.usage-actions { display: flex; align-items: center; gap: 6px; }
+.usage-copy-feedback { color: var(--text-muted); font-size: 11px; }
 .usage-facts { grid-template-columns: 88px minmax(0, 1fr); }
 .usage-facts dd { font-variant-numeric: tabular-nums; }
 .usage-count { color: var(--text-faint); font-size: 11px; font-weight: normal; }
