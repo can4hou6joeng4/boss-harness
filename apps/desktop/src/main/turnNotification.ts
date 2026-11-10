@@ -85,6 +85,6 @@ export function turnNotificationContent(
   return {
     turnId: event.turnId,
     title: turnStatusLabel(event.status),
-    body: `运行 ${formatTurnDuration(duration)}，点击回到工作台查看详情。`,
+    body: `运行 ${formatTurnDuration(duration)}，点击打开该会话查看详情。`,
   };
 }

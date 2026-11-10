@@ -93,3 +93,46 @@ export function truncate(text: string, max: number): string {
 export function stripIpcErrorWrapper(message: string): string {
   return message.replace(/^Error invoking remote method '[^']+': (?:Error|HarnessRpcError): /, "");
 }
+
+export interface FocusRelay<T> {
+  /** 收到新的定位载荷：有订阅者时立即转发并作废待回放值；没有时留待下一次订阅。 */
+  receive(target: T): void;
+  /** 注册订阅者；存在待回放载荷时在微任务里交付。返回取消订阅函数。 */
+  subscribe(listener: (target: T) => void): () => void;
+}
+
+/**
+ * 通知定位载荷的单槽缓存 + 转发。
+ *
+ * 主进程可能在渲染层尚未挂载时发送定位载荷（窗口重建、渲染层重载），渲染层也可能在
+ * 同一个 tick 内注册后立即卸载（开发模式下 React StrictMode 会双次调用副作用）。
+ * 因此载荷只在**真正交付成功后**清除：订阅者已卸载时不消费，留给后续订阅者；新载荷
+ * 到达时取代尚未回放的旧载荷，避免旧定位在新定位之后生效。
+ */
+export function createFocusRelay<T>(): FocusRelay<T> {
+  const listeners = new Set<(target: T) => void>();
+  let pending: { target: T } | null = null;
+  return {
+    receive(target) {
+      if (!listeners.size) {
+        pending = { target };
+        return;
+      }
+      pending = null;
+      for (const listener of listeners) listener(target);
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      const scheduled = pending;
+      if (scheduled) {
+        queueMicrotask(() => {
+          // 已被更新的载荷取代，或所有订阅者又都卸载：保留待回放状态。
+          if (pending !== scheduled || !listeners.size) return;
+          pending = null;
+          for (const current of listeners) current(scheduled.target);
+        });
+      }
+      return () => { listeners.delete(listener); };
+    },
+  };
+}

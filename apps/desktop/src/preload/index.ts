@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type { ApprovalFocusTarget, BadgeCountResult, InitializeResponse, JsonRpcNotification, NotificationTestResult,
   PlatformLoginStatus, PlatformLoginAction, PlatformLoginContext, SessionExportSaveRequest,
   SessionExportSaveResult, ThreadFocusTarget } from "@boss-harness/protocol";
+import { createFocusRelay } from "@boss-harness/shared";
 
 interface HarnessStatus {
   running: boolean;
@@ -20,20 +21,19 @@ interface HarnessStatus {
  * 渲染层只可请求允许清单里的内核方法，订阅通知、查询连接和显式重连。
  * 不暴露 ipcRenderer 本体，也不暴露 Node 能力。
  */
-/** 窗口重建时主进程在页面加载完成后才发送审批定位；渲染层尚未挂载时先缓存，监听注册后回放。 */
-const approvalFocusListeners = new Set<(target: ApprovalFocusTarget) => void>();
-let pendingApprovalFocus: ApprovalFocusTarget | null = null;
+/**
+ * 窗口重建时主进程在页面加载完成后才发送定位载荷；渲染层尚未挂载时先缓存，监听注册后回放。
+ * 载荷只在真正交付成功后清除：订阅者在同一个 tick 内卸载（StrictMode 开发期双调用）时不丢失。
+ */
+const approvalFocus = createFocusRelay<ApprovalFocusTarget>();
 ipcRenderer.on("harness:focus-approval", (_event: IpcRendererEvent, target: ApprovalFocusTarget) => {
-  if (!approvalFocusListeners.size) { pendingApprovalFocus = target; return; }
-  for (const listener of approvalFocusListeners) listener(target);
+  approvalFocus.receive(target);
 });
 
 /** 回合结束通知的会话定位同样可能在渲染层挂载前到达，缓存规则与审批定位一致。 */
-const threadFocusListeners = new Set<(target: ThreadFocusTarget) => void>();
-let pendingThreadFocus: ThreadFocusTarget | null = null;
+const threadFocus = createFocusRelay<ThreadFocusTarget>();
 ipcRenderer.on("harness:focus-thread", (_event: IpcRendererEvent, target: ThreadFocusTarget) => {
-  if (!threadFocusListeners.size) { pendingThreadFocus = target; return; }
-  for (const listener of threadFocusListeners) listener(target);
+  threadFocus.receive(target);
 });
 
 const api = {
@@ -74,23 +74,11 @@ const api = {
   },
   /** 点击审批系统通知后要定位的会话与条目；载荷由渲染层再次校验后才使用。 */
   onApprovalFocus(listener: (target: ApprovalFocusTarget) => void): () => void {
-    approvalFocusListeners.add(listener);
-    const pending = pendingApprovalFocus;
-    if (pending) {
-      pendingApprovalFocus = null;
-      queueMicrotask(() => { if (approvalFocusListeners.has(listener)) listener(pending); });
-    }
-    return () => { approvalFocusListeners.delete(listener); };
+    return approvalFocus.subscribe(listener);
   },
   /** 点击回合结束系统通知后要打开的会话；载荷由渲染层再次校验后才使用。 */
   onThreadFocus(listener: (target: ThreadFocusTarget) => void): () => void {
-    threadFocusListeners.add(listener);
-    const pending = pendingThreadFocus;
-    if (pending) {
-      pendingThreadFocus = null;
-      queueMicrotask(() => { if (threadFocusListeners.has(listener)) listener(pending); });
-    }
-    return () => { threadFocusListeners.delete(listener); };
+    return threadFocus.subscribe(listener);
   },
   /** 关于页展示的运行版本；来自 preload 进程，渲染层只读。 */
   versions: {

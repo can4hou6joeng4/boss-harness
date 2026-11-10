@@ -19,6 +19,7 @@ import { ModalSurface } from "../components/ModalSurface";
 import { type ProjectFolder, type SessionItem, type MessageItem, type ConversationMode } from "../data/mockData";
 import { countPendingApprovalsByThread, isApprovalCountEvent, readApprovalFocus } from "../data/pendingApprovals";
 import { readThreadFocus } from "../data/threadFocus";
+import { focusResolution } from "../data/focusIntent";
 import { approvalSoundEnabled, playApprovalChime } from "../data/approvalChime";
 import { isCommandChord, isNotificationsShortcut } from "../data/shortcuts";
 import { booleanPreference, projectFolders, stringList, stringRecord } from "../data/preferenceShapes";
@@ -56,6 +57,8 @@ export interface AppShellProps {
   onRenameSession?: (session: SessionItem, name: string, options?: { silent?: boolean }) => Promise<boolean>;
   onQueueMessage?: ComposerQueue; onCheckQueueSubmission?: CheckQueueSubmission; queueItems?: QueueItem[]; queueTotalItems?: number; queueActiveItems?: number; queueTruncated?: boolean; onRemoveQueueItem?: (id: string) => Promise<QueueActionOutcome>; onRetryQueueItem?: (item: QueueItem) => Promise<QueueActionOutcome>; onReadQueueItem?: (item: QueueItem) => Promise<QueueItem>; onUpdateQueueItem?: (item: QueueItem, input: string) => Promise<QueueItem>; onRefreshQueue?: () => Promise<QueueRefreshResult>;
   simulateLocal?: boolean; harnessUp?: boolean; running?: boolean; taskBlocked?: boolean;
+  /** 会话列表是否至少成功加载过一次；通知定位在列表加载完成前需要保留意图。 */
+  sessionsLoaded?: boolean;
   /** 内核声明 skills/read 后，「技能与工具」页才能展示技能正文。 */
   skillsReadable?: boolean;
   /** 内核声明 threadSearch 后，⌘K 弹窗才会按消息正文搜索。 */
@@ -307,38 +310,51 @@ export function AppShell(props: AppShellProps) {
     // 搜索命中才保留关键词；审批通知等没有查询词的定位不产生高亮。
     setSearchHighlight(query.trim() ? { threadId: session.id, itemId, query: query.trim() } : null);
   };
-  const approvalFocus = useRef<(value: unknown) => void>(() => {});
-  approvalFocus.current = value => {
-    // 点击审批系统通知：目标字段不合法或会话不在当前列表时保持原位，绝不误开新任务。
-    const target = readApprovalFocus(value);
-    if (!target) return;
-    const session = allFolders.flatMap(folder => folder.sessions).find(item => item.id === target.threadId);
-    if (!session) return;
-    setMessageFocus({ threadId: target.threadId, itemId: target.itemId });
-    openRoute({ page: "home", sessionId: session.id });
-  };
+  /**
+   * 通知定位意图：会话列表尚未加载时先保留，列表就绪后再应用或放弃。
+   * 系统通知的主场景是窗口被关闭后重建，此时 `thread/list` 必然晚于定位载荷。
+   */
+  const [approvalFocus, setApprovalFocus] = useState<{ threadId: string; itemId: string } | null>(null);
+  const [threadFocus, setThreadFocus] = useState<{ threadId: string } | null>(null);
   useEffect(() => {
     if (props.simulateLocal) return;
     const api = window.boss;
     if (!api?.onApprovalFocus) return;
-    return api.onApprovalFocus(value => approvalFocus.current(value));
+    return api.onApprovalFocus(value => {
+      const target = readApprovalFocus(value);
+      if (target) setApprovalFocus(target);
+    });
   }, [props.simulateLocal]);
-  const threadFocus = useRef<(value: unknown) => void>(() => {});
-  threadFocus.current = value => {
-    // 点击回合结束系统通知：只切到已有会话；不在当前列表时保持原位，绝不误开新任务。
-    const target = readThreadFocus(value);
-    if (!target) return;
-    const session = allFolders.flatMap(folder => folder.sessions).find(item => item.id === target.threadId);
-    if (!session) return;
-    setMessageFocus(null);
-    select(session);
-  };
   useEffect(() => {
     if (props.simulateLocal) return;
     const api = window.boss;
     if (!api?.onThreadFocus) return;
-    return api.onThreadFocus(value => threadFocus.current(value));
+    return api.onThreadFocus(value => {
+      const target = readThreadFocus(value);
+      if (target) setThreadFocus(target);
+    });
   }, [props.simulateLocal]);
+  useEffect(() => {
+    if (!approvalFocus) return;
+    const session = allFolders.flatMap(folder => folder.sessions).find(item => item.id === approvalFocus.threadId);
+    const resolution = focusResolution(props.sessionsLoaded === true, Boolean(session));
+    if (resolution === "drop") { setApprovalFocus(null); return; }
+    // 等待列表时保持当前视图；只有真正找到会话才应用，绝不新建任务。
+    if (!session) return;
+    setApprovalFocus(null);
+    setMessageFocus({ threadId: approvalFocus.threadId, itemId: approvalFocus.itemId });
+    openRoute({ page: "home", sessionId: session.id });
+  }, [approvalFocus, allFolders, props.sessionsLoaded]);
+  useEffect(() => {
+    if (!threadFocus) return;
+    const session = allFolders.flatMap(folder => folder.sessions).find(item => item.id === threadFocus.threadId);
+    const resolution = focusResolution(props.sessionsLoaded === true, Boolean(session));
+    if (resolution === "drop") { setThreadFocus(null); return; }
+    if (!session) return;
+    setThreadFocus(null);
+    setMessageFocus(null);
+    select(session);
+  }, [threadFocus, allFolders, props.sessionsLoaded]);
   const confirmRenameSession = async () => {
     const target = rename;
     const nextName = name.trim();
