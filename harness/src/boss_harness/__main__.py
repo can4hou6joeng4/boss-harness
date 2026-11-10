@@ -11,6 +11,7 @@ from boss_harness import __version__
 from boss_harness.application import ApplicationService as Harness, _approval_timeout
 from boss_harness.models import DEFAULT_MODEL, ModelConfig, build_provider, resolve_config
 from boss_harness.rpc import JsonRpcServer
+from boss_harness.tools.boss_cli import resolve_browser_source_override
 
 def _default_state_dir() -> Path:
     """内核状态目录：新变量优先，旧变量其次，最后按目录存在性选择默认位置。"""
@@ -76,6 +77,13 @@ def main(argv: list[str] | None = None) -> int:
         # 这里只包住「配置解析 + 构造 provider」两件事，所以宽捕获是安全的：任何失败都意味着
         # 模型线路起不来（缺凭据、缺端点、SDK 拒绝无凭据构造等），应当给出可读信息并以 2 退出。
         print(f"[harness] 模型配置不可用（{type(exc).__name__}）：{exc}", file=sys.stderr)
+        return 2
+    # 浏览器来源同样是进程级配置：在入口处校验，错误才能点名变量与可选值。留到工具桥
+    # 构造时才失败会被 `_new_bridge` 统一包装成「工具桥工厂无法创建实例」，用户无从排查。
+    try:
+        resolve_browser_source_override()
+    except ValueError as exc:
+        print(f"[harness] 浏览器来源配置不可用（{type(exc).__name__}）：{exc}", file=sys.stderr)
         return 2
     server = JsonRpcServer()
     try:
