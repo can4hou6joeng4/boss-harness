@@ -2324,11 +2324,30 @@ class SessionStore:
 
     @staticmethod
     def _search_snippet(text: str, start: int, end: int) -> str:
+        """截取命中片段：完整保留命中区间，空白折叠只作用于两侧上下文。
+
+        桌面端在片段中按内核归一化重新查找查询词并高亮，片段必须完整包含
+        `text[start:end]`。整段折叠空白会把查询中的连续空白抹平，尾部硬截断
+        会切掉长查询的命中尾巴，两者都会让结果行无法高亮。
+        """
         left, right = max(0, start - 40), min(len(text), end + 40)
-        fragment = re.sub(r"\s+", " ", text[left:right]).strip()
-        if len(fragment) > _SEARCH_SNIPPET_BYTES:
-            fragment = fragment[:_SEARCH_SNIPPET_BYTES].rstrip()
-        return ("…" if left else "") + fragment + ("…" if right < len(text) else "")
+        before = re.sub(r"\s+", " ", text[left:start]).lstrip()
+        hit = text[start:end]
+        after = re.sub(r"\s+", " ", text[end:right]).rstrip()
+        room = _SEARCH_SNIPPET_BYTES - len(hit)
+        trimmed_before = trimmed_after = False
+        if len(before) + len(after) > room:
+            # 命中本身已超出预算时 room 为负：只保留命中词，仍完整可高亮。
+            keep_left = min(len(before), max(0, room) // 2)
+            keep_right = min(len(after), max(0, room) - keep_left)
+            keep_left = min(len(before), max(0, room) - keep_right)
+            trimmed_before, trimmed_after = keep_left < len(before), keep_right < len(after)
+            if trimmed_before:
+                before = before[len(before) - keep_left:] if keep_left else ""
+            if trimmed_after:
+                after = after[:keep_right]
+        return (("…" if left or trimmed_before else "") + f"{before}{hit}{after}".strip()
+                + ("…" if right < len(text) or trimmed_after else ""))
 
     @staticmethod
     def _search_tool_text(item: dict) -> str:
