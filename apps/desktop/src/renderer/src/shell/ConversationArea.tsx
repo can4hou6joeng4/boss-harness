@@ -289,6 +289,9 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
     const handle = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
       if (document.querySelector('[aria-modal="true"]')) return;
+      // 查找栏打开时在任何位置按 Esc 都关闭它，与关闭按钮的提示一致；这次 Esc 被消费，
+      // 由于 preventDefault 让 App 的双击 Esc 分支回退不再计数。
+      if (event.key === "Escape" && findOpen) { event.preventDefault(); closeFind(); return; }
       if (!isCommandChord(event, "f")) return;
       event.preventDefault();
       // 和浏览器一致：有可用的选中文本就把它当关键词，省去重敲一遍；不适合沿用时保留原关键词。
