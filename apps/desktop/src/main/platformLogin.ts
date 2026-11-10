@@ -52,8 +52,22 @@ export class PlatformLogin {
     parent.webContents.on("did-start-loading", hide);
     parent.webContents.on("render-process-gone", cancel);
     this.detachParent = () => {
-      if (!parent.isDestroyed()) { parent.removeListener("resize", hide); parent.removeListener("hide", hide); parent.removeListener("closed", cancel); }
-      if (!parent.webContents.isDestroyed()) { parent.webContents.removeListener("did-start-loading", hide); parent.webContents.removeListener("render-process-gone", cancel); }
+      // 窗口关闭时 `closed` 监听器会走到这里：此时 BrowserWindow 已销毁，
+      // 读取 `parent.webContents` 会抛 "Object has been destroyed"。清理监听失败
+      // 不能阻断 closeBrowser 后续的状态重置与视图/会话释放。
+      try {
+        if (parent.isDestroyed()) return;
+        parent.removeListener("resize", hide);
+        parent.removeListener("hide", hide);
+        parent.removeListener("closed", cancel);
+        const contents = parent.webContents;
+        if (!contents.isDestroyed()) {
+          contents.removeListener("did-start-loading", hide);
+          contents.removeListener("render-process-gone", cancel);
+        }
+      } catch {
+        // 窗口在清理过程中被销毁：没有可移除的监听器。
+      }
     };
     this.attempt = "";
     const generation = ++this.generation;
