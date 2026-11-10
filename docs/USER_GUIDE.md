@@ -69,7 +69,7 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 
 业务可执行文件依次从 `BOSS_CLI_BIN`、并排的 `boss-agent-cli/.venv/bin/boss`、PATH 查找。`BOSS_CLI_DATA_DIR` 管理上游登录和平台状态；`BOSS_HARNESS_DIR` 管理本项目会话（旧 `BOSS_CLI_HARNESS_DIR` 仍兼容），两者应分别配置。
 
-可在启动 Harness 或桌面应用前设置 `BOSS_HARNESS_BROWSER_SOURCE` 为 `auto`、`existing-browser` 或 `stored-cookie`。未设置时继承上游配置；显式设置需要上游支持 `--browser-source`，不支持时会明确失败，不会静默重试。该选项不会读取或改写共享上游配置，也不替代单独的请求和认证边界检查。
+可在启动 Harness 或桌面应用前设置 `BOSS_HARNESS_BROWSER_SOURCE` 为 `auto`、`existing-browser` 或 `stored-cookie`。未设置时继承上游配置；显式设置需要上游支持 `--browser-source`，不支持时会明确失败，不会静默重试。取值无效时内核在启动阶段直接失败，错误会点名变量并列出可选值，不会带着错误配置继续运行。该选项不会读取或改写共享上游配置，也不替代单独的请求和认证边界检查。
 
 ## 明确条件搜索
 
