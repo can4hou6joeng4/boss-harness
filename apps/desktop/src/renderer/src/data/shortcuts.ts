@@ -1,5 +1,7 @@
 export interface CommandChordEvent {
   key: string;
+  /** 物理键位（`KeyboardEvent.code`，如 `KeyB`）；macOS 的 Option 组合会改写 `key`。 */
+  code?: string;
   metaKey: boolean;
   ctrlKey: boolean;
   shiftKey: boolean;
@@ -49,6 +51,11 @@ export function currentCommandPlatform(): CommandPlatform {
  * Windows / Linux 上报告为 Ctrl+Alt。事件明确标记 `AltGraph`、目标键是非字母符号且
  * 调用方未声明 Alt 时放行；其余 Ctrl+Alt+符号 仍拒绝，避免把普通三键组合当成 ⌘ 组合。
  * 显式声明 alt 时以声明为准，`⌘ ⌥ B` 的匹配不受影响。
+ *
+ * macOS 的 Option 是字符层修饰键：`⌥B` 的 `event.key` 是 `"∫"` 而不是 `"b"`，
+ * 只比较字符会让 `⌘⌥B` 永远不触发。显式声明 Alt 的单个字母组合因此再按物理键位
+ * （`event.code`，如 `KeyB`）兜底；未声明 Alt 的 `⌘B` 仍严格按字符匹配，`⌘⌥⇧B`
+ * 与 `⌘⌥K` 也不会命中。非 US 布局（Dvorak 等）的 Alt 字母组合按物理位置对应 US 键位。
  */
 export function isCommandChord(
   event: CommandChordEvent,
@@ -69,8 +76,12 @@ export function isCommandChord(
     && typeof event.getModifierState === "function"
     && event.getModifierState("AltGraph") === true;
   const altMatches = event.altKey === (modifiers.alt === true) || altGraph;
+  // macOS Option+字母会把 `key` 换成特殊字符（⌥B → "∫"），按物理键位补一次匹配。
+  const altLetter = platform === "mac" && modifiers.alt === true && /^[a-z]$/i.test(key)
+    && typeof event.code === "string" && event.code === `Key${key.toUpperCase()}`;
+  const keyMatches = event.key.toLowerCase() === key || altLetter;
   return !foreign && command
-    && event.key.toLowerCase() === key
+    && keyMatches
     && shiftMatches
     && altMatches;
 }
