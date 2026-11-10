@@ -17,7 +17,7 @@ import {
 } from "./Icons";
 import { UI_STORAGE_PREFIX } from "../data/uiStorage";
 import { primeApprovalChime } from "../data/approvalChime";
-import { readNotificationTestResult } from "../data/notificationTest";
+import { notificationTestStatus, readNotificationTestResult } from "../data/notificationTest";
 import { aboutDiagnostics, aboutFields } from "../data/aboutInfo";
 import { useClipboardCopy } from "../data/clipboardCopy";
 import {
@@ -337,11 +337,7 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
     setTestBusy(true);
     try {
       const outcome = readNotificationTestResult(await api.testNotification());
-      setStatus(outcome === "sent"
-        ? "已请求系统展示测试通知，请留意桌面提醒。"
-        : outcome === "unsupported"
-          ? "当前系统不支持系统通知，审批与回合结束不会弹窗提醒。"
-          : "已请求发送，但未能确认系统是否展示；请检查系统的通知权限。");
+      setStatus(notificationTestStatus(outcome));
     } catch {
       setStatus("发送测试通知失败，请检查系统通知权限。");
     } finally {
