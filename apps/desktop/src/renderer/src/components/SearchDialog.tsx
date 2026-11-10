@@ -9,6 +9,7 @@ import { splitKernelHighlight } from "../data/findHighlight";
 import { visibleThreadSearchHits, liveMessageSearchState, type MessageSearchSettlement, type ThreadSearchBatch } from "../data/messageSearch";
 import { searchThreadMessages } from "../data/harnessBridge";
 import { clearRecentSearches, readRecentSearches, rememberRecentSearch, RECENT_SEARCH_MIN_LENGTH } from "../data/recentSearches";
+import { findSeedFromSelection, isEditableTarget } from "../data/findSeed";
 import { formatRelativeTime } from "@boss-harness/shared";
 
 /** 与 `thread/search` 的上限及「仅显示部分结果」的说明一致：内核最多返回 50 条。 */
@@ -32,7 +33,11 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
   /** 打开会话并定位到命中的消息；缺省时退回只打开会话。工具命中传入展开工具块的意图，查询词用于目标消息内的关键词高亮。 */
   onOpenMessage?: (session: SessionItem, itemId: string, revealToolBlock: boolean, query: string) => void;
 }) {
-  const [query, setQuery] = useState(""), [index, setIndex] = useState(0);
+  // 与聊天内查找一致：打开时沿用适合作为关键词的选中文本，单行、非空白且不超过 120 个字符。
+  const [query, setQuery] = useState(() => findSeedFromSelection(
+    typeof window === "undefined" ? null : window.getSelection()?.toString(),
+    { editable: typeof document === "undefined" ? false : isEditableTarget(document.activeElement) },
+  ) ?? ""), [index, setIndex] = useState(0);
   const [hitBatch, setHitBatch] = useState<ThreadSearchBatch | null>(null);
   const [messageState, setMessageState] = useState<MessageSearchState>("idle");
   // 最近一次请求完成（成功或失败）时的输入；不等同于当前输入，用于避免把旧状态当成当前结论。
