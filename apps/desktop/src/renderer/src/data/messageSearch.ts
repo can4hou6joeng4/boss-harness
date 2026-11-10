@@ -3,6 +3,7 @@ import type { MessageItem } from "./mockData";
 import { approvalDecisionText } from "./approvalCopy";
 import { approvalRemainingText } from "./pendingApprovals";
 import { searchText } from "./searchText";
+import type { MessageSearchState } from "./searchStatus";
 import { toolOutcomeBadge } from "./toolOutcome";
 import { toolQueriedAtLabel } from "./toolSource";
 import { toolCompletedTimingLabel } from "./toolTiming";
@@ -136,6 +137,34 @@ export interface ThreadSearchBatch {
   includeArchived: boolean;
   matches: ThreadSearchMatch[];
   truncated: boolean;
+}
+
+/** 最近一次完成的请求（成功或失败）对应的输入；用于区分「当前查询的结果」与上一次请求的状态。 */
+export interface MessageSearchSettlement {
+  query: string;
+  includeArchived: boolean;
+}
+
+/**
+ * 当前查询对应的消息搜索状态。
+ *
+ * 组件里的状态描述的是最近一次请求：输入或归档范围变化后旧批次立即失效，但新请求
+ * 要等防抖计时结束才发出。这段时间若继续按 `ready` 渲染，空态会断言当前查询「没有
+ * 命中」，与 `searchEmptyCopy`「空态只能描述真正完成的搜索范围」的约定相悖。批次
+ * 尚未对应当前输入时统一按 `loading` 呈现；未启用消息搜索或查询短于 2 个字符时
+ * 保持组件状态（此时不发请求，空态文案另有说明）。
+ */
+export function liveMessageSearchState(
+  state: MessageSearchState,
+  query: string,
+  includeArchived: boolean,
+  settled: MessageSearchSettlement | null,
+  enabled: boolean,
+): MessageSearchState {
+  const needle = query.trim();
+  if (!enabled || needle.length < 2) return state;
+  if (settled && settled.query === needle && settled.includeArchived === includeArchived) return state;
+  return "loading";
 }
 
 export interface VisibleThreadSearchHits {
