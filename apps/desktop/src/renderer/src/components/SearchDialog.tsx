@@ -6,10 +6,13 @@ import { sessionRows } from "../data/sessionRows";
 import { buildSearchOptions, searchHitFocus, searchRoleLabel, type SearchOption } from "../data/searchOptions";
 import { searchEmptyCopy, searchStatusText, type MessageSearchState } from "../data/searchStatus";
 import { splitKernelHighlight } from "../data/findHighlight";
-import { visibleThreadSearchHits, type ThreadSearchBatch } from "../data/messageSearch";
+import { visibleThreadSearchHits, liveMessageSearchState, type MessageSearchSettlement, type ThreadSearchBatch } from "../data/messageSearch";
 import { searchThreadMessages } from "../data/harnessBridge";
 import { clearRecentSearches, readRecentSearches, rememberRecentSearch, RECENT_SEARCH_MIN_LENGTH } from "../data/recentSearches";
 import { formatRelativeTime } from "@boss-harness/shared";
+
+/** 与 `thread/search` 的上限及「仅显示部分结果」的说明一致：内核最多返回 50 条。 */
+const MESSAGE_SEARCH_LIMIT = 50;
 
 /** 用 `mark` 标出关键词；无命中时原样输出。内核命中片段按内核的 casefold 归一化标注。 */
 function Highlighted({ text, query }: { text: string; query: string }) {
@@ -32,6 +35,8 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
   const [query, setQuery] = useState(""), [index, setIndex] = useState(0);
   const [hitBatch, setHitBatch] = useState<ThreadSearchBatch | null>(null);
   const [messageState, setMessageState] = useState<MessageSearchState>("idle");
+  // 最近一次请求完成（成功或失败）时的输入；不等同于当前输入，用于避免把旧状态当成当前结论。
+  const [settled, setSettled] = useState<MessageSearchSettlement | null>(null);
   const [recent, setRecent] = useState<string[]>(readRecentSearches);
   const [includeArchived, setIncludeArchived] = useState(false);
   const rows = sessionRows(folders, query, { includeArchived });
@@ -41,12 +46,14 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
   const { matches: hits, truncated: hitsTruncated } = searchMessages
     ? visibleThreadSearchHits(hitBatch, query, includeArchived, availableThreadIds)
     : { matches: [], truncated: false };
+  // 输入或归档范围变化后，旧批次立即失效；在新请求完成前按检索中呈现，不给出「没有命中」的结论。
+  const shownMessageState = liveMessageSearchState(messageState, query, includeArchived, settled, searchMessages);
   const options = buildSearchOptions(rows, hits, rowsById);
   const messageOptions = options.filter((option): option is Extract<SearchOption, { kind: "message" }> => option.kind === "message");
   const sessionOptions = options.filter((option): option is Extract<SearchOption, { kind: "session" }> => option.kind === "session");
   // 状态行与空态必须与实际完成的搜索范围一致：消息搜索失败或未启用时不能宣称消息没有命中。
-  const empty = searchEmptyCopy(query, messageState, searchMessages);
-  const status = searchStatusText(query, rows.length, messageOptions.length, messageState);
+  const empty = searchEmptyCopy(query, shownMessageState, searchMessages);
+  const status = searchStatusText(query, rows.length, messageOptions.length, shownMessageState);
   const inputRef = useRef<HTMLInputElement>(null), resultsRef = useRef<HTMLDivElement>(null);
   const listId = useId(), statusId = useId();
   const selected = Math.min(index, Math.max(0, options.length - 1));
@@ -56,21 +63,25 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
   useEffect(() => {
     const needle = query.trim();
     if (!searchMessages || needle.length < 2) {
-      setHitBatch(null); setMessageState("idle");
+      setHitBatch(null); setMessageState("idle"); setSettled(null);
       return;
     }
     let cancelled = false;
     setMessageState("loading");
     const timer = window.setTimeout(() => {
-      void searchThreadMessages(needle, 20, includeArchived).then(result => {
+      void searchThreadMessages(needle, MESSAGE_SEARCH_LIMIT, includeArchived).then(result => {
         if (cancelled) return;
         // 响应形状不可信：matches 不是数组时按失败处理，不能把畸形值带进渲染期。
-        if (!result || !Array.isArray(result.matches)) { setHitBatch(null); setMessageState("error"); return; }
+        if (!result || !Array.isArray(result.matches)) {
+          setHitBatch(null); setSettled({ query: needle, includeArchived }); setMessageState("error");
+          return;
+        }
         setHitBatch({ query: needle, includeArchived, matches: result.matches, truncated: result.truncated === true });
+        setSettled({ query: needle, includeArchived });
         setMessageState("ready");
       }).catch(() => {
         if (cancelled) return;
-        setHitBatch(null); setMessageState("error");
+        setHitBatch(null); setSettled({ query: needle, includeArchived }); setMessageState("error");
       });
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timer); };
@@ -111,8 +122,8 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
       </div>}
       <div id={listId} role="listbox" aria-label="聊天与消息搜索结果">
         {query.trim().length >= 2 && searchMessages && <>
-          <p className="search-message-heading" role="presentation">{messageState === "loading" ? "正在搜索消息…"
-            : messageState === "error" ? "消息搜索失败，可继续按标题查找"
+          <p className="search-message-heading" role="presentation">{shownMessageState === "loading" ? "正在搜索消息…"
+            : shownMessageState === "error" ? "消息搜索失败，可继续按标题查找"
             : messageOptions.length ? <>{`消息命中`}{hitsTruncated && <span className="search-truncated" title="搜索有界：最多 100 个会话、50 条消息，较早或过多的命中不会全部返回">仅显示部分结果</span>}</>
             : "没有匹配的消息"}</p>
           {messageOptions.map(option => {
@@ -127,7 +138,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
           return <button type="button" key={option.key} {...optionProps(option)}><IconChat size={17} /><span><strong><Highlighted text={row.session.title} query={query} /></strong><small>{row.session.archived === true ? "已归档 · " : ""}{row.project} · {row.session.updatedAt ? formatRelativeTime(row.session.updatedAt) : row.session.timeAgo}</small></span><IconChevronRight size={13} /></button>;
         })}
       </div>
-      {!sessionOptions.length && !messageOptions.length && messageState !== "loading" && <div className="search-empty"><IconSearch size={28} /><strong>{empty.title}</strong><span>{empty.hint}</span></div>}
+      {!sessionOptions.length && !messageOptions.length && shownMessageState !== "loading" && <div className="search-empty"><IconSearch size={28} /><strong>{empty.title}</strong><span>{empty.hint}</span></div>}
     </div><div className="search-footer">{searchArchived && <label className="search-archived-toggle" title="同时搜索已归档会话；归档不会删除消息"><input type="checkbox" checked={includeArchived} onChange={event => { setIncludeArchived(event.target.checked); setIndex(0); }} />含已归档</label>}<span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>↵</kbd> 打开</span><span><kbd>esc</kbd> 关闭</span></div>
   </ModalSurface>;
 }
