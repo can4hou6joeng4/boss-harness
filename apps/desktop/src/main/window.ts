@@ -1,6 +1,7 @@
 import { join } from "node:path";
-import { BrowserWindow, dialog, shell } from "electron";
+import { BrowserWindow, dialog, session, shell } from "electron";
 import { isAllowedExternalUrl, isTrustedRendererUrl } from "./security";
+import { allowsMainWindowPermission } from "./permissionPolicy";
 import { rendererCrashPage, rendererFailurePage } from "./rendererFailure";
 import { shouldReportLoadFailure } from "./rendererLoadFailure";
 import { decideRendererRecovery, rendererGoneSummary } from "./rendererRecovery";
@@ -64,6 +65,14 @@ export function createMainWindow(restored?: WindowRestore): BrowserWindow {
 
   const devUrl = process.env.ELECTRON_RENDERER_URL;
   const entryFile = join(__dirname, "../renderer/index.html");
+  // Electron 默认批准所有权限请求；主窗口只需要写入剪贴板。后续新增浏览器能力时，
+  // 必须同时扩展白名单，而不是移除这两个处理器。
+  session.defaultSession.setPermissionRequestHandler((_contents, permission, callback, details) => {
+    callback(allowsMainWindowPermission(permission, details.requestingUrl, entryFile, devUrl));
+  });
+  session.defaultSession.setPermissionCheckHandler((_contents, permission, _origin, details) => {
+    return allowsMainWindowPermission(permission, details.requestingUrl, entryFile, devUrl);
+  });
   window.webContents.on("will-navigate", (event, url) => {
     if (!isTrustedRendererUrl(url, entryFile, devUrl)) event.preventDefault();
   });
