@@ -140,8 +140,8 @@ function SettingRow({ title, description, children, className = "" }: {
   );
 }
 
-function Switch({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }): JSX.Element {
-  return <button type="button" role="switch" aria-checked={checked} aria-label={label} className="settings-switch" onClick={onChange} />;
+function Switch({ checked, onChange, label, disabled = false }: { checked: boolean; onChange: () => void; label: string; disabled?: boolean }): JSX.Element {
+  return <button type="button" role="switch" aria-checked={checked} aria-label={label} className="settings-switch" disabled={disabled} onClick={onChange} />;
 }
 
 /** Keep mounted with isOpen=false so saved interface preferences apply at startup. */
@@ -201,12 +201,17 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   useEffect(() => {
     if (!isOpen || section !== "context" || !harnessUp) return;
     let cancelled = false;
+    // 旧值不能在新一轮读取期间继续以可编辑表单显示：否则保存按钮误标成「保存中…」，
+    // 读取回执还会悄悄覆盖用户刚做的编辑。清空后走「正在读取自动压缩默认值…」分支。
+    setCompaction(null);
     setCompactionBusy(true);
     setCompactionError("");
     setCompactionSaved(false);
     readConfig().then(config => {
       if (cancelled) return;
       const draft = compactionDraft(config.autoCompaction);
+      // 与结果同一次渲染关掉读取态，避免表单出现一帧「保存中…」。
+      setCompactionBusy(false);
       if (!draft) {
         setCompaction(null);
         setCompactionError("当前内核未返回可用的自动压缩默认值。");
@@ -216,6 +221,7 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
       setCompactionSource(config.autoCompactionSource);
     }).catch(cause => {
       if (cancelled) return;
+      setCompactionBusy(false);
       setCompaction(null);
       setCompactionError(`读取自动压缩默认值失败：${harnessErrorText(cause)}。`);
     }).finally(() => {
@@ -494,20 +500,21 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
                   <div className="settings-note"><IconTerminal size={17} /><div><h3>无法读取自动压缩设置</h3><p>{compactionError || "当前内核未返回可用的自动压缩默认值。"}</p></div></div>
                 ) : (
                   <>
+                    {/* 保存期间锁住表单：回执会写回内核确认值，此刻的编辑会被静默覆盖。 */}
                     <SettingRow title="自动压缩" description="接近上下文预算上限时自动生成摘要；关闭后只保留手动压缩">
                       {compactionEditable
-                        ? <Switch label="自动压缩" checked={compaction.enabled} onChange={() => editCompaction({ enabled: !compaction.enabled })} />
+                        ? <Switch label="自动压缩" checked={compaction.enabled} disabled={compactionBusy} onChange={() => editCompaction({ enabled: !compaction.enabled })} />
                         : <span className="settings-static-value">{compaction.enabled ? "已启用" : "已关闭"}</span>}
                     </SettingRow>
                     <SettingRow title="触发阈值" description="输入预算使用达到该百分比时开始自动压缩">
                       {compactionEditable
-                        ? <><input className="settings-number-input" type="number" min={1} max={100} step={1} aria-label="自动压缩触发阈值"
+                        ? <><input className="settings-number-input" type="number" min={1} max={100} step={1} aria-label="自动压缩触发阈值" disabled={compactionBusy}
                           value={compaction.triggerPercent} onChange={event => editCompaction({ triggerPercent: event.target.value })} /><span className="settings-number-suffix">%</span></>
                         : <span className="settings-static-value">{compaction.triggerPercent}%</span>}
                     </SettingRow>
                     <SettingRow title="近期保留目标" description="压缩时尽量保留的近期 token 数">
                       {compactionEditable
-                        ? <><input className="settings-number-input" type="number" min={1} max={1000000} step={1000} aria-label="自动压缩近期保留 token"
+                        ? <><input className="settings-number-input" type="number" min={1} max={1000000} step={1000} aria-label="自动压缩近期保留 token" disabled={compactionBusy}
                           value={compaction.keepRecentTokens} onChange={event => editCompaction({ keepRecentTokens: event.target.value })} /><span className="settings-number-suffix">token</span></>
                         : <span className="settings-static-value">{compaction.keepRecentTokens} token</span>}
                     </SettingRow>
