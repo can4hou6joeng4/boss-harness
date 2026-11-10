@@ -18,6 +18,7 @@ import { NotificationsDialog } from "../components/NotificationsDialog";
 import { ModalSurface } from "../components/ModalSurface";
 import { type ProjectFolder, type SessionItem, type MessageItem, type ConversationMode } from "../data/mockData";
 import { countPendingApprovalsByThread, isApprovalCountEvent, readApprovalFocus } from "../data/pendingApprovals";
+import { readThreadFocus } from "../data/threadFocus";
 import { approvalSoundEnabled, playApprovalChime } from "../data/approvalChime";
 import { isCommandChord, isNotificationsShortcut } from "../data/shortcuts";
 import { booleanPreference, projectFolders, stringList, stringRecord } from "../data/preferenceShapes";
@@ -321,6 +322,22 @@ export function AppShell(props: AppShellProps) {
     const api = window.boss;
     if (!api?.onApprovalFocus) return;
     return api.onApprovalFocus(value => approvalFocus.current(value));
+  }, [props.simulateLocal]);
+  const threadFocus = useRef<(value: unknown) => void>(() => {});
+  threadFocus.current = value => {
+    // 点击回合结束系统通知：只切到已有会话；不在当前列表时保持原位，绝不误开新任务。
+    const target = readThreadFocus(value);
+    if (!target) return;
+    const session = allFolders.flatMap(folder => folder.sessions).find(item => item.id === target.threadId);
+    if (!session) return;
+    setMessageFocus(null);
+    select(session);
+  };
+  useEffect(() => {
+    if (props.simulateLocal) return;
+    const api = window.boss;
+    if (!api?.onThreadFocus) return;
+    return api.onThreadFocus(value => threadFocus.current(value));
   }, [props.simulateLocal]);
   const confirmRenameSession = async () => {
     const target = rename;

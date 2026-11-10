@@ -3,7 +3,7 @@ import { basename, join, resolve } from "node:path";
 import { app, dialog, ipcMain, Notification, BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import { HarnessHostManager, HarnessRpcError, type HarnessHostConnection } from "@boss-harness/app-client";
 import type { ApprovalFocusTarget, BadgeCountResult, JsonRpcNotification, NotificationTestResult,
-  SessionExportSaveResult } from "@boss-harness/protocol";
+  SessionExportSaveResult, ThreadFocusTarget } from "@boss-harness/protocol";
 import { isTrustedRendererUrl, sessionExportFileName, validateHarnessRequest, validateLoginContext,
   validateSessionExportRequest, validateThreadExportResponse } from "./security";
 import { PlatformLogin } from "./platformLogin";
@@ -76,13 +76,21 @@ function revealWindow(): BrowserWindow | null {
 }
 
 /** 新窗口加载完成前发送会丢失；等主 frame 加载后再发，preload 会缓存到渲染层挂载时回放。 */
-function sendApprovalFocus(target: BrowserWindow, focus: ApprovalFocusTarget): void {
+function sendWhenLoaded(target: BrowserWindow, channel: string, payload: unknown): void {
   const deliver = (): void => {
     if (target.isDestroyed() || target.webContents.isDestroyed()) return;
-    try { target.webContents.send("harness:focus-approval", focus); } catch {}
+    try { target.webContents.send(channel, payload); } catch {}
   };
   if (target.webContents.isLoadingMainFrame()) target.webContents.once("did-finish-load", deliver);
   else deliver();
+}
+
+function sendApprovalFocus(target: BrowserWindow, focus: ApprovalFocusTarget): void {
+  sendWhenLoaded(target, "harness:focus-approval", focus);
+}
+
+function sendThreadFocus(target: BrowserWindow, focus: ThreadFocusTarget): void {
+  sendWhenLoaded(target, "harness:focus-thread", focus);
 }
 
 const turnStartedAt = new Map<string, number>();
@@ -105,7 +113,11 @@ function notifyTurn(notification: JsonRpcNotification): void {
   if (!content || !Notification.isSupported()) return;
   try {
     const native = new Notification({ title: content.title, body: content.body });
-    native.on("click", () => { revealWindow(); });
+    // 点击后回到该回合所属会话；会话已删除或列表尚未加载时由渲染层保持当前视图。
+    native.on("click", () => {
+      const target = revealWindow();
+      if (target) sendThreadFocus(target, { threadId: event.threadId });
+    });
     notifications.show(native);
   } catch {}
 }

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type { ApprovalFocusTarget, BadgeCountResult, InitializeResponse, JsonRpcNotification, NotificationTestResult,
   PlatformLoginStatus, PlatformLoginAction, PlatformLoginContext, SessionExportSaveRequest,
-  SessionExportSaveResult } from "@boss-harness/protocol";
+  SessionExportSaveResult, ThreadFocusTarget } from "@boss-harness/protocol";
 
 interface HarnessStatus {
   running: boolean;
@@ -26,6 +26,14 @@ let pendingApprovalFocus: ApprovalFocusTarget | null = null;
 ipcRenderer.on("harness:focus-approval", (_event: IpcRendererEvent, target: ApprovalFocusTarget) => {
   if (!approvalFocusListeners.size) { pendingApprovalFocus = target; return; }
   for (const listener of approvalFocusListeners) listener(target);
+});
+
+/** 回合结束通知的会话定位同样可能在渲染层挂载前到达，缓存规则与审批定位一致。 */
+const threadFocusListeners = new Set<(target: ThreadFocusTarget) => void>();
+let pendingThreadFocus: ThreadFocusTarget | null = null;
+ipcRenderer.on("harness:focus-thread", (_event: IpcRendererEvent, target: ThreadFocusTarget) => {
+  if (!threadFocusListeners.size) { pendingThreadFocus = target; return; }
+  for (const listener of threadFocusListeners) listener(target);
 });
 
 const api = {
@@ -73,6 +81,16 @@ const api = {
       queueMicrotask(() => { if (approvalFocusListeners.has(listener)) listener(pending); });
     }
     return () => { approvalFocusListeners.delete(listener); };
+  },
+  /** 点击回合结束系统通知后要打开的会话；载荷由渲染层再次校验后才使用。 */
+  onThreadFocus(listener: (target: ThreadFocusTarget) => void): () => void {
+    threadFocusListeners.add(listener);
+    const pending = pendingThreadFocus;
+    if (pending) {
+      pendingThreadFocus = null;
+      queueMicrotask(() => { if (threadFocusListeners.has(listener)) listener(pending); });
+    }
+    return () => { threadFocusListeners.delete(listener); };
   },
   /** 关于页展示的运行版本；来自 preload 进程，渲染层只读。 */
   versions: {

@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { ApprovalFocusTarget, BadgeCountResult, JsonRpcNotification, NotificationTestResult, PlatformLoginStatus, PlatformLoginAction, PlatformLoginContext, SessionExportSaveRequest, SessionExportSaveResult } from "@boss-harness/protocol";
+import type { ApprovalFocusTarget, BadgeCountResult, JsonRpcNotification, NotificationTestResult, PlatformLoginStatus, PlatformLoginAction, PlatformLoginContext, SessionExportSaveRequest, SessionExportSaveResult, ThreadFocusTarget } from "@boss-harness/protocol";
 import type { HarnessConnectionStatus } from "@boss-harness/app-client";
 
 declare global {
@@ -17,6 +17,7 @@ declare global {
       onPlatformLogin(listener: (status: PlatformLoginStatus) => void): () => void;
       onNotification(listener: (notification: JsonRpcNotification) => void): () => void;
       onApprovalFocus(listener: (target: ApprovalFocusTarget) => void): () => void;
+      onThreadFocus(listener: (target: ThreadFocusTarget) => void): () => void;
       testNotification(): Promise<NotificationTestResult>;
       setBadgeCount(count: number): Promise<BadgeCountResult>;
       /** 运行环境版本；浏览器预览没有该字段。 */
