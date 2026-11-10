@@ -1,3 +1,4 @@
+import { formatDurationMs } from "@boss-harness/shared";
 import { parseIsoDateTime } from "./timeFormat";
 
 /**
@@ -19,15 +20,8 @@ export function turnDurationMs(turn: TurnTimingInput): number | null {
   return start === null || end === null || end < start ? null : end - start;
 }
 
-export function formatDuration(ms: number): string {
-  const seconds = Math.round(ms / 1000);
-  if (seconds < 1) return "不足 1 秒";
-  if (seconds < 60) return `${seconds} 秒`;
-  const minutes = Math.floor(seconds / 60), rest = seconds % 60;
-  if (minutes < 60) return rest ? `${minutes} 分 ${rest} 秒` : `${minutes} 分`;
-  const hours = Math.floor(minutes / 60), tail = minutes % 60;
-  return tail ? `${hours} 小时 ${tail} 分` : `${hours} 小时`;
-}
+/** 时长文案与桌面结束通知、内核导出共用 `@boss-harness/shared` 的同一实现。 */
+export const formatDuration = formatDurationMs;
 
 /** 回合标签下的耗时说明；无法计算时运行中的回合显示「进行中」，其余返回 null。 */
 export function turnTimingLabel(turn: TurnTimingInput): string | null {

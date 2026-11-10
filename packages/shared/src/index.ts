@@ -54,6 +54,21 @@ export function formatRelativeTime(iso: string, now: number = Date.now()): strin
 }
 
 /**
+ * 时长的中文文案，渲染层回合 / 工具耗时、桌面结束通知与会话导出共用同一口径：
+ * 「不足 1 秒」、秒、分（带剩余秒）、小时（带剩余分）。调用方保证时长非负。
+ * 内核 `session_export._duration_text` 按同一规则实现，修改时须同步。
+ */
+export function formatDurationMs(ms: number): string {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 1) return "不足 1 秒";
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.floor(seconds / 60), rest = seconds % 60;
+  if (minutes < 60) return rest ? `${minutes} 分 ${rest} 秒` : `${minutes} 分`;
+  const hours = Math.floor(minutes / 60), tail = minutes % 60;
+  return tail ? `${hours} 小时 ${tail} 分` : `${hours} 小时`;
+}
+
+/**
  * 按 UTF-16 偏移截断，但不切开代理对：边界落在补充平面字符中间时少取一个码元。
  * 长度预算仍按 `String.length` 计算，调用方无需改用码点计数。
  */
