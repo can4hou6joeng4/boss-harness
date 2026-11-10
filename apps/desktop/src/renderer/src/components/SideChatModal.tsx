@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { harnessErrorText } from "../data/harnessBridge";
 import { quickAskNotice, type SessionStartOutcome } from "../data/sessionStart";
+import { attemptCurrent, createAttemptToken, invalidateAttempts, startAttempt } from "../data/attemptToken";
 import { currentShortcutLabel } from "../data/shortcutLabels";
 import { IconClose, IconSend, IconChat } from "./Icons";
 
@@ -35,6 +36,8 @@ export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, c
   const [notice, setNotice] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
+  // 关闭期间在途提交的结果必须丢弃，否则会写进重新打开后的界面。
+  const attempts = useRef(createAttemptToken());
   useEffect(() => {
     if (!isOpen) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -45,6 +48,7 @@ export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, c
   // 每次关闭都清掉提交结果；输入正文保留，便于用户重新打开后继续编辑。
   useEffect(() => {
     if (isOpen) return;
+    invalidateAttempts(attempts.current);
     setSubmitting(false);
     setNotice("");
   }, [isOpen]);
@@ -66,10 +70,13 @@ export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, c
         { id: `a-${Date.now()}`, role: "assistant", text: PREVIEW_REPLY }]);
       return;
     }
+    const token = startAttempt(attempts.current);
     setSubmitting(true);
     setNotice("");
     try {
       const outcome = await onAsk?.(question);
+      // 等待期间弹窗被关闭（或已发起新提交）：这次结果不再属于当前界面。
+      if (!attemptCurrent(attempts.current, token)) return;
       if (outcome?.status === "started") {
         setInputText("");
         onClose();
@@ -78,9 +85,11 @@ export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, c
       // 会话已建立但问题没送达时，提示必须指向已经存在的会话；只有 failed 才是没建成。
       setNotice(quickAskNotice(outcome ?? { status: "failed" }) ?? "未能创建会话；输入已保留，不会自动重试。");
     } catch (cause) {
+      if (!attemptCurrent(attempts.current, token)) return;
       setNotice(`提问失败：${harnessErrorText(cause)}。输入已保留，不会自动重试。`);
     } finally {
-      setSubmitting(false);
+      // 过期回执不能复位新一轮提交的忙碌态。
+      if (attemptCurrent(attempts.current, token)) setSubmitting(false);
     }
   };
 
