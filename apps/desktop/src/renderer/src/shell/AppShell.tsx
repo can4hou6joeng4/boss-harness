@@ -280,10 +280,13 @@ export function AppShell(props: AppShellProps) {
   };
   const routeReachable = (route: Route): boolean =>
     route.page !== "home" || !route.sessionId || sessions.some(session => session.id === route.sessionId);
-  const openRoute = (route: Route, record = true) => {
+  const openRoute = (route: Route, record = true, keepFocus = false) => {
     // 历史栈里可能残留已删除会话的路由：保持当前视图，不记录、也不拿它去开新任务。
     if (!routeReachable(route)) return;
     if (record) pushRoute(route);
+    // 一次定位意图只服务创建它的那次跳转；普通导航先作废，否则切回同一会话时
+    // 会补做一次用户并未请求的滚动与高亮。显式定位的跳转通过 keepFocus 保留。
+    if (!keepFocus) setMessageFocus(null);
     setSkillFocus(null);
     setPage(route.page);
     if (route.page === "home") {
@@ -303,10 +306,10 @@ export function AppShell(props: AppShellProps) {
     if (session && projectId) setThreadGroups(prev => ({ ...prev, [session.id]: projectId }));
     return sessionStartSendOutcome(outcome);
   };
-  const select = (session: SessionItem) => { setSearchHighlight(null); openRoute({ page: "home", sessionId: session.id }); };
+  const select = (session: SessionItem, keepFocus = false) => { setSearchHighlight(null); openRoute({ page: "home", sessionId: session.id }, true, keepFocus); };
   const openMessage = (session: SessionItem, itemId: string, revealToolBlock = false, query = "") => {
     setMessageFocus({ threadId: session.id, itemId, revealToolBlock });
-    select(session);
+    select(session, true);
     // 搜索命中才保留关键词；审批通知等没有查询词的定位不产生高亮。
     setSearchHighlight(query.trim() ? { threadId: session.id, itemId, query: query.trim() } : null);
   };
@@ -343,7 +346,7 @@ export function AppShell(props: AppShellProps) {
     if (!session) return;
     setApprovalFocus(null);
     setMessageFocus({ threadId: approvalFocus.threadId, itemId: approvalFocus.itemId });
-    openRoute({ page: "home", sessionId: session.id });
+    openRoute({ page: "home", sessionId: session.id }, true, true);
   }, [approvalFocus, allFolders, props.sessionsLoaded]);
   useEffect(() => {
     if (!threadFocus) return;
@@ -406,6 +409,8 @@ export function AppShell(props: AppShellProps) {
       if (!target) return;
       setSettings(false); setPage("home");
       pushRoute({ page: "home", sessionId: target.id });
+      // 直接切换会话同样作废待处理的定位意图。
+      setMessageFocus(null);
       props.onSelectSession(target);
       if (direct) void login.open(target.id); else login.show(target.id);
     } finally { loginEntryFlight.current = false; }
