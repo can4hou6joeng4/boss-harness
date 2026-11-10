@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { IconClose } from "./Icons";
+import { pickFocusTarget } from "../data/modalFocus";
 export function ModalSurface({ title, onClose, children, className = "", closeDisabled = false }: { title: string; onClose: () => void; children: ReactNode; className?: string; closeDisabled?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -12,7 +13,18 @@ export function ModalSurface({ title, onClose, children, className = "", closeDi
     const siblings = Array.from(document.body.children).filter((el): el is HTMLElement => el instanceof HTMLElement && el !== backdropRef.current).map(el => ({ el, inert: el.inert }));
     siblings.forEach(({ el }) => { el.inert = true; });
     const focusable = () => [...(ref.current?.querySelectorAll<HTMLElement>("input,button,textarea,select,a[href],[tabindex]") ?? [])].filter(el => el.tabIndex >= 0 && !el.matches(":disabled,[aria-disabled='true']") && !el.closest("[inert]") && el.getClientRects().length > 0);
-    const focusFirst = () => (focusable().find(el => el.tagName === "INPUT") ?? focusable()[0] ?? ref.current)?.focus();
+    // 只有首次聚焦调整光标；焦点从弹窗外部被拉回时不再改写用户已有的选区。
+    let initialFocus = true;
+    const focusFirst = () => {
+      const target = pickFocusTarget(focusable()) ?? ref.current;
+      if (!target) return;
+      target.focus();
+      if (initialFocus && target instanceof HTMLTextAreaElement && !target.disabled && !target.readOnly) {
+        const end = target.value.length;
+        try { target.setSelectionRange(end, end); } catch { /* 个别平台不支持选区，保持默认光标位置。 */ }
+      }
+      initialFocus = false;
+    };
     focusFirst();
     const handle = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
