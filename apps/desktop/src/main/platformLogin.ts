@@ -78,6 +78,15 @@ export class PlatformLogin {
         if (attempt.id) void this.request("platform/login/cancel", { id: attempt.id }).catch(() => {});
         return this.read();
       }
+      if (attempt.state === "saving" && attempt.id) {
+        // 内核在已有保存任务时直接返回该 attempt。接管它并继续轮询，
+        // 否则「正在验证」永不收敛；保留父窗口让取消动作仍然可达。
+        this.attempt = attempt.id;
+        this.update(attempt);
+        this.startDeadline(generation);
+        this.poll(generation);
+        return this.read();
+      }
       if (attempt.state !== "waiting" || !attempt.id) { this.update(attempt); this.closeBrowser(); return this.read(); }
       this.attempt = attempt.id;
       this.update(attempt);
@@ -143,6 +152,12 @@ export class PlatformLogin {
     });
     this.publish(this.read());
     void view.webContents.loadURL("https://www.zhipin.com/web/user/").catch(() => { /* did-fail-load supplies a fixed message. */ });
+    this.startDeadline(generation);
+  }
+
+  /** 等待与保存共用同一截止时间；触发后取消与状态写入沿用既有路径。 */
+  private startDeadline(generation: number): void {
+    if (this.deadlineTimer) clearTimeout(this.deadlineTimer);
     this.deadlineTimer = setTimeout(() => {
       if (generation !== this.generation) return;
       this.cancel();
