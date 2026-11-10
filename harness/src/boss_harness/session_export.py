@@ -329,7 +329,7 @@ def _inline_code(value: Any) -> str:
 
 
 def _duration_text(ms: int) -> str:
-    """Human-readable duration, matching the desktop ``formatDuration`` wording."""
+    """Human-readable duration; desktop and notifications mirror it via shared ``formatDurationMs``."""
     seconds = (ms + 500) // 1000
     if seconds < 1:
         return "不足 1 秒"

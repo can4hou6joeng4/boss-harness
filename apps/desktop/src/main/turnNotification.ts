@@ -1,4 +1,5 @@
 import type { JsonRpcNotification } from "@boss-harness/protocol";
+import { formatDurationMs } from "@boss-harness/shared";
 
 const ID_LIMIT = 200;
 const START_LIMIT = 200;
@@ -56,13 +57,8 @@ export function turnDurationMs(startedAt: unknown, finishedAt: unknown): number 
   return duration >= 0 ? duration : null;
 }
 
-export function formatTurnDuration(ms: number): string {
-  const seconds = Math.max(0, Math.round(ms / 1000));
-  if (seconds < 60) return `${seconds} 秒`;
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  return rest ? `${minutes} 分 ${rest} 秒` : `${minutes} 分钟`;
-}
+/** 时长文案与会话区、内核导出共用 `@boss-harness/shared` 的同一实现。 */
+export const formatTurnDuration = formatDurationMs;
 
 /** 按回合终态给出提醒标题；未知状态回退到通用文案。 */
 export function turnStatusLabel(status: unknown): string {
