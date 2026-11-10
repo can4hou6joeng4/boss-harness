@@ -179,7 +179,9 @@ function registerIPC(): void {
     const parent = BrowserWindow.fromWebContents(event.sender)!;
     if (action === "open") {
       if (!host) throw new Error("harness host is not attached");
-      await host.request("thread/read", { threadId: context.threadId });
+      // 只确认会话存在：读取全部条目与回合会让长会话撞上内核 1 MiB 响应预算，
+      // 而登录本身不需要会话内容。
+      await host.request("thread/read", { threadId: context.threadId, excludeTurns: true });
       if (parent.isDestroyed()) throw new Error("login parent was closed");
       return platformLogin.open(parent, context.threadId);
     }
