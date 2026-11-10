@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { safeSlice } from "@boss-harness/shared";
 import type { QueueItem, SkillDescriptor } from "@boss-harness/protocol";
 import { IconClose } from "../components/Icons";
@@ -11,6 +11,7 @@ import { queueItemRetryable } from "../data/queueRetry";
 import { queueSkillLabels } from "../data/queueSkillLabels";
 import { queuePauseDetail, queueStatusLabel } from "../data/queueStatus";
 import { selectVisibleQueueItems } from "../data/queueSelection";
+import { dropMissingQueueDialog } from "../data/queueDialogs";
 import { QueueInputDialog } from "./QueueInputDialog";
 import { compactionLabel, compactionTitle } from "./queueCompaction";
 
@@ -48,6 +49,12 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
   // 折叠状态优先显示暂停项；展开后渲染内核已载入的全部条目。
   const [showAll, setShowAll] = useState(false);
   const clipboard = useClipboardCopy();
+  // 空队列时面板早退、对话框不再渲染，但状态还留着；条目消失后必须一并作废，
+  // 否则下一批条目出现时，属于旧条目的查看 / 编辑弹窗会连同旧草稿原样重现。
+  useEffect(() => {
+    setViewing(current => dropMissingQueueDialog(current, items));
+    setEditing(current => dropMissingQueueDialog(current, items));
+  }, [items]);
   if (!items.length) return null;
   const refresh = async () => {
     if (!onRefresh || refreshing) return;
