@@ -8,6 +8,7 @@ import { archivedSessions, attentionSessions, hideActionLabel, hiddenSessionCoun
 import { sessionUpdatedAt } from "../data/sessionOrder";
 import { booleanRecord } from "../data/preferenceShapes";
 import { currentShortcutLabel } from "../data/shortcutLabels";
+import { clearSidebarNotice, EMPTY_SIDEBAR_NOTICE, nextSidebarNotice, SIDEBAR_NOTICE_TIMEOUT_MS, type SidebarNotice } from "../data/sidebarNotice";
 import "../styles/sidebar-menus.css";
 
 export interface SidebarPreferences { grouping: "project" | "list"; sort: "updated" | "name"; showRecent: boolean; showHidden: boolean; /** 显示独立「已归档」分组；关闭时归档会话完全不出现在侧栏。 */ showArchived: boolean; }
@@ -33,7 +34,7 @@ export function ProjectSidebar(props: Props) {
   });
   const [context, setContext] = useState<{ key: string; point?: { x: number; y: number } } | null>(null);
   const [view, setView] = useState<"main" | "move" | "copy">("main");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<SidebarNotice>(EMPTY_SIDEBAR_NOTICE);
   const { preferences } = props;
   const hidden = new Set(props.hiddenSessionIds ?? []);
   const allSessions = props.folders.flatMap(folder => folder.sessions);
@@ -59,13 +60,18 @@ export function ProjectSidebar(props: Props) {
   };
   const close = () => setContext(null);
   const copy = async (value: string) => {
-    try { await navigator.clipboard.writeText(value); setNotice("已复制"); }
-    catch { setNotice("复制失败，请检查系统剪贴板权限"); }
+    try { await navigator.clipboard.writeText(value); setNotice(previous => nextSidebarNotice(previous, "已复制")); }
+    catch { setNotice(previous => nextSidebarNotice(previous, "复制失败，请检查系统剪贴板权限")); }
     close();
   };
   useEffect(() => { try { localStorage.setItem(UI_STORAGE_PREFIX + "collapsedProjects", JSON.stringify(collapsed)); } catch {} }, [collapsed]);
   useEffect(() => { if (!props.isOpen) close(); }, [props.isOpen]);
-  useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(""), 2600); return () => clearTimeout(timer); }, [notice]);
+  // 依赖整条记录而不是文案：连续复制同一内容也会清掉旧计时器并重新计时。
+  useEffect(() => {
+    if (!notice.text) return;
+    const timer = setTimeout(() => setNotice(clearSidebarNotice), SIDEBAR_NOTICE_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
   const sessionRow = (session: SessionItem, scope: string) => {
     const key = scope + session.id, selected = session.id === props.activeSessionId && !props.isHomeView;
     const isHidden = hidden.has(session.id);
@@ -181,6 +187,6 @@ export function ProjectSidebar(props: Props) {
       {preferences.showRecent && <section className="sidebar-section sidebar-recent-section"><button className="sidebar-recents" onClick={props.onRecents}><span>最近</span><IconChevronRight size={13} /></button>{sort(all.filter(session => !props.pinned.includes(session.id))).slice(0, 6).map(session => sessionRow(session, "recent-"))}</section>}
     </div>
     <button className="sidebar-footer-link" onClick={props.onRecents}><IconHistory size={14} /><span>查看所有聊天</span></button>
-    {notice && <div className="sidebar-feedback" role="status">{notice}</div>}
+    {notice.text && <div key={notice.seq} className="sidebar-feedback" role="status">{notice.text}</div>}
   </aside>;
 }
