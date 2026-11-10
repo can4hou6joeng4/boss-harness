@@ -1,9 +1,11 @@
+import { useRef, type KeyboardEvent } from "react";
 import { ModalSurface } from "./ModalSurface";
 import type { ThreadUsageBucket, ThreadUsageTurn } from "@boss-harness/protocol";
 import type { MessageItem } from "../data/mockData";
 import type { ThreadUsageState, UsageView } from "../data/useThreadUsage";
 import { useClipboardCopy } from "../data/clipboardCopy";
 import { buildUsageCsv, usageAmount, usageClip, usageJobSource, usageReasonEntries, usageUnreported, USAGE_JOB_REASONS } from "../data/usageReport";
+import { USAGE_VIEWS, usageViewStep } from "../data/usageViewKeys";
 import { compactionLabel, compactionTitle } from "../shell/queueCompaction";
 import { turnTimingLabel } from "../data/turnTiming";
 import "../styles/context-panel.css";
@@ -45,18 +47,31 @@ export function UsageDialog({ isOpen, onClose, state, messages, branchViews, con
 }) {
   // 弹窗关闭时也要保持 hook 调用顺序一致，因此放在提前返回之前。
   const clipboard = useClipboardCopy();
+  const viewGroup = useRef<HTMLDivElement>(null);
   if (!isOpen) return null;
   const data = state.data?.view === state.view ? state.data : undefined;
   const order = [...new Set(messages.flatMap(message => message.turnId ? [message.turnId] : []))];
   const inputOf = (turnId: string) => messages.find(message => message.role === "user" && message.turnId === turnId)?.content;
   const turnLabelById = (turnId: string) => { const index = order.indexOf(turnId); return index >= 0 ? `第 ${index + 1} 回合` : "不在当前视图"; };
   const turnLabel = (turn: ThreadUsageTurn) => turnLabelById(turn.turnId);
+  // WAI-ARIA 单选组：方向键在范围内循环切换，焦点跟随新选中项。
+  // 按住方向键不重复切换，否则每个重复事件都会重新发起一次 thread/usage/read。
+  const moveView = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+    const next = usageViewStep(state.view, event.key);
+    if (!next) return;
+    event.preventDefault();
+    if (event.repeat) return;
+    if (next !== state.view) onViewChange(next);
+    viewGroup.current?.querySelector<HTMLButtonElement>(`[data-usage-view="${next}"]`)?.focus();
+  };
   return <ModalSurface title="会话用量" onClose={onClose} className="context-panel usage-dialog">
     <div className="context-panel-body">
       <p className="context-panel-source" data-usage-source>来源为 provider 上报的用量（按回合汇总已保存的记录，不做估算）；未上报的字段显示为“—”。费用未计价。</p>
       <div className="context-panel-section-heading usage-toolbar">
-        {branchViews ? <div className="usage-view" role="radiogroup" aria-label="用量范围">
-          {(["log", "branch"] as const).map(view => <button key={view} type="button" role="radio" aria-checked={state.view === view}
+        {branchViews ? <div className="usage-view" role="radiogroup" aria-label="用量范围" ref={viewGroup} onKeyDown={moveView}>
+          {USAGE_VIEWS.map(view => <button key={view} type="button" role="radio" aria-checked={state.view === view} data-usage-view={view}
+            tabIndex={state.view === view ? 0 : -1}
             className={`secondary-button${state.view === view ? " active" : ""}`} onClick={() => onViewChange(view)}>{view === "log" ? "全部记录" : "当前分支"}</button>)}
         </div> : <span />}
         <div className="usage-actions">
