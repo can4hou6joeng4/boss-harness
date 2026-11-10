@@ -32,6 +32,7 @@ import { sendFailureNotice, sendFailureRecheckNotice } from "./data/sendFailure"
 import { sessionStartNotice, type SessionStartOutcome } from "./data/sessionStart";
 import { HarnessReplica } from "./data/harnessReplica";
 import { queueItemsOf, queueSubmissionLookup, type QueuePage } from "./data/queueMapping";
+import { patchQueueBadge, queueBadgeOf } from "./data/queueBadge";
 import { queueItemRetryable } from "./data/queueRetry";
 import { queueRetryLocalItems, queueRetryRejection, type QueueActionOutcome } from "./data/queueAction";
 import type { QueueRefreshResult } from "./data/queueRefresh";
@@ -83,14 +84,30 @@ export function App(): JSX.Element {
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   // 内核只返回有界投影；保留总数 / 截断标记，避免界面上无痕丢掉更早的队列记录。
   const [queueMeta, setQueueMeta] = useState<Pick<QueuePage, "totalItems" | "activeItems" | "truncated">>({});
-  const applyQueuePage = useCallback((page: QueuePage) => {
+  // 侧栏徽标来自会话列表投影，不会随 queue/updated 自动更新：用同一次队列投影同步该会话。
+  // 与面板分开，事件来自非当前会话时也能更新对应行的徽标。
+  const applyQueueBadge = useCallback((page: QueuePage, threadId: string) => {
+    const badge = queueBadgeOf(page);
+    setFolders(previous => {
+      let changed = false;
+      const next = previous.map(folder => {
+        const sessions = patchQueueBadge(folder.sessions, threadId, badge);
+        if (!sessions) return folder;
+        changed = true;
+        return { ...folder, sessions };
+      });
+      return changed ? next : previous;
+    });
+  }, []);
+  const applyQueuePage = useCallback((page: QueuePage, threadId?: string) => {
     setQueueItems(page.items);
     setQueueMeta({ totalItems: page.totalItems, activeItems: page.activeItems, truncated: page.truncated });
+    if (threadId) applyQueueBadge(page, threadId);
     // 已投递且非去重回执的后续回合带 turnId 与实际技能；运行中的用户消息据此立即显示标签，
     // 不必等到回合结束后的恢复。去重关联的是已有请求，本次参数未必等于该回合实际注入的技能。
     const delivered = deliveredTurnSkills(page.items);
     if (Object.keys(delivered).length) setTurnSkillIds(previous => ({ ...previous, ...delivered }));
-  }, []);
+  }, [applyQueueBadge]);
   const [modelRetries, setModelRetries] = useState<Record<string, ModelRetryStatus>>({});
   const retryTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const [error, setError] = useState("");
@@ -225,6 +242,8 @@ export function App(): JSX.Element {
       if (!id) return;
       if (["queue/updated", "turn/steeringApplied", "turn/started", "turn/completed"].includes(event.method)) {
         void listQueue(id).then(page => {
+          // 徽标对任何会话都更新；队列面板只属于当前会话。
+          applyQueueBadge(page, id);
           if (activeRef.current?.id === id) applyQueuePage(page);
         }).catch(cause => {
           // 内核报告队列变化但读取失败：保留面板旧内容，明确提示可能已过期；不自动重试。
@@ -394,7 +413,7 @@ export function App(): JSX.Element {
     });
     void refresh();
     return () => { cancelled = true; replica.invalidate(); unsubscribe(); if (replicaRef.current === replica) replicaRef.current = null; };
-  }, [applyQueuePage, clearModelRetry, markRunning, readContinuationCheck, updateModelRetry, updateThread]);
+  }, [applyQueueBadge, applyQueuePage, clearModelRetry, markRunning, readContinuationCheck, updateModelRetry, updateThread]);
   useEffect(() => () => {
     for (const timer of timers.current.values()) clearTimeout(timer);
     for (const timer of retryTimers.current.values()) clearTimeout(timer);
@@ -709,7 +728,7 @@ export function App(): JSX.Element {
     } catch (cause) {
       return { status: "unavailable", reason: harnessErrorText(cause) };
     }
-    if (activeRef.current?.id === session.id) applyQueuePage(page);
+    if (activeRef.current?.id === session.id) applyQueuePage(page, session.id);
     // 有界投影未命中不能证明消息不在队列；截断时交给界面按「无法确认」处理。
     return queueSubmissionLookup(page, clientUserMessageId);
   }, [applyQueuePage, harnessUp]);
@@ -757,7 +776,7 @@ export function App(): JSX.Element {
       refreshFailure = cause;
     }
     if (activeRef.current?.id === session.id) {
-      if (page) applyQueuePage(page);
+      if (page) applyQueuePage(page, session.id);
       else setQueueItems(previous => queueRetryLocalItems(previous, item.id, created, removed));
       const notices: string[] = [];
       if (refreshFailure) {
@@ -784,7 +803,7 @@ export function App(): JSX.Element {
       let rereadFailure: unknown = null;
       try { page = await listQueue(session.id); } catch (verify) { rereadFailure = verify; }
       if (activeRef.current?.id !== session.id) return { status: "uncertain" };
-      if (page) applyQueuePage(page);
+      if (page) applyQueuePage(page, session.id);
       setError(page
         ? `撤回结果尚未确认（${harnessErrorText(cause)}），已重新读取队列；不会自动重复撤回。`
         : unconfirmedFailure("撤回结果", cause, rereadFailure, "请稍后核对，不会自动重复撤回。"));
@@ -797,7 +816,7 @@ export function App(): JSX.Element {
     if (!harnessUp) return { ok: false, message: "本机内核未连接" };
     try {
       const page = await listQueue(session.id);
-      if (activeRef.current?.id === session.id) applyQueuePage(page);
+      if (activeRef.current?.id === session.id) applyQueuePage(page, session.id);
       return { ok: true };
     } catch (cause) {
       // 读不到内核状态时保留面板旧内容，由面板显示原因。
