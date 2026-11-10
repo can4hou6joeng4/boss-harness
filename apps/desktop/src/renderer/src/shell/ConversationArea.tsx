@@ -133,6 +133,8 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   const [findCounts, setFindCounts] = useState<number[]>([]);
   const [findCapped, setFindCapped] = useState(false);
   const [findDetails, setFindDetails] = useState(false);
+  // 每按一次 ⌘F 递增：查找栏已经打开时 setFindOpen(true) 不产生新渲染，靠这个计数重新触发聚焦。
+  const [findFocusRequest, setFindFocusRequest] = useState(0);
   const [focusFlash, setFocusFlash] = useState<string | null>(null);
   const findMatches = useMemo(
     () => findMessageMatches(messages, findQuery, { includeDetails: findDetails }),
@@ -293,6 +295,8 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
       const seed = findSeedFromSelection(window.getSelection()?.toString(), { editable: isEditableTarget(document.activeElement) });
       if (seed !== null) { setFindQuery(seed); resetFindCursor(); }
       setFindOpen(true);
+      // 已经打开时 setFindOpen 不变化，单独触发一次聚焦，让重复按下的 ⌘F 也能落回查找框。
+      setFindFocusRequest(value => value + 1);
       dismissSearchHighlight.current?.();
     };
     window.addEventListener("keydown", handle);
@@ -300,6 +304,16 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const findInputRef = useRef<HTMLInputElement>(null);
+  // 查找栏打开或再次按 ⌘F 时聚焦输入框并全选关键词：焦点被点到别处后也能直接继续查找。
+  // 只跟随打开状态与请求计数，输入过程中的每次按键不会重新全选、打断打字。
+  useEffect(() => {
+    if (!findOpen) return;
+    const input = findInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, [findOpen, findFocusRequest]);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const wasAtBottom = useRef(true);
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: currentScrollBehavior() });
@@ -491,7 +505,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
 
       {findOpen && <div className="thread-find-bar" role="search" aria-label="在当前聊天中查找">
         <IconSearch size={15} />
-        <input autoFocus aria-label="在当前聊天中查找" placeholder="在当前聊天中查找…" value={findQuery}
+        <input ref={findInputRef} aria-label="在当前聊天中查找" placeholder="在当前聊天中查找…" value={findQuery}
           onChange={event => { setFindQuery(event.target.value); resetFindCursor(); }}
           onKeyDown={event => {
             if (event.nativeEvent.isComposing || event.keyCode === 229) return;
