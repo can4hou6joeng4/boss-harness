@@ -3656,9 +3656,21 @@ class ApplicationService:
         self._receipt_notices[notice["id"]] = notice
         return notice
 
+    def _emit_queue_updated(self, thread_id: str, queue_id: str) -> None:
+        """Publish a queue observation after its mutation is durable.
+
+        An event-log write (fsync EIO, ENOSPC) must not turn an accepted
+        mutation into an RPC error, and must not skip the follow-up dispatch:
+        the queue record is already committed and the response carries it.
+        """
+        try:
+            self.events.emit("queue/updated", {"threadId": thread_id, "queueId": queue_id})
+        except Exception:
+            pass
+
     def _publish_receipt_notice(self, notice: dict, *, finish: bool = True) -> None:
         try:
-            self.events.emit("queue/updated", {"threadId": notice["threadId"], "queueId": notice["queueId"]})
+            self._emit_queue_updated(notice["threadId"], notice["queueId"])
         finally:
             if finish:
                 self._finish_receipt_notice(notice)
@@ -4042,7 +4054,8 @@ class ApplicationService:
                 raise RpcError(-32004, "目标回合已经结束或发生变化")
             item = self.queue.add(thread_id, _text(params, "input"), kind="steering", turn_id=expected,
                                   client_id=params.get("clientUserMessageId"))
-        self.events.emit("queue/updated", {"threadId": thread_id, "queueId": item["id"]})
+        # The steering item is durable; a failed observation must not reject it.
+        self._emit_queue_updated(thread_id, item["id"])
         return {"accepted": True, "queueItem": item}
 
     def on_queue_add(self, params: dict | None) -> dict:
@@ -4114,7 +4127,8 @@ class ApplicationService:
                 raise RpcError(-32003, "内核正在关闭")
             self.sessions.require_thread(thread_id)
             item = self.queue.update_input(thread_id, queue_id, text)
-        self.events.emit("queue/updated", {"threadId": thread_id, "queueId": item["id"]})
+        # The new text is durable; a failed observation must not report failure.
+        self._emit_queue_updated(thread_id, item["id"])
         return {"queueItem": item}
 
     def on_queue_remove(self, params: dict | None) -> dict:
@@ -4124,7 +4138,8 @@ class ApplicationService:
             if not any(q["kind"] == "followUp" and q["status"] == "queued"
                        for q in self.queue.list(thread_id)):
                 self._forget_capacity_waiter_locked(thread_id)
-        self.events.emit("queue/updated", {"threadId": thread_id, "queueId": item["id"]})
+        # The cancellation is durable; a failed observation must not reject it.
+        self._emit_queue_updated(thread_id, item["id"])
         return {"queueItem": item}
 
     def _start_follow_up(self, thread_id: str) -> None:
