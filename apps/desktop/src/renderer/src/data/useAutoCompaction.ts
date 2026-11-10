@@ -1,19 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AutoCompactionPolicy, TurnAutoCompactionOverride } from "@boss-harness/protocol";
 import { harnessErrorText, readConfig } from "./harnessBridge";
+import { DEFAULT_AUTO_COMPACTION_DRAFT, autoCompactionDraftFrom as draftFrom, resetAutoCompactionDraft, type AutoCompactionDraft } from "./compactionDraft";
 
-export interface AutoCompactionDraft {
-  enabled: boolean;
-  triggerPercent: string;
-  keepRecentTokens: string;
-}
+export type { AutoCompactionDraft } from "./compactionDraft";
 interface PendingOverride {
   threadId: string;
   policy: TurnAutoCompactionOverride;
 }
-const DEFAULT_DRAFT: AutoCompactionDraft = { enabled: true, triggerPercent: "80", keepRecentTokens: "20000" };
-const draftFrom = (policy: Pick<AutoCompactionPolicy, "enabled" | "triggerPercent" | "keepRecentTokens">): AutoCompactionDraft =>
-  ({ enabled: policy.enabled, triggerPercent: String(policy.triggerPercent), keepRecentTokens: String(policy.keepRecentTokens) });
 const policyValue = (value: unknown): AutoCompactionPolicy | null => {
   const policy = value as AutoCompactionPolicy | undefined;
   if (!policy || typeof policy.enabled !== "boolean" ||
@@ -34,7 +28,7 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
   const overrideRef = useRef<PendingOverride | null>(null);
   const lastThread = useRef<string | null>(null);
   const seededFor = useRef<string | null>(null);
-  const [draft, setDraft] = useState<AutoCompactionDraft>(DEFAULT_DRAFT);
+  const [draft, setDraft] = useState<AutoCompactionDraft>(DEFAULT_AUTO_COMPACTION_DRAFT);
   const [reading, setReading] = useState(false);
   const [error, setError] = useState("");
 
@@ -46,7 +40,7 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
     lastThread.current = threadId;
     seededFor.current = null;
     const pending = overrideRef.current;
-    setDraft(pending && pending.threadId === threadId ? draftFrom(pending.policy) : DEFAULT_DRAFT);
+    setDraft(pending && pending.threadId === threadId ? draftFrom(pending.policy) : DEFAULT_AUTO_COMPACTION_DRAFT);
     setError("");
   }, [threadId]);
 
@@ -107,7 +101,9 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
     overrideRef.current = null;
     setOverride(null);
     setError("");
-    if (defaults) setDraft(draftFrom(defaults));
+    // 内核默认值缺失时也复位，避免表单停留在已被清除的覆盖值上。
+    seededFor.current = null;
+    setDraft(resetAutoCompactionDraft(defaults));
   }, [defaults]);
 
   /** 取出并消耗本会话待应用的覆盖；发送失败或回执未知时也视为已消耗。 */
@@ -116,8 +112,11 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
     if (!pending || pending.threadId !== id) return undefined;
     overrideRef.current = null;
     setOverride(null);
+    // 覆盖已随这次发送消耗：表单回到内核默认值，并清掉首次填充标记，下次打开时重新读取。
+    seededFor.current = null;
+    setDraft(resetAutoCompactionDraft(defaults));
     return pending.policy;
-  }, []);
+  }, [defaults]);
 
   return {
     defaults, draft, reading, error, valid,
