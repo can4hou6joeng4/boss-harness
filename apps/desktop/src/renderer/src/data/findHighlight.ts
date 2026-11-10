@@ -74,6 +74,45 @@ export function splitKernelHighlight(text: string, query: string, limit = 50): T
 }
 
 /**
+ * 按空白拆分查询并逐个关键词收集区间，排序后合并重叠或相邻的命中。
+ * 搜索弹窗的会话过滤按空白拆分关键词逐词匹配，标注必须用同一组关键词；
+ * 按完整查询做子串比对时，「张 招聘」这类查询在单行文本里找不到连续命中。
+ */
+function keywordRanges(
+  text: string,
+  query: string,
+  scan: (text: string, query: string, limit: number) => TextRange[],
+  limit: number,
+): TextRange[] {
+  const ranges = query.trim().split(/\s+/).filter(Boolean)
+    .flatMap(keyword => scan(text, keyword, limit))
+    .sort((left, right) => left.start - right.start || left.end - right.end);
+  const merged: TextRange[] = [];
+  for (const range of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && range.start <= last.end) last.end = Math.max(last.end, range.end);
+    else merged.push({ ...range });
+  }
+  return merged.slice(0, limit);
+}
+
+/**
+ * 搜索弹窗标题与项目名的关键词标注：与会话过滤共用整串 NFKC 小写归一化，
+ * 每个空白分隔的关键词单独标注，重叠部分合并。
+ */
+export function splitQueryHighlight(text: string, query: string, limit = 50): TextSegment[] {
+  return splitByRanges(text, keywordRanges(text, query, findTextRanges, limit));
+}
+
+/**
+ * 搜索弹窗消息片段的关键词标注：片段来自内核搜索，继续用内核的逐码点 casefold
+ * 归一化，避免 `ß` / `STRASSE` 这类差异让片段命中却标不出来。
+ */
+export function splitKernelQueryHighlight(text: string, query: string, limit = 50): TextSegment[] {
+  return splitByRanges(text, keywordRanges(text, query, findKernelTextRanges, limit));
+}
+
+/**
  * 收集元素内的文本节点并映射到原文偏移量，供 CSS Custom Highlight 使用。
  * `scan` 决定归一化方式：会话内查找用整串 NFKC 小写，跨会话搜索用内核的逐码点 casefold。
  */

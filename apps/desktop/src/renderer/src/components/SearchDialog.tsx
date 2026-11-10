@@ -5,7 +5,7 @@ import type { ProjectFolder, SessionItem } from "../data/mockData";
 import { sessionRows } from "../data/sessionRows";
 import { buildSearchOptions, searchHitFocus, searchRoleLabel, type SearchOption } from "../data/searchOptions";
 import { searchEmptyCopy, searchStatusText, type MessageSearchState } from "../data/searchStatus";
-import { splitKernelHighlight } from "../data/findHighlight";
+import { splitKernelQueryHighlight, splitQueryHighlight } from "../data/findHighlight";
 import { visibleThreadSearchHits, liveMessageSearchState, type MessageSearchSettlement, type ThreadSearchBatch } from "../data/messageSearch";
 import { searchThreadMessages } from "../data/harnessBridge";
 import { clearRecentSearches, readRecentSearches, rememberRecentSearch, RECENT_SEARCH_MIN_LENGTH } from "../data/recentSearches";
@@ -15,9 +15,14 @@ import { formatRelativeTime } from "@boss-harness/shared";
 /** 与 `thread/search` 的上限及「仅显示部分结果」的说明一致：内核最多返回 50 条。 */
 const MESSAGE_SEARCH_LIMIT = 50;
 
-/** 用 `mark` 标出关键词；无命中时原样输出。内核命中片段按内核的 casefold 归一化标注。 */
-function Highlighted({ text, query }: { text: string; query: string }) {
-  return <>{splitKernelHighlight(text, query).map((segment, index) => segment.match
+/**
+ * 用 `mark` 标出关键词；无命中时原样输出。
+ * 标题与项目名按空白拆分关键词、与会话过滤共用整串 NFKC 小写归一化；消息片段来自内核搜索，
+ * 用内核 casefold 归一化。项目名同样参与过滤，必须一并标注，否则命中的结果行看不出原因。
+ */
+function Highlighted({ text, query, kernel = false }: { text: string; query: string; kernel?: boolean }) {
+  const segments = kernel ? splitKernelQueryHighlight(text, query) : splitQueryHighlight(text, query);
+  return <>{segments.map((segment, index) => segment.match
     ? <mark className="search-match" key={index}>{segment.text}</mark>
     : segment.text)}</>;
 }
@@ -134,13 +139,13 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
           {messageOptions.map(option => {
             const { hit, row } = option;
             return <button type="button" key={option.key} title={hit.snippet} {...optionProps(option)}>
-              <IconChat size={17} /><span><strong><Highlighted text={row.session.title} query={query} /></strong><small>{row.session.archived === true ? "已归档 · " : ""}{row.project} · {searchRoleLabel(hit.role)} · <Highlighted text={hit.snippet} query={query} /></small></span><IconChevronRight size={13} />
+              <IconChat size={17} /><span><strong><Highlighted text={row.session.title} query={query} /></strong><small>{row.session.archived === true ? "已归档 · " : ""}<Highlighted text={row.project} query={query} /> · {searchRoleLabel(hit.role)} · <Highlighted text={hit.snippet} query={query} kernel /></small></span><IconChevronRight size={13} />
             </button>;
           })}
         </>}
         {sessionOptions.map(option => {
           const { row } = option;
-          return <button type="button" key={option.key} {...optionProps(option)}><IconChat size={17} /><span><strong><Highlighted text={row.session.title} query={query} /></strong><small>{row.session.archived === true ? "已归档 · " : ""}{row.project} · {row.session.updatedAt ? formatRelativeTime(row.session.updatedAt) : row.session.timeAgo}</small></span><IconChevronRight size={13} /></button>;
+          return <button type="button" key={option.key} {...optionProps(option)}><IconChat size={17} /><span><strong><Highlighted text={row.session.title} query={query} /></strong><small>{row.session.archived === true ? "已归档 · " : ""}<Highlighted text={row.project} query={query} /> · {row.session.updatedAt ? formatRelativeTime(row.session.updatedAt) : row.session.timeAgo}</small></span><IconChevronRight size={13} /></button>;
         })}
       </div>
       {!sessionOptions.length && !messageOptions.length && shownMessageState !== "loading" && <div className="search-empty"><IconSearch size={28} /><strong>{empty.title}</strong><span>{empty.hint}</span></div>}
