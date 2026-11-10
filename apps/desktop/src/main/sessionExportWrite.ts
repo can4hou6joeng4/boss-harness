@@ -1,9 +1,12 @@
 import { constants } from "node:fs";
-import { lstat, open } from "node:fs/promises";
+import { lstat, open, rename, unlink } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { randomUUID } from "node:crypto";
 
-/** 一次打开的导出文件句柄；写入、收紧权限与关闭都作用在同一 inode 上。 */
+/** 一次打开的临时文件句柄；写入、刷新、收紧权限与关闭都作用在同一 inode 上。 */
 export interface SessionExportFileHandle {
   write(content: string): Promise<void>;
+  sync(): Promise<void>;
   chmod(mode: number): Promise<void>;
   close(): Promise<void>;
 }
@@ -13,16 +16,23 @@ export interface SessionExportFileSystem {
   /** 与 `fs.lstat` 相同语义：路径不存在时抛 `ENOENT`。 */
   lstat(path: string): Promise<{ isSymbolicLink(): boolean }>;
   /**
-   * 以「不跟随符号链接」的方式打开并截断文件，路径不存在时按 `mode` 创建。
-   * 最终路径是符号链接时应以 `ELOOP` 失败。
+   * 在目标同目录以「唯一新建」方式创建临时文件（`wx`，不跟随符号链接）。
+   * 名字由调用方给出，冲突时以 `EEXIST` 失败，绝不截断已有文件。
    */
-  openExclusive(path: string, mode: number): Promise<SessionExportFileHandle>;
+  createTemporary(directory: string, name: string, mode: number): Promise<{ path: string; handle: SessionExportFileHandle }>;
+  /** 原子替换：同一文件系统内把临时文件改名为目标路径。 */
+  rename(from: string, to: string): Promise<void>;
+  /** 失败路径清理临时文件；调用方吞掉这里的错误。 */
+  remove(path: string): Promise<void>;
 }
 
 export interface SessionExportWriteOutcome {
-  /** 覆盖已有文件且 `chmod` 失败：内容已写入，但旧权限保持不变。 */
+  /**
+   * 覆盖已有文件且无法收紧权限。导出改为临时文件替换后，目标总是新 inode，
+   * 不会沿用旧权限，因此这里始终为 `false`；字段保留以兼容既有回执。
+   */
   permissionsUnchanged: boolean;
-  /** `chmod` 失败的原因；新建文件也会返回以便记录，但不影响保存成功。 */
+  /** `chmod` 失败的原因；不影响保存成功，由调用方记录。 */
   permissionError?: unknown;
 }
 
@@ -31,15 +41,22 @@ const NO_FOLLOW = typeof constants.O_NOFOLLOW === "number" ? constants.O_NOFOLLO
 
 const nodeFileSystem: SessionExportFileSystem = {
   lstat: path => lstat(path),
-  openExclusive: async (path, mode) => {
+  createTemporary: async (directory, name, mode) => {
+    const path = join(directory, name);
     const handle = await open(path,
-      constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | NO_FOLLOW, mode);
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | NO_FOLLOW, mode);
     return {
-      write: content => handle.writeFile(content, "utf8"),
-      chmod: mode => handle.chmod(mode),
-      close: () => handle.close(),
+      path,
+      handle: {
+        write: content => handle.writeFile(content, "utf8"),
+        sync: () => handle.sync(),
+        chmod: mode => handle.chmod(mode),
+        close: () => handle.close(),
+      },
     };
   },
+  rename: (from, to) => rename(from, to),
+  remove: path => unlink(path),
 };
 
 /** `ELOOP` 与既有的 `symlink` 提示共用一条错误路径；其他 errno 原样抛出。 */
@@ -48,12 +65,18 @@ function openFailure(error: NodeJS.ErrnoException): never {
   throw error;
 }
 
+/** 固定前缀 + 随机后缀：足够短，不占满文件名上限，也不会与目标文件名冲突。 */
+export function sessionExportTemporaryName(): string {
+  return `.boss-harness-export-${randomUUID()}.tmp`;
+}
+
 /**
- * 写入导出文件并尝试收紧权限。
+ * 原子写入导出文件。
  *
- * 打开时就带 `O_NOFOLLOW`，避免 `lstat` 与写入之间把目标换成符号链接。
- * `open` 的 `mode` 只对新建文件生效，覆盖已有文件时必须再对同一句柄 `chmod`。
- * 内容已经写入后，权限收紧失败不应把整次保存报成失败：返回标记由调用方提示并记录。
+ * 覆盖已有导出时绝不能在写入前截断目标：先在同一目录创建唯一临时文件，
+ * 写入并 `sync` 后收紧权限，再用 `rename` 替换目标。任何一步失败都清理临时文件
+ * 并抛出原始错误，目标文件保持上一次导出的完整内容。
+ * `close` 失败只关闭句柄，不覆盖已经发生的写入错误。
  */
 export async function writeSessionExport(filePath: string, content: string,
                                          ops: SessionExportFileSystem = nodeFileSystem): Promise<SessionExportWriteOutcome> {
@@ -62,17 +85,35 @@ export async function writeSessionExport(filePath: string, content: string,
     throw error;
   });
   if (existing?.isSymbolicLink()) throw new Error("symlink");
-  const handle = await ops.openExclusive(filePath, 0o600).catch(openFailure);
+  // 临时文件必须与目标同目录，`rename` 才是同一文件系统内的原子替换。
+  const temporary = await ops.createTemporary(dirname(filePath), sessionExportTemporaryName(), 0o600).catch(openFailure);
+  let closed = false;
   try {
-    await handle.write(content);
+    await temporary.handle.write(content);
+    await temporary.handle.sync();
+    let permissionError: unknown;
     try {
-      await handle.chmod(0o600);
-      return { permissionsUnchanged: false };
+      await temporary.handle.chmod(0o600);
     } catch (error) {
-      // 新建文件已按 0o600 创建；只有覆盖已有文件时旧权限才会保留。
-      return { permissionsUnchanged: existing !== null, permissionError: error };
+      // 临时文件本身已按 0o600 创建；收紧失败只记录，不能让整次保存失败。
+      permissionError = error;
     }
+    await temporary.handle.close();
+    closed = true;
+    try {
+      await ops.rename(temporary.path, filePath);
+    } catch (error) {
+      await ops.remove(temporary.path).catch(() => {});
+      throw error;
+    }
+    return permissionError === undefined
+      ? { permissionsUnchanged: false }
+      : { permissionsUnchanged: false, permissionError };
   } finally {
-    await handle.close();
+    if (!closed) {
+      // 失败路径：清理临时文件；关闭与删除的错误都不覆盖主错误。
+      await temporary.handle.close().catch(() => {});
+      await ops.remove(temporary.path).catch(() => {});
+    }
   }
 }
