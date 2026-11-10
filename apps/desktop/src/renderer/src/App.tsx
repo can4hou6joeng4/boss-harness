@@ -63,6 +63,8 @@ export function App(): JSX.Element {
   const [isHomeView, setIsHomeView] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 700);
   const [folders, setFolders] = useState<ProjectFolder[]>(() => window.boss ? [] : MOCK_PROJECT_FOLDERS.map(folder => ({ ...folder, sessions: folder.sessions.map(session => ({ ...session, status: "completed" })) })));
+  /** 会话列表是否至少成功加载过一次；通知定位在加载完成前保留意图，不把空列表当成会话已删除。 */
+  const [sessionsLoaded, setSessionsLoaded] = useState(!window.boss);
   const [activeSession, setActiveSession] = useState<SessionItem | null>(null);
   const [currentMode, setCurrentMode] = useState<ConversationMode>("agent");
   const [activeModelId, setActiveModelId] = useState("deepseek-v4");
@@ -355,6 +357,7 @@ export function App(): JSX.Element {
         for (const session of allSessions) session.status = runningRef.current.has(session.id) ? "running"
           : session.lastTurnStatus === "interrupted" ? "interrupted" : "idle";
         setFolders([{ id: HARNESS_PROJECT_ID, name: HARNESS_PROJECT_NAME, sessions: allSessions }]);
+        setSessionsLoaded(true);
         const active = activeRef.current;
         if (active?.projectId === HARNESS_PROJECT_ID) {
           const summary = allSessions.find(session => session.id === active.id);
@@ -883,7 +886,7 @@ export function App(): JSX.Element {
   return <>
     <AppShell isDark={isDark} theme={theme} onToggleTheme={() => setTheme(isDark ? "light" : "dark")} onThemeChange={setTheme} isSidebarOpen={isSidebarOpen} onToggleSidebar={() => setIsSidebarOpen(previous => !previous)}
       folders={folders} activeSession={activeSession} isHomeView={isHomeView} messages={messages} turnSkillIds={turnSkillIds} currentMode={currentMode} onModeChange={setCurrentMode}
-      onSelectSession={handleSelectSession} onNewTask={handleNewTask} onDeleteSession={handleDeleteSession} onArchiveSession={handleArchiveSession} onRenameSession={window.boss ? handleRenameSession : undefined} onSendMessage={handleSendMessage} onQueueMessage={handleQueueMessage} onCheckQueueSubmission={handleCheckQueueSubmission} queueItems={queueItems} queueTotalItems={queueMeta.totalItems} queueActiveItems={queueMeta.activeItems} queueTruncated={queueMeta.truncated} onRemoveQueueItem={handleRemoveQueueItem} onRetryQueueItem={handleRetryQueueItem} onReadQueueItem={handleReadQueueItem} onUpdateQueueItem={capabilities?.queueUpdate === true ? handleUpdateQueueItem : undefined} onRefreshQueue={handleRefreshQueue} autoCompactionConfig={capabilities?.autoCompactionConfig === true} simulateLocal={preview} harnessUp={harnessUp}
+      onSelectSession={handleSelectSession} onNewTask={handleNewTask} onDeleteSession={handleDeleteSession} onArchiveSession={handleArchiveSession} onRenameSession={window.boss ? handleRenameSession : undefined} onSendMessage={handleSendMessage} onQueueMessage={handleQueueMessage} onCheckQueueSubmission={handleCheckQueueSubmission} queueItems={queueItems} queueTotalItems={queueMeta.totalItems} queueActiveItems={queueMeta.activeItems} queueTruncated={queueMeta.truncated} onRemoveQueueItem={handleRemoveQueueItem} onRetryQueueItem={handleRetryQueueItem} onReadQueueItem={handleReadQueueItem} onUpdateQueueItem={capabilities?.queueUpdate === true ? handleUpdateQueueItem : undefined} onRefreshQueue={handleRefreshQueue} autoCompactionConfig={capabilities?.autoCompactionConfig === true} simulateLocal={preview} harnessUp={harnessUp} sessionsLoaded={sessionsLoaded}
       onCreateConnectionSession={createConnectionSession}
       sessionReasoning={contextThreadId ? sessionReasoning : undefined}
       running={Boolean(activeSession && runningThreadIds.has(activeSession.id))} taskBlocked={startingSession || branchSummaryRunning}
