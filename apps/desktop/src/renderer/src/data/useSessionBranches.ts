@@ -48,11 +48,15 @@ const MAX_PAGES = 10;
 const TERMINAL_TURN = new Set(["completed", "interrupted", "blocked", "error"]);
 export const isSettledTurn = (status: string | null | undefined): boolean => Boolean(status && TERMINAL_TURN.has(status));
 
-function rpcDetail(error: unknown): { rpc: boolean; text: string } {
+function rpcDetail(error: unknown): { rpc: boolean; code: number | null; text: string } {
   const value = error && typeof error === "object" ? error as { rpcError?: unknown; code?: unknown } : null;
+  const code = value?.rpcError === true && typeof value.code === "number" ? value.code : null;
   // 与界面其他位置一致：harnessErrorText 会剥掉 IPC 包装前缀并自行附上内核错误码。
-  return { rpc: value?.rpcError === true && typeof value.code === "number", text: harnessErrorText(error) };
+  return { rpc: code !== null, code, text: harnessErrorText(error) };
 }
+
+/** 内核没有这个摘要任务：可能随进程重启丢失，或被任务记录保留窗口淘汰。 */
+const JOB_NOT_FOUND = -32011;
 
 function isBranchJob(value: unknown, threadId: string): value is ContextCompactJob {
   if (!value || typeof value !== "object") return false;
@@ -100,6 +104,13 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       return { ...state, summaryJob: { ...(known?.jobId === job.jobId ? known : {}), ...job },
         summaryPollError: "", cancelInFlight: job.status === "running" ? state.cancelInFlight : false };
     });
+  }, [update]);
+  /** 内核明确表示任务不存在：缓存的 running 再也不可能变为终态，继续保留会一直阻断切换与新建回合。 */
+  const dropMissingJob = useCallback((id: string, jobId: string) => {
+    update(id, state => state.summaryJob?.jobId === jobId && state.summaryJob.status === "running"
+      ? { ...state, summaryJob: undefined, cancelInFlight: false,
+          summaryPollError: "本地内核已不再保留这个摘要任务：可能随进程重启丢失，或被任务记录淘汰；不会自动重放。已清除过期状态，可重新生成摘要。" }
+      : state);
   }, [update]);
 
   const refresh = useCallback(async (id: string): Promise<void> => {
@@ -162,14 +173,23 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
           const job = await readContextCompaction(watch);
           if (valid() && isBranchJob(job, id)) applyJob(id, job);
         } catch (error) {
+          const detail = rpcDetail(error);
+          if (!valid()) return;
+          if (detail.code === JOB_NOT_FOUND && !jobId) {
+            // 内核已不持有该任务，而 context/read 也没有报告活动任务：轮询只会一直失败。
+            // 继续保留 running 会永久阻断切换分支与新建回合；清除后新任务仍可由事件重新上报。
+            pollFailures.current.delete(id);
+            dropMissingJob(id, watch);
+            return;
+          }
           // 读不到任务详情时面板既没有进度也没有取消入口，不能让人误以为没有任务；之后的轮询或事件会补齐。
-          if (valid() && jobId) update(id, { summaryPollError: `摘要任务状态未能读取：${rpcDetail(error).text}。可能暂时无法显示进度或取消入口。` });
+          if (jobId) update(id, { summaryPollError: `摘要任务状态未能读取：${detail.text}。可能暂时无法显示进度或取消入口。` });
         }
       }
     } catch (error) {
       if (valid()) update(id, { loading: false, error: `读取分支失败：${rpcDetail(error).text}` });
     }
-  }, [applyJob, update]);
+  }, [applyJob, dropMissingJob, update]);
 
   useEffect(() => {
     alive.current = true;
@@ -201,17 +221,24 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
           pollFailures.current.delete(id);
           if (stateRef.current[id]?.summaryPollError) update(id, { summaryPollError: "" });
         }).catch(error => {
+          const detail = rpcDetail(error);
+          // 内核明确表示任务不存在时，轮询永远等不到终态；不清理就会永久阻断切换与新建回合。
+          if (detail.code === JOB_NOT_FOUND) {
+            pollFailures.current.delete(id);
+            dropMissingJob(id, job.jobId);
+            return;
+          }
           // 轮询只是补齐事件推送；连续失败时任务状态会停在旧值，不能一直静默。
           const failures = (pollFailures.current.get(id) ?? 0) + 1;
           pollFailures.current.set(id, failures);
           if (failures < 3) return;
-          const text = `摘要任务状态未能刷新：${rpcDetail(error).text}。显示的任务状态可能已过期。`;
+          const text = `摘要任务状态未能刷新：${detail.text}。显示的任务状态可能已过期。`;
           if (stateRef.current[id]?.summaryPollError !== text) update(id, { summaryPollError: text });
         });
       }
     }, 2000);
     return () => { alive.current = false; unsubscribe?.(); clearInterval(timer); };
-  }, [applyJob, refresh, update]);
+  }, [applyJob, dropMissingJob, refresh, update]);
   useEffect(() => { if (threadId && connected && support) void refresh(threadId); }, [threadId, connected, support, refresh]);
 
   const switchTo = useCallback(async (target: string | null, summarize: boolean): Promise<boolean> => {
