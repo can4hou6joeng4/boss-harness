@@ -43,7 +43,25 @@ def _context_edit(item: dict[str, Any]) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _wire_assistant(message: AssistantMessage) -> AssistantMessage:
+    """只降级文本块；签名 thinking 块与工具参数保持持久记录原样。
+
+    工具批次可能回放带签名的 Anthropic 响应，签名覆盖的是 thinking 块，文本块不在
+    签名范围内。干净文本原样返回，不改变任何消息身份。
+    """
+    blocks = tuple(TextBlock(text=wire_text(block.text)) if isinstance(block, TextBlock) else block
+                   for block in message.blocks)
+    return message if blocks == message.blocks else replace(message, blocks=blocks)
+
+
 def messages_from_items(items: list[dict]) -> tuple[ChatMessage, ...]:
+    """把持久条目还原为模型请求。
+
+    持久记录可能含孤立代理项（损坏记录、``surrogateescape`` 路径或旧版本写入）。
+    请求体按 UTF-8 编码，代理项会让整次请求在本地抛 ``UnicodeEncodeError``，或被转义
+    成非法 ``\\uD800`` 后由服务端拒绝；这里与 RPC 展示、队列、导出和压缩材料统一按
+    ``wire_text`` 约定降级为 U+FFFD。长度不变，干净记录逐字节不变。
+    """
     messages: list[ChatMessage] = []
     pending: list[dict] = []
     batch: str | None = None
@@ -59,10 +77,10 @@ def messages_from_items(items: list[dict]) -> tuple[ChatMessage, ...]:
     def flush() -> None:
         if not pending:
             return
-        messages.append(assistant_from_tool_batch(items, pending))
+        messages.append(_wire_assistant(assistant_from_tool_batch(items, pending)))
         messages.append(ToolResultsMessage(results=tuple(
             ToolResultItem(tool_call_id=str(p.get("toolCallId") or p["id"]),
-                           content=model_result_for_item(p),
+                           content=wire_text(model_result_for_item(p)),
                            is_error=p.get("status") == "failed") for p in pending)))
         pending.clear()
 
@@ -71,11 +89,11 @@ def messages_from_items(items: list[dict]) -> tuple[ChatMessage, ...]:
         if kind != "toolCall" or (pending and item.get("toolBatchId") != batch):
             flush()
         if kind == "userMessage":
-            messages.append(UserMessage(text=str(item.get("text", ""))))
+            messages.append(UserMessage(text=wire_text(str(item.get("text", "")))))
         elif (kind == "agentMessage" and not _is_one_of(item.get("status"), {"running", "failed"})
               and item.get("text")
               and not _is_one_of(item.get("id"), continuation_agent_ids)):
-            messages.append(AssistantMessage(blocks=(TextBlock(text=str(item["text"])),)))
+            messages.append(AssistantMessage(blocks=(TextBlock(text=wire_text(str(item["text"]))),)))
         elif kind == "toolCall" and item.get("status") != "running":
             batch = item.get("toolBatchId")
             pending.append(item)
