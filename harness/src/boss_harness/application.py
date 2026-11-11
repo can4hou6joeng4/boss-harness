@@ -757,7 +757,7 @@ class ApplicationService:
                            {"code": "MODEL_ROUTE_UNAVAILABLE", "provider": provider, "model": model})
         thread = self.sessions.create(title, projectId=params.get("projectId"),
                                       provider=provider, model=model, cwd=str(self.workspace), toolPolicy=policy)
-        self.events.emit("thread/created", {"threadId": thread["id"], "thread": thread})
+        self._emit_committed("thread/created", {"threadId": thread["id"], "thread": thread})
         return {"thread": thread}
 
     def on_thread_list(self, params: dict | None) -> dict:
@@ -1283,7 +1283,7 @@ class ApplicationService:
     def on_thread_fork(self, params: dict | None) -> dict:
         params = params or {}
         thread = self.sessions.fork_thread(_text(params, "threadId"), turn_id=params.get("turnId"), title=params.get("title"))
-        self.events.emit("thread/created", {"threadId": thread["id"], "thread": thread})
+        self._emit_committed("thread/created", {"threadId": thread["id"], "thread": thread})
         return {"thread": thread}
 
     def _idle(self, thread_id: str) -> None:
@@ -1303,11 +1303,8 @@ class ApplicationService:
             thread = self.sessions.archive_thread(thread_id)
         # 归档已经持久化；逐项通知界面刷新暂停状态，观察者信号失败不能把归档变成失败。
         for queue_id in paused_queue_ids:
-            try:
-                self.events.emit("queue/updated", {"threadId": thread_id, "queueId": queue_id})
-            except Exception:
-                pass
-        self.events.emit("thread/archived", {"threadId": thread_id})
+            self._emit_queue_updated(thread_id, queue_id)
+        self._emit_committed("thread/archived", {"threadId": thread_id})
         return {"thread": thread}
 
     def on_thread_delete(self, params: dict | None) -> dict:
@@ -1383,13 +1380,13 @@ class ApplicationService:
     def on_thread_unarchive(self, params: dict | None) -> dict:
         thread_id = _text(params, "threadId")
         thread = self.sessions.unarchive_thread(thread_id)
-        self.events.emit("thread/unarchived", {"threadId": thread_id})
+        self._emit_committed("thread/unarchived", {"threadId": thread_id})
         return {"thread": thread}
 
     def on_thread_name(self, params: dict | None) -> dict:
         thread_id = _text(params, "threadId")
         thread = self.sessions.update_thread(thread_id, title=_text(params, "name", maximum=500))
-        self.events.emit("thread/renamed", {"threadId": thread_id, "thread": thread})
+        self._emit_committed("thread/renamed", {"threadId": thread_id, "thread": thread})
         return {"thread": thread}
 
     def on_thread_model_set(self, params: dict | None) -> dict:
@@ -1420,8 +1417,8 @@ class ApplicationService:
                     and thread.get("reasoningEffort") is None):
                 return {"thread": thread}
             updated = self.sessions.update_thread(thread_id, provider=provider, model=model, reasoningEffort=None)
-        self.events.emit("thread/model/updated", {"threadId": thread_id, "provider": provider,
-                                                  "model": model, "thread": updated})
+        self._emit_committed("thread/model/updated", {"threadId": thread_id, "provider": provider,
+                                                      "model": model, "thread": updated})
         return {"thread": updated}
 
     def on_event_list(self, params: dict | None) -> dict:
@@ -1534,7 +1531,7 @@ class ApplicationService:
             if thread.get("reasoningEffort") == effort:
                 return {"thread": thread}
             updated = self.sessions.update_thread(thread_id, reasoningEffort=effort)
-        self.events.emit("thread/reasoning/updated", {"threadId": thread_id, "effort": effort})
+        self._emit_committed("thread/reasoning/updated", {"threadId": thread_id, "effort": effort})
         return {"thread": updated}
 
     def on_thread_leaf_read(self, params: dict | None) -> dict:
@@ -1672,14 +1669,12 @@ class ApplicationService:
                     self.snapshots.invalidate_branch(thread_id, leaf_entry_id)
                 if prepared is not None and leaf_entry_id is not None:
                     job = self._register_branch_summary(thread_id, leaf_entry_id, *prepared)
-        try:
-            if result.get("changed"):
-                self.events.emit("thread/leafChanged", {"threadId": thread_id, "leafTurnId": result["leafTurnId"]})
-        finally:
-            # 摘要任务在锁内登记时已占用该会话：通知落盘失败也必须启动或结算它，
-            # 否则 _compaction_by_thread 永不释放，取消摘要也无法解除占用。
-            if job is not None:
-                result["summaryJob"] = self._launch_branch_summary(job)
+        # 摘要任务在锁内登记时已占用该会话：响应返回前必须启动或结算它，
+        # 否则 _compaction_by_thread 永不释放，取消摘要也无法解除占用。
+        if result.get("changed"):
+            self._emit_committed("thread/leafChanged", {"threadId": thread_id, "leafTurnId": result["leafTurnId"]})
+        if job is not None:
+            result["summaryJob"] = self._launch_branch_summary(job)
         return result
 
     def _prepare_branch_summary(self, thread_id: str, turn_id: str | None) -> tuple:
@@ -2016,8 +2011,8 @@ class ApplicationService:
                 raise RpcError(-32004, "会话正在运行或整理摘要；请等待结束后再编辑")
             result = self.context.context_edit(thread_id, item_id, replacement,
                                                params.get("sourceDigest"))
-            self.events.emit("context/edited", {"threadId": thread_id, "itemId": item_id,
-                                                 "sourceDigest": result["sourceDigest"]})
+            self._emit_committed("context/edited", {"threadId": thread_id, "itemId": item_id,
+                                                     "sourceDigest": result["sourceDigest"]})
             return result
 
     def _compaction_reference(self, thread_id: str) -> dict[str, Any] | None:
@@ -3656,6 +3651,21 @@ class ApplicationService:
         self._receipt_notices[notice["id"]] = notice
         return notice
 
+    def _emit_committed(self, method: str, params: dict) -> None:
+        """Publish an observation for a mutation that is already durable.
+
+        An event-log write (fsync EIO, ENOSPC, read-only mount) can fail after the
+        mutation committed. The response already carries the committed result, so
+        reporting the failed observation as an RPC error would tell the client the
+        operation was rejected and invite a retry that duplicates it (a second
+        thread, a second context edit) while the UI shows the old state. Observers
+        recover the state through the next read.
+        """
+        try:
+            self.events.emit(method, params)
+        except Exception:
+            pass
+
     def _emit_queue_updated(self, thread_id: str, queue_id: str) -> None:
         """Publish a queue observation after its mutation is durable.
 
@@ -3663,10 +3673,7 @@ class ApplicationService:
         mutation into an RPC error, and must not skip the follow-up dispatch:
         the queue record is already committed and the response carries it.
         """
-        try:
-            self.events.emit("queue/updated", {"threadId": thread_id, "queueId": queue_id})
-        except Exception:
-            pass
+        self._emit_committed("queue/updated", {"threadId": thread_id, "queueId": queue_id})
 
     def _publish_receipt_notice(self, notice: dict, *, finish: bool = True) -> None:
         try:
