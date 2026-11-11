@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextEditReadResponse } from "@boss-harness/protocol";
 import { harnessErrorText, readContextEdit, writeContextEdit } from "../data/harnessBridge";
 import { CONTEXT_EDIT_STALE_NOTICE, contextEditSubmitBlocked } from "../data/contextEditState";
@@ -25,20 +25,37 @@ function validate(value: ContextEditReadResponse, threadId: string, itemId: stri
 export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged }: Props) {
   const [record, setRecord] = useState<ContextEditReadResponse>();
   const [draft, setDraft] = useState("");
+  // 最后一次有效读取 / 提交的正文独立保留；刷新失败或读取中都不会把草稿误当成已保存。
+  const [baseline, setBaseline] = useState("");
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [uncertain, setUncertain] = useState(false);
   // 读取失败后 record 仍是上一次成功的快照；重新读取成功前不得把它当作当前状态。
   const [stale, setStale] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  const draftRef = useRef(draft); draftRef.current = draft;
+  const baselineRef = useRef(baseline); baselineRef.current = baseline;
 
   const refresh = useCallback(async () => {
+    const keepDraft = draftRef.current !== baselineRef.current;
     setLoading(true);
     setError("");
+    setNotice("");
     try {
       const next = validate(await readContextEdit(threadId, itemId), threadId, itemId);
+      const current = next.currentText ?? next.originalText;
       setRecord(next);
-      setDraft(next.currentText ?? next.originalText);
+      setBaseline(current);
+      // 重新读取只更新权威快照，仍在编辑的替换文本不能被静默覆盖。
+      if (keepDraft) {
+        setNotice("已重新读取内核中的当前文本；你的未保存修改已保留。");
+        setConfirmClose(false);
+      } else {
+        setDraft(current);
+      }
       setUncertain(false);
       setStale(false);
       onChanged(next);
@@ -68,20 +85,28 @@ export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged 
     // state before reporting failure; never repeat the append automatically.
     try {
       const actual = validate(await readContextEdit(threadId, itemId), threadId, itemId);
+      const current = actual.currentText ?? actual.originalText;
       setRecord(actual);
-      setDraft(actual.currentText ?? actual.originalText);
       setStale(false);
       onChanged(actual);
       const expected = replacementText === null ? actual.excluded : !actual.excluded && actual.currentText === replacementText;
       if (expected) {
+        setDraft(current);
+        setBaseline(current);
         setError("");
         setUncertain(false);
-      } else if (writeError) {
-        setError("提交结果未确认。已重新读取当前上下文；请核对下方内容后再决定下一步。没有自动重试。");
-        setUncertain(true);
       } else {
-        setError("会话来源已变化，编辑没有按预期生效。请核对当前内容后重新操作。");
+        // 回读显示编辑没有生效：基线换成权威文本，但保留用户仍在编辑的草稿，
+        // 关闭前仍需确认，重试也仍使用这份正文；不自动重放写入。
+        setBaseline(current);
+        if (writeError) {
+          setError("提交结果未确认。已重新读取当前上下文；请核对下方内容后再决定下一步。没有自动重试。");
+          setUncertain(true);
+        } else {
+          setError("会话来源已变化，编辑没有按预期生效。请核对当前内容后重新操作。");
+        }
       }
+      setNotice("");
     } catch (cause) {
       // 回读失败时界面仍保留提交前的 record；标记过期，禁止基于旧快照继续提交。
       setStale(true);
@@ -97,8 +122,17 @@ export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged 
   const excluded = record?.excluded ?? false;
   const changed = Boolean(record && !excluded && record.currentText !== record.originalText);
   const blocked = contextEditSubmitBlocked({ loading, saving, stale });
+  // 未保存判定只看编辑器正文与最后一次有效基线；与「提交后当前是否已替换」无关。
+  const dirty = draft !== baseline;
+  // 关闭按钮、Esc 与遮罩共享同一入口：有修改先提示，再次关闭才丢弃。
+  const close = () => {
+    if (saving) return;
+    if (dirty && !confirmClose) { setConfirmClose(true); return; }
+    onClose();
+  };
+  const updateDraft = (value: string) => { setDraft(value); setNotice(""); setConfirmClose(false); };
 
-  return <ModalSurface title={title} onClose={saving ? () => undefined : onClose} className="context-edit-dialog">
+  return <ModalSurface title={title} onClose={close} closeDisabled={saving} className="context-edit-dialog">
     <div className="context-edit-body">
       <p className="context-edit-note">这里只调整未来模型请求中的上下文。原始会话记录和已发生的操作保持不变。</p>
       {loading && <p className="context-edit-status" role="status">正在读取消息与当前上下文…</p>}
@@ -116,16 +150,19 @@ export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged 
           <h3>当前送入模型的文本</h3>
           <pre>{excluded ? "（此消息不进入后续模型上下文）" : record.currentText || "（空文本）"}</pre>
         </section>
-        {record.canEdit && <label className="context-edit-label" htmlFor="context-edit-draft">替换文本
-          <textarea id="context-edit-draft" rows={7} value={draft} onChange={event => setDraft(event.target.value)} disabled={saving || loading} />
+        {record.canEdit && <label className="context-edit-label" htmlFor="context-edit-draft">替换文本{dirty ? " · 未保存" : ""}
+          <textarea id="context-edit-draft" rows={7} value={draft} onChange={event => updateDraft(event.target.value)} disabled={saving || loading} />
         </label>}
+        {record.canEdit && dirty && <p className="context-edit-status" role="status">替换文本尚未提交；编辑只在你点击下方按钮后生效。</p>}
+        {notice && <p className="context-edit-status" role="status">{notice}</p>}
         {record.reason && !record.canEdit && <p className="context-edit-warning" role="status">{record.reason}</p>}
       </>}
       {error && <p className="context-edit-warning" role="alert">{error}</p>}
       {uncertain && !loading && <p className="context-edit-status" role="status">当前状态尚未确认；刷新只读取，不会再次提交编辑。</p>}
       {error && !loading && <button className="secondary-button" type="button" onClick={() => void refresh()} disabled={saving}>重新读取状态</button>}
+      {confirmClose && dirty && <p className="context-edit-warning" role="alert">有未保存的替换文本；再次关闭将丢弃。</p>}
       <div className="context-edit-actions">
-        <button className="secondary-button" type="button" onClick={onClose} disabled={saving}>关闭</button>
+        <button className="secondary-button" type="button" onClick={close} disabled={saving}>关闭</button>
         {record?.canEdit && <>
           <button className="secondary-button" type="button" onClick={() => void apply(record.originalText)} disabled={blocked || (!excluded && !changed && draft === record.originalText)}>恢复原文</button>
           <button className="secondary-button" type="button" onClick={() => void apply(null)} disabled={blocked || excluded}>排除消息</button>
