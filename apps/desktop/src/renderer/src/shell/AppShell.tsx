@@ -18,6 +18,7 @@ import { NotificationsDialog } from "../components/NotificationsDialog";
 import { ModalSurface } from "../components/ModalSurface";
 import { type ProjectFolder, type SessionItem, type MessageItem, type ConversationMode } from "../data/mockData";
 import { countPendingApprovalsByThread, isApprovalCountEvent, readApprovalFocus } from "../data/pendingApprovals";
+import { createSingleFlightReload } from "../data/singleFlightReload";
 import { readThreadFocus } from "../data/threadFocus";
 import { focusResolution } from "../data/focusIntent";
 import { approvalSoundEnabled, playApprovalChime } from "../data/approvalChime";
@@ -114,25 +115,27 @@ export function AppShell(props: AppShellProps) {
   useEffect(() => {
     // 示例模式与断开的内核不读取审批；读取失败保留上一次数量，不把失败显示成 0。
     if (props.simulateLocal || props.harnessUp === false) { setPendingApprovals(0); setPendingApprovalsTruncated(false); setApprovalCounts({}); return; }
-    let cancelled = false, inFlight = false;
-    const load = () => {
-      if (inFlight || document.visibilityState === "hidden") return;
-      inFlight = true;
-      void listPendingApprovals(100).then(
-        result => { if (!cancelled) { setPendingApprovals(result.approvals.length); setPendingApprovalsTruncated(result.truncated); setApprovalCounts(countPendingApprovalsByThread(result.approvals)); } },
-        () => {},
-      ).finally(() => { inFlight = false; });
-    };
-    pendingReload.current = load;
-    load();
-    const timer = window.setInterval(load, 30_000);
-    const onFocus = () => load();
-    const onVisibility = () => { if (document.visibilityState === "visible") load(); };
-    window.addEventListener("focus", onFocus);
+    let disposed = false;
+    // 轮询、聚焦、重新可见与通知防抖共用一次读取；在途期间的刷新合并为一次尾随读取，
+    // 否则审批通知恰好撞上慢轮询时，徽标要等到下一次轮询才会更新。
+    const reload = createSingleFlightReload(async () => {
+      const result = await listPendingApprovals(100);
+      if (disposed) return;
+      setPendingApprovals(result.approvals.length);
+      setPendingApprovalsTruncated(result.truncated);
+      setApprovalCounts(countPendingApprovalsByThread(result.approvals));
+    }, () => document.visibilityState !== "hidden");
+    pendingReload.current = reload.run;
+    reload.run();
+    const timer = window.setInterval(reload.run, 30_000);
+    window.addEventListener("focus", reload.run);
+    const onVisibility = () => { if (document.visibilityState === "visible") reload.run(); };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      cancelled = true; pendingReload.current = () => {};
-      window.clearInterval(timer); window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVisibility);
+      disposed = true;
+      reload.cancel();
+      pendingReload.current = () => {};
+      window.clearInterval(timer); window.removeEventListener("focus", reload.run); document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [props.simulateLocal, props.harnessUp]);
   useEffect(() => {
