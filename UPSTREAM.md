@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 工作区说明异常重读的草稿保护（Issue #1022）
+
+参考 [Pi（MIT）固定提交 `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `settings-manager.ts`](https://github.com/earendil-works/pi/blob/a14cdf90f0a76532f3e20bc3c01872837cef24ba/packages/coding-agent/src/core/settings-manager.ts#L500)：`reload()` 只在读取成功时替换对应设置，读取失败则保留原值并单独记录错误。本轮只借鉴保留最后一次有效值的原则，独立实现，不复制源码或新增依赖。
+
+适配差异：Pi 处理存储设置重载；本项目经异步 RPC 读取工作区说明，编辑器还会经历 Electron 内核重连和能力声明暂时消失。桌面以独立的 `baselineContent` 保存最后一次有效读取或保存的正文，当前读取所需的 `info` 仍可清空，以禁止在读取未成功时保存；读取中、失败、无效回执及再次断连均不再清除未保存状态。技能页与上下文面板一样，在编辑器已打开时保持挂载。丢弃确认、有效读取时同步内核正文及成功保存后重置基线均沿用既有契约，不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 第一百一十四轮：缓存未命中估算
 
 参考 Pi MIT 固定提交 `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `packages/coding-agent/src/core/cache-stats.ts`：`scan()` 按条目顺序维护上一次请求基线，遇到 `compaction` / `branch_summary` 重置；对每条 assistant 消息先检测、再以当前请求更新基线，`missedTokens = min(prev.promptTokens, promptTokens) - cacheRead`，只有严格大于 `NOISE_FLOOR_TOKENS`（1024）才累计 `missedTokens` / `missCount`；当前请求缓存读写为零且此前从未报告缓存活动时不检测；模型切换不重置基线。本轮独立实现，不复制 Pi 源码或新增依赖。

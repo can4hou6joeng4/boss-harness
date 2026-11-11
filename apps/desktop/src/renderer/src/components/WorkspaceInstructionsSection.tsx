@@ -54,7 +54,8 @@ export function WorkspaceInstructionsSection(props: WorkspaceInstructionsSection
     {props.editable && props.connected && reading && !info && <div className="page-tool-empty">正在读取工作区说明…</div>}
     {props.editable && error && <p className="page-tool-empty" role="alert">{error}</p>}
     {info && <p className="workspace-instructions-status">生效文件：<code>{info.path}</code> · {STATUS_TEXT[info.status]}{info.bytes === null ? "" : `（${number(info.bytes)} 字节，上限 ${number(info.limitBytes)}）`}</p>}
-    {props.editable && <WorkspaceInstructionsEditor open={editing} connected={props.connected} onClose={() => setEditing(false)} onSaved={() => setReload(previous => previous + 1)} />}
+    {/* 能力声明在断连期间暂时消失，保持已打开的编辑器挂载以保留草稿。 */}
+    {(props.editable || editing) && <WorkspaceInstructionsEditor open={editing} connected={props.connected} onClose={() => setEditing(false)} onSaved={() => setReload(previous => previous + 1)} />}
     <p className="page-empty-note">内容作为每回合的上下文注入，最多 8 KiB；不改变工具权限、审批要求或只读限制，保存后下一回合生效。</p>
   </section>;
 }
