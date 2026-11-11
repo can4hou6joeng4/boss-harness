@@ -137,23 +137,34 @@ def model_result_content(result: dict, item_id: str | None, *, source: dict | No
 
 
 def model_result_for_item(item: dict) -> str:
-    """Bound legacy history projections without changing their durable source records."""
+    """Bound legacy history projections without changing their durable source records.
+
+    持久记录可能含孤立代理项（损坏记录、``surrogateescape`` 路径或旧版本写入）。
+    ``_json_size`` 对不可编码值返回 None，坏字符会让本可内联的小结果被误判为超限；
+    兜底转义则把非法 ``\\uD800`` 送进模型请求。这里与 RPC 展示、导出和压缩材料
+    统一按 ``wire_text`` 约定降级：长度不变，干净记录逐字节不变。
+    """
     limit = item.get("modelResultLimitBytes", DEFAULT_MODEL_TOOL_RESULT_BYTES)
     if type(limit) is not int or not MIN_MODEL_TOOL_RESULT_BYTES <= limit <= MAX_MODEL_TOOL_RESULT_BYTES:
         limit = DEFAULT_MODEL_TOOL_RESULT_BYTES
     existing = item.get("modelResult")
     if isinstance(existing, str):
+        existing = wire_text(existing)
         try:
             if len(existing.encode("utf-8")) <= limit:
                 return existing
         except UnicodeEncodeError:
             pass
+    summary = item.get("resultSummary")
+    preview = wire_text(summary) if isinstance(summary, str) else summary
     result = item.get("result")
     if isinstance(result, dict) and isinstance(item.get("id"), str):
-        return model_result_content(result, item["id"], source=item.get("source"), max_bytes=limit,
-                                    preview=item.get("resultSummary", ""))
+        source = item.get("source")
+        return model_result_content(wire_value(result), item["id"],
+                                    source=wire_value(source) if isinstance(source, dict) else source,
+                                    max_bytes=limit, preview=preview)
     return model_result_content({}, None, source=None, max_bytes=limit,
-                                preview=item.get("resultSummary") or existing or "")
+                                preview=preview or existing or "")
 
 
 def project_error(error: dict | None) -> dict | None:
