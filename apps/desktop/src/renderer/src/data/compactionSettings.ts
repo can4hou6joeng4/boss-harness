@@ -26,6 +26,18 @@ export function compactionFields(draft: CompactionSettingDraft): AutoCompactionS
   return { enabled: draft.enabled, triggerPercent, keepRecentTokens };
 }
 
+/**
+ * 比较两份自动压缩草稿：只有三个字段全部相同才算没有修改。
+ * 设置页用最后一次成功读取或保存的值作为基线，关闭与切换分区前据此提示未保存修改。
+ */
+export function sameCompactionDraft(
+  a: CompactionSettingDraft | null | undefined,
+  b: CompactionSettingDraft | null | undefined,
+): boolean {
+  if (!a || !b) return a === b;
+  return a.enabled === b.enabled && a.triggerPercent === b.triggerPercent && a.keepRecentTokens === b.keepRecentTokens;
+}
+
 /** 设置页展示的策略来源；未知或旧内核如实说明，不假装是内置默认值。 */
 export function compactionSourceLabel(source: AutoCompactionSource | undefined): string {
   switch (source) {

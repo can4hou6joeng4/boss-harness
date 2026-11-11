@@ -29,7 +29,7 @@ import {
   type Motion,
   type PreferencesFileValues,
 } from "../data/preferencesFile";
-import { compactionDraft, compactionFields, compactionSourceLabel, type CompactionSettingDraft } from "../data/compactionSettings";
+import { compactionDraft, compactionFields, compactionSourceLabel, sameCompactionDraft, type CompactionSettingDraft } from "../data/compactionSettings";
 import { readSessionIndexHealth, type SessionIndexHealth } from "../data/sessionIndexHealth";
 import { currentCommandPlatform } from "../data/shortcuts";
 import { shortcutKeyLabel } from "../data/shortcutLabels";
@@ -153,8 +153,16 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   const [compaction, setCompaction] = useState<CompactionSettingDraft | null>(null);
   const [compactionSource, setCompactionSource] = useState<AutoCompactionSource | undefined>();
   const [compactionBusy, setCompactionBusy] = useState(false);
+  // 只表示正在提交保存：读取中的 busy 不应锁住关闭与分区切换（切换会取消旧读取）。
+  const [compactionSaving, setCompactionSaving] = useState(false);
   const [compactionError, setCompactionError] = useState("");
   const [compactionSaved, setCompactionSaved] = useState(false);
+  // 最后一次成功读取 / 保存的内核值；与草稿比较判断是否存在未保存修改。
+  const [compactionBaseline, setCompactionBaseline] = useState<CompactionSettingDraft | null>(null);
+  // 未保存时关闭或切换分区要先确认：记录被拦下的动作，再次触发才执行。
+  const [draftGuard, setDraftGuard] = useState<
+    { kind: "close" } | { kind: "shortcuts" } | { kind: "section"; next: SettingsSection } | null
+  >(null);
   const [indexHealth, setIndexHealth] = useState<SessionIndexHealth | null>(null);
   const [indexHealthLoaded, setIndexHealthLoaded] = useState(false);
   const [indexHealthError, setIndexHealthError] = useState("");
@@ -166,7 +174,6 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   // 键盘页与快捷键面板共用同一条平台规则，说明才能与真实接线一致。
   const shortcutPlatform = currentCommandPlatform();
   const preferencesFileRef = useRef<HTMLInputElement>(null);
-  closeRef.current = onClose;
 
   // 关于页只展示构建与运行环境的真实值；浏览器预览或旧构建缺失时由 aboutInfo 统一显示「未知」。
   const aboutEnvironment = {
@@ -182,7 +189,16 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   const aboutCopy = aboutClipboard.feedback?.key === "about-diagnostics" ? aboutClipboard.feedback : null;
 
   useLayoutEffect(() => {
-    if (isOpen && initialSection) { setSection(initialSection); setStatus(""); }
+    if (isOpen && initialSection) { setSection(initialSection); setStatus(""); setDraftGuard(null); }
+    if (!isOpen) {
+      // 关闭即视为已确认或没有修改：清掉设置页草稿，重新打开时从内核值重新读取。
+      setDraftGuard(null);
+      setCompaction(null);
+      setCompactionBaseline(null);
+      setCompactionBusy(false);
+      setCompactionError("");
+      setCompactionSaved(false);
+    }
   }, [isOpen, initialSection]);
 
   useEffect(() => {
@@ -204,6 +220,7 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
     // 旧值不能在新一轮读取期间继续以可编辑表单显示：否则保存按钮误标成「保存中…」，
     // 读取回执还会悄悄覆盖用户刚做的编辑。清空后走「正在读取自动压缩默认值…」分支。
     setCompaction(null);
+    setCompactionBaseline(null);
     setCompactionBusy(true);
     setCompactionError("");
     setCompactionSaved(false);
@@ -218,16 +235,20 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
         return;
       }
       setCompaction(draft);
+      setCompactionBaseline(draft);
       setCompactionSource(config.autoCompactionSource);
     }).catch(cause => {
       if (cancelled) return;
       setCompactionBusy(false);
       setCompaction(null);
+      setCompactionBaseline(null);
       setCompactionError(`读取自动压缩默认值失败：${harnessErrorText(cause)}。`);
     }).finally(() => {
       if (!cancelled) setCompactionBusy(false);
     });
-    return () => { cancelled = true; };
+    // 读取被取消（关闭、换分区或重开时分区被重置）时回执不会再执行，必须在这里复位，
+    // 否则表单会永远停在「正在读取自动压缩默认值…」，导航也一直不可用。
+    return () => { cancelled = true; setCompactionBusy(false); };
   }, [isOpen, section, harnessUp]);
 
   // 每次进入「数据管理」分区都重读内核索引健康度；损坏文件可能在本进程运行期间才出现。
@@ -347,6 +368,8 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
 
   const editCompaction = (patch: Partial<CompactionSettingDraft>): void => {
     setCompactionSaved(false);
+    // 继续编辑说明用户仍在处理这份草稿，之前的丢弃确认失效。
+    setDraftGuard(null);
     setCompaction(current => current ? { ...current, ...patch } : current);
   };
 
@@ -358,12 +381,13 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
       return;
     }
     setCompactionBusy(true);
+    setCompactionSaving(true);
     setCompactionError("");
     setCompactionSaved(false);
     try {
       const response = await setAutoCompactionSettings(fields);
       const saved = compactionDraft(response.autoCompaction);
-      if (saved) setCompaction(saved);
+      if (saved) { setCompaction(saved); setCompactionBaseline(saved); }
       setCompactionSource(response.autoCompactionSource);
       setCompactionSaved(true);
     } catch (cause) {
@@ -371,6 +395,7 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
       setCompactionError(`保存失败：${harnessErrorText(cause)}。设置未确认，草稿仍保留。`);
     } finally {
       setCompactionBusy(false);
+      setCompactionSaving(false);
     }
   };
 
@@ -431,7 +456,37 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
     }
   };
 
+  // 未保存修改时关闭与切换分区共用同一守卫：第一次拦下并提示，再次触发才丢弃。
+  // 保存期间两种动作都不可用，避免在途回执与当前界面脱节。
+  const compactionDirty = !sameCompactionDraft(compaction, compactionBaseline);
+  const requestClose = (): void => {
+    if (compactionSaving) return;
+    if (compactionDirty && draftGuard?.kind !== "close") { setDraftGuard({ kind: "close" }); return; }
+    setDraftGuard(null);
+    onClose();
+  };
+  const selectSection = (next: SettingsSection): void => {
+    if (next === section) return;
+    if (compactionSaving) return;
+    if (compactionDirty && !(draftGuard?.kind === "section" && draftGuard.next === next)) {
+      setDraftGuard({ kind: "section", next });
+      return;
+    }
+    setDraftGuard(null);
+    // 用户已确认丢弃：清掉草稿，换分区后不会再把这份旧值与新分区一起展示。
+    setCompaction(null);
+    setCompactionBaseline(null);
+    setCompactionError("");
+    setCompactionSaved(false);
+    setSection(next);
+    setStatus("");
+  };
+  // Esc 与关闭按钮、遮罩走同一守卫；必须在渲染时同步到 ref，keydown 监听器读取的始终是本次渲染的版本。
+  closeRef.current = requestClose;
   const openShortcuts = (): void => {
+    if (compactionSaving) return;
+    if (compactionDirty && draftGuard?.kind !== "shortcuts") { setDraftGuard({ kind: "shortcuts" }); return; }
+    setDraftGuard(null);
     onClose();
     onOpenShortcuts();
   };
@@ -441,13 +496,13 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   const compactionEditable = autoCompactionConfig && compactionSource !== "environment" && compactionSource !== "explicit";
 
   return createPortal(
-    <div className="settings-backdrop" ref={backdropRef} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="settings-backdrop" ref={backdropRef} onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
       <div className="settings-dialog" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <aside className="settings-sidebar">
           <div className="settings-sidebar-heading">设置</div>
           <nav className="settings-navigation" aria-label="设置分类">
             {SECTIONS.map((item) => (
-              <button key={item.id} data-settings-section={item.id} type="button" className={`settings-navigation-item${section === item.id ? " is-active" : ""}`} aria-current={section === item.id ? "page" : undefined} onClick={() => { setSection(item.id); setStatus(""); }}>
+              <button key={item.id} data-settings-section={item.id} type="button" className={`settings-navigation-item${section === item.id ? " is-active" : ""}`} aria-current={section === item.id ? "page" : undefined} onClick={() => selectSection(item.id)} disabled={compactionSaving}>
                 <span aria-hidden="true">{item.icon}</span>
                 <span>{item.title}</span>
               </button>
@@ -458,13 +513,13 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
 
         <section className="settings-main">
           <header className="settings-header"><h2 id={titleId}>{currentSection.title}</h2></header>
-          <button type="button" className="settings-close" aria-label="关闭设置" onClick={onClose}><IconClose size={17} /></button>
+          <button type="button" className="settings-close" aria-label="关闭设置" disabled={compactionSaving} onClick={requestClose}><IconClose size={17} /></button>
           <div className="settings-content" key={section}>
             {section === "general" && (
               <>
                 <SettingRow title="语言" description="菜单和界面使用的语言"><span className="settings-static-value">简体中文</span></SettingRow>
                 <SettingRow title="启动页面" description="打开工作台时显示的页面"><span className="settings-static-value">新聊天</span></SettingRow>
-                <SettingRow title="界面偏好" description="外观、字体和显示密度保存在当前设备"><button type="button" className="settings-text-button" onClick={() => setSection("appearance")}>调整外观<IconChevronRight size={13} /></button></SettingRow>
+                <SettingRow title="界面偏好" description="外观、字体和显示密度保存在当前设备"><button type="button" className="settings-text-button" onClick={() => selectSection("appearance")}>调整外观<IconChevronRight size={13} /></button></SettingRow>
                 <SettingRow title="键盘快捷键" description="查看工作区与输入操作"><button type="button" className="settings-button" onClick={openShortcuts}>查看快捷键</button></SettingRow>
               </>
             )}
@@ -524,6 +579,12 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
                         : "当前内核不支持在界面保存默认策略；可继续使用单回合覆盖。"}</p>}
                     {compactionError && <p className="settings-policy-status is-error" role="alert">{compactionError}</p>}
                     {compactionSaved && <p className="settings-policy-status is-saved" role="status">已保存到本机内核配置，立即生效。</p>}
+                    {compactionDirty && <p className="settings-policy-status" role="status" data-settings-draft-dirty>有未保存的自动压缩默认值；关闭或切换分区前会先确认。</p>}
+                    {draftGuard && compactionDirty && <p className="settings-policy-status is-error" role="alert" data-settings-draft-guard>
+                      {draftGuard.kind === "close" ? "有未保存的自动压缩默认值；再次关闭将丢弃。"
+                        : draftGuard.kind === "shortcuts" ? "有未保存的自动压缩默认值；再次点击将丢弃修改并打开快捷键。"
+                        : `有未保存的自动压缩默认值；再次点击将丢弃修改并切换到「${SECTIONS.find(item => item.id === draftGuard.next)?.title ?? draftGuard.next}」。`}
+                    </p>}
                   </>
                 )}
               </>
