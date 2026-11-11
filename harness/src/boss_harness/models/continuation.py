@@ -6,6 +6,7 @@ import json
 import re
 from typing import Any
 
+from boss_harness.item_content import wire_text
 from boss_harness.models.types import AssistantMessage, ThinkingBlock, TextBlock, ToolCallBlock
 
 ANTHROPIC_CONTINUATION_FIELD = "_anthropicContinuation"
@@ -121,9 +122,27 @@ def assistant_from_tool_batch(items: list[dict], pending: list[dict]) -> Assista
     continuations = [item[ANTHROPIC_CONTINUATION_FIELD] for item in pending
                      if ANTHROPIC_CONTINUATION_FIELD in item]
     if not continuations:
-        text = linked_assistant.get("text") if linked_assistant is not None else None
-        blocks = ((TextBlock(text=text),) if isinstance(text, str) and text else ()) + tool_calls
-        return AssistantMessage(blocks=blocks)
+        return _plain_batch(linked_assistant, tool_calls)
+    try:
+        return _restore_continuation(items, pending, tool_calls, linked_assistant,
+                                     linked_assistant_id, continuations)
+    except UnicodeEncodeError:
+        # 持久记录可能含孤立代理项（损坏记录、surrogateescape 路径或旧版本写入）：
+        # 签名元数据或助手文本无法按 UTF-8 编码，签名块已无法验证。降级为普通工具批次，
+        # 工具调用与文本仍在，回合照常继续；一致性校验失败仍按 ValueError 如实报错。
+        return _plain_batch(linked_assistant, tool_calls)
+
+
+def _plain_batch(linked_assistant: dict | None, tool_calls: tuple[ToolCallBlock, ...]) -> AssistantMessage:
+    """没有可用签名元数据时的文本加工具调用批次；文本按传输约定降级。"""
+    text = linked_assistant.get("text") if linked_assistant is not None else None
+    blocks = ((TextBlock(text=wire_text(text)),) if isinstance(text, str) and text else ()) + tool_calls
+    return AssistantMessage(blocks=blocks)
+
+
+def _restore_continuation(items: list[dict], pending: list[dict],
+                          tool_calls: tuple[ToolCallBlock, ...], linked_assistant: dict | None,
+                          linked_assistant_id: str | None, continuations: list) -> AssistantMessage:
     calls = {call.id: call for call in tool_calls}
     if len(continuations) != 1 or ANTHROPIC_CONTINUATION_FIELD not in pending[0]:
         raise ValueError("Anthropic continuation metadata is duplicated")
