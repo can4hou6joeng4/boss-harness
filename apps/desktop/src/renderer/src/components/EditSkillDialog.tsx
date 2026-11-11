@@ -64,7 +64,7 @@ export function EditSkillDialog(props: Props) {
       <p className="skill-editor-path">写入：<code>{root}/{props.skill.id}/SKILL.md</code></p>
       <p className="skill-editor-hint">读取摘要：{props.skill.digest.slice(0, 12)}…（保存时用于确认内容未被修改）</p>
       <label>SKILL.md 正文
-        <textarea value={content} onChange={event => setContent(event.target.value)} spellCheck={false} />
+        <textarea value={content} disabled={saving} onChange={event => { setContent(event.target.value); setConfirmClose(false); }} spellCheck={false} />
       </label>
       <p className={"skill-editor-count" + (overLimit ? " is-over" : "")}>{bytes.toLocaleString("zh-CN")} / {LIMIT_BYTES.toLocaleString("zh-CN")} 字节{overLimit ? "，已超过上限" : ""}</p>
       {confirmClose && changed && <p className="skill-editor-warning" role="alert">有未保存的修改；再次关闭将丢弃。</p>}

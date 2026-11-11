@@ -79,17 +79,17 @@ export function CreateSkillDialog(props: Props) {
       <p className="dialog-note">只会新建，不会覆盖已有技能。创建后仍需在输入区选择，才会作为上下文注入。</p>
       <p className="skill-editor-path">写入：<code>{root}/{id.trim() || "<id>"}/SKILL.md</code></p>
       <label>技能 id
-        <input value={id} onChange={event => setId(event.target.value)} placeholder="例如 candidate-screen" spellCheck={false} autoComplete="off" />
+        <input value={id} disabled={saving} onChange={event => { setId(event.target.value); setConfirmClose(false); }} placeholder="例如 candidate-screen" spellCheck={false} autoComplete="off" />
       </label>
       <p className="skill-editor-hint">{id && !idValid ? "id 只能包含小写字母、数字、下划线与连字符，且不超过 64 字符。" : "小写字母、数字、下划线与连字符；创建后目录名即为此 id。"}</p>
       <label>名称（可选）
-        <input value={name} onChange={event => setName(event.target.value)} placeholder="默认与 id 相同" />
+        <input value={name} disabled={saving} onChange={event => { setName(event.target.value); setConfirmClose(false); }} placeholder="默认与 id 相同" />
       </label>
       <label>描述（可选）
-        <input value={description} onChange={event => setDescription(event.target.value)} placeholder="一句话说明适用场景" />
+        <input value={description} disabled={saving} onChange={event => { setDescription(event.target.value); setConfirmClose(false); }} placeholder="一句话说明适用场景" />
       </label>
       <label>技能正文
-        <textarea value={body} onChange={event => setBody(event.target.value)} placeholder="说明这个技能在什么情况下使用、需要遵循哪些步骤。" spellCheck={false} />
+        <textarea value={body} disabled={saving} onChange={event => { setBody(event.target.value); setConfirmClose(false); }} placeholder="说明这个技能在什么情况下使用、需要遵循哪些步骤。" spellCheck={false} />
       </label>
       <p className={"skill-editor-count" + (overLimit ? " is-over" : "")}>{bytes.toLocaleString("zh-CN")} / {LIMIT_BYTES.toLocaleString("zh-CN")} 字节{overLimit ? "，已超过上限" : ""}</p>
       {confirmClose && dirty && <p className="skill-editor-warning" role="alert">有未保存的修改；再次关闭将丢弃。</p>}
