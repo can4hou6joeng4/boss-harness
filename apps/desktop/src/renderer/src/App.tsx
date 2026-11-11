@@ -34,6 +34,7 @@ import { HarnessReplica } from "./data/harnessReplica";
 import { queueItemsOf, queueSubmissionLookup, type QueuePage } from "./data/queueMapping";
 import { patchQueueBadge, queueBadgeOf } from "./data/queueBadge";
 import { queueItemRetryable } from "./data/queueRetry";
+import { createQueueReadGuard } from "./data/queueReadGuard";
 import { queueRetryLocalItems, queueRetryRejection, type QueueActionOutcome } from "./data/queueAction";
 import type { QueueRefreshResult } from "./data/queueRefresh";
 import { reduceModelRetry, settleModelRetryOnTurnEnd, type ModelRetryStatus } from "./data/modelRetry";
@@ -115,6 +116,8 @@ export function App(): JSX.Element {
   const runningRef = useRef(new Set<string>());
   const replicaRef = useRef<HarnessReplica | null>(null);
   const turnIds = useRef(new Map<string, string>());
+  // 队列读取只允许最新一次写入面板；本地已提交的变更会让此前发出的读取失效。
+  const queueReads = useRef(createQueueReadGuard());
   const lifecycleVersion = useRef(0);
   const startingRef = useRef(false);
   const [startingSession, setStartingSession] = useState(false);
@@ -241,13 +244,17 @@ export function App(): JSX.Element {
       }
       if (!id) return;
       if (["queue/updated", "turn/steeringApplied", "turn/started", "turn/completed"].includes(event.method)) {
+        const read = queueReads.current.issue(id);
         void listQueue(id).then(page => {
-          // 徽标对任何会话都更新；队列面板只属于当前会话。
-          applyQueueBadge(page, id);
-          if (activeRef.current?.id === id) applyQueuePage(page);
+          // 徽标对任何会话都更新；队列面板只属于当前会话。并发通知只允许最新一次读取写入：
+          // 较早发出的读取若后到，会回退刚撤回 / 刚编辑的条目。
+          read.commit(() => {
+            applyQueueBadge(page, id);
+            if (activeRef.current?.id === id) applyQueuePage(page);
+          });
         }).catch(cause => {
           // 内核报告队列变化但读取失败：保留面板旧内容，明确提示可能已过期；不自动重试。
-          if (activeRef.current?.id === id) setError(`队列更新读取失败：${harnessErrorText(cause)}。队列面板保留上一次内容，可能已过期。`);
+          if (read.isCurrent() && activeRef.current?.id === id) setError(`队列更新读取失败：${harnessErrorText(cause)}。队列面板保留上一次内容，可能已过期。`);
         });
       }
       if (["thread/created", "thread/archived", "thread/unarchived", "thread/renamed", "thread/model/updated"].includes(event.method)) { void refresh(); return; }
@@ -299,6 +306,8 @@ export function App(): JSX.Element {
       const id = snapshot.thread.id;
       if (activeRef.current?.id === id) {
         // resume 快照与 queue/list 共用同一份校验：畸形条目不能直接进入渲染状态。
+        // 快照比此前发出的队列读取更新：让它们全部失效，避免旧响应覆盖。
+        queueReads.current.invalidate(id);
         setQueueItems(queueItemsOf(snapshot.queue) ?? []);
         setQueueMeta({
           totalItems: typeof snapshot.queueTotalItems === "number" ? snapshot.queueTotalItems : undefined,
@@ -709,26 +718,35 @@ export function App(): JSX.Element {
         return false;
       }
       const item = await steerTurn({ threadId: session.id, expectedTurnId, input: text, clientUserMessageId });
-      if (activeRef.current?.id === session.id) setQueueItems(previous => [...previous.filter(existing => existing.id !== item.id), item]);
+      if (activeRef.current?.id === session.id) {
+        queueReads.current.invalidate(session.id);
+        setQueueItems(previous => [...previous.filter(existing => existing.id !== item.id), item]);
+      }
       return true;
     }
     // 后续回合与直接发送共享同一个待应用覆盖；转向消息不支持该覆盖。
     const policy = autoCompaction.take(session.id);
     const item = await queueFollowUp({ threadId: session.id, input: text, clientUserMessageId, skillIds,
       ...(policy ? { autoCompaction: policy } : {}) });
-    if (activeRef.current?.id === session.id) setQueueItems(previous => [...previous.filter(existing => existing.id !== item.id), item]);
+    if (activeRef.current?.id === session.id) {
+      queueReads.current.invalidate(session.id);
+      setQueueItems(previous => [...previous.filter(existing => existing.id !== item.id), item]);
+    }
     return true;
   }, [harnessUp, autoCompaction.take]);
   const handleCheckQueueSubmission = useCallback(async (clientUserMessageId: string): Promise<QueueSubmissionCheck> => {
     const session = activeRef.current;
     if (!session || session.projectId !== HARNESS_PROJECT_ID || !harnessUp) return { status: "unavailable" };
     let page: QueuePage;
+    const read = queueReads.current.issue(session.id);
     try {
       page = await listQueue(session.id);
     } catch (cause) {
       return { status: "unavailable", reason: harnessErrorText(cause) };
     }
-    if (activeRef.current?.id === session.id) applyQueuePage(page, session.id);
+    read.commit(() => {
+      if (activeRef.current?.id === session.id) applyQueuePage(page, session.id);
+    });
     // 有界投影未命中不能证明消息不在队列；截断时交给界面按「无法确认」处理。
     return queueSubmissionLookup(page, clientUserMessageId);
   }, [applyQueuePage, harnessUp]);
@@ -770,14 +788,19 @@ export function App(): JSX.Element {
     }
     let page: QueuePage | null = null;
     let refreshFailure: unknown = null;
+    const read = queueReads.current.issue(session.id);
     try {
       page = await listQueue(session.id);
     } catch (cause) {
       refreshFailure = cause;
     }
     if (activeRef.current?.id === session.id) {
-      if (page) applyQueuePage(page, session.id);
-      else setQueueItems(previous => queueRetryLocalItems(previous, item.id, created, removed));
+      if (page) {
+        read.commit(() => applyQueuePage(page, session.id));
+      } else {
+        // 刷新失败时按本地结果收敛；若已有更新的读取在途，交给它写入，避免回退。
+        read.commit(() => setQueueItems(previous => queueRetryLocalItems(previous, item.id, created, removed)));
+      }
       const notices: string[] = [];
       if (refreshFailure) {
         // 新请求已受理；刷新失败时按本地结果更新并说明其余条目可能过期，不回滚这次重新排队。
@@ -794,16 +817,20 @@ export function App(): JSX.Element {
     if (!harnessUp) return { status: "skipped", reason: "本机内核未连接" };
     try {
       const item = await removeQueuedItem(session.id, queueId);
-      if (activeRef.current?.id === session.id) setQueueItems(previous => previous.map(existing => existing.id === item.id ? item : existing));
+      if (activeRef.current?.id === session.id) {
+        queueReads.current.invalidate(session.id);
+        setQueueItems(previous => previous.map(existing => existing.id === item.id ? item : existing));
+      }
       return { status: "done" };
     } catch (cause) {
       if (activeRef.current?.id !== session.id) return { status: "uncertain" };
       // 撤回是否生效未知；能读到队列就按内核状态收敛，读不到则说明两条原因并提示面板可能过期。
       let page: QueuePage | null = null;
       let rereadFailure: unknown = null;
+      const read = queueReads.current.issue(session.id);
       try { page = await listQueue(session.id); } catch (verify) { rereadFailure = verify; }
       if (activeRef.current?.id !== session.id) return { status: "uncertain" };
-      if (page) applyQueuePage(page, session.id);
+      if (page) read.commit(() => applyQueuePage(page, session.id));
       setError(page
         ? `撤回结果尚未确认（${harnessErrorText(cause)}），已重新读取队列；不会自动重复撤回。`
         : unconfirmedFailure("撤回结果", cause, rereadFailure, "请稍后核对，不会自动重复撤回。"));
@@ -815,8 +842,11 @@ export function App(): JSX.Element {
     if (!session || session.projectId !== HARNESS_PROJECT_ID) return { ok: false, message: "当前会话不连接本机内核" };
     if (!harnessUp) return { ok: false, message: "本机内核未连接" };
     try {
+      const read = queueReads.current.issue(session.id);
       const page = await listQueue(session.id);
-      if (activeRef.current?.id === session.id) applyQueuePage(page, session.id);
+      read.commit(() => {
+        if (activeRef.current?.id === session.id) applyQueuePage(page, session.id);
+      });
       return { ok: true };
     } catch (cause) {
       // 读不到内核状态时保留面板旧内容，由面板显示原因。
@@ -835,7 +865,10 @@ export function App(): JSX.Element {
     if (!session || session.projectId !== HARNESS_PROJECT_ID) throw new Error("当前会话不连接本机内核");
     if (!harnessUp) throw new Error("本机内核未连接");
     const updated = await updateQueuedItem(session.id, item.id, input);
-    if (activeRef.current?.id === session.id) setQueueItems(previous => previous.map(existing => existing.id === updated.id ? updated : existing));
+    if (activeRef.current?.id === session.id) {
+      queueReads.current.invalidate(session.id);
+      setQueueItems(previous => previous.map(existing => existing.id === updated.id ? updated : existing));
+    }
     return updated;
   }, [harnessUp]);
   const handleInterrupt = useCallback(() => {
