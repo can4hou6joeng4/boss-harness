@@ -147,6 +147,9 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
         // 摘要条目只用于标注，不影响分支列表与切换；但界面不能把「读不到」显示成「没有摘要」。
         summaryError = `摘要标记未能读取：${rpcDetail(error).text}。分支端点和切换不受影响。`;
       }
+      // 摘要读取失败时同样要检查版本：读完两个列表后可能已有更新的刷新写入状态，
+      // 这里再写会把旧 leaf / 端点覆盖回去，还会清掉新写入的错误与摘要提示。
+      if (!valid()) return;
       pollFailures.current.delete(id);
       update(id, state => ({ ...state, loading: false, loaded: true, error: "", branched: head?.branched ?? false,
         leafTurnId: head?.leafTurnId ?? null, turnCount: head?.turnCount ?? 0, endpoints: endpointPage.items,
