@@ -43,9 +43,11 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
   const [refreshing, setRefreshing] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ item: QueueItem; input: string } | null>(null);
-  const [editing, setEditing] = useState<{ item: QueueItem; draft: string } | null>(null);
+  // 列表刷新会把条目换成截断预览；编辑基线必须保留最初读取的完整正文。
+  const [editing, setEditing] = useState<{ item: QueueItem; draft: string; originalInput: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
+  const [confirmEditClose, setConfirmEditClose] = useState(false);
   // 折叠状态优先显示暂停项；展开后渲染内核已载入的全部条目。
   const [showAll, setShowAll] = useState(false);
   const clipboard = useClipboardCopy();
@@ -57,6 +59,7 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
     setEditing(current => syncQueueDialogItem(current, items));
   }, [items]);
   if (!items.length) return null;
+  const editChanged = editing !== null && editing.draft !== editing.originalInput;
   const refresh = async () => {
     if (!onRefresh || refreshing) return;
     setRefreshing(true); setError("");
@@ -85,8 +88,8 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
   };
   const startEditing = async (item: QueueItem) => {
     if (!onUpdateInput || reading || saving || item.status !== "queued") return;
-    setError(""); setEditError("");
-    if (!item.inputTruncated) { setEditing({ item, draft: item.input }); return; }
+    setError(""); setEditError(""); setConfirmEditClose(false);
+    if (!item.inputTruncated) { setEditing({ item, draft: item.input, originalInput: item.input }); return; }
     if (!onReadFull) { setError("列表只显示截断预览，当前无法读取完整正文进行编辑。"); return; }
     // 截断项必须先用 queue/get 取回全文，绝不能把 600 字符预览当成正文保存。
     setReading(item.id);
@@ -94,12 +97,21 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
       const full = await onReadFull(item);
       // 读取期间条目可能已被投递或撤回：此时打开编辑框只会得到一次必然失败的保存。
       if (full.status !== "queued") { setError(`这条消息${queueStatusLabel(full)}，已无法编辑。`); return; }
-      setEditing({ item: full, draft: full.input });
+      setEditing({ item: full, draft: full.input, originalInput: full.input });
     } catch (cause) {
       setError(`读取完整输入失败：${harnessErrorText(cause)}。未进入编辑，预览保持不变。`);
     } finally {
       setReading(null);
     }
+  };
+  // 取消、关闭按钮、Esc 与遮罩共享同一入口；继续编辑后旧的丢弃确认失效。
+  const closeEdit = () => {
+    if (saving) return;
+    if (editChanged && !confirmEditClose) {
+      setConfirmEditClose(true);
+      return;
+    }
+    setEditing(null); setEditError(""); setConfirmEditClose(false);
   };
   const saveEdit = async () => {
     if (!editing || !onUpdateInput || saving) return;
@@ -109,8 +121,8 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
       return;
     }
     if (!editing.draft.trim()) { setEditError("正文不能为空。"); return; }
-    if (editing.draft === editing.item.input) { setEditing(null); setEditError(""); return; }
-    setSaving(true); setEditError("");
+    if (!editChanged) { setEditing(null); setEditError(""); return; }
+    setSaving(true); setEditError(""); setConfirmEditClose(false);
     try {
       await onUpdateInput(editing.item, editing.draft);
       setEditing(null);
@@ -212,20 +224,21 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
     {viewing && <QueueInputDialog item={viewing.item} input={viewing.input} skillLabels={viewingSkillLabels}
       retryAvailable={canRetry(viewing.item)} copyFeedback={copyFeedback}
       onCopy={() => { void clipboard.copy(viewing.input, viewing.item.id); }} onClose={() => setViewing(null)} />}
-    {editing && <ModalSurface title="编辑排队消息" onClose={() => { if (!saving) { setEditing(null); setEditError(""); } }}>
+    {editing && <ModalSurface title="编辑排队消息" onClose={closeEdit} closeDisabled={saving}>
       <div className="dialog-form queue-input-dialog">
         <p className="dialog-note">{editing.item.kind === "steering" ? "当前回合" : "后续回合"} · {editingQueued
           ? "只修改正文；技能与自动压缩覆盖保持不变，保存后仍需等待投递。"
           : `这条消息${queueStatusLabel(editing.item)}，修改无法保存；可复制正文后关闭。`}</p>
         <textarea className="queue-input-editor" aria-label="排队消息正文" rows={10} maxLength={100000} disabled={saving}
-          value={editing.draft} onChange={event => setEditing(current => current ? { ...current, draft: event.target.value } : current)} />
+          value={editing.draft} onChange={event => { setEditing(current => current ? { ...current, draft: event.target.value } : current); setConfirmEditClose(false); }} />
         <div className="queue-input-editor-meta"><span>{editing.draft.length} / 100000 字符</span>
           <span className={!editingQueued || !editing.draft.trim() ? "is-warning" : ""}>{!editingQueued ? "修改无法保存"
             : editing.draft.trim() ? "保存后投递的是这段正文" : "正文不能为空"}</span></div>
+        {confirmEditClose && editChanged && <p className="queue-input-edit-error" role="alert">有未保存的修改；再次关闭将丢弃。</p>}
         {editError && <p className="queue-input-edit-error" role="alert">{editError}</p>}
         <div className="dialog-actions">
-          <button className="secondary-button" disabled={saving} onClick={() => { setEditing(null); setEditError(""); }}>取消</button>
-          <button className="solid-button" disabled={saving || !editingQueued || !editing.draft.trim() || editing.draft === editing.item.input}
+          <button className="secondary-button" disabled={saving} onClick={closeEdit}>取消</button>
+          <button className="solid-button" disabled={saving || !editingQueued || !editing.draft.trim() || !editChanged}
             onClick={() => { void saveEdit(); }}>{saving ? "保存中…" : "保存"}</button>
         </div>
       </div>
