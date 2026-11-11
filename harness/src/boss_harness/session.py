@@ -1019,11 +1019,23 @@ class SessionStore:
                     temporary = candidate_path
                     with os.fdopen(descriptor, "wb") as target:
                         last_byte = b""
+                        copied = 0
+                        complete_end = 0
                         while chunk := source.read(1024 * 1024):
                             target.write(chunk)
+                            copied += len(chunk)
+                            boundary = chunk.rfind(b"\n")
+                            if boundary >= 0:
+                                complete_end = copied - len(chunk) + boundary + 1
                             last_byte = chunk[-1:]
                         if last_byte and last_byte != b"\n":
-                            target.write(b"\n")
+                            # 崩溃可能留下没有换行的半条记录；补换行会把它固化成一条
+                            # 非法行，之后每次读取都会失败。与 `_append_line` 一样只保留
+                            # 最后一个完整记录边界；找不到边界时拒绝发布候选文件。
+                            if not complete_end:
+                                raise ValueError("会话日志末尾缺少完整记录边界")
+                            target.truncate(complete_end)
+                            target.seek(complete_end)
                         target.write(encoded)
                         target.flush()
                         os.fchown(target.fileno(), -1, original.st_gid)
