@@ -1737,7 +1737,7 @@ class ApplicationService:
     def _launch_branch_summary(self, job: dict) -> dict:
         worker = job["worker"]
         try:
-            self.events.emit("context/compactionStarted", self._compaction_public(job))
+            self._emit_committed("context/compactionStarted", self._compaction_public(job))
             with self.runtimes.lock:
                 cancelled_before_start = self.runtimes.closed or job["cancel"].is_set()
                 if cancelled_before_start:
@@ -2388,7 +2388,7 @@ class ApplicationService:
             self._compaction_jobs[job_id] = job
             self._compaction_by_thread[thread_id] = job_id
         try:
-            self.events.emit("context/compactionStarted", self._compaction_public(job))
+            self._emit_committed("context/compactionStarted", self._compaction_public(job))
             with self.runtimes.lock:
                 if self.runtimes.closed or job["cancel"].is_set():
                     job.update(status="cancelled", code="COMPACTION_CANCELLED", message="摘要已取消")
@@ -2568,7 +2568,7 @@ class ApplicationService:
             summary, offset = assistant.text().strip(), fragment.end
             with self.runtimes.lock:
                 job["processedCharacters"] = offset
-            self.events.emit("context/compactionProgress", self._compaction_public(job))
+            self._emit_committed("context/compactionProgress", self._compaction_public(job))
             if offset == len(source):
                 break
         else:
@@ -2767,7 +2767,7 @@ class ApplicationService:
                     if callable(stop):
                         stop()
                 runner.context_abort = abort
-            self.events.emit("context/compactionStarted", self._compaction_public(job))
+            self._emit_committed("context/compactionStarted", self._compaction_public(job))
             summary, planner = self._generate_compaction(job, source)
             with self.runtimes.lock:
                 owned()
