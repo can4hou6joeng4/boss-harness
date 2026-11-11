@@ -104,7 +104,18 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   const composerDraft = draft ?? localDraft;
   const updateDraft = onDraftChange ?? setLocalDraft;
   const inputText = composerDraft.text;
-  const setInputText = (text: string) => updateDraft(previous => withDraftText(previous, text));
+  const [pendingMessageEdit, setPendingMessageEdit] = useState<{
+    content: string; draftId: string; textVersion: number; threadId: string | undefined;
+  } | null>(null);
+  const currentMessageEdit = pendingMessageEdit?.draftId === composerDraft.id
+    && pendingMessageEdit.textVersion === composerDraft.textVersion && pendingMessageEdit.threadId === threadId
+    ? pendingMessageEdit : null;
+  const setInputText = (text: string) => {
+    setPendingMessageEdit(null);
+    updateDraft(previous => withDraftText(previous, text));
+  };
+  // 正文被键入、历史调取或引用等入口改动后，旧的替换确认不能继续生效。
+  useEffect(() => { setPendingMessageEdit(null); }, [threadId, composerDraft.id, composerDraft.textVersion]);
   // 上下键调取的用户输入；会话切换时组件重新挂载，历史随当前会话重置。
   const recallHistory = useMemo(() => recallablePrompts(messages), [messages]);
   const currentContinuationCheck = continuationCheck?.threadId === threadId ? continuationCheck : null;
@@ -307,6 +318,25 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const requestMessageEdit = (content: string) => {
+    const existing = inputText.trim();
+    if (existing && existing !== content.trim()) {
+      setPendingMessageEdit({ content, draftId: composerDraft.id, textVersion: composerDraft.textVersion, threadId });
+      return;
+    }
+    setInputText(content);
+    textareaRef.current?.focus();
+  };
+  const resolveMessageEdit = (replace: boolean) => {
+    const pending = currentMessageEdit;
+    setPendingMessageEdit(null);
+    if (replace && pending) {
+      // 更新时再次核对版本，防止两次渲染之间的新输入被旧确认覆盖。
+      updateDraft(previous => previous.id === pending.draftId && previous.textVersion === pending.textVersion
+        ? withDraftText(previous, pending.content) : previous);
+    }
+    textareaRef.current?.focus();
+  };
   const findInputRef = useRef<HTMLInputElement>(null);
   // 查找栏打开或再次按 ⌘F 时聚焦输入框并全选关键词：焦点被点到别处后也能直接继续查找。
   // 只跟随打开状态与请求计数，输入过程中的每次按键不会重新全选、打断打字。
@@ -566,7 +596,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
                       className="user-msg-action-btn"
                       type="button"
                       title="编辑消息"
-                      onClick={() => setInputText(item.content || "")}
+                      onClick={() => requestMessageEdit(item.content || "")}
                     >
                       <IconEdit size={12} />
                     </button>
@@ -996,6 +1026,11 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
           {archived && <div className="composer-notice archived-notice" role="status">此聊天已归档，可查看历史；在侧栏「已归档」中恢复后可继续对话。</div>}
           {loginGuide}
           {approvalError && <div className="composer-notice" role="alert">{approvalError}</div>}
+          {currentMessageEdit && <div className="message-edit-confirm" role="alert" data-message-edit-confirm>
+            <span>编辑此消息将替换当前未发送的正文；附件与已选技能保留。</span>
+            <button type="button" onClick={() => resolveMessageEdit(true)}>替换</button>
+            <button type="button" onClick={() => resolveMessageEdit(false)}>取消</button>
+          </div>}
           <div className="thread-composer-input"><Composer ref={textareaRef} value={inputText} onChange={setInputText} onSend={onSendMessage} onQueue={simulateLocal ? undefined : onQueueMessage} onCheckQueueSubmission={simulateLocal ? undefined : onCheckQueueSubmission} draft={composerDraft} onDraftChange={updateDraft} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={onRefreshSkills} skillProblems={skillProblems} history={recallHistory}
             readOnly={readOnly} archived={archived} isRunning={running} blocked={taskBlocked} onInterrupt={onInterrupt} preview={simulateLocal}
             currentMode={currentMode} onModeChange={onModeChange} models={models} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel}
