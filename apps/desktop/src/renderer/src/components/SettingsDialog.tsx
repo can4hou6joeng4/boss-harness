@@ -152,13 +152,22 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   const [testBusy, setTestBusy] = useState(false);
   const [compaction, setCompaction] = useState<CompactionSettingDraft | null>(null);
   const [compactionSource, setCompactionSource] = useState<AutoCompactionSource | undefined>();
-  const [compactionBusy, setCompactionBusy] = useState(false);
-  // 只表示正在提交保存：读取中的 busy 不应锁住关闭与分区切换（切换会取消旧读取）。
+  const [compactionReading, setCompactionReading] = useState(false);
+  // 读取取消不能解除保存锁；两种在途请求分别维护忙碌状态。
   const [compactionSaving, setCompactionSaving] = useState(false);
+  const compactionBusy = compactionReading || compactionSaving;
+  const [compactionCurrent, setCompactionCurrent] = useState(false);
+  const [compactionReload, setCompactionReload] = useState(0);
   const [compactionError, setCompactionError] = useState("");
+  const [compactionNotice, setCompactionNotice] = useState("");
   const [compactionSaved, setCompactionSaved] = useState(false);
-  // 最后一次成功读取 / 保存的内核值；与草稿比较判断是否存在未保存修改。
+  // 最后一次成功读取 / 保存的内核值；重连和读取失败不会消除未保存状态。
   const [compactionBaseline, setCompactionBaseline] = useState<CompactionSettingDraft | null>(null);
+  const compactionDirty = !sameCompactionDraft(compaction, compactionBaseline);
+  const compactionSnapshot = useRef({ draft: compaction, baseline: compactionBaseline });
+  compactionSnapshot.current = { draft: compaction, baseline: compactionBaseline };
+  // 连接或设置分区变化后，旧读取 / 保存回执不能改写新一轮草稿和基线。
+  const compactionGeneration = useRef(0);
   // 未保存时关闭或切换分区要先确认：记录被拦下的动作，再次触发才执行。
   const [draftGuard, setDraftGuard] = useState<
     { kind: "close" } | { kind: "shortcuts" } | { kind: "section"; next: SettingsSection } | null
@@ -195,8 +204,10 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
       setDraftGuard(null);
       setCompaction(null);
       setCompactionBaseline(null);
-      setCompactionBusy(false);
+      setCompactionReading(false);
+      setCompactionCurrent(false);
       setCompactionError("");
+      setCompactionNotice("");
       setCompactionSaved(false);
     }
   }, [isOpen, initialSection]);
@@ -213,43 +224,36 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // 每次进入「上下文」分区都重读内核；未保存的草稿不跨越分区保留，避免与磁盘值悄悄分叉。
+  // 进入分区和重连时刷新权威值；仅没有未保存修改时才同步替换表单。
   useEffect(() => {
-    if (!isOpen || section !== "context" || !harnessUp) return;
-    let cancelled = false;
-    // 旧值不能在新一轮读取期间继续以可编辑表单显示：否则保存按钮误标成「保存中…」，
-    // 读取回执还会悄悄覆盖用户刚做的编辑。清空后走「正在读取自动压缩默认值…」分支。
-    setCompaction(null);
-    setCompactionBaseline(null);
-    setCompactionBusy(true);
-    setCompactionError("");
+    const generation = ++compactionGeneration.current;
+    setCompactionCurrent(false);
     setCompactionSaved(false);
+    if (!isOpen || section !== "context" || !harnessUp) return;
+    const snapshot = compactionSnapshot.current;
+    const keepDraft = !sameCompactionDraft(snapshot.draft, snapshot.baseline);
+    setCompactionReading(true);
+    setCompactionError("");
+    setCompactionNotice("");
+    setDraftGuard(null);
     readConfig().then(config => {
-      if (cancelled) return;
+      if (compactionGeneration.current !== generation) return;
       const draft = compactionDraft(config.autoCompaction);
-      // 与结果同一次渲染关掉读取态，避免表单出现一帧「保存中…」。
-      setCompactionBusy(false);
-      if (!draft) {
-        setCompaction(null);
-        setCompactionError("当前内核未返回可用的自动压缩默认值。");
-        return;
-      }
-      setCompaction(draft);
+      if (!draft) throw new Error("当前内核未返回可用的自动压缩默认值");
       setCompactionBaseline(draft);
+      if (keepDraft) setCompactionNotice("已重新读取内核默认值；你的未保存修改已保留，请核对后再保存。");
+      else setCompaction(draft);
       setCompactionSource(config.autoCompactionSource);
+      setCompactionCurrent(true);
     }).catch(cause => {
-      if (cancelled) return;
-      setCompactionBusy(false);
-      setCompaction(null);
-      setCompactionBaseline(null);
-      setCompactionError(`读取自动压缩默认值失败：${harnessErrorText(cause)}。`);
+      if (compactionGeneration.current !== generation) return;
+      // 保留草稿与最后一次有效基线；读取失败不能让未保存状态和关闭提示消失。
+      setCompactionError(`读取自动压缩默认值失败：${harnessErrorText(cause)}。请重新读取后再保存。`);
     }).finally(() => {
-      if (!cancelled) setCompactionBusy(false);
+      if (compactionGeneration.current === generation) setCompactionReading(false);
     });
-    // 读取被取消（关闭、换分区或重开时分区被重置）时回执不会再执行，必须在这里复位，
-    // 否则表单会永远停在「正在读取自动压缩默认值…」，导航也一直不可用。
-    return () => { cancelled = true; setCompactionBusy(false); };
-  }, [isOpen, section, harnessUp]);
+    return () => { compactionGeneration.current += 1; setCompactionReading(false); };
+  }, [isOpen, section, harnessUp, compactionReload]);
 
   // 每次进入「数据管理」分区都重读内核索引健康度；损坏文件可能在本进程运行期间才出现。
   useEffect(() => {
@@ -374,27 +378,36 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   };
 
   const saveCompaction = async (): Promise<void> => {
-    if (!compaction || compactionBusy) return;
+    if (!compaction || compactionBusy || !harnessUp || !compactionCurrent || !autoCompactionConfig
+        || compactionSource === "environment" || compactionSource === "explicit") return;
     const fields = compactionFields(compaction);
     if (!fields) {
       setCompactionError("触发阈值必须是 1 到 100 的整数百分比，近期保留目标必须是 1 到 1000000 的整数 token。");
       return;
     }
-    setCompactionBusy(true);
+    const generation = compactionGeneration.current;
     setCompactionSaving(true);
     setCompactionError("");
+    setCompactionNotice("");
     setCompactionSaved(false);
+    setDraftGuard(null);
     try {
       const response = await setAutoCompactionSettings(fields);
+      if (compactionGeneration.current !== generation) return;
       const saved = compactionDraft(response.autoCompaction);
-      if (saved) { setCompaction(saved); setCompactionBaseline(saved); }
+      if (!saved) {
+        setCompactionCurrent(false);
+        throw new Error("内核返回的保存结果无法识别，请重新读取当前默认值");
+      }
+      setCompaction(saved);
+      setCompactionBaseline(saved);
       setCompactionSource(response.autoCompactionSource);
       setCompactionSaved(true);
     } catch (cause) {
+      if (compactionGeneration.current !== generation) return;
       // 环境变量托管、配置文件不可写或断连时保留草稿，由用户决定是否重试。
       setCompactionError(`保存失败：${harnessErrorText(cause)}。设置未确认，草稿仍保留。`);
     } finally {
-      setCompactionBusy(false);
       setCompactionSaving(false);
     }
   };
@@ -458,7 +471,6 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
 
   // 未保存修改时关闭与切换分区共用同一守卫：第一次拦下并提示，再次触发才丢弃。
   // 保存期间两种动作都不可用，避免在途回执与当前界面脱节。
-  const compactionDirty = !sameCompactionDraft(compaction, compactionBaseline);
   const requestClose = (): void => {
     if (compactionSaving) return;
     if (compactionDirty && draftGuard?.kind !== "close") { setDraftGuard({ kind: "close" }); return; }
@@ -494,6 +506,9 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   if (!isOpen) return null;
   const currentSection = SECTIONS.find((item) => item.id === section)!;
   const compactionEditable = autoCompactionConfig && compactionSource !== "environment" && compactionSource !== "explicit";
+  // 能力在断连时会暂时清空；仍展示未保存输入，禁用提交并等待重新确认来源。
+  const showCompactionInputs = compactionEditable || compactionDirty;
+  const compactionFieldsDisabled = compactionBusy || !harnessUp || !compactionEditable;
 
   return createPortal(
     <div className="settings-backdrop" ref={backdropRef} onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
@@ -543,50 +558,53 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
             {section === "context" && (
               <>
                 <p className="settings-intro">设置自动压缩的内核默认值。单个回合仍可在会话上下文面板临时覆盖，发送后恢复这里的默认值。</p>
-                {!harnessUp ? (
-                  <div className="settings-note"><IconTerminal size={17} /><div><h3>本机内核未连接</h3><p>连接后可以读取并保存自动压缩默认策略。</p></div></div>
-                ) : compactionBusy && !compaction ? (
-                  <p className="settings-intro">正在读取自动压缩默认值…</p>
-                ) : !compaction ? (
-                  <div className="settings-note"><IconTerminal size={17} /><div><h3>无法读取自动压缩设置</h3><p>{compactionError || "当前内核未返回可用的自动压缩默认值。"}</p></div></div>
+                {!harnessUp && <div className="settings-note"><IconTerminal size={17} /><div><h3>本机内核未连接</h3><p>连接后可以读取并保存自动压缩默认策略；未保存的修改仍保留在下方。</p></div></div>}
+                {!compaction ? (
+                  compactionReading ? <p className="settings-intro">正在读取自动压缩默认值…</p>
+                    : harnessUp && <p className="settings-intro">当前内核未返回可用的自动压缩默认值。</p>
                 ) : (
                   <>
-                    {/* 保存期间锁住表单：回执会写回内核确认值，此刻的编辑会被静默覆盖。 */}
+                    {/* 读取和保存期间锁住表单；断连时仍展示尚未保存的输入。 */}
                     <SettingRow title="自动压缩" description="接近上下文预算上限时自动生成摘要；关闭后只保留手动压缩">
-                      {compactionEditable
-                        ? <Switch label="自动压缩" checked={compaction.enabled} disabled={compactionBusy} onChange={() => editCompaction({ enabled: !compaction.enabled })} />
+                      {showCompactionInputs
+                        ? <Switch label="自动压缩" checked={compaction.enabled} disabled={compactionFieldsDisabled} onChange={() => editCompaction({ enabled: !compaction.enabled })} />
                         : <span className="settings-static-value">{compaction.enabled ? "已启用" : "已关闭"}</span>}
                     </SettingRow>
                     <SettingRow title="触发阈值" description="输入预算使用达到该百分比时开始自动压缩">
-                      {compactionEditable
-                        ? <><input className="settings-number-input" type="number" min={1} max={100} step={1} aria-label="自动压缩触发阈值" disabled={compactionBusy}
+                      {showCompactionInputs
+                        ? <><input className="settings-number-input" type="number" min={1} max={100} step={1} aria-label="自动压缩触发阈值" disabled={compactionFieldsDisabled}
                           value={compaction.triggerPercent} onChange={event => editCompaction({ triggerPercent: event.target.value })} /><span className="settings-number-suffix">%</span></>
                         : <span className="settings-static-value">{compaction.triggerPercent}%</span>}
                     </SettingRow>
                     <SettingRow title="近期保留目标" description="压缩时尽量保留的近期 token 数">
-                      {compactionEditable
-                        ? <><input className="settings-number-input" type="number" min={1} max={1000000} step={1000} aria-label="自动压缩近期保留 token" disabled={compactionBusy}
+                      {showCompactionInputs
+                        ? <><input className="settings-number-input" type="number" min={1} max={1000000} step={1000} aria-label="自动压缩近期保留 token" disabled={compactionFieldsDisabled}
                           value={compaction.keepRecentTokens} onChange={event => editCompaction({ keepRecentTokens: event.target.value })} /><span className="settings-number-suffix">token</span></>
                         : <span className="settings-static-value">{compaction.keepRecentTokens} token</span>}
                     </SettingRow>
                     <SettingRow title="策略来源" description="环境变量显式设置时优先生效，界面不会覆盖它"><span className="settings-static-value">{compactionSourceLabel(compactionSource)}</span></SettingRow>
-                    {compactionEditable && <div className="settings-policy-actions"><button type="button" className="settings-button" disabled={compactionBusy}
-                      onClick={() => { void saveCompaction(); }}>{compactionBusy ? "保存中…" : "保存默认策略"}</button></div>}
-                    {!compactionEditable && <p className="settings-policy-status">{compactionSource === "environment"
+                    {showCompactionInputs && <div className="settings-policy-actions"><button type="button" className="settings-button" disabled={compactionFieldsDisabled || !compactionCurrent}
+                      onClick={() => { void saveCompaction(); }}>{compactionSaving ? "保存中…" : "保存默认策略"}</button></div>}
+                    {harnessUp && !compactionEditable && <p className="settings-policy-status">{compactionSource === "environment"
                       ? "该策略由环境变量管理；修改 BOSS_HARNESS_COMPACTION 并重启内核后才能在此编辑。"
                       : compactionSource === "explicit"
                         ? "该策略由当前内核调用方显式指定，不能写入配置文件。"
                         : "当前内核不支持在界面保存默认策略；可继续使用单回合覆盖。"}</p>}
-                    {compactionError && <p className="settings-policy-status is-error" role="alert">{compactionError}</p>}
-                    {compactionSaved && <p className="settings-policy-status is-saved" role="status">已保存到本机内核配置，立即生效。</p>}
-                    {compactionDirty && <p className="settings-policy-status" role="status" data-settings-draft-dirty>有未保存的自动压缩默认值；关闭或切换分区前会先确认。</p>}
-                    {draftGuard && compactionDirty && <p className="settings-policy-status is-error" role="alert" data-settings-draft-guard>
-                      {draftGuard.kind === "close" ? "有未保存的自动压缩默认值；再次关闭将丢弃。"
-                        : draftGuard.kind === "shortcuts" ? "有未保存的自动压缩默认值；再次点击将丢弃修改并打开快捷键。"
-                        : `有未保存的自动压缩默认值；再次点击将丢弃修改并切换到「${SECTIONS.find(item => item.id === draftGuard.next)?.title ?? draftGuard.next}」。`}
-                    </p>}
+                    {!compactionCurrent && <p className="settings-policy-status" role="status">当前默认值尚未确认；表单内容已保留，重新读取成功后才能保存。</p>}
                   </>
                 )}
+                {compactionReading && compaction && <p className="settings-policy-status" role="status">正在重新读取内核默认值，表单内容已保留。</p>}
+                {compactionError && <p className="settings-policy-status is-error" role="alert">{compactionError}</p>}
+                {compactionNotice && <p className="settings-policy-status" role="status">{compactionNotice}</p>}
+                {harnessUp && !compactionCurrent && <div className="settings-policy-actions"><button type="button" className="settings-button" disabled={compactionBusy}
+                  onClick={() => setCompactionReload(previous => previous + 1)}>重新读取默认值</button></div>}
+                {compactionSaved && compactionCurrent && <p className="settings-policy-status is-saved" role="status">已保存到本机内核配置，立即生效。</p>}
+                {compactionDirty && <p className="settings-policy-status" role="status" data-settings-draft-dirty>有未保存的自动压缩默认值；关闭或切换分区前会先确认。</p>}
+                {draftGuard && compactionDirty && <p className="settings-policy-status is-error" role="alert" data-settings-draft-guard>
+                  {draftGuard.kind === "close" ? "有未保存的自动压缩默认值；再次关闭将丢弃。"
+                    : draftGuard.kind === "shortcuts" ? "有未保存的自动压缩默认值；再次点击将丢弃修改并打开快捷键。"
+                    : `有未保存的自动压缩默认值；再次点击将丢弃修改并切换到「${SECTIONS.find(item => item.id === draftGuard.next)?.title ?? draftGuard.next}」。`}
+                </p>}
               </>
             )}
 
