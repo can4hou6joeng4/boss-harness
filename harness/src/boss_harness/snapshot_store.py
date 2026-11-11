@@ -97,8 +97,12 @@ def _lines(source: BinaryIO, size: int):
         pending.extend(chunk[start:])
         if len(pending) > MAX_SNAPSHOT_RECORD_BYTES:
             raise ValueError("会话记录超过冻结快照读取上限")
-    if pending:
-        yield bytes(pending)
+    # 与 `_iter_bounded_raw_lines_from_handle` 采用同一记录边界约定：文件末尾没有换行的
+    # 那一段只可能来自中断的追加（进程在 os.write 与 fsync 之间退出或断电）。把残段当
+    # 记录解码会让整个快照构建失败，而普通读取正常，用户难以自查；这里丢弃，写入端会在
+    # 下次追加前截掉它。超限检查仍保留，避免残段绕过单条记录的大小上限。
+    if len(pending) > MAX_SNAPSHOT_RECORD_BYTES:
+        raise ValueError("会话记录超过冻结快照读取上限")
 
 
 class SnapshotBuilder:
