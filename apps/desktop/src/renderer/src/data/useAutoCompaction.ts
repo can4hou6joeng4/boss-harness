@@ -28,6 +28,8 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
   const overrideRef = useRef<PendingOverride | null>(null);
   const lastThread = useRef<string | null>(null);
   const seededFor = useRef<string | null>(null);
+  // 每次用户改动草稿都递增；读取默认值的回执只在不晚于读取起点时才能覆盖草稿。
+  const editVersion = useRef(0);
   const [draft, setDraft] = useState<AutoCompactionDraft>(DEFAULT_AUTO_COMPACTION_DRAFT);
   const [reading, setReading] = useState(false);
   const [error, setError] = useState("");
@@ -48,6 +50,7 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
   useEffect(() => {
     if (!open || !connected || !threadId) return;
     let cancelled = false;
+    const versionAtStart = editVersion.current;
     setReading(true);
     readConfig().then(config => {
       if (cancelled) return;
@@ -59,10 +62,13 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
       setDefaults(policy);
       setError("");
       // 首次读取才用默认值填充草稿；关闭再打开不覆盖用户尚未应用的编辑。
+      // 读取期间表单仍可编辑，回执晚于用户改动时保留草稿，只更新上方展示的内核默认值。
       if (seededFor.current !== threadId) {
-        const pending = overrideRef.current;
-        setDraft(pending && pending.threadId === threadId ? draftFrom(pending.policy) : draftFrom(policy));
         seededFor.current = threadId;
+        if (editVersion.current === versionAtStart) {
+          const pending = overrideRef.current;
+          setDraft(pending && pending.threadId === threadId ? draftFrom(pending.policy) : draftFrom(policy));
+        }
       }
     }).catch(cause => {
       // 默认值读取失败时用户仍可手动设置；保留断连、超时或内核错误码，才知道是重连还是改配置。
@@ -77,9 +83,9 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
   const valid = Number.isSafeInteger(trigger) && trigger >= 1 && trigger <= 100
     && Number.isSafeInteger(keep) && keep >= 1 && keep <= 1_000_000;
 
-  const setEnabled = useCallback((enabled: boolean) => setDraft(previous => ({ ...previous, enabled })), []);
-  const setTriggerPercent = useCallback((value: string) => setDraft(previous => ({ ...previous, triggerPercent: value })), []);
-  const setKeepRecentTokens = useCallback((value: string) => setDraft(previous => ({ ...previous, keepRecentTokens: value })), []);
+  const setEnabled = useCallback((enabled: boolean) => { editVersion.current += 1; setDraft(previous => ({ ...previous, enabled })); }, []);
+  const setTriggerPercent = useCallback((value: string) => { editVersion.current += 1; setDraft(previous => ({ ...previous, triggerPercent: value })); }, []);
+  const setKeepRecentTokens = useCallback((value: string) => { editVersion.current += 1; setDraft(previous => ({ ...previous, keepRecentTokens: value })); }, []);
 
   const apply = useCallback(() => {
     if (!threadId) return;
