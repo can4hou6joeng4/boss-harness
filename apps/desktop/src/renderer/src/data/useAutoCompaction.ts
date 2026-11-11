@@ -27,7 +27,8 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
   const [override, setOverride] = useState<PendingOverride | null>(null);
   const overrideRef = useRef<PendingOverride | null>(null);
   const lastThread = useRef<string | null>(null);
-  const seededFor = useRef<string | null>(null);
+  // 记录存在未应用手动改动的会话，避免关闭重开、读取失败后重试或重连时的回执覆盖草稿。
+  const dirtyFor = useRef<string | null>(null);
   // 每次用户改动草稿都递增；读取默认值的回执只在不晚于读取起点时才能覆盖草稿。
   const editVersion = useRef(0);
   const [draft, setDraft] = useState<AutoCompactionDraft>(DEFAULT_AUTO_COMPACTION_DRAFT);
@@ -40,13 +41,13 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
   useEffect(() => {
     if (lastThread.current === threadId) return;
     lastThread.current = threadId;
-    seededFor.current = null;
+    dirtyFor.current = null;
     const pending = overrideRef.current;
     setDraft(pending && pending.threadId === threadId ? draftFrom(pending.policy) : DEFAULT_AUTO_COMPACTION_DRAFT);
     setError("");
   }, [threadId]);
 
-  // 打开面板时读取一次内核默认值；不覆盖已应用的本会话覆盖草稿。
+  // 打开面板时读取最新内核默认值；只在没有未应用草稿且读取期间未编辑时才同步表单。
   useEffect(() => {
     if (!open || !connected || !threadId) return;
     let cancelled = false;
@@ -61,14 +62,10 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
       }
       setDefaults(policy);
       setError("");
-      // 首次读取才用默认值填充草稿；关闭再打开不覆盖用户尚未应用的编辑。
-      // 读取期间表单仍可编辑，回执晚于用户改动时保留草稿，只更新上方展示的内核默认值。
-      if (seededFor.current !== threadId) {
-        seededFor.current = threadId;
-        if (editVersion.current === versionAtStart) {
-          const pending = overrideRef.current;
-          setDraft(pending && pending.threadId === threadId ? draftFrom(pending.policy) : draftFrom(policy));
-        }
+      // 读取期间、失败后或关闭再打开期间的未应用编辑均保留；仅更新上方展示的内核默认值。
+      if (editVersion.current === versionAtStart && dirtyFor.current !== threadId) {
+        const pending = overrideRef.current;
+        setDraft(pending && pending.threadId === threadId ? draftFrom(pending.policy) : draftFrom(policy));
       }
     }).catch(cause => {
       // 默认值读取失败时用户仍可手动设置；保留断连、超时或内核错误码，才知道是重连还是改配置。
@@ -83,9 +80,14 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
   const valid = Number.isSafeInteger(trigger) && trigger >= 1 && trigger <= 100
     && Number.isSafeInteger(keep) && keep >= 1 && keep <= 1_000_000;
 
-  const setEnabled = useCallback((enabled: boolean) => { editVersion.current += 1; setDraft(previous => ({ ...previous, enabled })); }, []);
-  const setTriggerPercent = useCallback((value: string) => { editVersion.current += 1; setDraft(previous => ({ ...previous, triggerPercent: value })); }, []);
-  const setKeepRecentTokens = useCallback((value: string) => { editVersion.current += 1; setDraft(previous => ({ ...previous, keepRecentTokens: value })); }, []);
+  const markEdited = useCallback(() => {
+    editVersion.current += 1;
+    if (threadId) dirtyFor.current = threadId;
+  }, [threadId]);
+
+  const setEnabled = useCallback((enabled: boolean) => { markEdited(); setDraft(previous => ({ ...previous, enabled })); }, [markEdited]);
+  const setTriggerPercent = useCallback((value: string) => { markEdited(); setDraft(previous => ({ ...previous, triggerPercent: value })); }, [markEdited]);
+  const setKeepRecentTokens = useCallback((value: string) => { markEdited(); setDraft(previous => ({ ...previous, keepRecentTokens: value })); }, [markEdited]);
 
   const apply = useCallback(() => {
     if (!threadId) return;
@@ -99,16 +101,17 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
     }
     const next = { threadId, policy: { enabled: draft.enabled, triggerPercent: trigger, keepRecentTokens: keep } };
     overrideRef.current = next;
+    dirtyFor.current = null;
     setOverride(next);
     setError("");
   }, [threadId, draft.enabled, trigger, keep]);
 
   const clear = useCallback(() => {
     overrideRef.current = null;
+    dirtyFor.current = null;
     setOverride(null);
     setError("");
     // 内核默认值缺失时也复位，避免表单停留在已被清除的覆盖值上。
-    seededFor.current = null;
     setDraft(resetAutoCompactionDraft(defaults));
   }, [defaults]);
 
@@ -117,9 +120,9 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
     const pending = overrideRef.current;
     if (!pending || pending.threadId !== id) return undefined;
     overrideRef.current = null;
+    if (dirtyFor.current === id) dirtyFor.current = null;
     setOverride(null);
-    // 覆盖已随这次发送消耗：表单回到内核默认值，并清掉首次填充标记，下次打开时重新读取。
-    seededFor.current = null;
+    // 覆盖已随这次发送消耗：表单回到内核默认值，下次打开可继续同步最新默认值。
     setDraft(resetAutoCompactionDraft(defaults));
     return pending.policy;
   }, [defaults]);
