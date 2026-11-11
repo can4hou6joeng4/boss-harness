@@ -11,6 +11,7 @@ import hashlib
 import json
 
 from boss_harness.context import ContextBudgetExceeded, describe_request
+from boss_harness.item_content import wire_text
 from boss_harness.models.capabilities import ModelCapabilities
 from boss_harness.models.provider import ModelConfig
 from boss_harness.models.types import ModelRequest, UserMessage
@@ -49,9 +50,12 @@ class SummaryFragment:
 class SummaryPlanner:
     def __init__(self, source: str, config: ModelConfig, capabilities: ModelCapabilities,
                  *, system: str = SUMMARY_SYSTEM) -> None:
-        self.source, self.config, self.capabilities = source, config, capabilities
+        # 持久记录可能含孤立代理项（损坏记录、surrogateescape 路径或旧版本写入）。
+        # 与 RPC 展示和压缩材料同一约定降级为 U+FFFD：长度不变，片段偏移仍按原文计算，
+        # 否则摘要发送路径会在编码时抛出无法行动的内部错误。
+        self.source, self.config, self.capabilities = wire_text(source), config, capabilities
         self.system = system
-        self.source_digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
+        self.source_digest = hashlib.sha256(self.source.encode("utf-8")).hexdigest()
         # Summary output has its own reserve. Leave input space even on a small
         # model; this does not change the subsequent business turn's reserve.
         self.max_tokens = min(config.max_tokens, SUMMARY_MAX_TOKENS, capabilities.max_output_tokens,
