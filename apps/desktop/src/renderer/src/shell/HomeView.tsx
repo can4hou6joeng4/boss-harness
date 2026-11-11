@@ -16,6 +16,14 @@ interface Props {
   selectedProjectId: string; onSelectProject: (id: string) => void; onNewProject: () => void;
   folders: ProjectFolder[]; preview: boolean; harnessUp: boolean; blocked?: boolean; onOpenSettings: () => void; draft: ComposerDraft; onDraftChange: UpdateComposerDraft;
   skills: SkillDescriptor[]; skillCatalogState: SkillCatalogState; skillCatalogError?: string; onRefreshSkills: () => void; skillProblems?: SkillProblem[];
+  /** 工作区模板等待替换确认：只有用户确认后才写入，取消则保留现有草稿。 */
+  pendingTemplate?: string | null; onResolveTemplate?: (apply: boolean) => void;
+}
+/** 确认条文案：按草稿里实际会丢失的内容列出附件与已选技能，避免「与附件与技能」这类叠词。 */
+function templateConfirmText(draft: ComposerDraft): string {
+  const parts = [draft.attachments.length > 0 ? "附件" : "", (draft.skillIds ?? []).length > 0 ? "已选技能" : ""].filter(Boolean);
+  const lost = parts.length === 0 ? "草稿" : parts.length === 1 ? `草稿与${parts[0]}` : `草稿、${parts[0]}与${parts[1]}`;
+  return `工作区模板会替换当前未发送的 ${lost}。`;
 }
 const suggestions = [
   { icon: IconSearch, title: "拆解岗位画像", detail: "把招聘需求转化为清晰的筛选依据", prompt: "请帮我拆解一个岗位的必备能力、加分项与待确认问题，并注明判断依据。" },
@@ -59,6 +67,11 @@ export function HomeView(props: Props) {
         <span>建议会替换当前未发送的草稿。</span>
         <button type="button" onClick={() => { setValue(pendingSuggestion); ref.current?.focus(); }}>替换</button>
         <button type="button" onClick={() => setPendingSuggestion(null)}>取消</button>
+      </div>}
+      {props.pendingTemplate && <div className="home-suggestion-confirm" role="alert" data-home-template-confirm>
+        <span>{templateConfirmText(props.draft)}</span>
+        <button type="button" onClick={() => { props.onResolveTemplate?.(true); ref.current?.focus(); }}>替换</button>
+        <button type="button" onClick={() => props.onResolveTemplate?.(false)}>取消</button>
       </div>}
       <div className="home-keyboard-hint"><span><kbd>/</kbd> 快捷指令</span><span><kbd>{currentShortcutLabel("⇧ Enter")}</kbd> 换行</span></div>
     </div>
