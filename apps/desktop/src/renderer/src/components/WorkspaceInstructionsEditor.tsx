@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { WorkspaceInstructionsText } from "@boss-harness/protocol";
 import { harnessErrorText, readWorkspaceInstructions, writeWorkspaceInstructions } from "../data/harnessBridge";
 
@@ -32,9 +32,21 @@ export function WorkspaceInstructionsEditor(props: WorkspaceInstructionsEditorPr
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const dirty = info !== null && content !== info.content;
+  const reportDirty = props.onDirtyChange;
+  // 重连会触发重读：读取开始时已有未保存修改，则回执只更新内核事实，不覆盖输入框。
+  const dirtyRef = useRef(dirty);
+  useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
   useEffect(() => {
-    if (!props.open || !props.connected) return;
+    if (!props.open) {
+      // 显式关闭（含确认丢弃）后重新打开要从内核重新读取，不能恢复旧草稿。
+      setInfo(null); setContent(""); setLoading(false); setError(""); setNotice(""); setConfirmDiscard(false);
+      return;
+    }
+    if (!props.connected) return;
     let active = true;
+    const keepDraft = dirtyRef.current;
+    const previousContent = info?.content;
     setLoading(true); setError(""); setNotice(""); setInfo(null); setConfirmDiscard(false);
     readWorkspaceInstructions().then(value => {
       if (!active) return;
@@ -44,13 +56,19 @@ export function WorkspaceInstructionsEditor(props: WorkspaceInstructionsEditorPr
         setError("内核返回的工作区说明无法识别。");
         return;
       }
-      setInfo(value); setContent(value.content);
+      setInfo(value);
+      if (keepDraft) {
+        // 保留用户草稿；内核正文确有变化时明确提示，不静默替换。
+        setNotice(value.content !== previousContent
+          ? "内核中的工作区说明已在重新连接后更新；已保留你尚未保存的修改。"
+          : "已重新连接并读取内核中的工作区说明；你的未保存修改已保留。");
+        return;
+      }
+      setContent(value.content);
     }).catch(cause => { if (active) setError(`读取工作区说明失败：${harnessErrorText(cause)}`); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [props.open, props.connected]);
-  const dirty = info !== null && content !== info.content;
-  const reportDirty = props.onDirtyChange;
   useEffect(() => { reportDirty?.(props.open && dirty); }, [props.open, dirty, reportDirty]);
   if (!props.open) return null;
   const bytes = byteLength(content);
