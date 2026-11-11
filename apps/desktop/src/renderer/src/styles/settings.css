@@ -94,6 +94,11 @@
   color: var(--text-main);
 }
 
+.settings-navigation-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .settings-navigation-item:active {
   background: var(--panel-bg-hover);
 }
@@ -167,6 +172,12 @@
 .settings-close:hover {
   background: var(--btn-ghost-hover, var(--panel-bg-hover));
   color: var(--text-main);
+}
+
+/* 保存自动压缩策略期间关闭入口禁用，提示正在保存。 */
+.settings-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .settings-content {
