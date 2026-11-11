@@ -27,6 +27,7 @@ import { booleanPreference, projectFolders, stringList, stringRecord } from "../
 import { planAliasMigrations } from "../data/aliasMigration";
 import { type ModelDescriptor, type SkillDescriptor, type ToolDescriptor } from "@boss-harness/protocol";
 import { createComposerDraft, withDraftText, type ComposerDraft, type UpdateComposerDraft, type ComposerSend } from "../data/composerDraft";
+import { templateFillIntent, withHomeDraftSkill } from "../data/homeDraftFill";
 import { createdSession, sessionStartSendOutcome, type SessionStartOutcome } from "../data/sessionStart";
 import { loadComposerDraftStore, restoreComposerDraft, restoreSessionDrafts, saveComposerDrafts } from "../data/composerDraftStorage";
 import type { CheckQueueSubmission, ComposerQueue } from "../data/composerDraft";
@@ -207,6 +208,8 @@ export function AppShell(props: AppShellProps) {
     return next === current ? previous : { ...previous, [sessionDraftId]: next };
   });
   const [draftProjectId, setDraftProjectId] = useState("");
+  // 工作区模板等待用户确认替换的首页草稿；首页渲染确认条，写入或取消后清空。
+  const [pendingTemplate, setPendingTemplate] = useState<string | null>(null);
   const [tools, setTools] = useState<ToolDescriptor[]>([]);
   const [toolCatalogState, setToolCatalogState] = useState<ToolCatalogState>("unavailable");
   const [toolCatalogError, setToolCatalogError] = useState("");
@@ -286,6 +289,8 @@ export function AppShell(props: AppShellProps) {
   const openRoute = (route: Route, record = true, keepFocus = false) => {
     // 历史栈里可能残留已删除会话的路由：保持当前视图，不记录、也不拿它去开新任务。
     if (!routeReachable(route)) return;
+    // 离开首页草稿或进入某个会话即放弃待确认的模板意图，避免稍后回到首页弹出过期的替换确认。
+    if (route.page !== "home" || route.sessionId) setPendingTemplate(null);
     if (record) pushRoute(route);
     // 一次定位意图只服务创建它的那次跳转；普通导航先作废，否则切回同一会话时
     // 会补做一次用户并未请求的滚动与高亮。显式定位的跳转通过 keepFocus 保留。
@@ -298,8 +303,37 @@ export function AppShell(props: AppShellProps) {
       else props.onNewTask();
     }
   };
-  const newTask = () => { resetDraft(); setDraftProjectId(""); openRoute({ page: "home" }); };
-  const newTaskInProject = (folder: ProjectFolder) => { resetDraft(); setDraftProjectId(folder.id); openRoute({ page: "home" }); };
+  const newTask = () => { setPendingTemplate(null); resetDraft(); setDraftProjectId(""); openRoute({ page: "home" }); };
+  // 工作区模板入口：草稿非空时不能直接 reset，否则正文、附件与技能会被静默清空。
+  // 回到首页交给首页确认条处理，确认后才替换；取消则原样保留。
+  const useTemplate = (template: string) => {
+    if (templateFillIntent(draftRef.current, template) === "confirm") {
+      setPendingTemplate(template);
+      openRoute({ page: "home" });
+      return;
+    }
+    newTask();
+    setDraft(template);
+  };
+  // 技能入口只并入技能，保留首页正文与附件；不能走 newTask()。
+  // 从工作区页进入时切回首页；已在首页时原地并入，不再重置草稿。
+  const useSkillInNewChat = (skillId: string) => {
+    if (page !== "home") openRoute({ page: "home" });
+    updateHomeDraft(previous => withHomeDraftSkill(previous, skillId));
+  };
+  // 确认条结论：应用模板时清空旧草稿后再写入，取消只丢弃待定模板。
+  const resolveTemplate = (apply: boolean) => {
+    const template = pendingTemplate;
+    setPendingTemplate(null);
+    if (apply && template !== null) { resetDraft(); setDraft(template); }
+  };
+  const pendingTemplateRef = useRef(pendingTemplate); pendingTemplateRef.current = pendingTemplate;
+  useEffect(() => {
+    // 等待确认期间草稿被继续编辑（输入、增删附件或技能）说明用户已接手；
+    // 收起确认条，避免稍后点「替换」覆盖这些新内容。
+    if (pendingTemplateRef.current !== null) setPendingTemplate(null);
+  }, [draft]);
+  const newTaskInProject = (folder: ProjectFolder) => { setPendingTemplate(null); resetDraft(); setDraftProjectId(folder.id); openRoute({ page: "home" }); };
   const openSettings = (section: SettingsSection = "general") => { setSettingsSection(section); setSettings(true); };
   const startInProject = async (prompt: string, domainId: string, provider: string, modelId: string, skillIds: string[] = []) => {
     const projectId = draftProjectId;
@@ -521,7 +555,7 @@ export function AppShell(props: AppShellProps) {
             onArchive={session => { void props.onArchiveSession?.(session, true); }} onUnarchive={session => { void props.onArchiveSession?.(session, false); }}
             onMoveSession={(id, folderId) => setThreadGroups(prev => ({ ...prev, [id]: folderId }))} onRenameProject={folder => { setRenameProject(folder); setFolderName(folder.name); }} onRemoveProject={setRemoveProject} />
           <main className="main-canvas">
-            {page !== "home" ? <WorkspacePages page={page} folders={allFolders} messages={props.messages} onSelect={select} onNewTask={newTask} onDraft={text => { newTask(); setDraft(text); }} tools={tools} toolCatalogState={toolCatalogState} toolCatalogError={toolCatalogError} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillsReadable={props.skillsReadable === true} skillsCreatable={props.skillsCreatable === true} skillsWritable={props.skillsWritable === true} skillsDeletable={props.skillsDeletable === true} skillRoot={skillRoot} skillProblems={skillProblems} onUseSkill={skillId => { newTask(); updateHomeDraft(previous => ({ ...previous, skillIds: [skillId] })); }} workspaceInstructionsEditable={props.workspaceInstructionsEditable === true} harnessUp={props.harnessUp === true} preview={props.simulateLocal ?? true} focusSkillId={skillFocus} onFocusSkill={() => setSkillFocus(null)} /> : props.isHomeView ? <HomeView key={draft.id} folders={allFolders} draft={draft} onDraftChange={updateHomeDraft} selectedProjectId={draftProjectId} onSelectProject={setDraftProjectId} onNewProject={() => setNewProject(true)} preview={!window.boss} harnessUp={props.harnessUp ?? false} blocked={props.taskBlocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId ?? "deepseek-v4"} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} currentMode={props.currentMode} onModeChange={props.onModeChange} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillProblems={skillProblems} onStartSessionWithPrompt={startInProject} onOpenSettings={() => openSettings("connections")} /> : <>
+            {page !== "home" ? <WorkspacePages page={page} folders={allFolders} messages={props.messages} onSelect={select} onNewTask={newTask} onDraft={useTemplate} tools={tools} toolCatalogState={toolCatalogState} toolCatalogError={toolCatalogError} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillsReadable={props.skillsReadable === true} skillsCreatable={props.skillsCreatable === true} skillsWritable={props.skillsWritable === true} skillsDeletable={props.skillsDeletable === true} skillRoot={skillRoot} skillProblems={skillProblems} onUseSkill={useSkillInNewChat} workspaceInstructionsEditable={props.workspaceInstructionsEditable === true} harnessUp={props.harnessUp === true} preview={props.simulateLocal ?? true} focusSkillId={skillFocus} onFocusSkill={() => setSkillFocus(null)} /> : props.isHomeView ? <HomeView key={draft.id} folders={allFolders} draft={draft} onDraftChange={updateHomeDraft} pendingTemplate={pendingTemplate} onResolveTemplate={resolveTemplate} selectedProjectId={draftProjectId} onSelectProject={setDraftProjectId} onNewProject={() => setNewProject(true)} preview={!window.boss} harnessUp={props.harnessUp ?? false} blocked={props.taskBlocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId ?? "deepseek-v4"} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} currentMode={props.currentMode} onModeChange={props.onModeChange} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillProblems={skillProblems} onStartSessionWithPrompt={startInProject} onOpenSettings={() => openSettings("connections")} /> : <>
               <div className="conversation-pane">
                 {props.simulateLocal && <div className="conversation-preview-badge">示例会话 · 交互预览</div>}
                 <ErrorBoundary key={props.activeSession?.id ?? "conversation"} scope="会话区" compact hint="侧边栏、导航和其他会话仍可使用；切换会话或重试即可恢复。">
