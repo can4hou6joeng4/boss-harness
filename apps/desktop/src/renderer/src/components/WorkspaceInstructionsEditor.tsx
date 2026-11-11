@@ -27,12 +27,14 @@ const STATUS_TEXT: Record<WorkspaceInstructionsText["status"], string> = {
 export function WorkspaceInstructionsEditor(props: WorkspaceInstructionsEditorProps) {
   const [info, setInfo] = useState<WorkspaceInstructionsText | null>(null);
   const [content, setContent] = useState("");
+  // 最后一次有效读取或保存的正文独立保留，读取中或读取失败不会把草稿标记为已保存。
+  const [baselineContent, setBaselineContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const dirty = info !== null && content !== info.content;
+  const dirty = content !== baselineContent;
   const reportDirty = props.onDirtyChange;
   // 重连会触发重读：读取开始时已有未保存修改，则回执只更新内核事实，不覆盖输入框。
   const dirtyRef = useRef(dirty);
@@ -40,13 +42,13 @@ export function WorkspaceInstructionsEditor(props: WorkspaceInstructionsEditorPr
   useEffect(() => {
     if (!props.open) {
       // 显式关闭（含确认丢弃）后重新打开要从内核重新读取，不能恢复旧草稿。
-      setInfo(null); setContent(""); setLoading(false); setError(""); setNotice(""); setConfirmDiscard(false);
+      setInfo(null); setContent(""); setBaselineContent(""); setLoading(false); setError(""); setNotice(""); setConfirmDiscard(false);
       return;
     }
     if (!props.connected) return;
     let active = true;
     const keepDraft = dirtyRef.current;
-    const previousContent = info?.content;
+    const previousContent = baselineContent;
     setLoading(true); setError(""); setNotice(""); setInfo(null); setConfirmDiscard(false);
     readWorkspaceInstructions().then(value => {
       if (!active) return;
@@ -57,6 +59,7 @@ export function WorkspaceInstructionsEditor(props: WorkspaceInstructionsEditorPr
         return;
       }
       setInfo(value);
+      setBaselineContent(value.content);
       if (keepDraft) {
         // 保留用户草稿；内核正文确有变化时明确提示，不静默替换。
         setNotice(value.content !== previousContent
@@ -91,6 +94,7 @@ export function WorkspaceInstructionsEditor(props: WorkspaceInstructionsEditorPr
       await writeWorkspaceInstructions(content);
       // 保存后草稿就是新基线，未保存提示随之消失。
       setInfo(previous => previous ? { ...previous, content, bytes, status: content.trim() ? "loaded" : "empty" } : previous);
+      setBaselineContent(content);
       setConfirmDiscard(false);
       setNotice(`已保存 ${bytes} 字节，下一回合生效。`);
       props.onSaved();
@@ -103,7 +107,7 @@ export function WorkspaceInstructionsEditor(props: WorkspaceInstructionsEditorPr
   return <div className="context-panel-instructions-editor">
     <div className="context-panel-instructions-editor-head">
       <strong>工作区常驻说明</strong>
-      <span>{loading ? "正在读取…" : info ? `${info.path} · ${STATUS_TEXT[info.status]}${dirty ? " · 未保存" : ""}` : ""}</span>
+      <span>{loading ? "正在读取…" : info ? `${info.path} · ${STATUS_TEXT[info.status]}` : "尚未读取"}{dirty ? " · 未保存" : ""}</span>
     </div>
     {!props.connected && <p className="context-panel-warning" role="status">本地内核未连接，无法读取或保存工作区说明。</p>}
     {info && info.path !== info.pathPreferred && <p className="context-panel-note">当前读取的是旧位置；保存会写入 {info.pathPreferred}，此后旧文件不再被读取。</p>}
