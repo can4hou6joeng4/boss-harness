@@ -6,7 +6,7 @@ import { useContextPanel } from "./data/useContextPanel";
 import { useAutoCompaction } from "./data/useAutoCompaction";
 import { useSessionReasoning } from "./data/useSessionReasoning";
 import { SideChatModal } from "./components/SideChatModal";
-import { RewindOverlay } from "./components/RewindOverlay";
+import { RewindOverlay, type RewindTarget } from "./components/RewindOverlay";
 import { UnifiedDiffModal } from "./components/UnifiedDiffModal";
 import { RevertConfirmModal } from "./components/RevertConfirmModal";
 import { KeyboardShortcutsModal } from "./components/KeyboardShortcutsModal";
@@ -132,7 +132,7 @@ export function App(): JSX.Element {
   const continuationSubmitting = useRef<string | null>(null);
   const lastEsc = useRef(0);
   const [isCockpitOpen, setIsCockpitOpen] = useState(false), [isSideChatOpen, setIsSideChatOpen] = useState(false);
-  const [isRewindOpen, setIsRewindOpen] = useState(false), [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
+  const [rewindTarget, setRewindTarget] = useState<RewindTarget | null>(null), [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
   const [isRevertModalOpen, setIsRevertModalOpen] = useState(false), [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const contextThreadId = activeSession?.projectId === HARNESS_PROJECT_ID && !isHomeView ? activeSession.id : null;
   const contextPanel = useContextPanel(contextThreadId, harnessUp, runningThreadIds);
@@ -932,9 +932,12 @@ export function App(): JSX.Element {
     return { delivery: "accepted" as const };
   }, [updateThread]);
   const openRewind = useCallback(() => {
-    if (!activeRef.current) { setError("请先打开一段聊天。"); return; }
-    if (runningRef.current.has(activeRef.current.id)) { setError("请先停止当前回合，再选择分支位置。"); return; }
-    setIsRewindOpen(true);
+    const session = activeRef.current;
+    if (!session) { setError("请先打开一段聊天。"); return; }
+    if (runningRef.current.has(session.id)) { setError("请先停止当前回合，再选择分支位置。"); return; }
+    // 目标与消息在打开时固定：通知切换活动会话后，确认仍在原会话上执行。
+    setRewindTarget({ threadId: session.id, title: session.title, messages: cache.current.get(session.id) ?? [],
+      fork: !(!window.boss && session.projectId !== HARNESS_PROJECT_ID) });
   }, []);
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
@@ -1002,13 +1005,13 @@ export function App(): JSX.Element {
         if (!resolved.ok) { setError(resolved.reason); return { status: "failed" as const }; }
         return handleStartSessionWithPrompt(question, "", resolved.route.provider, resolved.route.model);
       }} />
-    <RewindOverlay messages={messages} fork={!preview} isOpen={isRewindOpen} onClose={() => setIsRewindOpen(false)} onConfirmRewind={messageCount => {
-      const id = activeRef.current?.id;
-      if (!id) return;
-      if (preview) { updateThread(id, previous => previous.slice(0, messageCount)); return; }
-      const turnId = [...messages.slice(0, messageCount)].reverse().find(message => message.turnId)?.turnId;
-      if (!turnId) { setError("所选消息没有完整回合信息，请刷新会话后再试。"); return; }
-      void forkThread(id, turnId).then(session => {
+    <RewindOverlay target={rewindTarget} onClose={() => setRewindTarget(null)} onConfirmRewind={messageCount => {
+      const target = rewindTarget;
+      if (!target) return;
+      if (!target.fork) { updateThread(target.threadId, previous => previous.slice(0, messageCount)); return; }
+      const turnId = [...target.messages.slice(0, messageCount)].reverse().find(message => message.turnId)?.turnId;
+      if (!turnId) { setError("所选消息没有完整回合信息，请刷新原会话后再试。"); return; }
+      void forkThread(target.threadId, turnId).then(session => {
         insertSession(session); handleSelectSession(session);
       }).catch(cause => setError(`创建分支失败：${harnessErrorText(cause)}`));
     }} />
