@@ -98,6 +98,8 @@ export interface AppShellProps {
   onOpenExport?: () => void;
   onReviewDiff: () => void; onRevertDiff: () => void;
   onCreateConnectionSession: () => Promise<SessionItem | null>;
+  /** 后台会话完成回合后尚未查看的会话 id；切到该会话后清除。 */
+  completedUnread?: ReadonlySet<string>;
 }
 function preference(key: string, initial: unknown): unknown {
   try { return JSON.parse(localStorage.getItem(UI_STORAGE_PREFIX + key) ?? "null") ?? initial; } catch { return initial; }
@@ -698,7 +700,7 @@ export function AppShell(props: AppShellProps) {
         <div className="workspace-surface">
           <ProjectSidebar isOpen={props.isSidebarOpen} folders={allFolders} activeSessionId={props.activeSession?.id ?? null} isHomeView={props.isHomeView || page !== "home"} pinned={pinned}
             hiddenSessionIds={hidden} onUnhideSession={id => setHidden(prev => prev.filter(item => item !== id))}
-            preferences={sidebarPreferences} onPreferencesChange={setSidebarPreferences} localGroupIds={groups.map(group => group.id)} onSelectSession={select} onNewTask={newTask} onNewTaskInProject={newTaskInProject} onSearch={() => setSearch(true)} onOpenSettings={() => openSettings()} onRecents={() => openRoute({ page: "recents" })} onNewProject={() => setNewProject(true)} pendingApprovals={pendingApprovals} pendingApprovalsTruncated={pendingApprovalsTruncated} approvalCounts={approvalCounts} onNotifications={() => setNotifications(true)}
+            preferences={sidebarPreferences} onPreferencesChange={setSidebarPreferences} localGroupIds={groups.map(group => group.id)} onSelectSession={select} onNewTask={newTask} onNewTaskInProject={newTaskInProject} onSearch={() => setSearch(true)} onOpenSettings={() => openSettings()} onRecents={() => openRoute({ page: "recents" })} onNewProject={() => setNewProject(true)} pendingApprovals={pendingApprovals} pendingApprovalsTruncated={pendingApprovalsTruncated} approvalCounts={approvalCounts} completedUnread={props.completedUnread} onNotifications={() => setNotifications(true)}
             onRename={session => { setRename(session); setName(session.title); }} onPin={id => setPinned(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id])} onHide={id => setHidden(prev => [...prev.filter(item => item !== id), id])} onDelete={setDeleteSession}
             onArchive={session => { void props.onArchiveSession?.(session, true); }} onUnarchive={session => { void props.onArchiveSession?.(session, false); }}
             onMoveSession={(id, folderId) => setThreadGroups(prev => ({ ...prev, [id]: folderId }))} onRenameProject={folder => { setRenameProject(folder); setFolderName(folder.name); }} onRemoveProject={setRemoveProject} />
