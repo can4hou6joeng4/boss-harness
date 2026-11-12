@@ -14,7 +14,8 @@ import type { ModelDescriptor, QueueItem, TurnContinuationReadResponse } from "@
 import type { ContextBranchSummary, ContextCompactJob, SkillDescriptor, SkillProblem } from "@boss-harness/protocol";
 import { type MessageItem, type ConversationMode } from "../data/mockData";
 import type { SkillCatalogState, ApprovalDelivery, ApprovalOutcome } from "../data/harnessBridge";
-import { approvalBlockReason, approvalRejectionNotice } from "../data/approvalFailure";
+import { approvalBlockReason } from "../data/approvalFailure";
+import { useApprovalSubmission } from "../data/approvalSubmission";
 import { approvalDecisionText } from "../data/approvalCopy";
 import { recallablePrompts } from "../data/composerHistory";
 import type { SessionReasoningControl } from "../data/useSessionReasoning";
@@ -75,7 +76,7 @@ export interface ConversationAreaProps {
   sessionBranches?: SessionBranchesView;
   sessionReasoning?: SessionReasoningControl;
   loginGuide?: React.ReactNode; onLogin?: () => void;
-  onApprovalDecision?: (approvalId: string, approved: boolean, toolName: string, remember: boolean) => void | ApprovalDelivery | ApprovalOutcome | Promise<void | ApprovalDelivery | ApprovalOutcome>;
+  onApprovalDecision?: (approvalId: string, approved: boolean, toolName: string, remember: boolean, messageId?: string, threadId?: string) => void | ApprovalDelivery | ApprovalOutcome | Promise<void | ApprovalDelivery | ApprovalOutcome>;
   onReviewDiff?: () => void; onRevertDiff?: () => void; onOpenRewind?: () => void; onOpenCockpit?: () => void;
   /** 编辑弹窗由工作台外层持有，不随背景会话切换卸载。 */
   onOpenContextEdit?: (itemId: string) => void;
@@ -123,7 +124,6 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   const currentModelRetry = !simulateLocal && modelRetry?.threadId === threadId ? modelRetry : undefined;
   const [approvalDrafts, setApprovalDrafts] = useState<Record<string, string>>({});
   const [approvalEditing, setApprovalEditing] = useState<Record<string, boolean>>({});
-  const [rememberChoices, setRememberChoices] = useState<Record<string, boolean>>({});
   const [questionPicks, setQuestionPicks] = useState<Record<string, string[]>>({});
   const [planEditing, setPlanEditing] = useState<Record<string, boolean>>({});
   const [planDrafts, setPlanDrafts] = useState<Record<string, string>>({});
@@ -135,8 +135,8 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   const feedbackRef = useRef(feedback);
   const [feedbackNote, setFeedbackNote] = useState<{ messageId: string; text: string } | null>(null);
   const feedbackNoteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const [approvalError, setApprovalError] = useState("");
-  const [pendingApproval, setPendingApproval] = useState<string | null>(null);
+  // 审批提交锁、失败原因与「记住选择」由会话级缓存持有，通知切换不会随对话区卸载。
+  const approvalSubmission = useApprovalSubmission(threadId);
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
   const [findCursor, setFindCursor] = useState<FindCursor>({ message: 0, offset: 0 });
@@ -406,28 +406,17 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   const handleApproval = async (msgId: string, decision: "approve" | "deny") => {
     const target = messages.find(message => message.id === msgId);
     const approval = target?.approval;
+    // 以缓存里的最新锁判定，避免连续点击早于重新渲染时重复提交。
+    const pending = approvalSubmission.getState().pendingMessageId;
     // 归档会话中的审批已被内核关闭（APPROVAL_CLOSED）；其余不可提交状态与按钮的
     // disabled 共用同一判定，避免按钮可点却在这里静默返回。
-    if (!approval || approvalBlockReason(msgId, Boolean(approval.submitted), pendingApproval, archived) !== null) return;
-    const remember = !approval.consequential && (rememberChoices[msgId] || false);
+    if (!approval || approvalBlockReason(msgId, Boolean(approval.submitted), pending, archived) !== null) return;
+    const remember = !approval.consequential && (approvalSubmission.remember[msgId] || false);
     if (approval.approvalId) {
-      setPendingApproval(msgId); setApprovalError("");
-      const outcome = await onApprovalDecision?.(approval.approvalId, decision === "approve", approval.toolName, remember);
-      setPendingApproval(null);
-      const delivery = outcome && typeof outcome === "object" ? outcome.delivery : outcome;
-      const detail = outcome && typeof outcome === "object" && outcome.reason ? outcome.reason : "";
-      const code = outcome && typeof outcome === "object" ? outcome.code : undefined;
-      if (delivery !== "accepted") {
-        setApprovalError(delivery === "unconfirmed"
-          ? `审批请求未送达${detail ? `：${detail}` : ""}，请检查连接后重试；这张审批卡仍可再次提交。`
-          : approvalRejectionNotice(code, detail));
-        return;
-      }
-      if (!simulateLocal) {
-        setMessages(previous => previous.map(message => message.id === msgId && message.approval
-          ? { ...message, approval: { ...message.approval, submitted: true } } : message));
-        return;
-      }
+      // 发起后由会话级缓存持有在途锁并结算迟到回执；通知切走也不影响结果归属。
+      if (!onApprovalDecision || !threadId) return;
+      await onApprovalDecision(approval.approvalId, decision === "approve", approval.toolName, remember, msgId, threadId);
+      return;
     }
     setMessages(previous => previous.map(message => message.id === msgId && message.approval
       ? { ...message, approval: { ...message.approval, decision, remember } } : message));
@@ -572,7 +561,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
             const copyText = messageCopyText(item);
             // 并发审批时只有一张能提交；其余卡片禁用并说明原因，而不是可点后静默失效。
             const approvalReason = item.approval
-              ? approvalBlockReason(item.id, Boolean(item.approval.submitted), pendingApproval, archived)
+              ? approvalBlockReason(item.id, Boolean(item.approval.submitted), approvalSubmission.pendingMessageId, archived)
               : null;
             const approvalTitle = approvalReason === "archived"
               ? "此聊天已归档，审批已关闭"
@@ -827,13 +816,8 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
                           <input
                             type="checkbox"
                             disabled={Boolean(item.approval.consequential)}
-                            checked={rememberChoices[item.id] || false}
-                            onChange={(e) =>
-                              setRememberChoices({
-                                ...rememberChoices,
-                                [item.id]: e.target.checked,
-                              })
-                            }
+                            checked={approvalSubmission.remember[item.id] || false}
+                            onChange={e => approvalSubmission.setRemember(item.id, e.target.checked)}
                           />
                           <span>{item.approval.consequential ? "对外操作需要逐次确认" : "本次会话记住选择"}</span>
                         </label>
@@ -1020,7 +1004,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
           {!simulateLocal && !archived && <QueuePanel items={queueItems} threadId={threadId} totalItems={queueTotalItems} activeItems={queueActiveItems} truncated={queueTruncated} skills={skills} connected={harnessUp} onRefresh={onRefreshQueue} onReadFull={onReadQueueItem} onUpdateInput={onUpdateQueueItem} onRemove={onRemoveQueueItem ?? (async (): Promise<QueueActionOutcome> => ({ status: "skipped", reason: "当前界面未接入队列操作" }))} onRetry={onRetryQueueItem} />}
           {archived && <div className="composer-notice archived-notice" role="status">此聊天已归档，可查看历史；在侧栏「已归档」中恢复后可继续对话。</div>}
           {loginGuide}
-          {approvalError && <div className="composer-notice" role="alert">{approvalError}</div>}
+          {approvalSubmission.error && <div className="composer-notice" role="alert">{approvalSubmission.error}</div>}
           {currentMessageEdit && <div className="message-edit-confirm" role="alert" data-message-edit-confirm>
             <span>编辑此消息将替换当前未发送的正文；附件与已选技能保留。</span>
             <button type="button" disabled={messageEditBusy} onClick={() => resolveMessageEdit(true)}>替换</button>

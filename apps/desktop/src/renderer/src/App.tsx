@@ -20,7 +20,8 @@ import { branchSupport, branchSwitchBlock, useSessionBranches } from "./data/use
 import { IconClose } from "./components/Icons";
 import { MOCK_PROJECT_FOLDERS, MOCK_CONVERSATION_THREAD, type ProjectFolder, type SessionItem, type MessageItem, type ConversationMode } from "./data/mockData";
 import { HARNESS_PROJECT_ID, HARNESS_PROJECT_NAME, archiveThread, configuredModels, deleteThread, harnessErrorText, harnessStatus, isHarnessRpcRejection, forkThread, interruptTurn, listThreads, listQueue, readTurnSkillIds, queueFollowUp, readQueueItem, reconnectHarness, removeQueuedItem, renameThread, respondApproval, sendTurn, setThreadModel, startThread, steerTurn, readTurnContinuation, continueTurn, unarchiveThread, updateQueuedItem } from "./data/harnessBridge";
-import { approvalRejectionRefreshes } from "./data/approvalFailure";
+import { approvalRejectionNotice, approvalRejectionRefreshes } from "./data/approvalFailure";
+import { approvalSubmissionFor } from "./data/approvalSubmission";
 import { deleteThreadFailure } from "./data/deleteThreadError";
 import { resolveQuickAskRoute } from "./data/quickAsk";
 import { sessionTitleFromPrompt } from "./data/sessionTitle";
@@ -959,18 +960,33 @@ export function App(): JSX.Element {
       void replicaRef.current?.resume(id);
     });
   }, [markRunning, updateThread]);
-  const handleApproval = useCallback(async (approvalId: string, approved: boolean, toolName: string, remember: boolean) => {
-    const session = activeRef.current; if (!session) return { delivery: "rejected" as const, reason: "没有当前会话" };
+  const handleApproval = useCallback(async (approvalId: string, approved: boolean, toolName: string, remember: boolean, messageId?: string, threadId?: string) => {
+    const session = activeRef.current;
+    const targetThreadId = threadId ?? session?.id;
+    if (!targetThreadId) return { delivery: "rejected" as const, reason: "没有当前会话" };
+    const submission = approvalSubmissionFor(targetThreadId);
+    // 同步持有锁：通知切回后新挂载的卡片也不能在原回执到达前再次提交。
+    if (messageId) submission.begin(messageId);
     const outcome = await respondApproval(approvalId, approved);
     if (outcome.delivery !== "accepted") {
       // 只有回合已结束或审批记录已变更时才重读会话：APPROVAL_BUSY 时回合仍在运行，
       // 全量快照会覆盖正在流式输出的增量，只提示用户先停止或等待。
-      if (outcome.code && approvalRejectionRefreshes(outcome.code)) void replicaRef.current?.resume(session.id);
+      if (outcome.code && approvalRejectionRefreshes(outcome.code)) void replicaRef.current?.resume(targetThreadId);
+      const detail = outcome.reason ?? "";
+      if (messageId) submission.settle(messageId, outcome.delivery === "unconfirmed"
+        ? `审批请求未送达${detail ? `：${detail}` : ""}，请检查连接后重试；这张审批卡仍可再次提交。`
+        : approvalRejectionNotice(outcome.code, detail));
       return outcome;
     }
-    const approval = cache.current.get(session.id)?.find(message => message.approval?.approvalId === approvalId)?.approval;
+    // 已受理的标记写回会话缓存：通知切换后重新挂载仍显示已提交，而不是恢复可点击。
+    if (messageId) {
+      updateThread(targetThreadId, previous => previous.map(message => message.id === messageId && message.approval
+        ? { ...message, approval: { ...message.approval, submitted: true } } : message));
+      submission.settle(messageId, "");
+    }
+    const approval = cache.current.get(targetThreadId)?.find(message => message.approval?.approvalId === approvalId)?.approval;
     if (remember && approved && approval && !approval.consequential) {
-      const tools = rememberedApprovals.current.get(session.id) ?? new Set<string>(); tools.add(toolName); rememberedApprovals.current.set(session.id, tools);
+      const tools = rememberedApprovals.current.get(targetThreadId) ?? new Set<string>(); tools.add(toolName); rememberedApprovals.current.set(targetThreadId, tools);
     }
     return { delivery: "accepted" as const };
   }, [updateThread]);
