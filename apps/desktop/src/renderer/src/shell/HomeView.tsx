@@ -18,6 +18,8 @@ interface Props {
   skills: SkillDescriptor[]; skillCatalogState: SkillCatalogState; skillCatalogError?: string; onRefreshSkills: () => void; skillProblems?: SkillProblem[];
   /** 工作区模板等待替换确认：只有用户确认后才写入，取消则保留现有草稿。 */
   pendingTemplate?: string | null; onResolveTemplate?: (apply: boolean) => void;
+  /** 新聊天等待丢弃确认；空字符串表示不指定项目，null 表示没有待定操作。 */
+  pendingNewTaskProject?: string | null; onResolveNewTask?: (discard: boolean) => void;
 }
 /** 确认条文案：按草稿里实际会丢失的内容列出附件与已选技能，避免「与附件与技能」这类叠词。 */
 function templateConfirmText(draft: ComposerDraft): string {
@@ -38,8 +40,14 @@ export function HomeView(props: Props) {
   const project = props.selectedProjectId;
   const [projectMenu, setProjectMenu] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const pendingNewTask = props.pendingNewTaskProject != null;
+  const newTaskProject = props.folders.find(folder => folder.id === props.pendingNewTaskProject)?.name;
+  useEffect(() => {
+    if (pendingNewTask || props.pendingTemplate) setPendingSuggestion(null);
+  }, [pendingNewTask, props.pendingTemplate]);
   // 建议卡会整段改写输入框：已有未发送正文时先显示确认条，避免一次误点丢掉草稿。
   const applySuggestion = (prompt: string) => {
+    props.onResolveNewTask?.(false); props.onResolveTemplate?.(false);
     if (suggestionFillIntent(value, prompt) === "confirm") { setPendingSuggestion(prompt); return; }
     setValue(prompt);
     ref.current?.focus();
@@ -72,6 +80,12 @@ export function HomeView(props: Props) {
         <span>{templateConfirmText(props.draft)}</span>
         <button type="button" onClick={() => { props.onResolveTemplate?.(true); ref.current?.focus(); }}>替换</button>
         <button type="button" onClick={() => props.onResolveTemplate?.(false)}>取消</button>
+      </div>}
+      {pendingNewTask && <div className="home-suggestion-confirm" role="alert" data-home-new-task-confirm>
+        <span>{newTaskProject ? `在「${newTaskProject}」开始新聊天` : "开始新聊天"}将清空首页未发送的正文、附件与已选技能。</span>
+        <button type="button" disabled={props.draft.pendingReads > 0 || props.draft.submitting} onClick={() => { props.onResolveNewTask?.(true); ref.current?.focus(); }}>丢弃草稿并开始</button>
+        <button type="button" onClick={() => { props.onResolveNewTask?.(false); ref.current?.focus(); }}>取消</button>
+        {(props.draft.pendingReads > 0 || props.draft.submitting) && <span>正在读取附件或转交消息，请稍候。</span>}
       </div>}
       <div className="home-keyboard-hint"><span><kbd>/</kbd> 快捷指令</span><span><kbd>{currentShortcutLabel("⇧ Enter")}</kbd> 换行</span></div>
     </div>
