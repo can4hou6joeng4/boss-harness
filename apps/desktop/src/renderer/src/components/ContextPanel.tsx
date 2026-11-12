@@ -74,7 +74,7 @@ export function ContextPanel(props: ContextPanelProps) {
   return <ModalSurface title="会话上下文" onClose={requestClose} className="context-panel">
     <div className="context-panel-body">
       <div className="context-panel-owner"><strong>{props.title || "当前会话"}</strong><code>{props.threadId ?? "请选择本机内核会话"}</code></div>
-      <p className="context-panel-note">预算来自当前会话；不包含尚未发送的草稿。查看和生成计划不会调用模型或执行工具。</p>
+      <p className="context-panel-note">预算来自打开此面板时的目标会话；不包含尚未发送的草稿。查看和生成计划不会调用模型或执行工具。</p>
       {!connected && <p className="context-panel-warning" role="status">本地内核未连接。已保留原任务信息，重连后只核对状态。</p>}
       <section className="context-panel-section" aria-labelledby="context-budget-heading">
         <div className="context-panel-section-heading"><h3 id="context-budget-heading">当前预算</h3><button type="button" className="secondary-button" onClick={props.onRefresh} disabled={!connected || state.reading}>{state.reading ? "正在读取…" : "刷新预算"}</button></div>

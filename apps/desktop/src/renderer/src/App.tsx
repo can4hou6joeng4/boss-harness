@@ -51,6 +51,10 @@ function legacyRouteMismatch(session: { provider?: string; model?: string }, def
 interface BranchSessionTarget {
   threadId: string; title: string; provider?: string; archived: boolean;
 }
+/** 打开上下文面板时固定目标会话；通知切换背景会话不能改换预算与压缩对象。 */
+interface ContextSessionTarget {
+  threadId: string; title: string;
+}
 
 export function App(): JSX.Element {
   const [theme, setTheme] = useState<ThemePreference>(() => {
@@ -141,8 +145,11 @@ export function App(): JSX.Element {
   const [rewindTarget, setRewindTarget] = useState<RewindTarget | null>(null), [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
   const [isRevertModalOpen, setIsRevertModalOpen] = useState(false), [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const contextThreadId = activeSession?.projectId === HARNESS_PROJECT_ID && !isHomeView ? activeSession.id : null;
-  const contextPanel = useContextPanel(contextThreadId, harnessUp, runningThreadIds);
-  const autoCompaction = useAutoCompaction(contextThreadId, contextPanel.isOpen, harnessUp);
+  // 打开上下文面板时固定目标会话；通知切换背景会话不改变预算、计划与压缩对象。
+  const [contextTarget, setContextTarget] = useState<ContextSessionTarget | null>(null);
+  const contextPanelThreadId = contextTarget?.threadId ?? contextThreadId;
+  const contextPanel = useContextPanel(contextPanelThreadId, harnessUp, runningThreadIds);
+  const autoCompaction = useAutoCompaction(contextPanelThreadId, contextPanel.isOpen, harnessUp);
   const sessionReasoning = useSessionReasoning(contextThreadId, harnessUp);
   const branchCapability = useMemo(() => branchSupport(capabilities), [capabilities?.sessionLeaf, capabilities?.sessionBranchTree, capabilities?.sessionBranchViews, capabilities?.sessionBranchSummary, capabilities?.sessionBranchSummaryRead]);
   const usageSupported = capabilities?.threadUsage === true;
@@ -163,6 +170,13 @@ export function App(): JSX.Element {
     setUsageTarget({ threadId: session.id, title: session.title });
     threadUsage.open(session.id);
   }, [threadUsage.open]);
+  // 上下文面板同样在打开时固定目标；之后的读取、计划、压缩与自动压缩覆盖都使用该会话。
+  const openContext = useCallback(() => {
+    const session = activeRef.current;
+    if (!session) return;
+    setContextTarget({ threadId: session.id, title: session.title });
+    contextPanel.open();
+  }, [contextPanel.open]);
   // 分支弹窗打开后固定目标会话；通知切换背景会话不改变分支来源。
   useEffect(() => { if (!branchCapability) { setBranchTarget(null); setIsBranchesOpen(false); } }, [branchCapability]);
   const branchThreadId = branchTarget?.threadId ?? contextThreadId;
@@ -1036,7 +1050,7 @@ export function App(): JSX.Element {
         },
         onCancelSummary: activeBranchControl.cancelSummary, onDismissSummary: activeBranchControl.dismissSummaryJob } : undefined}
       onInterrupt={handleInterrupt} onApprovalDecision={handleApproval} onStartSessionWithPrompt={handleStartSessionWithPrompt} models={modelOptions} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel} onSelectModel={handleSelectModel}
-      skillsReadable={capabilities?.skillsRead === true} skillsCreatable={capabilities?.skillsCreate === true} skillsWritable={capabilities?.skillsWrite === true} skillsDeletable={capabilities?.skillsDelete === true} threadSearchable={capabilities?.threadSearch === true} threadSearchArchived={capabilities?.threadSearchArchived === true} workspaceInstructionsEditable={capabilities?.workspaceInstructionsEdit === true} onOpenCockpit={() => setIsCockpitOpen(true)} onOpenSideChat={() => setIsSideChatOpen(previous => !previous)} onOpenRewind={openRewind} onOpenContext={contextThreadId ? contextPanel.open : undefined}
+      skillsReadable={capabilities?.skillsRead === true} skillsCreatable={capabilities?.skillsCreate === true} skillsWritable={capabilities?.skillsWrite === true} skillsDeletable={capabilities?.skillsDelete === true} threadSearchable={capabilities?.threadSearch === true} threadSearchArchived={capabilities?.threadSearchArchived === true} workspaceInstructionsEditable={capabilities?.workspaceInstructionsEdit === true} onOpenCockpit={() => setIsCockpitOpen(true)} onOpenSideChat={() => setIsSideChatOpen(previous => !previous)} onOpenRewind={openRewind} onOpenContext={contextThreadId ? openContext : undefined}
       onOpenUsage={usageSupported && contextThreadId && !preview ? openUsage : undefined}
       onOpenExport={exportSupported && contextThreadId && !preview ? () => setExportTarget({ threadId: contextThreadId, title: activeSession?.title ?? "" }) : undefined}
       onOpenShortcuts={() => setIsShortcutsOpen(true)} onReviewDiff={() => setIsDiffModalOpen(true)} onRevertDiff={() => setIsRevertModalOpen(true)} />
@@ -1045,7 +1059,7 @@ export function App(): JSX.Element {
       setError(status.running ? "" : `重新连接失败：${status.error || "本地内核仍未运行"}。请检查启动配置后重启应用。`);
     }); }}>重新连接</button>}<button onClick={() => setError("")} aria-label="关闭提示"><IconClose size={14} /></button></div>}
     <CockpitModal isOpen={isCockpitOpen} onClose={() => setIsCockpitOpen(false)} harnessUp={harnessUp} threadId={contextThreadId} />
-    <ContextPanel isOpen={contextPanel.isOpen} onClose={contextPanel.close} threadId={contextThreadId} title={activeSession?.title ?? ""} connected={harnessUp} busy={contextPanel.busy} state={contextPanel.state} onKeepRecentChange={contextPanel.changeKeepRecent} onRefresh={() => { void contextPanel.refresh(); }} onPlan={() => { void contextPanel.plan(); }} onStart={() => { void contextPanel.start(); }} onCancel={() => { void contextPanel.cancel(); }} autoCompaction={autoCompaction} workspaceEditor={capabilities?.workspaceInstructionsEdit === true} />
+    <ContextPanel isOpen={contextPanel.isOpen} onClose={() => { contextPanel.close(); setContextTarget(null); }} threadId={contextPanelThreadId} title={contextTarget?.title ?? activeSession?.title ?? ""} connected={harnessUp} busy={contextPanel.busy} state={contextPanel.state} onKeepRecentChange={contextPanel.changeKeepRecent} onRefresh={() => { void contextPanel.refresh(); }} onPlan={() => { void contextPanel.plan(); }} onStart={() => { void contextPanel.start(); }} onCancel={() => { void contextPanel.cancel(); }} autoCompaction={autoCompaction} workspaceEditor={capabilities?.workspaceInstructionsEdit === true} />
     <SideChatModal isOpen={isSideChatOpen} onClose={() => setIsSideChatOpen(false)}
       connected={harnessUp} preview={!window.boss} busy={startingSession}
       onAsk={async question => {
