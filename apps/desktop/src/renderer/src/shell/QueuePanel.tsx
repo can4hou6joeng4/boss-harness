@@ -12,7 +12,7 @@ import { queueSkillLabels } from "../data/queueSkillLabels";
 import { queuePauseDetail, queueStatusLabel } from "../data/queueStatus";
 import { selectVisibleQueueItems } from "../data/queueSelection";
 import { syncQueueDialogItem, syncQueueEditDialog } from "../data/queueDialogs";
-import { clearQueueEditDraft, readQueueEditDraft, writeQueueEditDraft } from "../data/queueEditDrafts";
+import { useQueueEditor } from "../data/queueEditDrafts";
 import { QueueInputDialog } from "./QueueInputDialog";
 import { compactionLabel, compactionTitle } from "./queueCompaction";
 
@@ -46,10 +46,8 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   const [refreshing, setRefreshing] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ item: QueueItem; input: string } | null>(null);
-  // 列表刷新会把条目换成截断预览；编辑基线必须保留最初读取的完整正文。
-  const [editing, setEditing] = useState<{ item: QueueItem; draft: string; originalInput: string } | null>(() => threadId ? readQueueEditDraft(threadId) : null);
-  const [saving, setSaving] = useState(false);
-  const [editError, setEditError] = useState("");
+  // 正文、完整基线、提交锁与回执按会话保留；通知切换导致卸载也不能遗忘在途保存。
+  const { editing, setEditing, saving, editError, setEditError, saveEditing } = useQueueEditor(threadId);
   const [confirmEditClose, setConfirmEditClose] = useState(false);
   // 撤回会永久移除排队消息，必须显式确认；对话框保留打开时的条目快照，
   // 列表刷新后仍能核对正文，并由实时状态决定是否还允许提交。
@@ -64,14 +62,7 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   useEffect(() => {
     setViewing(current => syncQueueDialogItem(current, items));
     setEditing(current => syncQueueEditDialog(current, items));
-  }, [items]);
-  // 未保存的编辑按会话保留：切换会话会卸载整个对话区，切回时恢复同一份草稿。
-  // 保存成功或确认丢弃由 setEditing(null) 清除；条目消失但有修改时继续保留供复制。
-  useEffect(() => {
-    if (!threadId) return;
-    if (editing) writeQueueEditDraft(threadId, editing);
-    else clearQueueEditDraft(threadId);
-  }, [threadId, editing]);
+  }, [items, setEditing]);
   if (!items.length && !editing && !removeTarget) return null;
   const editChanged = editing !== null && editing.draft !== editing.originalInput;
   // 撤回确认框绑定实时条目：条目被投递或撤回后禁止继续提交，但保留正文供核对。
@@ -133,7 +124,8 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     setEditing(null); setEditError(""); setConfirmEditClose(false);
   };
   const saveEdit = async () => {
-    if (!editing || !onUpdateInput || saving) return;
+    const updateInput = onUpdateInput;
+    if (!editing || !updateInput || saving) return;
     const live = items.find(item => item.id === editing.item.id);
     if (!live || live.status !== "queued") {
       setEditError("这条消息已不在排队中，修改未保存。草稿仍保留在编辑框中。");
@@ -141,15 +133,8 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     }
     if (!editing.draft.trim()) { setEditError("正文不能为空。"); return; }
     if (!editChanged) { setEditing(null); setEditError(""); return; }
-    setSaving(true); setEditError(""); setConfirmEditClose(false);
-    try {
-      await onUpdateInput(editing.item, editing.draft);
-      setEditing(null);
-    } catch (cause) {
-      setEditError(`保存失败：${harnessErrorText(cause)}。草稿仍保留在编辑框中。`);
-    } finally {
-      setSaving(false);
-    }
+    setConfirmEditClose(false);
+    await saveEditing(submitted => updateInput(submitted.item, submitted.draft));
   };
   const retry = async (item: QueueItem) => {
     setPending(item.id); setError("");
