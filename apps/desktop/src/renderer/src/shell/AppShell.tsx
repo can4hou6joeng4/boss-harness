@@ -84,7 +84,7 @@ export interface AppShellProps {
   modelRetry?: ModelRetryStatus; onDismissModelRetry?: () => void;
   sessionBranches?: SessionBranchesView;
   onInterrupt?: () => void;
-  onApprovalDecision?: (approvalId: string, approved: boolean, toolName: string, remember: boolean) => void | ApprovalDelivery | ApprovalOutcome | Promise<void | ApprovalDelivery | ApprovalOutcome>;
+  onApprovalDecision?: (approvalId: string, approved: boolean, toolName: string, remember: boolean, messageId?: string, threadId?: string) => void | ApprovalDelivery | ApprovalOutcome | Promise<void | ApprovalDelivery | ApprovalOutcome>;
   onStartSessionWithPrompt: (prompt: string, domainId: string, provider: string, modelId: string, skillIds?: string[]) => Promise<SessionStartOutcome>;
   models?: ModelDescriptor[]; activeModelProvider?: string; activeModelId?: string;
   onSelectModel?: (provider: string, modelId: string) => void | boolean | Promise<void | boolean>;
