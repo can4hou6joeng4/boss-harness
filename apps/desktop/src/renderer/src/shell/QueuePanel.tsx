@@ -11,7 +11,7 @@ import { queueItemRetryable } from "../data/queueRetry";
 import { queueSkillLabels } from "../data/queueSkillLabels";
 import { queuePauseDetail, queueStatusLabel } from "../data/queueStatus";
 import { selectVisibleQueueItems } from "../data/queueSelection";
-import { syncQueueDialogItem } from "../data/queueDialogs";
+import { syncQueueDialogItem, syncQueueEditDialog } from "../data/queueDialogs";
 import { QueueInputDialog } from "./QueueInputDialog";
 import { compactionLabel, compactionTitle } from "./queueCompaction";
 
@@ -51,14 +51,13 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
   // 折叠状态优先显示暂停项；展开后渲染内核已载入的全部条目。
   const [showAll, setShowAll] = useState(false);
   const clipboard = useClipboardCopy();
-  // 空队列时面板早退、对话框不再渲染，但状态还留着；条目消失后必须一并作废，
-  // 否则下一批条目出现时，属于旧条目的查看 / 编辑弹窗会连同旧草稿原样重现。
-  // 条目仍在时换成最新快照：投递或撤回后，编辑框不能再承诺保存。
+  // 目标消失时关闭只读与无修改窗口；有修改的编辑器继续显示，供复制或明确丢弃。
+  // 条目仍在时同步最新快照，保存权限始终以当前列表为准。
   useEffect(() => {
     setViewing(current => syncQueueDialogItem(current, items));
-    setEditing(current => syncQueueDialogItem(current, items));
+    setEditing(current => syncQueueEditDialog(current, items));
   }, [items]);
-  if (!items.length) return null;
+  if (!items.length && !editing) return null;
   const editChanged = editing !== null && editing.draft !== editing.originalInput;
   const refresh = async () => {
     if (!onRefresh || refreshing) return;
@@ -159,13 +158,14 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
     visibleItems.length < items.length ? `仅显示 ${visibleItems.length} 项` : "",
   ].filter(Boolean).join("，");
   // 完整输入视图与列表使用同一套技能映射，避免同一个队列项在两处显示不一致。
-  // 编辑只对仍在排队的条目开放；状态在对话框打开期间变化时保留草稿但禁用保存。
-  const editingQueued = editing?.item.status === "queued";
+  // 编辑只对当前列表中仍在排队的条目开放；保留草稿的旧快照不能授予保存权限。
+  const editingLiveItem = editing ? items.find(item => item.id === editing.item.id) : undefined;
+  const editingQueued = editingLiveItem?.status === "queued";
   const viewingSkillIds = viewing?.item.skillIds ?? [];
   const viewingSkillLabels = queueSkillLabels(viewingSkillIds, skills);
   const copyFeedback = viewing && clipboard.feedback?.key === viewing.item.id ? clipboard.feedback : null;
   return <>
-    <section className="turn-queue" aria-label="任务队列" aria-live="polite">
+    {items.length > 0 && <section className="turn-queue" aria-label="任务队列" aria-live="polite">
     <div className="turn-queue-heading"><strong>任务队列</strong><span data-queue-pending={pendingCount} title={activeItems !== undefined ? "待处理数量由内核按全部持久队列项统计。"
       : kernelHidden ? "待处理数量按内核已载入的队列项统计。" : undefined}>{pendingCount} 项待处理</span>
       {hiddenNote && <span className="turn-queue-more" data-queue-total={total} data-queue-truncated={kernelHidden ? "true" : "false"} data-queue-visible={visibleItems.length}
@@ -220,7 +220,7 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
       </li>)}
     </ul>
     {error && <p className="turn-queue-error" role="status">{error}</p>}
-    </section>
+    </section>}
     {viewing && <QueueInputDialog item={viewing.item} input={viewing.input} skillLabels={viewingSkillLabels}
       retryAvailable={canRetry(viewing.item)} copyFeedback={copyFeedback}
       onCopy={() => { void clipboard.copy(viewing.input, viewing.item.id); }} onClose={() => setViewing(null)} />}
@@ -228,7 +228,8 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
       <div className="dialog-form queue-input-dialog">
         <p className="dialog-note">{editing.item.kind === "steering" ? "当前回合" : "后续回合"} · {editingQueued
           ? "只修改正文；技能与自动压缩覆盖保持不变，保存后仍需等待投递。"
-          : `这条消息${queueStatusLabel(editing.item)}，修改无法保存；可复制正文后关闭。`}</p>
+          : editingLiveItem ? `这条消息${queueStatusLabel(editingLiveItem)}，修改无法保存；可复制正文后关闭。`
+            : "当前列表已不包含这条消息，修改无法保存；草稿仍保留，可选中并复制正文后关闭。"}</p>
         <textarea className="queue-input-editor" aria-label="排队消息正文" rows={10} maxLength={100000} disabled={saving}
           value={editing.draft} onChange={event => { setEditing(current => current ? { ...current, draft: event.target.value } : current); setConfirmEditClose(false); }} />
         <div className="queue-input-editor-meta"><span>{editing.draft.length} / 100000 字符</span>
