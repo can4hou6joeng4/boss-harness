@@ -7,6 +7,8 @@ import "../styles/context-panel.css";
 
 type ExportView = SessionExportSaveRequest["view"];
 type ExportFormat = SessionExportSaveRequest["format"];
+/** 打开弹窗时固定的导出目标：系统通知切换活动会话时，导出仍属于用户看到的那条会话。 */
+export interface ExportTarget { threadId: string; title: string }
 type Status =
   | { kind: "idle" }
   | { kind: "saving" }
@@ -40,9 +42,10 @@ function savedResult(value: unknown): SessionExportSaveResult | null {
 /**
  * 导出会话（只读）：选择视图、格式与是否包含工具结果明文，经主进程保存对话框写盘。
  * 正文由内核脱敏生成、由主进程直接写入用户选择的文件；本组件只看到文件名与统计。
+ * 目标会话由外层在打开弹窗时固定：通知切换活动会话不能改换导出对象。
  */
-export function ExportDialog({ isOpen, onClose, threadId, branchViews, connected }: {
-  isOpen: boolean; onClose: () => void; threadId: string | null; branchViews: boolean; connected: boolean;
+export function ExportDialog({ target, onClose, branchViews, connected }: {
+  target: ExportTarget | null; onClose: () => void; branchViews: boolean; connected: boolean;
 }) {
   const [view, setView] = useState<ExportView>("branch");
   const [format, setFormat] = useState<ExportFormat>("markdown");
@@ -50,15 +53,24 @@ export function ExportDialog({ isOpen, onClose, threadId, branchViews, connected
   const [acknowledged, setAcknowledged] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const version = useRef(0);
+  const targetId = target?.threadId ?? null;
+  // 打开新目标时递增版本，使旧目标尚未返回的回执失效。
+  const previousTargetId = useRef(targetId);
   useEffect(() => {
+    if (previousTargetId.current === targetId) return;
+    previousTargetId.current = targetId;
     version.current += 1;
+  }, [targetId]);
+  useEffect(() => {
+    if (!target) return;
     setStatus({ kind: "idle" }); setIncludeToolResults(false); setAcknowledged(false);
-  }, [isOpen, threadId]);
+  }, [target?.threadId]);
   // 保存完成或失败后改选项，旧结果不再描述当前选择。
   useEffect(() => {
     setStatus(current => current.kind === "saving" || current.kind === "idle" ? current : { kind: "idle" });
   }, [view, format, includeToolResults, acknowledged]);
-  if (!isOpen || !threadId) return null;
+  if (!target) return null;
+  const { threadId } = target;
   const effectiveView: ExportView = branchViews ? view : "log";
   const saving = status.kind === "saving";
   // 在途请求已按点击时的选项构造；完成前锁定选项与关闭入口，避免界面与文件内容脱节。
@@ -84,6 +96,8 @@ export function ExportDialog({ isOpen, onClose, threadId, branchViews, connected
   };
   return <ModalSurface title="导出会话" onClose={requestClose} className="context-panel export-dialog" closeDisabled={saving}>
     <div className="dialog-form">
+      <div className="context-panel-owner" data-export-owner={threadId}><strong>{target.title || "当前会话"}</strong><code>{threadId}</code></div>
+      <p className="context-panel-note">导出目标在打开此窗口时确定；即使其他会话的通知切换了背景会话，这里仍导出上面这条。</p>
       <p className="context-panel-source" data-export-note>导出用于复盘与提交问题报告。内核默认脱敏：凭据、令牌、环境变量、本机绝对路径与附件内容不导出；工具结果只保留调用名、执行状态与结果结构，候选人个人信息按工具数据中识别到的字段值打码（未出现在工具数据中的姓名、联系方式可能无法识别，对外发送前请自行核对）。文件由主进程写入你选择的位置。</p>
       {branchViews && <fieldset className="export-options" aria-label="导出范围" disabled={saving}>
         <legend>范围</legend>

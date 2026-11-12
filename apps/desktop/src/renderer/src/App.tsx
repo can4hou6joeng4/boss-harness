@@ -12,7 +12,7 @@ import { RevertConfirmModal } from "./components/RevertConfirmModal";
 import { KeyboardShortcutsModal } from "./components/KeyboardShortcutsModal";
 import { BranchDialog, type BranchTarget } from "./components/BranchDialog";
 import { UsageDialog } from "./components/UsageDialog";
-import { ExportDialog } from "./components/ExportDialog";
+import { ExportDialog, type ExportTarget } from "./components/ExportDialog";
 import { useThreadUsage } from "./data/useThreadUsage";
 import { UI_STORAGE_PREFIX } from "./data/uiStorage";
 import { parseThemePreference, resolveDarkTheme, serializeThemePreference, type ThemePreference } from "./data/themePreference";
@@ -141,8 +141,10 @@ export function App(): JSX.Element {
   const branchCapability = useMemo(() => branchSupport(capabilities), [capabilities?.sessionLeaf, capabilities?.sessionBranchTree, capabilities?.sessionBranchViews, capabilities?.sessionBranchSummary, capabilities?.sessionBranchSummaryRead]);
   const usageSupported = capabilities?.threadUsage === true;
   const exportSupported = capabilities?.threadExport === true && typeof window !== "undefined" && typeof window.boss?.exportSession === "function";
-  const [isExportOpen, setIsExportOpen] = useState(false);
-  useEffect(() => { if (!exportSupported || !contextThreadId) setIsExportOpen(false); }, [exportSupported, contextThreadId]);
+  // 打开时固定目标：系统通知切换活动会话时，弹窗与请求不能悄悄改导出另一条会话。
+  const [exportTarget, setExportTarget] = useState<ExportTarget | null>(null);
+  // 导出能力消失时收起弹窗；目标会话由打开动作固定，通知切换背景会话不改变它。
+  useEffect(() => { if (!exportSupported) setExportTarget(null); }, [exportSupported]);
   const usageBranchViews = usageSupported && capabilities?.sessionBranchViews === true;
   const threadUsage = useThreadUsage(contextThreadId, harnessUp, usageSupported, usageBranchViews,
     Boolean(contextThreadId && runningThreadIds.has(contextThreadId)));
@@ -984,7 +986,7 @@ export function App(): JSX.Element {
       onInterrupt={handleInterrupt} onApprovalDecision={handleApproval} onStartSessionWithPrompt={handleStartSessionWithPrompt} models={modelOptions} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel} onSelectModel={handleSelectModel}
       skillsReadable={capabilities?.skillsRead === true} skillsCreatable={capabilities?.skillsCreate === true} skillsWritable={capabilities?.skillsWrite === true} skillsDeletable={capabilities?.skillsDelete === true} threadSearchable={capabilities?.threadSearch === true} threadSearchArchived={capabilities?.threadSearchArchived === true} workspaceInstructionsEditable={capabilities?.workspaceInstructionsEdit === true} onOpenCockpit={() => setIsCockpitOpen(true)} onOpenSideChat={() => setIsSideChatOpen(previous => !previous)} onOpenRewind={openRewind} onOpenContext={contextThreadId ? contextPanel.open : undefined}
       onOpenUsage={usageSupported && contextThreadId && !preview ? threadUsage.open : undefined}
-      onOpenExport={exportSupported && contextThreadId && !preview ? () => setIsExportOpen(true) : undefined}
+      onOpenExport={exportSupported && contextThreadId && !preview ? () => setExportTarget({ threadId: contextThreadId, title: activeSession?.title ?? "" }) : undefined}
       onOpenShortcuts={() => setIsShortcutsOpen(true)} onReviewDiff={() => setIsDiffModalOpen(true)} onRevertDiff={() => setIsRevertModalOpen(true)} />
     {error && <div className="app-toast" role="alert"><span>{error}</span>{!harnessUp && window.boss && <button onClick={() => { void reconnectHarness().then(status => {
       // 重连按钮此前没有任何结果反馈：失败时仍停留在同一条错误上，用户无法判断是否试过。
@@ -1017,7 +1019,7 @@ export function App(): JSX.Element {
       setIsRevertModalOpen(false);
     }} />
     <KeyboardShortcutsModal isOpen={isShortcutsOpen} onClose={() => setIsShortcutsOpen(false)} />
-    {exportSupported && <ExportDialog isOpen={isExportOpen && Boolean(contextThreadId)} onClose={() => setIsExportOpen(false)} threadId={contextThreadId}
+    {exportSupported && <ExportDialog target={exportTarget} onClose={() => setExportTarget(null)}
       branchViews={capabilities?.sessionBranchViews === true} connected={harnessUp} />}
     {usageSupported && <UsageDialog isOpen={threadUsage.isOpen && Boolean(contextThreadId)} onClose={threadUsage.close} state={threadUsage.state} messages={messages}
       branchViews={usageBranchViews} connected={harnessUp} onRefresh={() => { void threadUsage.refresh(); }} onViewChange={threadUsage.setView} />}
