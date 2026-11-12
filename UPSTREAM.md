@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 删除聊天前说明连带清理内容（Issue #1044）
+
+沿用 [Pi（MIT）固定提交 `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `session-selector.ts`](https://github.com/earendil-works/pi/blob/a14cdf90f0a76532f3e20bc3c01872837cef24ba/packages/coding-agent/src/modes/interactive/components/session-selector.ts#L835) 中「删除结果决定界面状态」的原则，并把 #1040 / #1042 已确定的清理范围提前到确认步骤展示。Pi 删除会话时随文件一并移除，确认交互只说明会话将被删除；本项目另有独立的输入草稿与消息反馈，需要让用户在确认前看到连带损失。独立实现，不复制源码或新增依赖。
+
+适配差异：说明行在确认框打开期间实时读取内存草稿与本地反馈，只列出真实存在的类别与数量，不虚构条目；附件读取完成等变化会即时反映。说明只影响展示，不改变删除请求、权威删除边界或清理时机；取消与失败路径不会改动草稿或反馈。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 删除聊天时清理本机消息反馈（Issue #1042）
 
 沿用 [Pi（MIT）固定提交 `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `session-selector.ts`](https://github.com/earendil-works/pi/blob/a14cdf90f0a76532f3e20bc3c01872837cef24ba/packages/coding-agent/src/modes/interactive/components/session-selector.ts#L835) 所体现的「只在删除成功后清理界面镜像」原则，并把 #1040 的草稿清理边界扩展到消息反馈。独立实现，不复制源码或新增依赖。

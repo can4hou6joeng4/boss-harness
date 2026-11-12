@@ -31,6 +31,7 @@ import { homeDraftHasContent, templateFillIntent, withHomeDraftSkill } from "../
 import { createdSession, sessionStartSendOutcome, type SessionStartOutcome } from "../data/sessionStart";
 import { loadComposerDraftStore, restoreComposerDraft, restoreSessionDrafts, saveComposerDrafts } from "../data/composerDraftStorage";
 import { clearThreadFeedback, readStoredMessageFeedback, saveStoredMessageFeedback } from "../data/messageFeedback";
+import { deleteCleanupSummary } from "../data/deleteCleanup";
 import type { CheckQueueSubmission, ComposerQueue } from "../data/composerDraft";
 import { exportMarkdown } from "../data/exportMarkdown";
 import type { QueueItem } from "@boss-harness/protocol";
@@ -614,13 +615,18 @@ export function AppShell(props: AppShellProps) {
     {rename && <ModalSurface title="更改显示名称" onClose={() => { if (!renameBusy) setRename(null); }} closeDisabled={renameBusy} className="compact-dialog"><form className="dialog-form" onSubmit={event => { event.preventDefault(); void confirmRenameSession(); }}><label>聊天名称<input autoFocus value={name} maxLength={100} disabled={renameBusy} onChange={event => setName(event.target.value)} /></label><p>{props.onRenameSession ? "名称会写入本地内核并随会话保存。" : "只更新此工作区的显示名称。"}</p><button className="solid-button" disabled={!name.trim() || renameBusy}>{renameBusy ? "正在保存…" : "保存"}</button></form></ModalSurface>}
     {renameProject && <ModalSurface title="更改项目显示名称" onClose={() => setRenameProject(null)} className="compact-dialog"><form className="dialog-form" onSubmit={event => { event.preventDefault(); if (!folderName.trim()) return; setProjectAliases(prev => ({ ...prev, [renameProject.id]: folderName.trim() })); setRenameProject(null); }}><label>项目名称<input autoFocus maxLength={60} value={folderName} onChange={event => setFolderName(event.target.value)} /></label><p>显示名称保存在此设备上。</p><button className="solid-button" disabled={!folderName.trim()}>保存</button></form></ModalSurface>}
     {removeProject && <ModalSurface title="移除本地分组" onClose={() => setRemoveProject(null)} className="compact-dialog"><div className="dialog-form"><p>移除“{removeProject.name}”后，其中的聊天会回到原项目。</p><div className="dialog-actions"><button className="secondary-button" onClick={() => setRemoveProject(null)}>取消</button><button className="solid-button" onClick={() => { const id = removeProject.id; setGroups(prev => prev.filter(folder => folder.id !== id)); setThreadGroups(prev => Object.fromEntries(Object.entries(prev).filter(([, folderId]) => folderId !== id))); if (draftProjectId === id) setDraftProjectId(""); setRemoveProject(null); }}>移除分组</button></div></div></ModalSurface>}
-    {deleteSession && <ModalSurface title="删除聊天" onClose={() => { if (!deleteBusy) setDeleteSession(null); }} className="compact-dialog"><div className="dialog-form">
+    {deleteSession && (() => {
+      // 说明行按确认框打开期间的实时草稿与反馈计算：附件读取完成等变化都能如实反映。
+      const cleanup = deleteCleanupSummary(sessionDrafts[deleteSession.id], readStoredMessageFeedback(), deleteSession.id);
+      return <ModalSurface title="删除聊天" onClose={() => { if (!deleteBusy) setDeleteSession(null); }} className="compact-dialog"><div className="dialog-form">
       <p>“{aliases[deleteSession.id] || deleteSession.title}”及其全部消息会从本机移除，无法恢复。</p>
+      {cleanup.length > 0 && <p data-delete-cleanup>{`删除时还会一并清除该聊天在本机保留的${cleanup.join("、")}。`}</p>}
       <p>仍有运行中的回合或排队消息时，内核会拒绝删除；请先停止当前回合。</p>
       <div className="dialog-actions">
         <button className="secondary-button" disabled={deleteBusy} onClick={() => setDeleteSession(null)}>取消</button>
         <button className="solid-button danger-button" disabled={deleteBusy} onClick={() => { void confirmDeleteSession(); }}>{deleteBusy ? "正在删除…" : "删除聊天"}</button>
       </div>
-    </div></ModalSurface>}
+    </div></ModalSurface>;
+    })()}
   </>;
 }
