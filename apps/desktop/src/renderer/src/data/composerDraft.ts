@@ -28,6 +28,11 @@ export interface ComposerDraft {
   submitting: boolean;
   queueSubmission?: QueueSubmission;
   /**
+   * 运行中消息的处理方式：随会话草稿保存在应用内存，切换会话后仍生效。
+   * 缺省（没有该字段）表示「转向当前回合」；不写入本地草稿存储，重启后回到默认。
+   */
+  queueIntent?: QueueIntent;
+  /**
    * 历史调取期间进入调取前的正文：只随本地草稿保存，重启恢复时优先于 `text`。
    * 调取结束、显式编辑、外部改写或发送成功后清空。
    */
@@ -55,6 +60,15 @@ export type ComposerQueue = (text: string, intent: QueueIntent, clientUserMessag
 export type CheckQueueSubmission = (clientUserMessageId: string) => Promise<QueueSubmissionCheck>;
 export function createComposerDraft(id: string = crypto.randomUUID()): ComposerDraft {
   return { id, text: "", textVersion: 0, attachments: [], skillIds: [], pendingReads: 0, submitting: false };
+}
+/** 处理方式缺省为「转向当前回合」；它只保存在应用内存，不随本地草稿持久化。 */
+export function draftQueueIntent(draft: ComposerDraft): QueueIntent {
+  return draft.queueIntent ?? "steering";
+}
+/** 切换处理方式时保持草稿正文、附件、技能与待核对请求不变；默认值不写入字段。 */
+export function withQueueIntent(draft: ComposerDraft, intent: QueueIntent): ComposerDraft {
+  if (draftQueueIntent(draft) === intent) return draft;
+  return { ...draft, queueIntent: intent === "steering" ? undefined : intent };
 }
 export function withDraftText(draft: ComposerDraft, text: string): ComposerDraft {
   return draft.text === text ? draft : { ...draft, text, textVersion: draft.textVersion + 1 };
