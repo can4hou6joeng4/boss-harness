@@ -293,6 +293,8 @@ button.user-skill-chip:hover { border-color: var(--text-muted); color: var(--tex
 .with-summary .messages-container, .with-summary .thread-composer-wrapper { padding-right: 330px; }
 .with-summary .conversation-preview-badge { top: 12px; }
 .scroll-to-bottom-btn { bottom: 156px; left: calc((100% - 295px) / 2); background: var(--bg-window); width: 30px; height: 30px; z-index: 12; }
+.scroll-to-bottom-btn.has-unseen { color: var(--accent-green); border-color: color-mix(in srgb, var(--accent-green) 45%, var(--border-color)); }
+.scroll-to-bottom-count { position: absolute; top: -5px; right: -5px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px; background: var(--accent-green); color: var(--bg-window); font-size: 9px; font-weight: 600; line-height: 15px; text-align: center; pointer-events: none; }
 .surface-backdrop { position: fixed; inset: 0; z-index: 1000; background: #0006; backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 24px; animation: fadeIn .12s; }
 .surface-dialog { width: 560px; max-width: 100%; max-height: 80vh; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 16px; box-shadow: var(--shadow-popup); overflow: auto; }
 .surface-heading { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px 12px; gap: 10px; }
