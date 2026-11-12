@@ -80,6 +80,8 @@ export interface ConversationAreaProps {
   onReviewDiff?: () => void; onRevertDiff?: () => void; onOpenRewind?: () => void; onOpenCockpit?: () => void;
   /** 编辑弹窗由工作台外层持有，不随背景会话切换卸载。 */
   onOpenContextEdit?: (itemId: string) => void;
+  /** 应用生命周期内按会话保留对话区滚动位置；切换会话重建后只恢复一次。 */
+  scrollMemory?: { current: Map<string, number> };
 }
 /** 把命中区间滚到消息区中间；区间不可见（折叠块尚未展开等）时返回 false，由调用方退回消息级定位。 */
 function scrollRangeIntoCenter(range: Range): boolean {
@@ -99,6 +101,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   focusMessageId, focusRevealTool = false, onFocusMessage,
   searchHighlight, onDismissSearchHighlight,
   threadId, continuationCheck, onContinueInterruptedTurn, modelRetry, onDismissModelRetry, sessionBranches,
+  scrollMemory,
 }) => {
   const [messages, setMessages] = useState<MessageItem[]>(initialMessages);
   const clipboard = useClipboardCopy();
@@ -356,15 +359,45 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
     input.select();
   }, [findOpen, findFocusRequest]);
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const wasAtBottom = useRef(true);
+  // 会话切换会重建对话区：切回时恢复离开前的阅读位置，只恢复一次。
+  const restoreTarget = useRef<number | null>(threadId && scrollMemory ? scrollMemory.current.get(threadId) ?? null : null);
+  const wasAtBottom = useRef(restoreTarget.current === null);
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: currentScrollBehavior() });
   // 父级重发消息时合并本地操作标记，不能整体替换：审批提交、问题回答与计划编辑只在本地副本里。
   useEffect(() => { setMessages(previous => mergeLocalMessageState(initialMessages, previous)); }, [initialMessages]);
   useEffect(() => { if (wasAtBottom.current) messagesEndRef.current?.scrollIntoView({ behavior: "auto" }); }, [messages, running, modelRetry?.phase]);
+  // 内容铺开后再恢复位置；布局或异步消息尚未就绪时短暂重试，用户先滚动则放弃，不抢回控制权。
+  useEffect(() => {
+    if (restoreTarget.current === null) return;
+    let frame = 0, attempts = 0;
+    const attempt = () => {
+      const target = restoreTarget.current;
+      const scroller = scrollerRef.current;
+      if (target === null || !scroller) return;
+      if (scroller.scrollHeight - scroller.clientHeight < target - 1) {
+        if (attempts++ < 60) frame = requestAnimationFrame(attempt);
+        return;
+      }
+      restoreTarget.current = null;
+      scroller.style.scrollBehavior = "auto";
+      scroller.scrollTop = target;
+      scroller.style.scrollBehavior = "";
+    };
+    attempt();
+    return () => cancelAnimationFrame(frame);
+  }, [messages, running]);
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
-    wasAtBottom.current = target.scrollHeight - target.scrollTop - target.clientHeight < 120;
-    setShowScrollBottom(!wasAtBottom.current);
+    const atBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 120;
+    wasAtBottom.current = atBottom;
+    setShowScrollBottom(!atBottom);
+    // 用户自己滚动后，迟到的一次恢复不再生效。
+    restoreTarget.current = null;
+    // 滚动事件持续记录阅读位置：切走时无需依赖卸载时机读取 DOM，底部或不足一屏不保留。
+    if (threadId && scrollMemory) {
+      if (atBottom || target.scrollHeight <= target.clientHeight + 120) scrollMemory.current.delete(threadId);
+      else scrollMemory.current.set(threadId, target.scrollTop);
+    }
   };
   // 运行中或另一个任务在跑时重试会被内核直接拒绝；按钮据此禁用并说明原因，
   // 而不是可点击后静默返回。
