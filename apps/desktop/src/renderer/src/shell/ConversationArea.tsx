@@ -82,6 +82,8 @@ export interface ConversationAreaProps {
   onOpenContextEdit?: (itemId: string) => void;
   /** 应用生命周期内按会话保留对话区滚动位置；切换会话重建后只恢复一次。 */
   scrollMemory?: { current: Map<string, number> };
+  /** 当前会话历史仍在读取：显示加载提示，不展示成空会话。 */
+  loadingHistory?: boolean;
 }
 /** 把命中区间滚到消息区中间；区间不可见（折叠块尚未展开等）时返回 false，由调用方退回消息级定位。 */
 function scrollRangeIntoCenter(range: Range): boolean {
@@ -101,7 +103,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   focusMessageId, focusRevealTool = false, onFocusMessage,
   searchHighlight, onDismissSearchHighlight,
   threadId, continuationCheck, onContinueInterruptedTurn, modelRetry, onDismissModelRetry, sessionBranches,
-  scrollMemory,
+  scrollMemory, loadingHistory = false,
 }) => {
   const [messages, setMessages] = useState<MessageItem[]>(initialMessages);
   const clipboard = useClipboardCopy();
@@ -1015,7 +1017,9 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
             onCancel={sessionBranches.onCancelSummary} onDismiss={sessionBranches.onDismissSummary} />}
           {currentModelRetry && <ModelRetryNotice status={currentModelRetry} onDismiss={onDismissModelRetry} />}
           {running && <div className="agent-running-indicator" role="status"><span /><span /><span /><p>{currentModelRetry?.phase === "waiting" ? "等待模型重试…" : "正在处理任务…"}</p></div>}
-          {!messages.length && !running && <div className="conversation-empty"><IconSparkles size={25} /><p>开始这个聊天</p><span>在下方输入你的招聘任务。</span></div>}
+          {!messages.length && !running && (loadingHistory
+            ? <div className="conversation-empty conversation-loading"><IconSparkles size={25} /><p>正在加载会话历史</p><span>读取完成前不会把会话显示为空。</span></div>
+            : <div className="conversation-empty"><IconSparkles size={25} /><p>开始这个聊天</p><span>在下方输入你的招聘任务。</span></div>)}
           <div ref={messagesEndRef} />
         </div>
       </div>
