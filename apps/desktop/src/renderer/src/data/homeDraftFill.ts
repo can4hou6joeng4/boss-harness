@@ -15,9 +15,10 @@ export function homeDraftHasContent(draft: ComposerDraft): boolean {
 
 /**
  * 模板入口的填充策略：草稿为空时直接应用；否则必须先确认。
- * 草稿内容本来就是该模板时无需再确认，与首页建议卡一致。
+ * 空闲时草稿内容本来就是该模板可直接应用；读取或转交期间必须保留原草稿。
  */
 export function templateFillIntent(draft: ComposerDraft, template: string): "apply" | "confirm" {
+  if (draft.pendingReads > 0 || draft.submitting) return "confirm";
   if (!homeDraftHasContent(draft)) return "apply";
   const sameText = draft.text.trim() === template.trim();
   if (sameText && draft.attachments.length === 0 && (draft.skillIds ?? []).length === 0) return "apply";

@@ -355,6 +355,8 @@ export function AppShell(props: AppShellProps) {
   };
   // 确认条结论：应用模板时清空旧草稿后再写入，取消只丢弃待定模板。
   const resolveTemplate = (apply: boolean) => {
+    // 读取或转交中的草稿仍需处理迟到结果，不能由模板重置身份；取消始终可用。
+    if (apply && (draftRef.current.pendingReads > 0 || draftRef.current.submitting)) return;
     const template = pendingTemplate;
     setPendingTemplate(null);
     if (apply && template !== null) { resetDraft(); setDraft(template); }

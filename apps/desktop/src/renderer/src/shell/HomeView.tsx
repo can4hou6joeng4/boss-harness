@@ -41,6 +41,7 @@ export function HomeView(props: Props) {
   const [projectMenu, setProjectMenu] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
   const pendingNewTask = props.pendingNewTaskProject != null;
+  const draftBusy = props.draft.pendingReads > 0 || props.draft.submitting;
   const newTaskProject = props.folders.find(folder => folder.id === props.pendingNewTaskProject)?.name;
   useEffect(() => {
     if (pendingNewTask || props.pendingTemplate) setPendingSuggestion(null);
@@ -78,14 +79,15 @@ export function HomeView(props: Props) {
       </div>}
       {props.pendingTemplate && <div className="home-suggestion-confirm" role="alert" data-home-template-confirm>
         <span>{templateConfirmText(props.draft)}</span>
-        <button type="button" onClick={() => { props.onResolveTemplate?.(true); ref.current?.focus(); }}>替换</button>
+        <button type="button" disabled={draftBusy} onClick={() => { props.onResolveTemplate?.(true); ref.current?.focus(); }}>替换</button>
         <button type="button" onClick={() => props.onResolveTemplate?.(false)}>取消</button>
+        {draftBusy && <span>正在读取附件或转交消息，请稍候。</span>}
       </div>}
       {pendingNewTask && <div className="home-suggestion-confirm" role="alert" data-home-new-task-confirm>
         <span>{newTaskProject ? `在「${newTaskProject}」开始新聊天` : "开始新聊天"}将清空首页未发送的正文、附件与已选技能。</span>
-        <button type="button" disabled={props.draft.pendingReads > 0 || props.draft.submitting} onClick={() => { props.onResolveNewTask?.(true); ref.current?.focus(); }}>丢弃草稿并开始</button>
+        <button type="button" disabled={draftBusy} onClick={() => { props.onResolveNewTask?.(true); ref.current?.focus(); }}>丢弃草稿并开始</button>
         <button type="button" onClick={() => { props.onResolveNewTask?.(false); ref.current?.focus(); }}>取消</button>
-        {(props.draft.pendingReads > 0 || props.draft.submitting) && <span>正在读取附件或转交消息，请稍候。</span>}
+        {draftBusy && <span>正在读取附件或转交消息，请稍候。</span>}
       </div>}
       <div className="home-keyboard-hint"><span><kbd>/</kbd> 快捷指令</span><span><kbd>{currentShortcutLabel("⇧ Enter")}</kbd> 换行</span></div>
     </div>
