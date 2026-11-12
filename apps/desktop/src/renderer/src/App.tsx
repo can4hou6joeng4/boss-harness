@@ -40,7 +40,7 @@ import type { QueueRefreshResult } from "./data/queueRefresh";
 import { reduceModelRetry, settleModelRetryOnTurnEnd, type ModelRetryStatus } from "./data/modelRetry";
 import { toMessage } from "./data/harnessBridge";
 import { deliveredTurnSkills } from "./data/turnSkills";
-import type { InitializeResponse, ModelDescriptor, QueueItem, TurnContinuationReadResponse } from "@boss-harness/protocol";
+import type { ContextEditReadResponse, InitializeResponse, ModelDescriptor, QueueItem, TurnContinuationReadResponse } from "@boss-harness/protocol";
 import { MAX_MESSAGE_TEXT_LENGTH, type QueueIntent, type QueueSubmissionCheck } from "./data/composerDraft";
 
 const LEGACY_ROUTE_HINT = "该旧会话记录的模型不属于默认线路，请先在模型菜单中选择线路后再发送。";
@@ -192,6 +192,12 @@ export function App(): JSX.Element {
     cache.current.set(id, next); versions.current.set(id, (versions.current.get(id) ?? 0) + 1);
     if (activeRef.current?.id === id) setMessages(next);
   }, []);
+  // 编辑弹窗独立于背景会话；权威回读只更新响应所属会话的消息投影。
+  const recordContextEdit = useCallback((state: ContextEditReadResponse) => {
+    const edited = state.excluded || (state.currentText !== null && state.currentText !== state.originalText);
+    updateThread(state.threadId, previous => previous.map(message => message.id === state.itemId
+      ? { ...message, contextEdit: edited ? { excluded: state.excluded } : undefined } : message));
+  }, [updateThread]);
   const markRunning = useCallback((id: string, running: boolean) => {
     const next = new Set(runningRef.current);
     if (running) next.add(id); else next.delete(id);
@@ -1049,7 +1055,7 @@ export function App(): JSX.Element {
           setIsBranchesOpen(true);
         },
         onCancelSummary: activeBranchControl.cancelSummary, onDismissSummary: activeBranchControl.dismissSummaryJob } : undefined}
-      onInterrupt={handleInterrupt} onApprovalDecision={handleApproval} onStartSessionWithPrompt={handleStartSessionWithPrompt} models={modelOptions} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel} onSelectModel={handleSelectModel}
+      onInterrupt={handleInterrupt} onApprovalDecision={handleApproval} onContextEditChanged={recordContextEdit} onStartSessionWithPrompt={handleStartSessionWithPrompt} models={modelOptions} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel} onSelectModel={handleSelectModel}
       skillsReadable={capabilities?.skillsRead === true} skillsCreatable={capabilities?.skillsCreate === true} skillsWritable={capabilities?.skillsWrite === true} skillsDeletable={capabilities?.skillsDelete === true} threadSearchable={capabilities?.threadSearch === true} threadSearchArchived={capabilities?.threadSearchArchived === true} workspaceInstructionsEditable={capabilities?.workspaceInstructionsEdit === true} onOpenCockpit={() => setIsCockpitOpen(true)} onOpenSideChat={() => setIsSideChatOpen(previous => !previous)} onOpenRewind={openRewind} onOpenContext={contextThreadId ? openContext : undefined}
       onOpenUsage={usageSupported && contextThreadId && !preview ? openUsage : undefined}
       onOpenExport={exportSupported && contextThreadId && !preview ? () => setExportTarget({ threadId: contextThreadId, title: activeSession?.title ?? "" }) : undefined}

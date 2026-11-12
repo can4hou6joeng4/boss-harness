@@ -10,6 +10,8 @@ interface Props {
   threadId: string;
   itemId: string;
   title: string;
+  /** 打开时固定的会话标题；背景会话切换不能改变编辑对象。 */
+  threadTitle?: string;
   onClose: () => void;
   onChanged: (state: ContextEditReadResponse) => void;
 }
@@ -23,7 +25,7 @@ function validate(value: ContextEditReadResponse, threadId: string, itemId: stri
   return value;
 }
 
-export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged }: Props) {
+export function ContextEditDialog({ threadId, itemId, title, threadTitle, onClose, onChanged }: Props) {
   const [record, setRecord] = useState<ContextEditReadResponse>();
   const [draft, setDraft] = useState("");
   // 最后一次有效读取 / 提交的正文独立保留；刷新失败或读取中都不会把草稿误当成已保存。
@@ -36,8 +38,9 @@ export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged 
   // 读取失败后 record 仍是上一次成功的快照；重新读取成功前不得把它当作当前状态。
   const [stale, setStale] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  const mounted = useRef(true);
 
-  // 进入组件时取一次：通知切换会话会卸载对话区，切回重开时从这里恢复草稿。
+  // 进入组件时取一次：意外卸载后重开时仍可从这里恢复未提交草稿。
   const restoredDraftRef = useRef<string | null>(readContextEditDraft(threadId, itemId));
   const draftRef = useRef(draft); draftRef.current = draft;
   const baselineRef = useRef(baseline); baselineRef.current = baseline;
@@ -50,6 +53,8 @@ export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged 
     setNotice("");
     try {
       const next = validate(await readContextEdit(threadId, itemId), threadId, itemId);
+      // 读取中仍可显式关闭；旧窗口的迟到快照不能回退外层已经更新的消息标记。
+      if (!mounted.current) return;
       const current = next.currentText ?? next.originalText;
       setRecord(next);
       setBaseline(current);
@@ -58,7 +63,7 @@ export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged 
         setNotice("已重新读取内核中的当前文本；你的未保存修改已保留。");
         setConfirmClose(false);
       } else if (restored !== null && restored !== current) {
-        // 切换会话前未提交的草稿：恢复正文并说明它仍未写入内核。
+        // 意外卸载前未提交的草稿：恢复正文并说明它仍未写入内核。
         setDraft(restored);
         setNotice("已恢复上次未保存的替换文本；它尚未提交。");
       } else {
@@ -69,16 +74,21 @@ export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged 
       setStale(false);
       onChanged(next);
     } catch (cause) {
+      if (!mounted.current) return;
       setStale(true);
       setError(`读取会话上下文失败：${harnessErrorText(cause)}`);
     } finally {
-      setLoading(false);
+      if (mounted.current) setLoading(false);
     }
   }, [itemId, onChanged, threadId]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    mounted.current = true;
+    void refresh();
+    return () => { mounted.current = false; };
+  }, [refresh]);
 
-  // 未保存的正文按「会话 + 消息」保留：对话区随切换会话卸载后，切回重开仍能恢复。
+  // 未保存的正文按「会话 + 消息」保留，意外卸载后重开仍能恢复。
   // 读取完成前没有权威基线，不判定脏；提交成功或确认丢弃后由这里清除。
   useEffect(() => {
     if (loading || !record) return;
@@ -152,6 +162,7 @@ export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged 
 
   return <ModalSurface title={title} onClose={close} closeDisabled={saving} className="context-edit-dialog">
     <div className="context-edit-body">
+      <p className="context-edit-note context-edit-owner">目标会话：<strong>{threadTitle || threadId}</strong> · <code>{threadId}</code>；消息 <code>{itemId}</code></p>
       <p className="context-edit-note">这里只调整未来模型请求中的上下文。原始会话记录和已发生的操作保持不变。</p>
       {loading && <p className="context-edit-status" role="status">正在读取消息与当前上下文…</p>}
       {record && <>
