@@ -376,7 +376,9 @@ export function AppShell(props: AppShellProps) {
       openRoute({ page: "home" });
       return;
     }
-    startEmptyTask();
+    // 模板只替换正文；首页已选招聘项目是独立的任务上下文，确认替换与建议卡都保留它，
+    // 快速路径也不能借新建空任务把项目静默清掉。
+    startEmptyTask(draftProjectIdRef.current);
     setDraft(template);
   };
   // 技能入口只并入技能，保留首页正文与附件；不能走 newTask()。
