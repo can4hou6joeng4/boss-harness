@@ -10,7 +10,7 @@ import { filterSkills } from "../data/skillFilter";
 import { skillChips } from "../data/skillChips";
 import { attachmentFailureNotice, readTextAttachments } from "../data/attachmentRead";
 import type { SessionReasoningControl } from "../data/useSessionReasoning";
-import { createComposerDraft, clearTransferredDraft, composerSendResult, composedMessageText, MAX_MESSAGE_TEXT_LENGTH, type ComposerDraft, type UpdateComposerDraft, type ComposerSend, type ComposerSendOutcome, type ComposerQueue, type QueueIntent, type CheckQueueSubmission } from "../data/composerDraft";
+import { createComposerDraft, clearTransferredDraft, composerSendResult, composedMessageText, MAX_MESSAGE_TEXT_LENGTH, type ComposerDraft, type UpdateComposerDraft, type ComposerSend, type ComposerSendOutcome, type ComposerQueue, type QueueIntent, type QueueSubmission, type CheckQueueSubmission } from "../data/composerDraft";
 import { queueSkillNotice } from "../data/queueSkillNotice";
 import { recallAfterValueChange, recallKeyDirection, recallNewer, recallOlder, type PromptRecallState } from "../data/composerHistory";
 import "../styles/composer-menus.css";
@@ -103,6 +103,12 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     && pendingQueueRestore.intent === queueIntent && !queueRestoreBusy ? pendingQueueRestore : null;
   const queueRestoreStateRef = useRef({ confirmation: currentQueueRestore, checking: checkingQueue });
   queueRestoreStateRef.current = { confirmation: currentQueueRestore, checking: checkingQueue };
+  /**
+   * 发起核对时的草稿与请求快照：只有它们仍是当前待核对请求，结果才能结算。
+   * 同编号重试会复用同一请求对象，因此另记提交代数，排除核对发出后的新尝试。
+   */
+  const queueCheckRef = useRef<{ draftId: string; submission: QueueSubmission; transfer: number } | null>(null);
+  const queueTransferRef = useRef(0);
   // 恢复会替换正文、附件与技能；任何草稿变化或处理方式切换后，旧确认都不能继续生效。
   useEffect(() => {
     if (pendingQueueRestore && !currentQueueRestore) setPendingQueueRestore(null);
@@ -223,7 +229,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
         return;
       }
     }
-    sendingRef.current = true; setNotice("");
+    sendingRef.current = true; queueTransferRef.current += 1; setNotice("");
     updateDraft(previous => previous.id === submitted.id ? { ...previous, submitting: true } : previous);
     let queueRequest: ComposerDraft["queueSubmission"];
     try {
@@ -304,13 +310,29 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     applyQueueRestore(current);
   };
   const checkUncertainQueueSubmission = async () => {
-    const pending = draftRef.current.queueSubmission;
-    if (!pending?.uncertain || !onCheckQueueSubmission || checkingQueue) return;
+    const current = draftRef.current, pending = current.queueSubmission;
+    if (!pending?.uncertain || !onCheckQueueSubmission || checkingQueue || readingRef.current || sendingRef.current
+      || current.pendingReads > 0 || current.submitting) return;
+    // 核对期间仍可提交新的请求；迟到的结果只能结算发起时的那一份请求。
+    const check = { draftId: current.id, submission: pending, transfer: queueTransferRef.current };
+    queueCheckRef.current = check;
     setCheckingQueue(true);
     setNotice("正在核对内核队列…");
+    const ownsResult = () => {
+      const latest = draftRef.current;
+      return alive.current && queueCheckRef.current === check && latest.id === check.draftId
+        && latest.queueSubmission === pending && !latest.submitting && !sendingRef.current
+        && queueTransferRef.current === check.transfer;
+    };
+    // 写入时再次核对草稿与请求快照，避免结果落到已被替换的请求上。
+    const settle = (change: (draft: ComposerDraft) => ComposerDraft) => updateDraft(previous =>
+      queueCheckRef.current === check && previous.id === check.draftId && previous.queueSubmission === pending
+        && !previous.submitting ? change(previous) : previous);
     try {
       const result = await onCheckQueueSubmission(pending.id);
       if (!alive.current) return;
+      // 核对期间已换了请求或开始新的转交：这次读取已过期，静默保留当前内容与提示。
+      if (!ownsResult()) return;
       if (result.status === "unavailable") {
         setNotice(`暂时无法读取内核队列${result.reason ? `（${result.reason}）` : ""}；草稿和请求编号已保留，请稍后或恢复连接后再核对。`);
         return;
@@ -321,8 +343,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
         return;
       }
       if (result.status === "found") {
-        updateDraft(previous => {
-          if (previous.id !== draftRef.current.id) return previous;
+        settle(previous => {
           const currentText = composedMessageText(previous.text, previous.attachments);
           const matchesPending = currentText === pending.text;
           return { ...previous, text: matchesPending ? "" : previous.text,
@@ -332,13 +353,16 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
         setNotice(`已核对：原消息在队列中，状态为${result.item.status === "queued" ? "排队中" : result.item.status === "delivering" ? "正在投递" : result.item.status === "delivered" ? "已投递" : "已暂停"}；不会重复提交。`);
         return;
       }
-      updateDraft(previous => previous.id === draftRef.current.id ? { ...previous, submitting: false, queueSubmission: undefined } : previous);
+      settle(previous => ({ ...previous, submitting: false, queueSubmission: undefined }));
       setNotice(result.status === "cancelled" ? "已核对：原消息已撤回；当前输入可作为新请求提交。" : "已核对：队列中没有原消息；当前输入可作为新请求提交。");
     } catch (cause) {
       // 核对失败也要给出真实原因（如断连、超时），否则用户不知道该重连还是继续等待。
-      if (alive.current) setNotice(`核对内核队列失败：${harnessErrorText(cause)}；草稿和请求编号已保留，请稍后重试。`);
+      if (ownsResult()) setNotice(`核对内核队列失败：${harnessErrorText(cause)}；草稿和请求编号已保留，请稍后重试。`);
     } finally {
-      if (alive.current) setCheckingQueue(false);
+      if (queueCheckRef.current === check) {
+        queueCheckRef.current = null;
+        if (alive.current) setCheckingQueue(false);
+      }
     }
   };
   const selectModel = async (provider: string, id: string) => {
@@ -542,7 +566,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     {(notice || readingAttachments || submitting) && <div className="composer-notice" role="status">{notice || (readingAttachments ? "正在读取附件…" : "正在转交消息…")}</div>}
     {uncertainQueue && <div className="composer-notice-actions">
       <button type="button" disabled={queueRestoreBusy} title={queueRestoreBusy ? "正在读取附件、转交消息或核对队列，请稍候" : undefined} onClick={restoreQueueSubmission}>恢复待确认消息</button>
-      <button type="button" disabled={!onCheckQueueSubmission || checkingQueue} onClick={() => { void checkUncertainQueueSubmission(); }}>{checkingQueue ? "正在核对队列…" : "核对服务端队列"}</button>
+      <button type="button" disabled={!onCheckQueueSubmission || queueRestoreBusy} title={!checkingQueue && queueRestoreBusy ? "正在读取附件或转交消息，请稍候" : undefined} onClick={() => { void checkUncertainQueueSubmission(); }}>{checkingQueue ? "正在核对队列…" : "核对服务端队列"}</button>
     </div>}
     {currentQueueRestore && <div className="composer-notice" role="alert" data-queue-restore-confirm>
       <span>恢复待确认消息会替换当前未发送的正文、附件与已选技能。</span>
