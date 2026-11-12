@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextEditReadResponse } from "@boss-harness/protocol";
 import { harnessErrorText, readContextEdit, writeContextEdit } from "../data/harnessBridge";
 import { CONTEXT_EDIT_STALE_NOTICE, contextEditSubmitBlocked } from "../data/contextEditState";
+import { clearContextEditDraft, readContextEditDraft, writeContextEditDraft } from "../data/contextEditDrafts";
 import { ModalSurface } from "./ModalSurface";
 import "../styles/context-edit.css";
 
@@ -36,11 +37,14 @@ export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged 
   const [stale, setStale] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
 
+  // 进入组件时取一次：通知切换会话会卸载对话区，切回重开时从这里恢复草稿。
+  const restoredDraftRef = useRef<string | null>(readContextEditDraft(threadId, itemId));
   const draftRef = useRef(draft); draftRef.current = draft;
   const baselineRef = useRef(baseline); baselineRef.current = baseline;
 
   const refresh = useCallback(async () => {
     const keepDraft = draftRef.current !== baselineRef.current;
+    const restored = restoredDraftRef.current;
     setLoading(true);
     setError("");
     setNotice("");
@@ -53,9 +57,14 @@ export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged 
       if (keepDraft) {
         setNotice("已重新读取内核中的当前文本；你的未保存修改已保留。");
         setConfirmClose(false);
+      } else if (restored !== null && restored !== current) {
+        // 切换会话前未提交的草稿：恢复正文并说明它仍未写入内核。
+        setDraft(restored);
+        setNotice("已恢复上次未保存的替换文本；它尚未提交。");
       } else {
         setDraft(current);
       }
+      restoredDraftRef.current = null;
       setUncertain(false);
       setStale(false);
       onChanged(next);
@@ -68,6 +77,14 @@ export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged 
   }, [itemId, onChanged, threadId]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // 未保存的正文按「会话 + 消息」保留：对话区随切换会话卸载后，切回重开仍能恢复。
+  // 读取完成前没有权威基线，不判定脏；提交成功或确认丢弃后由这里清除。
+  useEffect(() => {
+    if (loading || !record) return;
+    if (draft !== baseline) writeContextEditDraft(threadId, itemId, draft);
+    else clearContextEditDraft(threadId, itemId);
+  }, [baseline, draft, itemId, loading, record, threadId]);
 
   const apply = async (replacementText: string | null) => {
     if (!record || saving || stale || !record.canEdit) return;
@@ -124,10 +141,11 @@ export function ContextEditDialog({ threadId, itemId, title, onClose, onChanged 
   const blocked = contextEditSubmitBlocked({ loading, saving, stale });
   // 未保存判定只看编辑器正文与最后一次有效基线；与「提交后当前是否已替换」无关。
   const dirty = draft !== baseline;
-  // 关闭按钮、Esc 与遮罩共享同一入口：有修改先提示，再次关闭才丢弃。
+  // 关闭按钮、Esc 与遮罩共享同一入口：有修改先提示，再次关闭才丢弃并清除草稿。
   const close = () => {
     if (saving) return;
     if (dirty && !confirmClose) { setConfirmClose(true); return; }
+    if (dirty) clearContextEditDraft(threadId, itemId);
     onClose();
   };
   const updateDraft = (value: string) => { setDraft(value); setNotice(""); setConfirmClose(false); };
