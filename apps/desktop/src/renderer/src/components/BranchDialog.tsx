@@ -21,8 +21,10 @@ function clip(text: string | null | undefined, fallback: string): string {
  * 切换只移动 leaf 指针；原回合保留可切回；招聘平台上已发生的操作不会撤销。
  */
 export interface BranchTarget { turnId: string | null; label: string; abandons: boolean }
-export function BranchDialog({ isOpen, onClose, state, support, messages, block, summaryUnavailable, onSwitch, onRefresh, initialTarget }: {
-  isOpen: boolean; onClose: () => void; state: SessionBranchState; support: BranchSupport; messages: MessageItem[];
+/** 打开弹窗时固定的分支目标会话：系统通知切换活动会话不能改换分支来源。 */
+export interface BranchOwner { threadId: string; title: string }
+export function BranchDialog({ isOpen, onClose, state, support, owner, messages, block, summaryUnavailable, onSwitch, onRefresh, initialTarget }: {
+  isOpen: boolean; onClose: () => void; state: SessionBranchState; support: BranchSupport; owner: BranchOwner; messages: MessageItem[];
   initialTarget?: BranchTarget | null;
   block: string | null; summaryUnavailable: string | null;
   onSwitch: (turnId: string | null, summarize: boolean) => Promise<boolean>; onRefresh: () => void;
@@ -44,8 +46,10 @@ export function BranchDialog({ isOpen, onClose, state, support, messages, block,
     const ok = await onSwitch(target.turnId, summarize && !summaryBlocked);
     if (ok) onClose();
   };
-  return <ModalSurface title="会话分支" onClose={onClose} className="rewind-dialog branch-dialog">
+  return <ModalSurface title="会话分支" onClose={onClose} className="rewind-dialog branch-dialog" closeDisabled={state.switching}>
     <div className="dialog-form">
+      <div className="context-panel-owner" data-branch-owner={owner.threadId}><strong>{owner.title || "当前会话"}</strong><code>{owner.threadId}</code></div>
+      <p className="context-panel-note">分支目标在打开此窗口时确定；即使其他会话的通知切换了背景会话，这里仍从上面这条会话切换位置或重新开始。</p>
       <p>切换只移动当前位置：原有回合全部保留，可随时切回；之后的输入从所选位置继续，模型只会看到所选分支的历史。已发生的招聘平台操作不会撤销。</p>
       {block && <p className="branch-block" role="status" data-branch-block>{block}</p>}
       {state.switchError && <p className="branch-error" role="alert">{state.switchError}</p>}
@@ -104,7 +108,7 @@ export function BranchDialog({ isOpen, onClose, state, support, messages, block,
         </label>
         <p className="branch-summary-cost">{summaryBlocked ?? "会调用模型并可能产生费用。摘要在后台生成，写入新分支并标注为“被放弃分支摘要”；生成失败或取消不会撤销切换。"}</p>
         <div className="dialog-actions">
-          <button type="button" className="secondary-button" onClick={() => setTarget(null)}>取消</button>
+          <button type="button" className="secondary-button" disabled={state.switching} onClick={() => setTarget(null)}>取消</button>
           <button type="button" className="solid-button" disabled={Boolean(block) || state.switching} onClick={() => { void confirm(); }}>{state.switching ? "正在切换…" : "确认切换"}</button>
         </div>
       </section>}

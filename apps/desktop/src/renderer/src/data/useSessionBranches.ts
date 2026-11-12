@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextBranchSummary, ContextBranchSummaryIssue, ContextCompactJob, InitializeResponse, QueueItem, ThreadBranchEndpoint, TurnSummary } from "@boss-harness/protocol";
-import { abortContextCompaction, harnessErrorText, listBranchTurns, listThreadBranches, readContext, readContextCompaction, setThreadLeaf } from "./harnessBridge";
+import { abortContextCompaction, harnessErrorText, listBranchTurns, listQueue, listThreadBranches, readContext, readContextCompaction, setThreadLeaf } from "./harnessBridge";
 import { readPagedItems } from "./pagedRead";
 
 /**
@@ -44,6 +44,16 @@ export interface SessionBranchState {
 const initial = (): SessionBranchState => ({ loading: false, loaded: false, error: "", branched: false, leafTurnId: null, turnCount: 0,
   endpoints: [], endpointsTruncated: false, turns: [], turnsTruncated: false, summaries: [], summaryIssues: [], summaryIssueCount: 0,
   summaryError: "", summaryPollError: "", switching: false, switchError: "", cancelInFlight: false });
+
+/**
+ * 按会话读取分支控制：弹窗固定目标时，聊天区仍需使用活动会话自己的摘要状态与取消入口，
+ * 不能因为弹窗打开而把另一条会话的摘要任务显示到当前聊天上。
+ */
+export interface BranchThreadControl {
+  state: SessionBranchState;
+  cancelSummary: () => void;
+  dismissSummaryJob: () => void;
+}
 const MAX_PAGES = 10;
 const TERMINAL_TURN = new Set(["completed", "interrupted", "blocked", "error"]);
 export const isSettledTurn = (status: string | null | undefined): boolean => Boolean(status && TERMINAL_TURN.has(status));
@@ -84,6 +94,9 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
   const stateRef = useRef(states);
   const current = useRef({ threadId, connected, support, onSwitched });
   current.current = { threadId, connected, support, onSwitched };
+  // 分支弹窗打开时固定目标；通知切换活动会话不能改换切换与删除摘要的对象。
+  const target = useRef<{ threadId: string; connected: boolean; support: BranchSupport } | null>(null);
+  useEffect(() => { if (!connected || !support) target.current = null; }, [connected, support]);
   const versions = useRef(new Map<string, number>());
   const pollFailures = useRef(new Map<string, number>());
   const epoch = useRef(0);
@@ -241,24 +254,37 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
   }, [applyJob, dropMissingJob, refresh, update]);
   useEffect(() => { if (threadId && connected && support) void refresh(threadId); }, [threadId, connected, support, refresh]);
 
-  const switchTo = useCallback(async (target: string | null, summarize: boolean): Promise<boolean> => {
-    const { threadId: id, connected: available, support: supported } = current.current;
+  const switchTo = useCallback(async (turnId: string | null, summarize: boolean): Promise<boolean> => {
+    const targetSnapshot = target.current;
+    const { threadId: activeId, connected: available, support: supported } = current.current;
+    const id = targetSnapshot?.threadId ?? activeId;
     if (!id || !available || !supported) return false;
+    if (targetSnapshot && (!targetSnapshot.connected || targetSnapshot.support !== supported)) return false;
     const state = stateRef.current[id] ?? initial();
     if (state.switching) return false;
     const connectionEpoch = epoch.current;
     update(id, { switching: true, switchError: "" });
+    let attempted = false;
     try {
-      const result = await setThreadLeaf(summarize && supported.summary ? { threadId: id, turnId: target, summarize: true } : { threadId: id, turnId: target });
-      if (result.threadId !== id || result.leafTurnId !== target) throw new Error("切换回执与所选位置不一致");
+      // 目标可能已不在前台，界面上的队列投影属于活动会话；切换前必须重新核对目标自己的队列。
+      const queue = await listQueue(id);
+      if (queue.items.some(item => item.status === "queued" || item.status === "delivering")) {
+        update(id, { switchError: "队列中仍有排队或投递中的消息，暂不能切换分支：请等待投递完成或先撤回（排队消息切换后会自动投递到新分支）。" });
+        return false;
+      }
+      attempted = true;
+      const result = await setThreadLeaf(summarize && supported.summary ? { threadId: id, turnId, summarize: true } : { threadId: id, turnId });
+      if (result.threadId !== id || result.leafTurnId !== turnId) throw new Error("切换回执与所选位置不一致");
       if (result.summaryJob && isBranchJob(result.summaryJob, id)) applyJob(id, result.summaryJob);
       await current.current.onSwitched(id);
       return true;
     } catch (error) {
       if (!alive.current || epoch.current !== connectionEpoch) return false;
       const detail = rpcDetail(error);
-      update(id, { switchError: detail.rpc ? `内核拒绝切换，分支保持不变：${detail.text}` : `切换结果尚未确认：${detail.text}。已重新读取分支状态；不会自动重试。` });
-      if (!detail.rpc) await current.current.onSwitched(id);
+      update(id, { switchError: attempted
+        ? detail.rpc ? `内核拒绝切换，分支保持不变：${detail.text}` : `切换结果尚未确认：${detail.text}。已重新读取分支状态；不会自动重试。`
+        : `未能核对目标会话的队列，分支未切换：${detail.text}` });
+      if (attempted && !detail.rpc) await current.current.onSwitched(id);
       return false;
     } finally {
       if (alive.current) update(id, { switching: false });
@@ -266,9 +292,7 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
     }
   }, [applyJob, refresh, update]);
 
-  const cancelSummary = useCallback(async () => {
-    const id = current.current.threadId;
-    if (!id) return;
+  const cancelSummaryFor = useCallback(async (id: string) => {
     const job = stateRef.current[id]?.summaryJob;
     if (!job || job.status !== "running" || stateRef.current[id]?.cancelInFlight) return;
     update(id, { cancelInFlight: true });
@@ -279,17 +303,43 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       update(id, { switchError: `取消摘要的回执未知：${rpcDetail(error).text}。请稍后刷新核对。` });
     } finally { update(id, { cancelInFlight: false }); void refresh(id); }
   }, [applyJob, refresh, update]);
+  const cancelSummary = useCallback(async () => {
+    const id = current.current.threadId;
+    if (id) await cancelSummaryFor(id);
+  }, [cancelSummaryFor]);
 
+  const dismissSummaryJobFor = useCallback((id: string) => {
+    update(id, state => state.summaryJob?.status === "running" ? state : { ...state, summaryJob: undefined });
+  }, [update]);
   const dismissSummaryJob = useCallback(() => {
     const id = current.current.threadId;
-    if (id) update(id, state => state.summaryJob?.status === "running" ? state : { ...state, summaryJob: undefined });
-  }, [update]);
+    if (id) dismissSummaryJobFor(id);
+  }, [dismissSummaryJobFor]);
+
+  const clearSwitchErrorFor = useCallback((id: string) => update(id, { switchError: "" }), [update]);
   const clearSwitchError = useCallback(() => {
     const id = current.current.threadId;
-    if (id) update(id, { switchError: "" });
-  }, [update]);
+    if (id) clearSwitchErrorFor(id);
+  }, [clearSwitchErrorFor]);
+
+  /** 打开弹窗时固定目标；之后的读取、切换与摘要取消都使用该会话。 */
+  const openFor = useCallback((id: string) => {
+    const { connected: available, support: supported } = current.current;
+    if (!id || !available || !supported) return;
+    target.current = { threadId: id, connected: available, support: supported };
+    clearSwitchErrorFor(id);
+    void refresh(id);
+  }, [clearSwitchErrorFor, refresh]);
+  const closeTarget = useCallback(() => { target.current = null; }, []);
+  const threadControl = (id: string | null): BranchThreadControl => ({
+    state: id ? states[id] ?? initial() : initial(),
+    cancelSummary: id ? () => { void cancelSummaryFor(id); } : () => {},
+    dismissSummaryJob: id ? () => dismissSummaryJobFor(id) : () => {},
+  });
 
   const state = threadId ? states[threadId] ?? initial() : initial();
-  return { state, support, refresh: () => threadId ? refresh(threadId) : Promise.resolve(), switchTo, cancelSummary, dismissSummaryJob, clearSwitchError };
+  return { state, support, refresh: () => threadId ? refresh(threadId) : Promise.resolve(),
+    refreshFor: (id: string) => refresh(id), openFor, closeTarget, threadControl,
+    switchTo, cancelSummary, dismissSummaryJob, clearSwitchError };
 }
 export type SessionBranchControl = ReturnType<typeof useSessionBranches>;
