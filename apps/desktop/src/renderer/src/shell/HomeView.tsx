@@ -11,7 +11,7 @@ import { suggestionFillIntent } from "../data/homeSuggestions";
 interface Props {
   onStartSessionWithPrompt: (prompt: string, domainId: string, provider: string, modelId: string, skillIds?: string[]) => ReturnType<ComposerSend>;
   models?: ModelDescriptor[]; activeModelProvider?: string; activeModelId: string;
-  onSelectModel?: (provider: string, id: string) => void | boolean | Promise<void | boolean>; currentMode: ConversationMode; onModeChange: (mode: ConversationMode) => void;
+  onSelectModel?: (provider: string, id: string) => void | boolean | string | Promise<void | boolean | string>; currentMode: ConversationMode; onModeChange: (mode: ConversationMode) => void;
   configuredModelLabel?: string;
   selectedProjectId: string; onSelectProject: (id: string) => void; onNewProject: () => void;
   folders: ProjectFolder[]; preview: boolean; harnessUp: boolean; blocked?: boolean; onOpenSettings: () => void; draft: ComposerDraft; onDraftChange: UpdateComposerDraft;

@@ -3,6 +3,7 @@ import { IconPlus, IconSend, IconStop, IconShield, IconChevronDown, IconCheck, I
 import { Popover } from "../components/Popover";
 import { SlashCommandList, filterSlashCommands, slashMenuVisible, type SlashCommandItem } from "../components/SlashCommandList";
 import { MODEL_OPTIONS, type ConversationMode } from "../data/mockData";
+import { useModelSwitch } from "../data/modelSwitchState";
 import type { ModelDescriptor, SkillDescriptor, SkillProblem } from "@boss-harness/protocol";
 import type { SkillCatalogState } from "../data/harnessBridge";
 import { harnessErrorText, isHarnessRpcRejection } from "../data/harnessBridge";
@@ -16,6 +17,8 @@ import { recallAfterValueChange, recallKeyDirection, recallNewer, recallOlder, t
 import "../styles/composer-menus.css";
 
 export interface ComposerProps {
+  /** 所属会话；模型切换的在途锁与失败原因按会话保留。 */
+  threadId?: string;
   readOnly?: boolean; /** 会话已归档：可查看草稿但不能发送，恢复后才继续对话。 */ archived?: boolean;
   value: string; onChange: (text: string) => void; onSend: ComposerSend;
   onQueue?: ComposerQueue;
@@ -24,7 +27,7 @@ export interface ComposerProps {
   isRunning?: boolean; blocked?: boolean; onInterrupt?: () => void; preview?: boolean;
   currentMode?: ConversationMode; onModeChange?: (mode: ConversationMode) => void;
   models?: ModelDescriptor[]; activeModelProvider?: string; activeModelId?: string; configuredModelLabel?: string;
-  onSelectModel?: (provider: string, id: string) => void | boolean | Promise<void | boolean>; onOpenSettings?: () => void;
+  onSelectModel?: (provider: string, id: string) => void | boolean | string | Promise<void | boolean | string>; onOpenSettings?: () => void;
   sessionReasoning?: SessionReasoningControl;
   skills?: SkillDescriptor[]; skillCatalogState?: SkillCatalogState; skillCatalogError?: string; onRefreshSkills?: () => void; skillProblems?: SkillProblem[];
   /** 本会话已发送的用户输入（从旧到新）；空数组表示不启用上下键调取。 */
@@ -49,6 +52,7 @@ function queueRestoreDraftUnchanged(current: ComposerDraft, snapshot: ComposerDr
 }
 
 export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function Composer({
+  threadId,
   value, onChange, onSend, draft, onDraftChange, isRunning = false, blocked = false, onInterrupt, preview = true, readOnly = false, archived = false,
   onQueue, onCheckQueueSubmission,
   currentMode = "agent", onModeChange, models = [], activeModelProvider, activeModelId, configuredModelLabel, onSelectModel, onOpenSettings, home = false, onLogin,
@@ -59,8 +63,9 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   const [menu, setMenu] = useState<"add" | "permissions" | "mode" | "model" | "skills" | null>(null);
   const [modelQuery, setModelQuery] = useState("");
   const [skillQuery, setSkillQuery] = useState("");
-  const [modelPending, setModelPending] = useState(false);
-  const [modelError, setModelError] = useState("");
+  // 模型切换锁与失败原因按会话保留；通知切换导致输入区卸载也不能遗忘在途设置。
+  const modelSwitch = useModelSwitch(threadId);
+  const { pending: modelPending, error: modelError } = modelSwitch;
   const [slashOpen, setSlashOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [localDraft, setLocalDraft] = useState(createComposerDraft);
@@ -186,7 +191,12 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
       inputRef.current.style.height = Math.min(180, Math.max(home ? 66 : 52, inputRef.current.scrollHeight)) + "px";
     }
   }, [value, home]);
-  const focusInput = () => requestAnimationFrame(() => inputRef.current?.focus());
+  const focusInput = () => requestAnimationFrame(() => {
+    // 菜单项选择后先关闭菜单再把焦点还给输入区。若用户在同一帧内重新打开菜单，
+    // 迟到的聚焦会把焦点移出菜单，Popover 随即按外部焦点关闭刚打开的面板。
+    if (document.activeElement instanceof Element && document.activeElement.closest("[data-popover]")) return;
+    inputRef.current?.focus();
+  });
   const toggleMenu = (next: typeof menu) => {
     setMenu(previous => previous === next ? null : next);
     setModelQuery(""); setSkillQuery(""); setSlashOpen(false);
@@ -407,15 +417,21 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     }
   };
   const selectModel = async (provider: string, id: string) => {
-    if (!onSelectModel || modelPending || isRunning || blocked) return;
-    setModelPending(true); setModelError("");
+    // 读取会话级最新状态：切回后的新组件不能沿用渲染时的旧锁。
+    if (!onSelectModel || modelSwitch.getState().pending || isRunning || blocked) return;
+    const token = modelSwitch.begin();
+    if (token === null) return;
     try {
       const changed = await onSelectModel(provider, id);
-      if (changed !== false) { setMenu(null); focusInput(); }
-      else setModelError("模型设置未确认；当前选择保持不变。");
+      if (typeof changed === "string") modelSwitch.settle(token, changed);
+      else if (changed === false) modelSwitch.settle(token, "模型设置未确认；当前选择保持不变。");
+      else {
+        modelSwitch.settle(token, "");
+        setMenu(null); focusInput();
+      }
     } catch (cause) {
-      setModelError(`模型设置失败：${harnessErrorText(cause)}；当前选择保持不变。`);
-    } finally { setModelPending(false); }
+      modelSwitch.settle(token, `模型设置失败：${harnessErrorText(cause)}；当前选择保持不变。`);
+    }
   };
   const selectReasoning = async (effort: string | null) => {
     if (!sessionReasoning || sessionReasoning.pending) return;
@@ -564,7 +580,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
       </div>
       <div className="composer-control-right">
         <div className="popover-anchor">
-          <button className={`composer-model ${menu === "model" ? "is-open" : ""}`} type="button" aria-label="选择模型" title={`当前模型：${modelName}`} aria-haspopup="menu" aria-expanded={menu === "model"} aria-busy={modelPending} onClick={() => { setModelError(""); toggleMenu("model"); }}><span>{modelName}</span><IconChevronDown size={11} /></button>
+          <button className={`composer-model ${menu === "model" ? "is-open" : ""}`} type="button" aria-label="选择模型" title={`当前模型：${modelName}`} aria-haspopup="menu" aria-expanded={menu === "model"} aria-busy={modelPending} onClick={() => { toggleMenu("model"); }}><span>{modelName}</span><IconChevronDown size={11} /></button>
           <Popover open={menu === "model"} onClose={() => setMenu(null)} align="right" above label="选择模型" className="composer-action-menu composer-model-menu">
             <div className="composer-menu-heading">模型{preview && <span className="composer-menu-badge">预览</span>}</div>
             <div className="composer-menu-search"><IconSearch size={15} /><input ref={modelInputRef} data-menu-autofocus aria-label="搜索模型" placeholder="搜索模型…" value={modelQuery} onChange={event => setModelQuery(event.target.value)} onKeyDown={event => {

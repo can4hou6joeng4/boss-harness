@@ -52,7 +52,7 @@ export interface ConversationAreaProps {
   onQueueMessage?: ComposerQueue; onCheckQueueSubmission?: CheckQueueSubmission; queueItems?: QueueItem[]; queueTotalItems?: number; queueActiveItems?: number; queueTruncated?: boolean; onRemoveQueueItem?: (id: string) => Promise<QueueActionOutcome>; onRetryQueueItem?: (item: QueueItem) => Promise<QueueActionOutcome>; onReadQueueItem?: (item: QueueItem) => Promise<QueueItem>; onUpdateQueueItem?: (item: QueueItem, input: string) => Promise<QueueItem>; onRefreshQueue?: () => Promise<QueueRefreshResult>;
   draft?: ComposerDraft; onDraftChange?: UpdateComposerDraft; simulateLocal?: boolean; harnessUp?: boolean; running?: boolean; taskBlocked?: boolean;
   models?: ModelDescriptor[]; activeModelProvider?: string; activeModelId?: string;
-  onSelectModel?: (provider: string, id: string) => void | boolean | Promise<void | boolean>; onOpenSettings?: () => void; onInterrupt?: () => void;
+  onSelectModel?: (provider: string, id: string) => void | boolean | string | Promise<void | boolean | string>; onOpenSettings?: () => void; onInterrupt?: () => void;
   skills?: SkillDescriptor[]; skillCatalogState?: SkillCatalogState; skillCatalogError?: string; onRefreshSkills?: () => void; skillProblems?: SkillProblem[];
   /** turnId → 该回合实际注入的技能 id；用于在用户消息下方回显本回合用到的技能。 */
   turnSkillIds?: Record<string, string[]>;
@@ -1011,7 +1011,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
             <button type="button" onClick={() => resolveMessageEdit(false)}>取消</button>
             {messageEditBusy && <span>正在读取附件或转交消息，请稍候。</span>}
           </div>}
-          <div className="thread-composer-input"><Composer ref={textareaRef} value={inputText} onChange={setInputText} onSend={onSendMessage} onQueue={simulateLocal ? undefined : onQueueMessage} onCheckQueueSubmission={simulateLocal ? undefined : onCheckQueueSubmission} draft={composerDraft} onDraftChange={updateDraft} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={onRefreshSkills} skillProblems={skillProblems} history={recallHistory}
+          <div className="thread-composer-input"><Composer ref={textareaRef} threadId={threadId} value={inputText} onChange={setInputText} onSend={onSendMessage} onQueue={simulateLocal ? undefined : onQueueMessage} onCheckQueueSubmission={simulateLocal ? undefined : onCheckQueueSubmission} draft={composerDraft} onDraftChange={updateDraft} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={onRefreshSkills} skillProblems={skillProblems} history={recallHistory}
             readOnly={readOnly} archived={archived} isRunning={running} blocked={taskBlocked} onInterrupt={onInterrupt} preview={simulateLocal}
             currentMode={currentMode} onModeChange={onModeChange} models={models} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel}
             onSelectModel={onSelectModel} sessionReasoning={sessionReasoning} onOpenSettings={onOpenSettings} onLogin={onLogin} /></div>
