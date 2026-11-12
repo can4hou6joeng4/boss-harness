@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 创建聊天前校验完整消息（Issue #1048）
+
+参考 [Pi（MIT）固定提交 `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `session-manager.ts` 中 `_hasConversation` / `_persist`](https://github.com/earendil-works/pi/blob/a14cdf90f0a76532f3e20bc3c01872837cef24ba/packages/coding-agent/src/core/session-manager.ts#L1160)：只有用户或助手消息进入会话后才创建会话文件，单纯设置模型等准备动作不留下空记录。本轮采用避免无效输入留下空会话的目标，独立实现，不复制源码或新增依赖。
+
+适配差异：本项目的 `thread/start` 即创建持久会话，首页还会在输入区校验后追加项目上下文。因此在共用创建入口、调用 `thread/start` 之前，按含项目上下文与附件的最终消息检查已有 100,000 字符上限；沿用输入区的 UTF-16 计数边界，超限返回现有失败结果并保留草稿，合法输入继续既有流程。只提前拦下可确定的本地长度错误，不改变内核参数校验、会话创建时机或发送拒绝 / 结果未知的处理。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 首页草稿恢复已选招聘项目（Issue #1046）
 
 参考 [Pi（MIT）固定提交 `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `session-manager.ts`](https://github.com/earendil-works/pi/blob/a14cdf90f0a76532f3e20bc3c01872837cef24ba/packages/coding-agent/src/core/session-manager.ts) 中「会话恢复只还原仍然有效的持久状态，引用对象缺失时回到默认值」的恢复原则：恢复不能只还原一部分用户意图，让其余部分静默退化。本轮把该原则用到首页草稿的项目选择上。独立实现，不复制源码或新增依赖。
