@@ -48,6 +48,11 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
   const [confirmEditClose, setConfirmEditClose] = useState(false);
+  // 撤回会永久移除排队消息，必须显式确认；对话框保留打开时的条目快照，
+  // 列表刷新后仍能核对正文，并由实时状态决定是否还允许提交。
+  const [removeTarget, setRemoveTarget] = useState<QueueItem | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeMessage, setRemoveMessage] = useState("");
   // 折叠状态优先显示暂停项；展开后渲染内核已载入的全部条目。
   const [showAll, setShowAll] = useState(false);
   const clipboard = useClipboardCopy();
@@ -57,8 +62,13 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
     setViewing(current => syncQueueDialogItem(current, items));
     setEditing(current => syncQueueEditDialog(current, items));
   }, [items]);
-  if (!items.length && !editing) return null;
+  if (!items.length && !editing && !removeTarget) return null;
   const editChanged = editing !== null && editing.draft !== editing.originalInput;
+  // 撤回确认框绑定实时条目：条目被投递或撤回后禁止继续提交，但保留正文供核对。
+  const removeLive = removeTarget ? items.find(item => item.id === removeTarget.id) : undefined;
+  const removeItem = removeLive ?? removeTarget;
+  const removeAvailable = Boolean(removeLive && (removeLive.status === "queued" || removeLive.status === "paused"));
+  const removeSkillLabels = removeItem ? queueSkillLabels(removeItem.skillIds, skills) : [];
   const refresh = async () => {
     if (!onRefresh || refreshing) return;
     setRefreshing(true); setError("");
@@ -143,6 +153,30 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
       setPending(null);
     }
   };
+  // 首次点击只打开确认框，不发出任何队列写请求；取消或关闭保持条目原样。
+  const startRemove = (item: QueueItem) => {
+    if (pending !== null) return;
+    setError(""); setRemoveMessage(""); setRemoveTarget(item);
+  };
+  const closeRemove = () => {
+    if (removeBusy) return;
+    setRemoveTarget(null); setRemoveMessage("");
+  };
+  const confirmRemove = async () => {
+    if (!removeTarget || removeBusy || !removeAvailable) return;
+    const id = removeTarget.id;
+    setRemoveBusy(true); setRemoveMessage("");
+    try {
+      const notice = queueActionNotice("撤回", await onRemove(id));
+      // 结果未确认时保留确认框与正文，让用户看到提示后再决定是否核对。
+      if (notice) setRemoveMessage(notice);
+      else { setRemoveTarget(null); setRemoveMessage(""); }
+    } catch (cause) {
+      setRemoveMessage(`撤回结果尚未确认：${harnessErrorText(cause)}。请核对队列状态。`);
+    } finally {
+      setRemoveBusy(false);
+    }
+  };
   const collapsedItems = selectVisibleQueueItems(items, false);
   const visibleItems = showAll ? selectVisibleQueueItems(items, true) : collapsedItems;
   // 折叠状态下仍有未显示项时提供展开入口；展开后显示全部已载入项。
@@ -207,16 +241,10 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
           title={connected ? "用同一输入与技能重新创建队列消息，并撤回旧项" : "本机内核未连接，恢复连接后再重新排队"}
           onClick={() => { void retry(item); }}>重新排队</button>}
         {(item.status === "queued" || item.status === "paused") && <button type="button" aria-label={`撤回排队消息：${safeSlice(item.input, 80)}`}
-          title={!connected ? "本机内核未连接，恢复连接后再撤回" : item.status === "paused" ? "取消暂停的队列消息" : "撤回排队消息"}
-          disabled={pending !== null || !connected} onClick={async () => {
-          setPending(item.id); setError("");
-          try {
-            const notice = queueActionNotice("撤回", await onRemove(item.id));
-            if (notice) setError(notice);
-          }
-          catch (cause) { setError(`撤回结果尚未确认：${harnessErrorText(cause)}。请核对队列状态。`); }
-          finally { setPending(null); }
-        }}><IconClose size={14} /></button>}
+          aria-haspopup="dialog"
+          title={!connected ? "本机内核未连接，恢复连接后再撤回" : item.status === "paused" ? "取消暂停的队列消息（需要确认）" : "撤回排队消息（需要确认）"}
+          disabled={pending !== null || !connected} onClick={() => startRemove(item)}
+        ><IconClose size={14} /></button>}
       </li>)}
     </ul>
     {error && <p className="turn-queue-error" role="status">{error}</p>}
@@ -241,6 +269,25 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
           <button className="secondary-button" disabled={saving} onClick={closeEdit}>取消</button>
           <button className="solid-button" disabled={saving || !editingQueued || !editing.draft.trim() || !editChanged}
             onClick={() => { void saveEdit(); }}>{saving ? "保存中…" : "保存"}</button>
+        </div>
+      </div>
+    </ModalSurface>}
+    {removeItem && <ModalSurface title="撤回排队消息" onClose={closeRemove} closeDisabled={removeBusy} className="queue-remove-dialog">
+      <div className="dialog-form queue-input-dialog">
+        <p className="dialog-note">{removeItem.kind === "steering" ? "当前回合" : "后续回合"} · {removeLive
+          ? queueStatusLabel(removeLive) : "已不在当前列表"}。撤回后这条消息不会再投递，正文也不会自动恢复。</p>
+        <p className="turn-queue-full-input" data-queue-remove-input>{removeItem.input}</p>
+        {removeItem.inputTruncated && <p className="dialog-note">列表只显示前 600 字符；撤回的是内核保存的完整消息。</p>}
+        {removeSkillLabels.length > 0 && <p className="queue-input-facts"><span>技能：{removeSkillLabels.join("、")}</span></p>}
+        {removeItem.autoCompaction && <p className="queue-input-facts"><span>{compactionLabel(removeItem.autoCompaction)}</span></p>}
+        {!removeLive && !removeMessage && <p className="queue-input-edit-error" role="alert">这条消息已不在队列中；可能已被投递或撤回。</p>}
+        {removeLive && !removeAvailable && !removeMessage && <p className="queue-input-edit-error" role="alert">这条消息{queueStatusLabel(removeLive)}，已无法撤回。</p>}
+        {!connected && !removeMessage && <p className="queue-input-edit-error" role="alert">本机内核未连接，恢复连接后才能撤回。</p>}
+        {removeMessage && <p className="queue-input-edit-error" role="alert">{removeMessage}</p>}
+        <div className="dialog-actions">
+          <button type="button" className="secondary-button" disabled={removeBusy} onClick={closeRemove}>取消</button>
+          <button type="button" className="solid-button danger-button" disabled={removeBusy || !removeAvailable || !connected}
+            onClick={() => { void confirmRemove(); }}>{removeBusy ? "正在撤回…" : "确认撤回"}</button>
         </div>
       </div>
     </ModalSurface>}
