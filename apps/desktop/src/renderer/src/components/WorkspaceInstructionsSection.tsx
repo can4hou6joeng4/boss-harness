@@ -8,6 +8,8 @@ export interface WorkspaceInstructionsSectionProps {
   editable: boolean;
   connected: boolean;
   preview: boolean;
+  /** 未保存状态交给外层页面，离开页面前提示，避免整块卸载时静默丢稿。 */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 const STATUS_TEXT: Record<WorkspaceInstructionsState["status"], string> = {
@@ -28,6 +30,12 @@ export function WorkspaceInstructionsSection(props: WorkspaceInstructionsSection
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [reload, setReload] = useState(0);
+  const reportDirty = props.onDirtyChange;
+  // 页面切换会卸载整块内容：离开时撤销未保存标记，避免下次进入仍被旧状态拦截。
+  useEffect(() => {
+    if (!reportDirty) return;
+    return () => reportDirty(false);
+  }, [reportDirty]);
   useEffect(() => {
     setInfo(null); setError("");
     if (!props.editable || !props.connected) return;
@@ -55,7 +63,7 @@ export function WorkspaceInstructionsSection(props: WorkspaceInstructionsSection
     {props.editable && error && <p className="page-tool-empty" role="alert">{error}</p>}
     {info && <p className="workspace-instructions-status">生效文件：<code>{info.path}</code> · {STATUS_TEXT[info.status]}{info.bytes === null ? "" : `（${number(info.bytes)} 字节，上限 ${number(info.limitBytes)}）`}</p>}
     {/* 能力声明在断连期间暂时消失，保持已打开的编辑器挂载以保留草稿。 */}
-    {(props.editable || editing) && <WorkspaceInstructionsEditor open={editing} connected={props.connected} onClose={() => setEditing(false)} onSaved={() => setReload(previous => previous + 1)} />}
+    {(props.editable || editing) && <WorkspaceInstructionsEditor open={editing} connected={props.connected} onClose={() => setEditing(false)} onSaved={() => setReload(previous => previous + 1)} onDirtyChange={reportDirty} />}
     <p className="page-empty-note">内容作为每回合的上下文注入，最多 8 KiB；不改变工具权限、审批要求或只读限制，保存后下一回合生效。</p>
   </section>;
 }

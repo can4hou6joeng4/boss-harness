@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { TitleBar } from "./TitleBar";
 import { NavigationRail, type WorkspacePage } from "./NavigationRail";
 import { ProjectSidebar, type SidebarPreferences } from "./ProjectSidebar";
@@ -99,12 +99,33 @@ function preference(key: string, initial: unknown): unknown {
   try { return JSON.parse(localStorage.getItem(UI_STORAGE_PREFIX + key) ?? "null") ?? initial; } catch { return initial; }
 }
 interface Route { page: WorkspacePage; sessionId?: string; }
+/**
+ * 离开「技能与工具」页前的待确认意图。确认后按原入口重放，
+ * 这样依赖导航完成的副作用（重置草稿、写入模板、并入技能、创建登录会话）不会提前执行。
+ */
+type WorkspaceLeaveIntent =
+  | { kind: "route"; route: Route; record: boolean; keepFocus: boolean }
+  | { kind: "history"; delta: number }
+  | { kind: "new-task"; projectId: string }
+  | { kind: "template"; template: string }
+  | { kind: "skill"; skillId: string }
+  | { kind: "login"; direct: boolean };
 export function AppShell(props: AppShellProps) {
   const login = usePlatformLogin();
   const loginEntryFlight = useRef(false);
   const [page, setPage] = useState<WorkspacePage>("home");
   /** 从对话里的回合技能标签跳到「技能与工具」时的一次性聚焦意图。 */
   const [skillFocus, setSkillFocus] = useState<string | null>(null);
+  /** 技能页内联编辑器是否有未保存的工作区说明；导航前据此要求确认。 */
+  const workspaceInstructionsDirty = useRef(false);
+  /** 用户确认丢弃后重放原导航意图时临时放行，重放结束立即恢复保护。 */
+  const workspaceLeaveBypass = useRef(false);
+  const [pendingWorkspaceLeave, setPendingWorkspaceLeave] = useState<WorkspaceLeaveIntent | null>(null);
+  const reportWorkspaceInstructionsDirty = useCallback((dirty: boolean) => {
+    workspaceInstructionsDirty.current = dirty;
+    // 保存或确认丢弃后旧意图失效；编辑器随导航卸载时也会走到这里。
+    if (!dirty) setPendingWorkspaceLeave(null);
+  }, []);
   const [messageFocus, setMessageFocus] = useState<{ threadId: string; itemId: string; revealToolBlock?: boolean } | null>(null);
   /** 跨会话搜索落地后留在目标消息里的关键词；离开会话、再次搜索或点击后清除。 */
   const [searchHighlight, setSearchHighlight] = useState<{ threadId: string; itemId: string; query: string } | null>(null);
@@ -304,9 +325,17 @@ export function AppShell(props: AppShellProps) {
   };
   const routeReachable = (route: Route): boolean =>
     route.page !== "home" || !route.sessionId || sessions.some(session => session.id === route.sessionId);
-  const openRoute = (route: Route, record = true, keepFocus = false) => {
+  /** 技能页的工作区说明草稿只存在于编辑器内；离开页面前必须先由用户确认。 */
+  const workspaceLeaveBlocked = (): boolean =>
+    page === "skills" && workspaceInstructionsDirty.current && !workspaceLeaveBypass.current;
+  const openRoute = (route: Route, record = true, keepFocus = false): boolean => {
     // 历史栈里可能残留已删除会话的路由：保持当前视图，不记录、也不拿它去开新任务。
-    if (!routeReachable(route)) return;
+    if (!routeReachable(route)) return false;
+    // 技能页整块内容会随页面卸载；先保留导航意图，等用户确认后再离开。
+    if (route.page !== "skills" && workspaceLeaveBlocked()) {
+      setPendingWorkspaceLeave({ kind: "route", route, record, keepFocus });
+      return false;
+    }
     // 离开首页草稿或进入会话时作废待确认操作，避免返回后继续执行旧的替换或丢弃。
     if (route.page !== "home" || route.sessionId) { setPendingTemplate(null); setPendingNewTask(null); }
     if (record) pushRoute(route);
@@ -320,12 +349,14 @@ export function AppShell(props: AppShellProps) {
       if (session) { setHidden(prev => prev.filter(id => id !== session.id)); props.onSelectSession(session); }
       else props.onNewTask();
     }
+    return true;
   };
   const startEmptyTask = (projectId = "") => {
     setPendingTemplate(null); setPendingNewTask(null);
     resetDraft(); setDraftProjectId(projectId); openRoute({ page: "home" });
   };
   const requestNewTask = (projectId = "") => {
+    if (workspaceLeaveBlocked()) { setPendingWorkspaceLeave({ kind: "new-task", projectId }); return; }
     setPendingTemplate(null);
     if (homeDraftHasContent(draftRef.current)) {
       setPendingNewTask({ projectId, draft: draftRef.current });
@@ -338,6 +369,7 @@ export function AppShell(props: AppShellProps) {
   // 工作区模板入口：草稿非空时不能直接 reset，否则正文、附件与技能会被静默清空。
   // 回到首页交给首页确认条处理，确认后才替换；取消则原样保留。
   const useTemplate = (template: string) => {
+    if (workspaceLeaveBlocked()) { setPendingWorkspaceLeave({ kind: "template", template }); return; }
     setPendingNewTask(null);
     if (templateFillIntent(draftRef.current, template) === "confirm") {
       setPendingTemplate(template);
@@ -350,6 +382,8 @@ export function AppShell(props: AppShellProps) {
   // 技能入口只并入技能，保留首页正文与附件；不能走 newTask()。
   // 从工作区页进入时切回首页；已在首页时原地并入，不再重置草稿。
   const useSkillInNewChat = (skillId: string) => {
+    // 确认前不能把技能并入首页草稿：取消离开时首页应保持原样。
+    if (page !== "home" && workspaceLeaveBlocked()) { setPendingWorkspaceLeave({ kind: "skill", skillId }); return; }
     if (page !== "home") openRoute({ page: "home" });
     updateHomeDraft(previous => withHomeDraftSkill(previous, skillId));
   };
@@ -488,10 +522,16 @@ export function AppShell(props: AppShellProps) {
     if (pruned) { historyRef.current = pruned.routes; cursorRef.current = pruned.cursor; setHistory(pruned.routes); setCursor(pruned.cursor); }
     setDeleteSession(null);
   };
-  const loginEntry = async (direct = false) => {
+  const loginEntry = async (direct = false, confirmedLeave = false) => {
     if (!window.boss || loginEntryFlight.current) return;
     loginEntryFlight.current = true;
     try {
+      // 确认前不创建登录会话、不打开扫码面板；设置弹窗会遮住页内确认条，先收起设置。
+      if (!confirmedLeave && workspaceLeaveBlocked()) {
+        setSettings(false);
+        setPendingWorkspaceLeave({ kind: "login", direct });
+        return;
+      }
       const owner = ["opening", "waiting", "saving"].includes(login.status.state)
         ? sessions.find(session => session.id === login.status.threadId) : undefined;
       const target = owner ?? (!props.isHomeView ? props.activeSession : null) ?? await props.onCreateConnectionSession();
@@ -507,8 +547,31 @@ export function AppShell(props: AppShellProps) {
   const go = (delta: number) => {
     // 跳过已删除会话留下的失效路由，落到最近一个仍可打开的位置。
     const next = nextReachableIndex(historyRef.current, cursorRef.current, delta, routeReachable);
-    if (next < 0) return;
-    cursorRef.current = next; setCursor(next); openRoute(historyRef.current[next]!, false);
+    if (next < 0) return false;
+    const route = historyRef.current[next]!;
+    if (route.page !== "skills" && workspaceLeaveBlocked()) { setPendingWorkspaceLeave({ kind: "history", delta }); return false; }
+    const applied = openRoute(route, false);
+    // 未实际导航时不移动历史光标，避免返回 / 前进按钮与当前视图错位。
+    if (applied) { cursorRef.current = next; setCursor(next); }
+    return applied;
+  };
+  const resolveWorkspaceLeave = (discard: boolean) => {
+    const pending = pendingWorkspaceLeave;
+    setPendingWorkspaceLeave(null);
+    if (!discard || !pending) return;
+    // 登录入口可能等待创建会话，不能沿用同步放行；由登录流程自己带确认标记。
+    if (pending.kind === "login") { void loginEntry(pending.direct, true); return; }
+    // 其余意图都在同一次事件里同步完成导航；只在重放期间放行，失败时保留草稿保护。
+    workspaceLeaveBypass.current = true;
+    try {
+      if (pending.kind === "route") openRoute(pending.route, pending.record, pending.keepFocus);
+      else if (pending.kind === "history") go(pending.delta);
+      else if (pending.kind === "new-task") requestNewTask(pending.projectId);
+      else if (pending.kind === "template") useTemplate(pending.template);
+      else useSkillInNewChat(pending.skillId);
+    } finally {
+      workspaceLeaveBypass.current = false;
+    }
   };
   useEffect(() => {
     const media = window.matchMedia("(min-width: 1200px)");
@@ -607,7 +670,12 @@ export function AppShell(props: AppShellProps) {
             onArchive={session => { void props.onArchiveSession?.(session, true); }} onUnarchive={session => { void props.onArchiveSession?.(session, false); }}
             onMoveSession={(id, folderId) => setThreadGroups(prev => ({ ...prev, [id]: folderId }))} onRenameProject={folder => { setRenameProject(folder); setFolderName(folder.name); }} onRemoveProject={setRemoveProject} />
           <main className="main-canvas">
-            {page !== "home" ? <WorkspacePages page={page} folders={allFolders} messages={props.messages} onSelect={select} onNewTask={newTask} onDraft={useTemplate} tools={tools} toolCatalogState={toolCatalogState} toolCatalogError={toolCatalogError} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillsReadable={props.skillsReadable === true} skillsCreatable={props.skillsCreatable === true} skillsWritable={props.skillsWritable === true} skillsDeletable={props.skillsDeletable === true} skillRoot={skillRoot} skillProblems={skillProblems} onUseSkill={useSkillInNewChat} workspaceInstructionsEditable={props.workspaceInstructionsEditable === true} harnessUp={props.harnessUp === true} preview={props.simulateLocal ?? true} focusSkillId={skillFocus} onFocusSkill={() => setSkillFocus(null)} /> : props.isHomeView ? <HomeView key={draft.id} folders={allFolders} draft={draft} onDraftChange={updateHomeDraft} pendingTemplate={pendingTemplate} onResolveTemplate={resolveTemplate} pendingNewTaskProject={pendingNewTask?.projectId ?? null} onResolveNewTask={resolveNewTask} selectedProjectId={draftProjectId} onSelectProject={setDraftProjectId} onNewProject={() => setNewProject(true)} preview={!window.boss} harnessUp={props.harnessUp ?? false} blocked={props.taskBlocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId ?? "deepseek-v4"} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} currentMode={props.currentMode} onModeChange={props.onModeChange} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillProblems={skillProblems} onStartSessionWithPrompt={startInProject} onOpenSettings={() => openSettings("connections")} /> : <>
+            {pendingWorkspaceLeave && page === "skills" && <div className="home-suggestion-confirm workspace-leave-confirm" role="alert" data-workspace-leave-confirm>
+              <span>工作区常驻说明还有未保存的修改；离开「技能与工具」页会丢弃它们。</span>
+              <button type="button" onClick={() => resolveWorkspaceLeave(true)}>丢弃并离开</button>
+              <button type="button" onClick={() => resolveWorkspaceLeave(false)}>继续编辑</button>
+            </div>}
+            {page !== "home" ? <WorkspacePages page={page} folders={allFolders} messages={props.messages} onSelect={select} onNewTask={newTask} onDraft={useTemplate} tools={tools} toolCatalogState={toolCatalogState} toolCatalogError={toolCatalogError} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillsReadable={props.skillsReadable === true} skillsCreatable={props.skillsCreatable === true} skillsWritable={props.skillsWritable === true} skillsDeletable={props.skillsDeletable === true} skillRoot={skillRoot} skillProblems={skillProblems} onUseSkill={useSkillInNewChat} workspaceInstructionsEditable={props.workspaceInstructionsEditable === true} harnessUp={props.harnessUp === true} preview={props.simulateLocal ?? true} focusSkillId={skillFocus} onFocusSkill={() => setSkillFocus(null)} onInstructionsDirty={reportWorkspaceInstructionsDirty} /> : props.isHomeView ? <HomeView key={draft.id} folders={allFolders} draft={draft} onDraftChange={updateHomeDraft} pendingTemplate={pendingTemplate} onResolveTemplate={resolveTemplate} pendingNewTaskProject={pendingNewTask?.projectId ?? null} onResolveNewTask={resolveNewTask} selectedProjectId={draftProjectId} onSelectProject={setDraftProjectId} onNewProject={() => setNewProject(true)} preview={!window.boss} harnessUp={props.harnessUp ?? false} blocked={props.taskBlocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId ?? "deepseek-v4"} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} currentMode={props.currentMode} onModeChange={props.onModeChange} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillProblems={skillProblems} onStartSessionWithPrompt={startInProject} onOpenSettings={() => openSettings("connections")} /> : <>
               <div className="conversation-pane">
                 {props.simulateLocal && <div className="conversation-preview-badge">示例会话 · 交互预览</div>}
                 <ErrorBoundary key={props.activeSession?.id ?? "conversation"} scope="会话区" compact hint="侧边栏、导航和其他会话仍可使用；切换会话或重试即可恢复。">
