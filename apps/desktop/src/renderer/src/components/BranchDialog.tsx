@@ -46,7 +46,7 @@ export function BranchDialog({ isOpen, onClose, state, support, owner, messages,
     const ok = await onSwitch(target.turnId, summarize && !summaryBlocked);
     if (ok) onClose();
   };
-  return <ModalSurface title="会话分支" onClose={onClose} className="rewind-dialog branch-dialog">
+  return <ModalSurface title="会话分支" onClose={onClose} className="rewind-dialog branch-dialog" closeDisabled={state.switching}>
     <div className="dialog-form">
       <div className="context-panel-owner" data-branch-owner={owner.threadId}><strong>{owner.title || "当前会话"}</strong><code>{owner.threadId}</code></div>
       <p className="context-panel-note">分支目标在打开此窗口时确定；即使其他会话的通知切换了背景会话，这里仍从上面这条会话切换位置或重新开始。</p>
@@ -108,7 +108,7 @@ export function BranchDialog({ isOpen, onClose, state, support, owner, messages,
         </label>
         <p className="branch-summary-cost">{summaryBlocked ?? "会调用模型并可能产生费用。摘要在后台生成，写入新分支并标注为“被放弃分支摘要”；生成失败或取消不会撤销切换。"}</p>
         <div className="dialog-actions">
-          <button type="button" className="secondary-button" onClick={() => setTarget(null)}>取消</button>
+          <button type="button" className="secondary-button" disabled={state.switching} onClick={() => setTarget(null)}>取消</button>
           <button type="button" className="solid-button" disabled={Boolean(block) || state.switching} onClick={() => { void confirm(); }}>{state.switching ? "正在切换…" : "确认切换"}</button>
         </div>
       </section>}
