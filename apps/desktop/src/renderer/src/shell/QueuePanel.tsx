@@ -12,11 +12,14 @@ import { queueSkillLabels } from "../data/queueSkillLabels";
 import { queuePauseDetail, queueStatusLabel } from "../data/queueStatus";
 import { selectVisibleQueueItems } from "../data/queueSelection";
 import { syncQueueDialogItem, syncQueueEditDialog } from "../data/queueDialogs";
+import { clearQueueEditDraft, readQueueEditDraft, writeQueueEditDraft } from "../data/queueEditDrafts";
 import { QueueInputDialog } from "./QueueInputDialog";
 import { compactionLabel, compactionTitle } from "./queueCompaction";
 
-export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove, onRetry, onReadFull, onUpdateInput, skills = [], connected = true, onRefresh }: {
+export function QueuePanel({ items, threadId, totalItems, activeItems, truncated, onRemove, onRetry, onReadFull, onUpdateInput, skills = [], connected = true, onRefresh }: {
   items: QueueItem[];
+  /** 所属会话；未保存的编辑草稿按会话保留，对话区随切换卸载后仍能恢复。 */
+  threadId?: string;
   /** 技能目录；用于把队列项里的技能 id 显示为名称，缺失时回退 id。 */
   skills?: SkillDescriptor[];
   /** 内核侧总数；旧内核不返回时为 undefined。 */
@@ -44,7 +47,7 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
   const [reading, setReading] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ item: QueueItem; input: string } | null>(null);
   // 列表刷新会把条目换成截断预览；编辑基线必须保留最初读取的完整正文。
-  const [editing, setEditing] = useState<{ item: QueueItem; draft: string; originalInput: string } | null>(null);
+  const [editing, setEditing] = useState<{ item: QueueItem; draft: string; originalInput: string } | null>(() => threadId ? readQueueEditDraft(threadId) : null);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
   const [confirmEditClose, setConfirmEditClose] = useState(false);
@@ -62,6 +65,13 @@ export function QueuePanel({ items, totalItems, activeItems, truncated, onRemove
     setViewing(current => syncQueueDialogItem(current, items));
     setEditing(current => syncQueueEditDialog(current, items));
   }, [items]);
+  // 未保存的编辑按会话保留：切换会话会卸载整个对话区，切回时恢复同一份草稿。
+  // 保存成功或确认丢弃由 setEditing(null) 清除；条目消失但有修改时继续保留供复制。
+  useEffect(() => {
+    if (!threadId) return;
+    if (editing) writeQueueEditDraft(threadId, editing);
+    else clearQueueEditDraft(threadId);
+  }, [threadId, editing]);
   if (!items.length && !editing && !removeTarget) return null;
   const editChanged = editing !== null && editing.draft !== editing.originalInput;
   // 撤回确认框绑定实时条目：条目被投递或撤回后禁止继续提交，但保留正文供核对。

@@ -1031,7 +1031,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
 
       <div className="thread-composer-wrapper">
         <div className="thread-composer-inner">
-          {!simulateLocal && !archived && <QueuePanel items={queueItems} totalItems={queueTotalItems} activeItems={queueActiveItems} truncated={queueTruncated} skills={skills} connected={harnessUp} onRefresh={onRefreshQueue} onReadFull={onReadQueueItem} onUpdateInput={onUpdateQueueItem} onRemove={onRemoveQueueItem ?? (async (): Promise<QueueActionOutcome> => ({ status: "skipped", reason: "当前界面未接入队列操作" }))} onRetry={onRetryQueueItem} />}
+          {!simulateLocal && !archived && <QueuePanel items={queueItems} threadId={threadId} totalItems={queueTotalItems} activeItems={queueActiveItems} truncated={queueTruncated} skills={skills} connected={harnessUp} onRefresh={onRefreshQueue} onReadFull={onReadQueueItem} onUpdateInput={onUpdateQueueItem} onRemove={onRemoveQueueItem ?? (async (): Promise<QueueActionOutcome> => ({ status: "skipped", reason: "当前界面未接入队列操作" }))} onRetry={onRetryQueueItem} />}
           {archived && <div className="composer-notice archived-notice" role="status">此聊天已归档，可查看历史；在侧栏「已归档」中恢复后可继续对话。</div>}
           {loginGuide}
           {approvalError && <div className="composer-notice" role="alert">{approvalError}</div>}
