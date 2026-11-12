@@ -74,8 +74,11 @@ export function appendQuote(draft: ComposerDraft, source: string, limit = QUOTE_
 export function clearTransferredDraft(current: ComposerDraft, submitted: ComposerDraft): ComposerDraft {
   if (current.id !== submitted.id) return current;
   const sent = new Set(submitted.attachments.map(file => file.id));
+  const sentSkills = new Set(submitted.skillIds ?? []);
   const clearText = current.textVersion === submitted.textVersion;
   return { ...current, text: clearText ? "" : current.text,
     textVersion: current.textVersion + (clearText ? 1 : 0),
-    attachments: current.attachments.filter(file => !sent.has(file.id)), skillIds: [], submitting: false, queueSubmission: undefined };
+    attachments: current.attachments.filter(file => !sent.has(file.id)),
+    // 工作区入口可在回执期间追加技能：只移除本次已提交的 id，与附件的清理边界一致。
+    skillIds: (current.skillIds ?? []).filter(id => !sentSkills.has(id)), submitting: false, queueSubmission: undefined };
 }
