@@ -13,12 +13,16 @@ export const MAX_DRAFT_TEXT_LENGTH = MAX_MESSAGE_TEXT_LENGTH;
 /** 最多保留的会话草稿数量；超出时丢弃最久未修改的条目。 */
 export const MAX_SESSION_DRAFTS = 20;
 const MAX_SKILL_IDS = 50;
+/** 项目 id 的上限；本地分组 id 形如 `group-` + UUID，留足余量但拒绝异常超长值。 */
+const MAX_PROJECT_ID_LENGTH = 200;
 const STORE_VERSION = 1;
 
 export interface PersistedComposerDraft {
   text: string;
   skillIds: string[];
   updatedAt: number;
+  /** 仅首页条目保存：当时选中的招聘项目 id；会话草稿忽略该字段。 */
+  projectId?: string;
 }
 
 export interface PersistedComposerDraftStore {
@@ -36,7 +40,7 @@ function defaultStorage(): DraftStorage | null {
 /** 校验单个条目；空正文且无技能、类型错误或超限都视为没有草稿。 */
 function draftEntry(value: unknown): PersistedComposerDraft | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const record = value as { text?: unknown; skillIds?: unknown; updatedAt?: unknown };
+  const record = value as { text?: unknown; skillIds?: unknown; updatedAt?: unknown; projectId?: unknown };
   if (typeof record.text !== "string" || record.text.length > MAX_DRAFT_TEXT_LENGTH) return null;
   const skillIds = Array.isArray(record.skillIds)
     ? [...new Set(record.skillIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0))].slice(0, MAX_SKILL_IDS)
@@ -45,7 +49,11 @@ function draftEntry(value: unknown): PersistedComposerDraft | null {
   const updatedAt = typeof record.updatedAt === "number" && Number.isFinite(record.updatedAt) && record.updatedAt >= 0
     ? record.updatedAt
     : 0;
-  return { text: record.text, skillIds, updatedAt };
+  // 旧版本条目没有项目字段，按「不指定项目」恢复；非法类型同样忽略，不影响正文与技能。
+  const projectId = typeof record.projectId === "string" && record.projectId.trim() === record.projectId
+    && record.projectId.trim().length > 0 && record.projectId.length <= MAX_PROJECT_ID_LENGTH
+    ? record.projectId : undefined;
+  return { text: record.text, skillIds, updatedAt, ...(projectId ? { projectId } : {}) };
 }
 
 /** 按最近修改保留有限条目；同时间戳按会话 id 排序，保证结果稳定。 */
@@ -99,13 +107,14 @@ function sameDraft(a: { text: string; skillIds: string[] } | null, b: PersistedC
 /**
  * 保存首页与各会话草稿。内容未变的条目标记沿用原时间戳，避免别的会话的修改
  * 把未改动的草稿顶到前面；全空时删除存储键。存储不可用或超限时静默跳过，
- * 输入本身不受影响。
+ * 输入本身不受影响。`homeProjectId` 只随首页条目保存，供重启后恢复项目选择。
  */
 export function saveComposerDrafts(
   home: ComposerDraft,
   sessions: Record<string, ComposerDraft>,
   storage: DraftStorage | null = defaultStorage(),
   now = Date.now(),
+  homeProjectId = "",
 ): void {
   if (!storage) return;
   try {
@@ -113,8 +122,12 @@ export function saveComposerDrafts(
     const next: PersistedComposerDraftStore = { sessions: {} };
     const add = (id: string | null, draft: ComposerDraft | undefined, previousEntry: PersistedComposerDraft | undefined) => {
       const current = collectDraft(draft);
+      // 只有项目没有正文与技能的草稿不需要单独保存，避免为一次项目点选写入空草稿。
       if (!current) return;
-      const entry = { ...current, updatedAt: sameDraft(current, previousEntry) ? previousEntry!.updatedAt : now };
+      const unchanged = sameDraft(current, previousEntry)
+        && (id !== null || (previousEntry?.projectId ?? "") === (homeProjectId || ""));
+      const entry: PersistedComposerDraft = { ...current, updatedAt: unchanged ? previousEntry!.updatedAt : now };
+      if (id === null && homeProjectId) entry.projectId = homeProjectId;
       if (id === null) next.home = entry;
       else next.sessions[id] = entry;
     };
