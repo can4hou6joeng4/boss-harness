@@ -81,6 +81,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   if (lastValue.current !== value) { lastValue.current = value; valueVersion.current += 1; }
   // 上下键调取历史的游标：-1 表示当前草稿，draft 保存进入历史前的输入。
   const recall = useRef<PromptRecallState>({ index: -1, draft: "" });
+  // 调取把原草稿只留在组件内；离开会话或卸载时写回，避免被调取正文覆盖。
+  const recallStash = useRef<{ draftId: string; update: UpdateComposerDraft; original: string; recalled: string } | null>(null);
   // 记录本组件最后写入的文本；父层或其他入口改写 value 后，已请求打开的快捷指令菜单立即失效。
   const ownedText = useRef(value);
   const composerDraft = draft && onDraftChange ? draft : { ...localDraft, text: value, textVersion: valueVersion.current };
@@ -118,10 +120,32 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     if (draft && onDraftChange) onDraftChange(change);
     else if (alive.current) setLocalDraft(previous => change({ ...previous, text: lastValue.current, textVersion: valueVersion.current }));
   };
+  /**
+   * 历史调取期间暂存进入前的草稿；↓ / Esc 或外部改写会让调取结束，随后清空。
+   * 只在正文仍是最后一次调取内容时写回，避免覆盖用户后来显式编辑的正文。
+   */
+  const rememberRecall = (state: PromptRecallState, text: string) => {
+    if (state.index === -1) { recallStash.current = null; return; }
+    const stash = recallStash.current;
+    if (stash && stash.draftId === composerDraft.id) stash.recalled = text;
+    else recallStash.current = { draftId: composerDraft.id, update: updateDraft, original: state.draft, recalled: text };
+  };
+  const restoreRecallBeforeLeaving = () => {
+    const stash = recallStash.current;
+    recallStash.current = null;
+    if (!stash) return;
+    stash.update(previous => previous.id === stash.draftId && previous.text === stash.recalled && !previous.submitting
+      ? { ...previous, text: stash.original, textVersion: previous.textVersion + 1 } : previous);
+  };
+  useEffect(() => () => restoreRecallBeforeLeaving(), []);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   // 外部改写（编辑消息、恢复队列消息、发送后清空）会让历史游标与草稿失去对应关系，
   // 统一由共享判定退出历史；本组件自己写回的文本仍保留浏览位置。
-  useEffect(() => { recall.current = recallAfterValueChange(recall.current, value, ownedText.current); }, [value]);
+  useEffect(() => {
+    const next = recallAfterValueChange(recall.current, value, ownedText.current);
+    if (next.index === -1) recallStash.current = null;
+    recall.current = next;
+  }, [value]);
   const dragDepth = useRef(0);
   const slashQuery = value.match(/^\/([^\s]*)$/)?.[1] ?? "";
   // 渲染时以当前 value 为准：建议词、编辑消息、恢复队列消息会绕过 change() 直接改写输入。
@@ -258,6 +282,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
       if (!draft || !onDraftChange) {
         if (alive.current && draftRef.current.id === submitted.id && valueVersion.current === submitted.textVersion) onChange("");
       }
+      // 提交期间开始的调取不能把已发送的原草稿再写回输入框。
+      if (recallStash.current?.original === submitted.text) recallStash.current = null;
       updateDraft(previous => clearTransferredDraft(previous, submitted));
       if (alive.current && draftRef.current.id === submitted.id) { setSlashOpen(false); setMenu(null); }
     } catch (cause) {
@@ -401,7 +427,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
       ref={element => { inputRef.current = element; if (typeof forwardedRef === "function") forwardedRef(element); else if (forwardedRef) forwardedRef.current = element; }} rows={2}
       placeholder={archived ? "已归档，恢复后可继续对话" : isRunning ? queueIntent === "steering" ? "补充当前任务要求…" : "安排当前任务结束后的下一步…" : blocked ? "另一个任务正在运行，请等待完成" : "和 BOSS Harness 一起工作"}
       title={history.length ? "↑ 调取已发送消息：有输入时只在该前缀的消息间移动 · ↓ 返回草稿 · Esc 退出历史" : undefined}
-      value={value} onChange={event => { recall.current = { index: -1, draft: "" }; change(event.target.value); }}
+      value={value} onChange={event => { recall.current = { index: -1, draft: "" }; recallStash.current = null; change(event.target.value); }}
       onPaste={event => {
         const files = [...event.clipboardData.files];
         if (files.length) { event.preventDefault(); void addFiles(files); return; }
@@ -438,6 +464,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
           if (next.text !== value || next.state.index !== recall.current.index) {
             event.preventDefault();
             recall.current = next.state;
+            rememberRecall(next.state, next.text);
             writeText(next.text); setNotice(""); setSelectedIndex(0); setSlashOpen(false);
             const atEnd = direction === "newer";
             requestAnimationFrame(() => { const area = inputRef.current; if (area) { const position = atEnd ? area.value.length : 0; area.setSelectionRange(position, position); } });
@@ -448,6 +475,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
           event.preventDefault(); event.stopPropagation();
           const draft = recall.current.draft;
           recall.current = { index: -1, draft: "" };
+          recallStash.current = null;
           change(draft);
           requestAnimationFrame(() => { const area = inputRef.current; if (area) area.setSelectionRange(area.value.length, area.value.length); });
           return;
