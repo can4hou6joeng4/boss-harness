@@ -7,6 +7,7 @@ import { useClipboardCopy } from "../data/clipboardCopy";
 import { harnessErrorText } from "../data/harnessBridge";
 import { queueRefreshErrorText, type QueueRefreshResult } from "../data/queueRefresh";
 import { queueActionNotice, type QueueActionOutcome } from "../data/queueAction";
+import { useQueueActions } from "../data/queueActionState";
 import { queueItemRetryable } from "../data/queueRetry";
 import { queueSkillLabels } from "../data/queueSkillLabels";
 import { queuePauseDetail, queueStatusLabel } from "../data/queueStatus";
@@ -41,8 +42,11 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   /** 重新排队暂停项；结果语义与 onRemove 一致。 */
   onRetry?: (item: QueueItem) => Promise<QueueActionOutcome>;
 }): JSX.Element | null {
-  const [pending, setPending] = useState<string | null>(null);
-  const [error, setError] = useState("");
+  // 重新排队与撤回的在途锁、失败原因按会话保留；通知切换导致面板卸载也不能遗忘在途写入。
+  const actions = useQueueActions(threadId);
+  const { pendingRetryId, pendingRemoveId, error, removeMessage } = actions;
+  const queueBusy = pendingRetryId !== null || pendingRemoveId !== null;
+  const removeBusy = pendingRemoveId !== null;
   const [refreshing, setRefreshing] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ item: QueueItem; input: string } | null>(null);
@@ -52,8 +56,6 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   // 撤回会永久移除排队消息，必须显式确认；对话框保留打开时的条目快照，
   // 列表刷新后仍能核对正文，并由实时状态决定是否还允许提交。
   const [removeTarget, setRemoveTarget] = useState<QueueItem | null>(null);
-  const [removeBusy, setRemoveBusy] = useState(false);
-  const [removeMessage, setRemoveMessage] = useState("");
   // 折叠状态优先显示暂停项；展开后渲染内核已载入的全部条目。
   const [showAll, setShowAll] = useState(false);
   const clipboard = useClipboardCopy();
@@ -72,12 +74,12 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   const removeSkillLabels = removeItem ? queueSkillLabels(removeItem.skillIds, skills) : [];
   const refresh = async () => {
     if (!onRefresh || refreshing) return;
-    setRefreshing(true); setError("");
+    setRefreshing(true); actions.setError("");
     try {
       const reason = queueRefreshErrorText(await onRefresh());
-      if (reason) setError(`刷新队列失败：${reason}。队列面板保留上一次内容。`);
+      if (reason) actions.setError(`刷新队列失败：${reason}。队列面板保留上一次内容。`);
     } catch (cause) {
-      setError(`刷新队列失败：${harnessErrorText(cause)}。队列面板保留上一次内容。`);
+      actions.setError(`刷新队列失败：${harnessErrorText(cause)}。队列面板保留上一次内容。`);
     } finally {
       setRefreshing(false);
     }
@@ -86,30 +88,30 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   const showFullInput = async (item: QueueItem) => {
     if (!onReadFull || reading) return;
     clipboard.reset();
-    setReading(item.id); setError("");
+    setReading(item.id); actions.setError("");
     try {
       const full = await onReadFull(item);
       setViewing({ item: full, input: full.input });
     } catch (cause) {
-      setError(`读取完整输入失败：${harnessErrorText(cause)}。队列面板仍显示预览。`);
+      actions.setError(`读取完整输入失败：${harnessErrorText(cause)}。队列面板仍显示预览。`);
     } finally {
       setReading(null);
     }
   };
   const startEditing = async (item: QueueItem) => {
     if (!onUpdateInput || reading || saving || item.status !== "queued") return;
-    setError(""); setEditError(""); setConfirmEditClose(false);
+    actions.setError(""); setEditError(""); setConfirmEditClose(false);
     if (!item.inputTruncated) { setEditing({ item, draft: item.input, originalInput: item.input }); return; }
-    if (!onReadFull) { setError("列表只显示截断预览，当前无法读取完整正文进行编辑。"); return; }
+    if (!onReadFull) { actions.setError("列表只显示截断预览，当前无法读取完整正文进行编辑。"); return; }
     // 截断项必须先用 queue/get 取回全文，绝不能把 600 字符预览当成正文保存。
     setReading(item.id);
     try {
       const full = await onReadFull(item);
       // 读取期间条目可能已被投递或撤回：此时打开编辑框只会得到一次必然失败的保存。
-      if (full.status !== "queued") { setError(`这条消息${queueStatusLabel(full)}，已无法编辑。`); return; }
+      if (full.status !== "queued") { actions.setError(`这条消息${queueStatusLabel(full)}，已无法编辑。`); return; }
       setEditing({ item: full, draft: full.input, originalInput: full.input });
     } catch (cause) {
-      setError(`读取完整输入失败：${harnessErrorText(cause)}。未进入编辑，预览保持不变。`);
+      actions.setError(`读取完整输入失败：${harnessErrorText(cause)}。未进入编辑，预览保持不变。`);
     } finally {
       setReading(null);
     }
@@ -137,39 +139,42 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     await saveEditing(submitted => updateInput(submitted.item, submitted.draft));
   };
   const retry = async (item: QueueItem) => {
-    setPending(item.id); setError("");
+    // 读取会话级最新状态：切回后的新组件不能沿用渲染时的旧锁。
+    const current = actions.getState();
+    if (current.pendingRetryId !== null || current.pendingRemoveId !== null) return;
+    actions.beginRetry(item.id);
     try {
       const notice = queueActionNotice("重新排队", await onRetry!(item));
-      if (notice) setError(notice);
+      // 迟到结果按发起时的队列项结算；成功也要清除提示，恢复按钮可用性。
+      actions.settleRetry(item.id, notice ?? "");
     } catch (cause) {
       // 入队或回执异常：请求可能已经发出，无法证明没有生效，按未确认处理。
-      setError(`重新排队结果尚未确认：${harnessErrorText(cause)}。请核对队列状态。`);
-    } finally {
-      setPending(null);
+      actions.settleRetry(item.id, `重新排队结果尚未确认：${harnessErrorText(cause)}。请核对队列状态。`);
     }
   };
   // 首次点击只打开确认框，不发出任何队列写请求；取消或关闭保持条目原样。
   const startRemove = (item: QueueItem) => {
-    if (pending !== null) return;
-    setError(""); setRemoveMessage(""); setRemoveTarget(item);
+    const current = actions.getState();
+    if (current.pendingRetryId !== null || current.pendingRemoveId !== null) return;
+    actions.setError(""); actions.setRemoveMessage(""); setRemoveTarget(item);
   };
   const closeRemove = () => {
     if (removeBusy) return;
-    setRemoveTarget(null); setRemoveMessage("");
+    setRemoveTarget(null); actions.setRemoveMessage("");
   };
   const confirmRemove = async () => {
-    if (!removeTarget || removeBusy || !removeAvailable) return;
+    // 同步读取最新锁：两次快速确认不能都穿过渲染快照，向同一队列项重复撤回。
+    const current = actions.getState();
+    if (!removeTarget || current.pendingRetryId !== null || current.pendingRemoveId !== null || !removeAvailable) return;
     const id = removeTarget.id;
-    setRemoveBusy(true); setRemoveMessage("");
+    actions.beginRemove(id);
     try {
       const notice = queueActionNotice("撤回", await onRemove(id));
       // 结果未确认时保留确认框与正文，让用户看到提示后再决定是否核对。
-      if (notice) setRemoveMessage(notice);
-      else { setRemoveTarget(null); setRemoveMessage(""); }
+      actions.settleRemove(id, notice ?? "");
+      if (!notice) setRemoveTarget(null);
     } catch (cause) {
-      setRemoveMessage(`撤回结果尚未确认：${harnessErrorText(cause)}。请核对队列状态。`);
-    } finally {
-      setRemoveBusy(false);
+      actions.settleRemove(id, `撤回结果尚未确认：${harnessErrorText(cause)}。请核对队列状态。`);
     }
   };
   const collapsedItems = selectVisibleQueueItems(items, false);
@@ -232,17 +237,17 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
           })()}
         </div>
         {onUpdateInput && item.status === "queued" && <button type="button" className="turn-queue-edit" title="编辑排队中的正文；不会提前投递" disabled={reading !== null || saving} onClick={() => { void startEditing(item); }}>编辑</button>}
-        {canRetry(item) && <button type="button" className="turn-queue-retry" disabled={pending !== null || !connected}
+        {canRetry(item) && <button type="button" className="turn-queue-retry" disabled={queueBusy || !connected}
           title={connected ? "用同一输入与技能重新创建队列消息，并撤回旧项" : "本机内核未连接，恢复连接后再重新排队"}
           onClick={() => { void retry(item); }}>重新排队</button>}
         {(item.status === "queued" || item.status === "paused") && <button type="button" aria-label={`撤回排队消息：${safeSlice(item.input, 80)}`}
           aria-haspopup="dialog"
           title={!connected ? "本机内核未连接，恢复连接后再撤回" : item.status === "paused" ? "取消暂停的队列消息（需要确认）" : "撤回排队消息（需要确认）"}
-          disabled={pending !== null || !connected} onClick={() => startRemove(item)}
+          disabled={queueBusy || !connected} onClick={() => startRemove(item)}
         ><IconClose size={14} /></button>}
       </li>)}
     </ul>
-    {error && <p className="turn-queue-error" role="status">{error}</p>}
+    {(error || (removeTarget ? "" : removeMessage)) && <p className="turn-queue-error" role="status">{error || removeMessage}</p>}
     </section>}
     {viewing && <QueueInputDialog item={viewing.item} input={viewing.input} skillLabels={viewingSkillLabels}
       retryAvailable={canRetry(viewing.item)} copyFeedback={copyFeedback}
