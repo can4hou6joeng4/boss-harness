@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 删除聊天时清理本机输入草稿（Issue #1040）
+
+参考 [Pi（MIT）固定提交 `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `session-selector.ts`](https://github.com/earendil-works/pi/blob/a14cdf90f0a76532f3e20bc3c01872837cef24ba/packages/coding-agent/src/modes/interactive/components/session-selector.ts#L835)：删除成功后移除当前与全部会话列表中的镜像并刷新，失败只报告原因并保留状态。本轮只采用权威删除结果驱动界面清理的原则，独立实现，不复制源码或新增依赖。
+
+适配差异：本项目的桌面输入草稿独立于内核会话，正文与技能另存本机界面存储，附件和读取状态留在内存。清理沿用现有 `onDeleteSession` 的已移除结果（包括已不存在与内核已移除、稍后继续清理），不从列表缺项推断删除；同步删除草稿条目、关闭补写用的快照并立即保存。应用生命周期内保留已删除会话 id，草稿更新器执行时检查，阻止删除前附件读取的迟到回调重新建稿。启动恢复不保留额外的原始存储快照，取消、拒绝与结果未知时均不清理；存储不可用仍沿用既有内存降级，不改内核删除机制或草稿持久格式。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 工作区说明异常重读的草稿保护（Issue #1022）
 
 参考 [Pi（MIT）固定提交 `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `settings-manager.ts`](https://github.com/earendil-works/pi/blob/a14cdf90f0a76532f3e20bc3c01872837cef24ba/packages/coding-agent/src/core/settings-manager.ts#L500)：`reload()` 只在读取成功时替换对应设置，读取失败则保留原值并单独记录错误。本轮只借鉴保留最后一次有效值的原则，独立实现，不复制源码或新增依赖。
