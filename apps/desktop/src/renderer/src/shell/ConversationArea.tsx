@@ -88,7 +88,10 @@ export interface ConversationAreaProps {
   expansionMemory?: { current: Map<string, Set<string>> };
   /** 用户阅读期间新到达的消息数按会话保留在应用生命周期内；切回恢复，回到底部清除。 */
   unseenMemory?: { current: Map<string, number> };
+  /** 聊天内查找的关键词、命中位置与详情开关按会话保留；切回后再次按 ⌘F 继续上次查找。 */
+  findMemory?: { current: Map<string, FindMemoryState> };
 }
+export interface FindMemoryState { query: string; cursor: FindCursor; details: boolean }
 /** 把命中区间滚到消息区中间；区间不可见（折叠块尚未展开等）时返回 false，由调用方退回消息级定位。 */
 function scrollRangeIntoCenter(range: Range): boolean {
   const rect = range.getBoundingClientRect();
@@ -107,7 +110,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   focusMessageId, focusRevealTool = false, onFocusMessage,
   searchHighlight, onDismissSearchHighlight,
   threadId, continuationCheck, onContinueInterruptedTurn, modelRetry, onDismissModelRetry, sessionBranches,
-  scrollMemory, loadingHistory = false, expansionMemory, unseenMemory,
+  scrollMemory, loadingHistory = false, expansionMemory, unseenMemory, findMemory,
 }) => {
   const [messages, setMessages] = useState<MessageItem[]>(initialMessages);
   // 工具块与思考块的展开状态跨会话重建保留；key 由消息与块类型组成。
@@ -168,11 +171,19 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   // 审批提交锁、失败原因与「记住选择」由会话级缓存持有，通知切换不会随对话区卸载。
   const approvalSubmission = useApprovalSubmission(threadId);
   const [findOpen, setFindOpen] = useState(false);
-  const [findQuery, setFindQuery] = useState("");
-  const [findCursor, setFindCursor] = useState<FindCursor>({ message: 0, offset: 0 });
+  // 查找栏关闭后关键词与位置按会话保留：切回后再次按 ⌘F 能接着上次的结果，不用重输。
+  const rememberedFind = threadId && findMemory ? findMemory.current.get(threadId) : undefined;
+  const [findQuery, setFindQuery] = useState(rememberedFind?.query ?? "");
+  const [findCursor, setFindCursor] = useState<FindCursor>(rememberedFind?.cursor ?? { message: 0, offset: 0 });
   const [findCounts, setFindCounts] = useState<number[]>([]);
   const [findCapped, setFindCapped] = useState(false);
-  const [findDetails, setFindDetails] = useState(false);
+  const [findDetails, setFindDetails] = useState(rememberedFind?.details ?? false);
+  // 查找栏打开期间持续记录关键词、命中位置与详情开关；清空关键词或显式关闭即结束本次查找。
+  useEffect(() => {
+    if (!threadId || !findMemory || !findOpen) return;
+    if (findQuery.trim()) findMemory.current.set(threadId, { query: findQuery, cursor: findCursor, details: findDetails });
+    else findMemory.current.delete(threadId);
+  }, [findOpen, findQuery, findCursor, findDetails, threadId, findMemory]);
   // 每按一次 ⌘F 递增：查找栏已经打开时 setFindOpen(true) 不产生新渲染，靠这个计数重新触发聚焦。
   const [findFocusRequest, setFindFocusRequest] = useState(0);
   const [focusFlash, setFocusFlash] = useState<string | null>(null);
@@ -202,7 +213,10 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
     if (!findMatches.length) return;
     setFindCursor(stepFindCursor(cursor, findSteps, delta));
   };
-  const closeFind = () => { setFindOpen(false); setFindQuery(""); resetFindCursor(); };
+  const closeFind = () => {
+    setFindOpen(false); setFindQuery(""); resetFindCursor();
+    if (threadId && findMemory) findMemory.current.delete(threadId);
+  };
   // 当前命中位于折叠块时展开它，否则隐藏文本的命中高亮不可见；只收起本次自动展开的块，不动用户手动展开的块。
   useEffect(() => {
     if (!findOpen || !findDetails || !currentFindId) return;
