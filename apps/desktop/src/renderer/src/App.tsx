@@ -47,6 +47,11 @@ const LEGACY_ROUTE_HINT = "该旧会话记录的模型不属于默认线路，�
 function legacyRouteMismatch(session: { provider?: string; model?: string }, defaultModel: { provider: string; model: string } | null): boolean {
   return !session.provider && !!session.model && !!defaultModel && session.model !== defaultModel.model;
 }
+/** 打开分支弹窗时固定的目标会话与阻断条件；通知切换背景会话不能改换分支来源。 */
+interface BranchSessionTarget {
+  threadId: string; title: string; provider?: string; archived: boolean;
+  queueItems: QueueItem[]; compacting: boolean;
+}
 
 export function App(): JSX.Element {
   const [theme, setTheme] = useState<ThemePreference>(() => {
@@ -61,6 +66,7 @@ export function App(): JSX.Element {
   const branchViewsRef = useRef(false);
   const branchSnapshotsRef = useRef(false);
   const [isBranchesOpen, setIsBranchesOpen] = useState(false);
+  const [branchTarget, setBranchTarget] = useState<BranchSessionTarget | null>(null);
   const [branchInitialTarget, setBranchInitialTarget] = useState<BranchTarget | null>(null);
   const [isHomeView, setIsHomeView] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 700);
@@ -157,7 +163,10 @@ export function App(): JSX.Element {
     setUsageTarget({ threadId: session.id, title: session.title });
     threadUsage.open(session.id);
   }, [threadUsage.open]);
-  const sessionBranches = useSessionBranches(contextThreadId, harnessUp, branchCapability,
+  // 分支弹窗打开后固定目标会话；通知切换背景会话不改变分支来源。
+  useEffect(() => { if (!branchCapability) { setBranchTarget(null); setIsBranchesOpen(false); } }, [branchCapability]);
+  const branchThreadId = branchTarget?.threadId ?? contextThreadId;
+  const sessionBranches = useSessionBranches(branchThreadId, harnessUp, branchCapability,
     id => replicaRef.current?.reload(id));
   const updateThread = useCallback((id: string, change: (previous: MessageItem[]) => MessageItem[]) => {
     const next = change(cache.current.get(id) ?? []);
@@ -965,6 +974,7 @@ export function App(): JSX.Element {
   const preview = !window.boss && activeSession?.projectId !== HARNESS_PROJECT_ID;
   // 目标仍在前台时使用实时消息；通知切走后使用打开时缓存的同会话消息做回合标签。
   const usageMessages = usageTarget && activeSession?.id !== usageTarget.threadId ? cache.current.get(usageTarget.threadId) ?? [] : messages;
+  const branchMessages = branchTarget && activeSession?.id !== branchTarget.threadId ? cache.current.get(branchTarget.threadId) ?? [] : messages;
   const branchState = sessionBranches.state;
   const branchSummaryRunning = Boolean(contextThreadId && branchState.summaryJob?.status === "running");
   const compacting = branchSummaryRunning || contextPanel.state.lifecycleActive === true
@@ -976,6 +986,20 @@ export function App(): JSX.Element {
     : sessionProvider?.toLowerCase() === "none" ? "当前会话的模型线路为 none（未配置模型），无法生成摘要。" : null;
   const branchesVisible = Boolean(branchCapability && contextThreadId && !preview
     && (branchState.turnCount > 0 || messages.some(message => message.turnId)));
+  // 弹窗使用打开时固定目标的阻断条件；运行中与切换中状态保持实时，队列等无法旁路读取的条件取打开时快照。
+  const branchDialogBlock = branchTarget ? branchSwitchBlock({ connected: harnessUp, archived: branchTarget.archived,
+    running: runningThreadIds.has(branchTarget.threadId), queueItems: branchTarget.queueItems, compacting: branchTarget.compacting,
+    switching: branchState.switching }) : branchBlock;
+  const branchDialogSummaryUnavailable = branchTarget
+    ? (!harnessUp ? "本地内核未连接。"
+      : branchTarget.provider?.toLowerCase() === "none" ? "当前会话的模型线路为 none（未配置模型），无法生成摘要。" : null)
+    : branchSummaryUnavailable;
+  const branchDialogVisible = Boolean(branchCapability && branchTarget
+    && (branchState.turnCount > 0 || branchMessages.some(message => message.turnId)));
+  // 目标会话已没有可展示的分支时收起弹窗并解除固定，避免后台继续锁定旧会话。
+  useEffect(() => {
+    if (isBranchesOpen && branchTarget && !branchDialogVisible) { setIsBranchesOpen(false); setBranchTarget(null); }
+  }, [isBranchesOpen, branchTarget, branchDialogVisible]);
   return <>
     <AppShell isDark={isDark} theme={theme} onToggleTheme={() => setTheme(isDark ? "light" : "dark")} onThemeChange={setTheme} isSidebarOpen={isSidebarOpen} onToggleSidebar={() => setIsSidebarOpen(previous => !previous)}
       folders={folders} activeSession={activeSession} isHomeView={isHomeView} messages={messages} turnSkillIds={turnSkillIds} currentMode={currentMode} onModeChange={setCurrentMode}
@@ -989,11 +1013,16 @@ export function App(): JSX.Element {
       sessionBranches={branchesVisible ? { summaries: branchState.summaries, job: branchState.summaryJob, cancelInFlight: branchState.cancelInFlight,
         summaryRead: branchCapability?.summaryRead === true,
         onOpen: (restartTurnId?: string) => {
+          const session = activeRef.current;
+          if (!session) return;
           // “从这里重新开始”：回到这条输入所在回合之前（前一回合之后，首回合则为会话开头）。
           const order = [...new Set(messages.flatMap(message => message.turnId ? [message.turnId] : []))];
           const index = restartTurnId ? order.indexOf(restartTurnId) : -1;
           setBranchInitialTarget(index < 0 ? null : index === 0 ? { turnId: null, label: "会话开头（重新输入第 1 条消息）", abandons: true }
             : { turnId: order[index - 1]!, label: `第 ${index} 回合之后（重新输入第 ${index + 1} 条消息）`, abandons: true });
+          // 目标与阻断条件在打开时快照：通知切换背景会话不能把确认落到另一条会话。
+          setBranchTarget({ threadId: session.id, title: session.title, provider: session.provider,
+            archived: session.archived === true, queueItems, compacting });
           sessionBranches.clearSwitchError(); void sessionBranches.refresh(); setIsBranchesOpen(true);
         },
         onCancelSummary: () => { void sessionBranches.cancelSummary(); }, onDismissSummary: sessionBranches.dismissSummaryJob } : undefined}
@@ -1038,8 +1067,9 @@ export function App(): JSX.Element {
     {usageSupported && usageTarget && <UsageDialog isOpen={threadUsage.isOpen} target={usageTarget}
       onClose={() => { setUsageTarget(null); threadUsage.close(); }} state={threadUsage.state} messages={usageMessages}
       branchViews={usageBranchViews} connected={harnessUp} onRefresh={() => { void threadUsage.refresh(); }} onViewChange={threadUsage.setView} />}
-    {branchCapability && <BranchDialog isOpen={isBranchesOpen && branchesVisible} onClose={() => setIsBranchesOpen(false)} state={branchState} support={branchCapability}
-      messages={messages} block={branchBlock} summaryUnavailable={branchSummaryUnavailable} initialTarget={branchInitialTarget}
+    {branchCapability && branchTarget && <BranchDialog isOpen={isBranchesOpen && branchDialogVisible}
+      onClose={() => { setIsBranchesOpen(false); setBranchTarget(null); }} state={branchState} support={branchCapability} owner={branchTarget}
+      messages={branchMessages} block={branchDialogBlock} summaryUnavailable={branchDialogSummaryUnavailable} initialTarget={branchInitialTarget}
       onSwitch={sessionBranches.switchTo} onRefresh={() => { void sessionBranches.refresh(); }} />}
   </>;
 }
