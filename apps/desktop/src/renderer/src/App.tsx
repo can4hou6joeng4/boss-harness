@@ -103,6 +103,8 @@ export function App(): JSX.Element {
   const [defaultModel, setDefaultModel] = useState<{ provider: string; model: string } | null>(null);
   const [configuredModelLabel, setConfiguredModelLabel] = useState<string>();
   const [messages, setMessages] = useState<MessageItem[]>([]);
+  // 正在读取历史的会话：本地无缓存时先显示加载提示，避免把未加载的会话展示成空会话。
+  const [loadingHistory, setLoadingHistory] = useState<string | null>(null);
   // 回合实际注入的技能；旧内核不返回 turns[].skillIds 时为空，界面不显示。
   const [turnSkillIds, setTurnSkillIds] = useState<Record<string, string[]>>({});
   const [runningThreadIds, setRunningThreadIds] = useState(new Set<string>());
@@ -535,11 +537,15 @@ export function App(): JSX.Element {
         { id: "sample-user-" + session.id, role: "user" as const, content: session.title },
         { id: "sample-agent-" + session.id, role: "agent" as const, paragraphs: ["这是一段招聘任务示例。你可以在这里预览消息、输入与菜单交互，所有对外操作均未执行。"] },
       ]);
-      cache.current.set(session.id, sample); setMessages(sample); return;
+      cache.current.set(session.id, sample); setMessages(sample); setLoadingHistory(null); return;
     }
-    setMessages(cache.current.get(session.id) ?? []);
+    const cached = cache.current.get(session.id);
+    setMessages(cached ?? []);
+    // 未缓存的会话仍在读取历史：显示加载提示，不能先展示成空会话。
+    setLoadingHistory(cached ? null : session.id);
     void replicaRef.current?.resume(session.id).then(snapshot => {
       if (selectionVersion.current !== requestVersion || activeRef.current?.id !== session.id) return;
+      setLoadingHistory(null);
       // 具体原因已随 session/error 送到界面；这里沿用它，只有取不到时才回退到通用文案。
       if (!snapshot) {
         setError(replicaRef.current?.lastFailure(session.id) ?? "读取会话失败，已保留当前内容。请检查本地内核连接。");
@@ -563,6 +569,7 @@ export function App(): JSX.Element {
   const clearActiveConversation = useCallback(() => {
     ++selectionVersion.current; ++continuationReadGeneration.current;
     activeRef.current = null; setActiveSession(null); setMessages([]); setIsHomeView(true); setContinuationCheck(null);
+    setLoadingHistory(null);
     setQueueItems([]); setQueueMeta({}); setTurnSkillIds({});
     homeModelChoiceRef.current = null;
     if (defaultModel) { setActiveModelProvider(defaultModel.provider); setActiveModelId(defaultModel.model); setConfiguredModelLabel(`${defaultModel.provider} · ${defaultModel.model}`); }
@@ -1072,7 +1079,7 @@ export function App(): JSX.Element {
   }, [isBranchesOpen, branchTarget, branchDialogVisible]);
   return <>
     <AppShell isDark={isDark} theme={theme} onToggleTheme={() => setTheme(isDark ? "light" : "dark")} onThemeChange={setTheme} isSidebarOpen={isSidebarOpen} onToggleSidebar={() => setIsSidebarOpen(previous => !previous)}
-      folders={folders} activeSession={activeSession} isHomeView={isHomeView} messages={messages} turnSkillIds={turnSkillIds} currentMode={currentMode} onModeChange={setCurrentMode} completedUnread={completedUnread}
+      folders={folders} activeSession={activeSession} isHomeView={isHomeView} messages={messages} turnSkillIds={turnSkillIds} currentMode={currentMode} onModeChange={setCurrentMode} completedUnread={completedUnread} loadingHistory={activeSession !== null && loadingHistory === activeSession.id}
       onSelectSession={handleSelectSession} onNewTask={handleNewTask} onDeleteSession={handleDeleteSession} onArchiveSession={handleArchiveSession} onRenameSession={window.boss ? handleRenameSession : undefined} onSendMessage={handleSendMessage} onQueueMessage={handleQueueMessage} onCheckQueueSubmission={handleCheckQueueSubmission} queueItems={queueItems} queueTotalItems={queueMeta.totalItems} queueActiveItems={queueMeta.activeItems} queueTruncated={queueMeta.truncated} onRemoveQueueItem={handleRemoveQueueItem} onRetryQueueItem={handleRetryQueueItem} onReadQueueItem={handleReadQueueItem} onUpdateQueueItem={capabilities?.queueUpdate === true ? handleUpdateQueueItem : undefined} onRefreshQueue={handleRefreshQueue} autoCompactionConfig={capabilities?.autoCompactionConfig === true} simulateLocal={preview} harnessUp={harnessUp} sessionsLoaded={sessionsLoaded}
       onCreateConnectionSession={createConnectionSession}
       sessionReasoning={contextThreadId ? sessionReasoning : undefined}
