@@ -118,6 +118,9 @@ export function AppShell(props: AppShellProps) {
   const [skillFocus, setSkillFocus] = useState<string | null>(null);
   /** 技能页内联编辑器是否有未保存的工作区说明；导航前据此要求确认。 */
   const workspaceInstructionsDirty = useRef(false);
+  /** 工作区说明是否正在保存；写入在途时不能离开页面，否则「丢弃」与落盘互相矛盾。 */
+  const workspaceInstructionsSaving = useRef(false);
+  const [workspaceInstructionsSavingState, setWorkspaceInstructionsSavingState] = useState(false);
   /** 用户确认丢弃后重放原导航意图时临时放行，重放结束立即恢复保护。 */
   const workspaceLeaveBypass = useRef(false);
   const [pendingWorkspaceLeave, setPendingWorkspaceLeave] = useState<WorkspaceLeaveIntent | null>(null);
@@ -125,6 +128,11 @@ export function AppShell(props: AppShellProps) {
     workspaceInstructionsDirty.current = dirty;
     // 保存或确认丢弃后旧意图失效；编辑器随导航卸载时也会走到这里。
     if (!dirty) setPendingWorkspaceLeave(null);
+  }, []);
+  const reportWorkspaceInstructionsSaving = useCallback((saving: boolean) => {
+    workspaceInstructionsSaving.current = saving;
+    setWorkspaceInstructionsSavingState(saving);
+    if (!saving) setPendingWorkspaceLeave(null);
   }, []);
   const [messageFocus, setMessageFocus] = useState<{ threadId: string; itemId: string; revealToolBlock?: boolean } | null>(null);
   /** 跨会话搜索落地后留在目标消息里的关键词；离开会话、再次搜索或点击后清除。 */
@@ -327,7 +335,7 @@ export function AppShell(props: AppShellProps) {
     route.page !== "home" || !route.sessionId || sessions.some(session => session.id === route.sessionId);
   /** 技能页的工作区说明草稿只存在于编辑器内；离开页面前必须先由用户确认。 */
   const workspaceLeaveBlocked = (): boolean =>
-    page === "skills" && workspaceInstructionsDirty.current && !workspaceLeaveBypass.current;
+    page === "skills" && (workspaceInstructionsDirty.current || workspaceInstructionsSaving.current) && !workspaceLeaveBypass.current;
   const openRoute = (route: Route, record = true, keepFocus = false): boolean => {
     // 历史栈里可能残留已删除会话的路由：保持当前视图，不记录、也不拿它去开新任务。
     if (!routeReachable(route)) return false;
@@ -558,6 +566,8 @@ export function AppShell(props: AppShellProps) {
     return applied;
   };
   const resolveWorkspaceLeave = (discard: boolean) => {
+    // 保存在途时写入已经发出，不能借「丢弃」绕过保护离开页面。
+    if (workspaceInstructionsSaving.current) return;
     const pending = pendingWorkspaceLeave;
     setPendingWorkspaceLeave(null);
     if (!discard || !pending) return;
@@ -673,11 +683,16 @@ export function AppShell(props: AppShellProps) {
             onMoveSession={(id, folderId) => setThreadGroups(prev => ({ ...prev, [id]: folderId }))} onRenameProject={folder => { setRenameProject(folder); setFolderName(folder.name); }} onRemoveProject={setRemoveProject} />
           <main className="main-canvas">
             {pendingWorkspaceLeave && page === "skills" && <div className="home-suggestion-confirm workspace-leave-confirm" role="alert" data-workspace-leave-confirm>
-              <span>工作区常驻说明还有未保存的修改；离开「技能与工具」页会丢弃它们。</span>
-              <button type="button" onClick={() => resolveWorkspaceLeave(true)}>丢弃并离开</button>
-              <button type="button" onClick={() => resolveWorkspaceLeave(false)}>继续编辑</button>
+              {workspaceInstructionsSavingState ? <>
+                <span>工作区常驻说明正在保存；完成前不能离开「技能与工具」页。</span>
+                <button type="button" onClick={() => setPendingWorkspaceLeave(null)}>知道了</button>
+              </> : <>
+                <span>工作区常驻说明还有未保存的修改；离开「技能与工具」页会丢弃它们。</span>
+                <button type="button" onClick={() => resolveWorkspaceLeave(true)}>丢弃并离开</button>
+                <button type="button" onClick={() => resolveWorkspaceLeave(false)}>继续编辑</button>
+              </>}
             </div>}
-            {page !== "home" ? <WorkspacePages page={page} folders={allFolders} messages={props.messages} onSelect={select} onNewTask={newTask} onDraft={useTemplate} tools={tools} toolCatalogState={toolCatalogState} toolCatalogError={toolCatalogError} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillsReadable={props.skillsReadable === true} skillsCreatable={props.skillsCreatable === true} skillsWritable={props.skillsWritable === true} skillsDeletable={props.skillsDeletable === true} skillRoot={skillRoot} skillProblems={skillProblems} onUseSkill={useSkillInNewChat} workspaceInstructionsEditable={props.workspaceInstructionsEditable === true} harnessUp={props.harnessUp === true} preview={props.simulateLocal ?? true} focusSkillId={skillFocus} onFocusSkill={() => setSkillFocus(null)} onInstructionsDirty={reportWorkspaceInstructionsDirty} /> : props.isHomeView ? <HomeView key={draft.id} folders={allFolders} draft={draft} onDraftChange={updateHomeDraft} pendingTemplate={pendingTemplate} onResolveTemplate={resolveTemplate} pendingNewTaskProject={pendingNewTask?.projectId ?? null} onResolveNewTask={resolveNewTask} selectedProjectId={draftProjectId} onSelectProject={setDraftProjectId} onNewProject={() => setNewProject(true)} preview={!window.boss} harnessUp={props.harnessUp ?? false} blocked={props.taskBlocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId ?? "deepseek-v4"} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} currentMode={props.currentMode} onModeChange={props.onModeChange} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillProblems={skillProblems} onStartSessionWithPrompt={startInProject} onOpenSettings={() => openSettings("connections")} /> : <>
+            {page !== "home" ? <WorkspacePages page={page} folders={allFolders} messages={props.messages} onSelect={select} onNewTask={newTask} onDraft={useTemplate} tools={tools} toolCatalogState={toolCatalogState} toolCatalogError={toolCatalogError} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillsReadable={props.skillsReadable === true} skillsCreatable={props.skillsCreatable === true} skillsWritable={props.skillsWritable === true} skillsDeletable={props.skillsDeletable === true} skillRoot={skillRoot} skillProblems={skillProblems} onUseSkill={useSkillInNewChat} workspaceInstructionsEditable={props.workspaceInstructionsEditable === true} harnessUp={props.harnessUp === true} preview={props.simulateLocal ?? true} focusSkillId={skillFocus} onFocusSkill={() => setSkillFocus(null)} onInstructionsDirty={reportWorkspaceInstructionsDirty} onInstructionsSaving={reportWorkspaceInstructionsSaving} /> : props.isHomeView ? <HomeView key={draft.id} folders={allFolders} draft={draft} onDraftChange={updateHomeDraft} pendingTemplate={pendingTemplate} onResolveTemplate={resolveTemplate} pendingNewTaskProject={pendingNewTask?.projectId ?? null} onResolveNewTask={resolveNewTask} selectedProjectId={draftProjectId} onSelectProject={setDraftProjectId} onNewProject={() => setNewProject(true)} preview={!window.boss} harnessUp={props.harnessUp ?? false} blocked={props.taskBlocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId ?? "deepseek-v4"} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} currentMode={props.currentMode} onModeChange={props.onModeChange} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillProblems={skillProblems} onStartSessionWithPrompt={startInProject} onOpenSettings={() => openSettings("connections")} /> : <>
               <div className="conversation-pane">
                 {props.simulateLocal && <div className="conversation-preview-badge">示例会话 · 交互预览</div>}
                 <ErrorBoundary key={props.activeSession?.id ?? "conversation"} scope="会话区" compact hint="侧边栏、导航和其他会话仍可使用；切换会话或重试即可恢复。">

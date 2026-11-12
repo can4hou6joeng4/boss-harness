@@ -40,13 +40,19 @@ export function ContextPanel(props: ContextPanelProps) {
   // Hooks 必须在提前返回之前执行；关闭面板时收起编辑器，避免下次打开直接进入编辑态。
   const [editingInstructions, setEditingInstructions] = useState(false);
   const [instructionsDirty, setInstructionsDirty] = useState(false);
+  const [instructionsSaving, setInstructionsSaving] = useState(false);
+  const [savingCloseBlocked, setSavingCloseBlocked] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
-  const closeEditor = useCallback(() => { setEditingInstructions(false); setInstructionsDirty(false); setConfirmClose(false); }, []);
+  const closeEditor = useCallback(() => { setEditingInstructions(false); setInstructionsDirty(false); setInstructionsSaving(false); setSavingCloseBlocked(false); setConfirmClose(false); }, []);
   const reportInstructionsDirty = useCallback((dirty: boolean) => {
     setInstructionsDirty(dirty);
     if (!dirty) setConfirmClose(false);
   }, []);
-  useEffect(() => { if (!props.isOpen) { setEditingInstructions(false); setInstructionsDirty(false); setConfirmClose(false); } }, [props.isOpen]);
+  const reportInstructionsSaving = useCallback((saving: boolean) => {
+    setInstructionsSaving(saving);
+    if (!saving) setSavingCloseBlocked(false);
+  }, []);
+  useEffect(() => { if (!props.isOpen) { setEditingInstructions(false); setInstructionsDirty(false); setInstructionsSaving(false); setSavingCloseBlocked(false); setConfirmClose(false); } }, [props.isOpen]);
   if (!props.isOpen) return null;
   const { state, connected, busy } = props, budget = state.budget, job = state.job, plan = state.plan, auto = props.autoCompaction;
   const activeJob = job?.status === "running" && state.lifecycleActive !== false;
@@ -59,6 +65,8 @@ export function ContextPanel(props: ContextPanelProps) {
   const percentage = budget && budget.inputBudget > 0 ? Math.max(0, Math.min(100, budget.estimatedInputTokens / budget.inputBudget * 100)) : 0;
   const composition = budget ? contextBreakdown(budget.breakdown) : null;
   const requestClose = () => {
+    // 保存在途时写入已经发出，关闭面板会让「丢弃」与随后落盘互相矛盾。
+    if (editingInstructions && instructionsSaving) { setSavingCloseBlocked(true); return; }
     // 编辑器里的修改还没保存时，第一次关闭只提示，避免整块收起时静默丢稿。
     if (editingInstructions && instructionsDirty && !confirmClose) { setConfirmClose(true); return; }
     props.onClose();
@@ -87,8 +95,9 @@ export function ContextPanel(props: ContextPanelProps) {
           <details><summary>模型用量与检查点</summary><dl className="context-panel-detail"><dt>最近业务用量</dt><dd>{usage(budget.usage)}</dd><dt>最近摘要用量</dt><dd>{usage(budget.summaryUsage)}</dd><dt>摘要检查点</dt><dd>{budget.checkpoint ? `已保留 · 截止回合 ${String(budget.checkpoint.throughTurnId ?? "未知")}` : typeof budget.checkpointIssue === "string" && budget.checkpointIssue ? `最近摘要已失效：${budget.checkpointIssue}；完整原文已重新进入模型上下文` : "尚无摘要检查点"}</dd>{budget.branchSummaryIssueCount ? <><dt>分支摘要</dt><dd>{number(budget.branchSummaryIssueCount)} 条未生效：{(budget.branchSummaryIssues ?? []).slice(0, 3).map(issue => issue.reason).join("；") || "原因未提供"}；不会进入模型上下文</dd></> : null}{budget.checkpoint?.summaryProvider && <><dt>检查点模型</dt><dd>{String(budget.checkpoint.summaryProvider)} / {String(budget.checkpoint.summaryModel ?? "未知")}</dd><dt>检查点推理档位</dt><dd>{String(budget.checkpoint.summaryEffort ?? "服务默认")}</dd></>}</dl><p className="context-panel-note">历史用量不等于压缩后的精确输入用量。原始历史保留；摘要用于后续模型上下文。</p></details>
         </> : <p className="context-panel-note">{state.reading ? "正在读取当前会话预算…" : "尚未读取预算，可连接内核后刷新。"}</p>}
         {confirmClose && editingInstructions && instructionsDirty && <p className="context-panel-warning" role="alert">有未保存的工作区说明修改；再次关闭将丢弃。</p>}
+        {savingCloseBlocked && editingInstructions && instructionsSaving && <p className="context-panel-warning" role="alert">正在保存工作区说明；完成前不能关闭面板。</p>}
         {/* 断连会暂时清空能力声明；编辑器已打开时保持挂载，草稿才不会随重连丢失。 */}
-        {(props.workspaceEditor || editingInstructions) && <WorkspaceInstructionsEditor open={editingInstructions} connected={connected} onClose={closeEditor} onSaved={props.onRefresh} onDirtyChange={reportInstructionsDirty} />}
+        {(props.workspaceEditor || editingInstructions) && <WorkspaceInstructionsEditor open={editingInstructions} connected={connected} onClose={closeEditor} onSaved={props.onRefresh} onDirtyChange={reportInstructionsDirty} onSavingChange={reportInstructionsSaving} />}
       </section>
       <section className="context-panel-section" aria-labelledby="context-auto-heading">
         <h3 id="context-auto-heading">下一回合自动压缩</h3>
