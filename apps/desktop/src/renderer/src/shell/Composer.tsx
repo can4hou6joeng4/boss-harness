@@ -40,6 +40,14 @@ const MODES = [
 const MAX_ATTACHMENTS = 4;
 const MAX_ATTACHMENT_BYTES = 200000;
 
+/** 同时覆盖父层草稿与本组件的本地草稿；任一可被恢复覆盖的字段变化都让旧确认失效。 */
+function queueRestoreDraftUnchanged(current: ComposerDraft, snapshot: ComposerDraft): boolean {
+  return current.id === snapshot.id && current.textVersion === snapshot.textVersion
+    && current.attachments === snapshot.attachments && current.skillIds === snapshot.skillIds
+    && current.queueSubmission === snapshot.queueSubmission && current.pendingReads === snapshot.pendingReads
+    && current.submitting === snapshot.submitting;
+}
+
 export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function Composer({
   value, onChange, onSend, draft, onDraftChange, isRunning = false, blocked = false, onInterrupt, preview = true, readOnly = false, archived = false,
   onQueue, onCheckQueueSubmission,
@@ -68,6 +76,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   const sendingRef = useRef(false);
   const alive = useRef(true);
   const [queueIntent, setQueueIntent] = useState<QueueIntent>("steering");
+  const [pendingQueueRestore, setPendingQueueRestore] = useState<{ draft: ComposerDraft; intent: QueueIntent } | null>(null);
   const lastValue = useRef(value), valueVersion = useRef(0);
   if (lastValue.current !== value) { lastValue.current = value; valueVersion.current += 1; }
   // 上下键调取历史的游标：-1 表示当前草稿，draft 保存进入历史前的输入。
@@ -89,6 +98,15 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   const submitting = composerDraft.submitting;
   const uncertainQueue = composerDraft.queueSubmission?.uncertain ? composerDraft.queueSubmission : null;
   const queueModeActive = isRunning || Boolean(uncertainQueue?.intent === "followUp");
+  const queueRestoreBusy = readingAttachments || submitting || checkingQueue;
+  const currentQueueRestore = pendingQueueRestore && queueRestoreDraftUnchanged(composerDraft, pendingQueueRestore.draft)
+    && pendingQueueRestore.intent === queueIntent && !queueRestoreBusy ? pendingQueueRestore : null;
+  const queueRestoreStateRef = useRef({ confirmation: currentQueueRestore, checking: checkingQueue });
+  queueRestoreStateRef.current = { confirmation: currentQueueRestore, checking: checkingQueue };
+  // 恢复会替换正文、附件与技能；任何草稿变化或处理方式切换后，旧确认都不能继续生效。
+  useEffect(() => {
+    if (pendingQueueRestore && !currentQueueRestore) setPendingQueueRestore(null);
+  }, [pendingQueueRestore, currentQueueRestore]);
   const skillQueueNotice = queueSkillNotice(queueModeActive, queueIntent, selectedSkillIds.length);
   const updateDraft: UpdateComposerDraft = change => {
     if (draft && onDraftChange) onDraftChange(change);
@@ -258,16 +276,32 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
       }
     } finally { sendingRef.current = false; }
   };
-  const restoreQueueSubmission = () => {
-    const pending = draftRef.current.queueSubmission;
-    if (!pending?.uncertain) return;
-    onChange(pending.text);
-    setSlashOpen(false);
-    updateDraft(previous => previous.id === draftRef.current.id
+  const applyQueueRestore = (expected: ComposerDraft, confirmation?: typeof pendingQueueRestore) => {
+    const current = draftRef.current, pending = current.queueSubmission;
+    if (!queueRestoreDraftUnchanged(current, expected) || !pending?.uncertain || readingRef.current || sendingRef.current
+      || current.pendingReads > 0 || current.submitting || queueRestoreStateRef.current.checking
+      || (confirmation && queueRestoreStateRef.current.confirmation !== confirmation)) return;
+    setPendingQueueRestore(null); setSlashOpen(false);
+    updateDraft(previous => queueRestoreDraftUnchanged(previous, expected)
       ? { ...previous, text: pending.text, textVersion: previous.textVersion + 1, attachments: [], skillIds: pending.skillIds ?? [], queueSubmission: pending }
       : previous);
+    if (!draft || !onDraftChange) onChange(pending.text);
     setQueueIntent(pending.intent);
     setNotice("已恢复原队列消息；重试会沿用原请求编号。");
+    focusInput();
+  };
+  const restoreQueueSubmission = () => {
+    const current = draftRef.current, pending = current.queueSubmission;
+    if (!pending?.uncertain || readingRef.current || sendingRef.current
+      || current.pendingReads > 0 || current.submitting || queueRestoreStateRef.current.checking) return;
+    const currentSkills = current.skillIds ?? [], pendingSkills = pending.skillIds ?? [];
+    const sameSkills = currentSkills.length === pendingSkills.length && currentSkills.every((id, index) => id === pendingSkills[index]);
+    const hasContent = Boolean(current.text.trim()) || current.attachments.length > 0 || currentSkills.length > 0;
+    if (hasContent && (composedMessageText(current.text, current.attachments) !== pending.text || !sameSkills)) {
+      setPendingQueueRestore({ draft: current, intent: queueIntent });
+      return;
+    }
+    applyQueueRestore(current);
   };
   const checkUncertainQueueSubmission = async () => {
     const pending = draftRef.current.queueSubmission;
@@ -507,8 +541,15 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     {skillQueueNotice && <div className="composer-notice" role="status">{skillQueueNotice}<button type="button" className="composer-menu-retry" disabled={submitting} onClick={() => updateDraft(previous => ({ ...previous, skillIds: [] }))}>清除已选技能</button></div>}
     {(notice || readingAttachments || submitting) && <div className="composer-notice" role="status">{notice || (readingAttachments ? "正在读取附件…" : "正在转交消息…")}</div>}
     {uncertainQueue && <div className="composer-notice-actions">
-      <button type="button" onClick={restoreQueueSubmission}>恢复待确认消息</button>
+      <button type="button" disabled={queueRestoreBusy} title={queueRestoreBusy ? "正在读取附件、转交消息或核对队列，请稍候" : undefined} onClick={restoreQueueSubmission}>恢复待确认消息</button>
       <button type="button" disabled={!onCheckQueueSubmission || checkingQueue} onClick={() => { void checkUncertainQueueSubmission(); }}>{checkingQueue ? "正在核对队列…" : "核对服务端队列"}</button>
+    </div>}
+    {currentQueueRestore && <div className="composer-notice" role="alert" data-queue-restore-confirm>
+      <span>恢复待确认消息会替换当前未发送的正文、附件与已选技能。</span>
+      <div className="composer-notice-actions">
+        <button type="button" onClick={() => applyQueueRestore(currentQueueRestore.draft, currentQueueRestore)}>替换</button>
+        <button type="button" onClick={() => { setPendingQueueRestore(null); focusInput(); }}>取消</button>
+      </div>
     </div>}
     <input ref={fileRef} className="visually-hidden" type="file" accept=".txt,.md,.markdown,.json,.csv" multiple onChange={event => { const files = [...(event.target.files ?? [])]; event.target.value = ""; void addFiles(files); }} />
   </div>;
