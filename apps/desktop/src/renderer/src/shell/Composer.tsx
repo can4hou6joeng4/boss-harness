@@ -10,7 +10,7 @@ import { filterSkills } from "../data/skillFilter";
 import { skillChips } from "../data/skillChips";
 import { attachmentFailureNotice, readTextAttachments } from "../data/attachmentRead";
 import type { SessionReasoningControl } from "../data/useSessionReasoning";
-import { createComposerDraft, clearTransferredDraft, composerSendResult, composedMessageText, MAX_MESSAGE_TEXT_LENGTH, type ComposerDraft, type UpdateComposerDraft, type ComposerSend, type ComposerSendOutcome, type ComposerQueue, type QueueIntent, type QueueSubmission, type CheckQueueSubmission } from "../data/composerDraft";
+import { createComposerDraft, clearTransferredDraft, composerSendResult, composedMessageText, draftQueueIntent, withQueueIntent, MAX_MESSAGE_TEXT_LENGTH, type ComposerDraft, type UpdateComposerDraft, type ComposerSend, type ComposerSendOutcome, type ComposerQueue, type QueueIntent, type QueueSubmission, type CheckQueueSubmission } from "../data/composerDraft";
 import { queueSkillNotice } from "../data/queueSkillNotice";
 import { recallAfterValueChange, recallKeyDirection, recallNewer, recallOlder, type PromptRecallState } from "../data/composerHistory";
 import "../styles/composer-menus.css";
@@ -75,7 +75,6 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   const readingRef = useRef(false);
   const sendingRef = useRef(false);
   const alive = useRef(true);
-  const [queueIntent, setQueueIntent] = useState<QueueIntent>("steering");
   const [pendingQueueRestore, setPendingQueueRestore] = useState<{ draft: ComposerDraft; intent: QueueIntent } | null>(null);
   const lastValue = useRef(value), valueVersion = useRef(0);
   if (lastValue.current !== value) { lastValue.current = value; valueVersion.current += 1; }
@@ -87,6 +86,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   const ownedText = useRef(value);
   const composerDraft = draft && onDraftChange ? draft : { ...localDraft, text: value, textVersion: valueVersion.current };
   const draftRef = useRef(composerDraft); draftRef.current = composerDraft;
+  // 处理方式随会话草稿保留；切换会话后仍是用户上次的选择。
+  const queueIntent = draftQueueIntent(composerDraft);
   const attachments = composerDraft.attachments;
   const selectedSkillIds = composerDraft.skillIds ?? [];
   const selectedSkillChips = skillChips(selectedSkillIds, skills);
@@ -120,6 +121,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     if (draft && onDraftChange) onDraftChange(change);
     else if (alive.current) setLocalDraft(previous => change({ ...previous, text: lastValue.current, textVersion: valueVersion.current }));
   };
+  // 处理方式是草稿的一部分，与正文、附件和技能选择一起按会话保留。
+  const setQueueIntent = (intent: QueueIntent) => updateDraft(previous => withQueueIntent(previous, intent));
   /**
    * 历史调取期间暂存进入前的草稿；↓ / Esc 或外部改写会让调取结束，随后清空。
    * 只在正文仍是最后一次调取内容时写回，避免覆盖用户后来显式编辑的正文。
