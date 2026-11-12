@@ -1,6 +1,7 @@
 .context-edit-dialog { width: min(680px, calc(100vw - 28px)); max-height: min(90vh, 860px); }
 .context-edit-body { display: grid; gap: 14px; padding: 16px; overflow: auto; }
 .context-edit-note, .context-edit-state span { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.55; }
+.context-edit-owner { overflow-wrap: anywhere; }
 .context-edit-state { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--panel-bg); }
 .context-edit-state strong { font-size: 13px; }
 .context-edit-source { min-width: 0; }

@@ -5,7 +5,8 @@ import { ProjectSidebar, type SidebarPreferences } from "./ProjectSidebar";
 import { HomeView } from "./HomeView";
 import { ConversationArea } from "./ConversationArea";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import type { TurnContinuationReadResponse } from "@boss-harness/protocol";
+import type { ContextEditReadResponse, TurnContinuationReadResponse } from "@boss-harness/protocol";
+import { ContextEditDialog } from "../components/ContextEditDialog";
 import { UI_STORAGE_PREFIX } from "../data/uiStorage";
 import { RightPanel } from "./RightPanel";
 import { LoginBrowserPanel } from "./LoginBrowserPanel";
@@ -91,6 +92,8 @@ export interface AppShellProps {
   sessionReasoning?: SessionReasoningControl;
   onOpenCockpit: () => void; onOpenSideChat: () => void; onOpenRewind: () => void; onOpenShortcuts: () => void;
   onOpenContext?: () => void;
+  /** 消息上下文编辑的权威回读；按响应会话更新消息，不能套用当前背景会话。 */
+  onContextEditChanged: (state: ContextEditReadResponse) => void;
   onOpenUsage?: () => void;
   onOpenExport?: () => void;
   onReviewDiff: () => void; onRevertDiff: () => void;
@@ -115,6 +118,12 @@ export function AppShell(props: AppShellProps) {
   const login = usePlatformLogin();
   const loginEntryFlight = useRef(false);
   const [page, setPage] = useState<WorkspacePage>("home");
+  // 消息上下文编辑跨背景会话保持挂载，保留写入、权威回读与失败核对状态。
+  const [contextEditTarget, setContextEditTarget] = useState<{ threadId: string; itemId: string; title: string } | null>(null);
+  const openContextEdit = (itemId: string) => {
+    const session = props.activeSession;
+    if (session && !contextEditTarget) setContextEditTarget({ threadId: session.id, itemId, title: session.title });
+  };
   /** 从对话里的回合技能标签跳到「技能与工具」时的一次性聚焦意图。 */
   const [skillFocus, setSkillFocus] = useState<string | null>(null);
   /** 技能页内联编辑器是否有未保存的工作区说明；导航前据此要求确认。 */
@@ -708,7 +717,7 @@ export function AppShell(props: AppShellProps) {
               <div className="conversation-pane">
                 {props.simulateLocal && <div className="conversation-preview-badge">示例会话 · 交互预览</div>}
                 <ErrorBoundary key={props.activeSession?.id ?? "conversation"} scope="会话区" compact hint="侧边栏、导航和其他会话仍可使用；切换会话或重试即可恢复。">
-                  <ConversationArea readOnly={props.activeSession?.toolPolicy === "readOnly"} archived={props.activeSession?.archived === true} threadId={props.activeSession?.id} key={props.activeSession?.id ?? "conversation"} draft={sessionDraft} onDraftChange={updateSessionDraft} messages={props.messages} turnSkillIds={props.turnSkillIds ?? {}} onInspectSkill={skillId => { openRoute({ page: "skills" }); setSkillFocus(skillId); }} focusMessageId={messageFocus && messageFocus.threadId === props.activeSession?.id ? messageFocus.itemId : null} focusRevealTool={messageFocus !== null && messageFocus.threadId === props.activeSession?.id && messageFocus.revealToolBlock === true} onFocusMessage={() => setMessageFocus(null)} searchHighlight={searchHighlight && searchHighlight.threadId === props.activeSession?.id ? searchHighlight : null} onDismissSearchHighlight={() => setSearchHighlight(null)} currentMode={props.currentMode} onModeChange={props.onModeChange} onSendMessage={props.onSendMessage} onQueueMessage={props.onQueueMessage} onCheckQueueSubmission={props.onCheckQueueSubmission} queueItems={props.queueItems} queueTotalItems={props.queueTotalItems} queueActiveItems={props.queueActiveItems} queueTruncated={props.queueTruncated} onRemoveQueueItem={props.onRemoveQueueItem} onRetryQueueItem={props.onRetryQueueItem} onReadQueueItem={props.onReadQueueItem} onUpdateQueueItem={props.onUpdateQueueItem} onRefreshQueue={props.onRefreshQueue} simulateLocal={props.simulateLocal} harnessUp={props.harnessUp} running={props.running} taskBlocked={props.taskBlocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} sessionReasoning={props.sessionReasoning} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillProblems={skillProblems} onOpenSettings={() => openSettings("connections")} onInterrupt={props.onInterrupt} onApprovalDecision={props.onApprovalDecision} onReviewDiff={props.onReviewDiff} onRevertDiff={props.onRevertDiff} onOpenRewind={props.onOpenRewind} onOpenCockpit={props.onOpenCockpit} continuationCheck={props.continuationCheck} onContinueInterruptedTurn={props.onContinueInterruptedTurn} modelRetry={props.modelRetry} onDismissModelRetry={props.onDismissModelRetry} sessionBranches={props.sessionBranches}
+                  <ConversationArea readOnly={props.activeSession?.toolPolicy === "readOnly"} archived={props.activeSession?.archived === true} threadId={props.activeSession?.id} key={props.activeSession?.id ?? "conversation"} draft={sessionDraft} onDraftChange={updateSessionDraft} messages={props.messages} turnSkillIds={props.turnSkillIds ?? {}} onInspectSkill={skillId => { openRoute({ page: "skills" }); setSkillFocus(skillId); }} focusMessageId={messageFocus && messageFocus.threadId === props.activeSession?.id ? messageFocus.itemId : null} focusRevealTool={messageFocus !== null && messageFocus.threadId === props.activeSession?.id && messageFocus.revealToolBlock === true} onFocusMessage={() => setMessageFocus(null)} searchHighlight={searchHighlight && searchHighlight.threadId === props.activeSession?.id ? searchHighlight : null} onDismissSearchHighlight={() => setSearchHighlight(null)} currentMode={props.currentMode} onModeChange={props.onModeChange} onSendMessage={props.onSendMessage} onQueueMessage={props.onQueueMessage} onCheckQueueSubmission={props.onCheckQueueSubmission} queueItems={props.queueItems} queueTotalItems={props.queueTotalItems} queueActiveItems={props.queueActiveItems} queueTruncated={props.queueTruncated} onRemoveQueueItem={props.onRemoveQueueItem} onRetryQueueItem={props.onRetryQueueItem} onReadQueueItem={props.onReadQueueItem} onUpdateQueueItem={props.onUpdateQueueItem} onRefreshQueue={props.onRefreshQueue} simulateLocal={props.simulateLocal} harnessUp={props.harnessUp} running={props.running} taskBlocked={props.taskBlocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} sessionReasoning={props.sessionReasoning} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillProblems={skillProblems} onOpenSettings={() => openSettings("connections")} onInterrupt={props.onInterrupt} onApprovalDecision={props.onApprovalDecision} onReviewDiff={props.onReviewDiff} onRevertDiff={props.onRevertDiff} onOpenRewind={props.onOpenRewind} onOpenCockpit={props.onOpenCockpit} onOpenContextEdit={openContextEdit} continuationCheck={props.continuationCheck} onContinueInterruptedTurn={props.onContinueInterruptedTurn} modelRetry={props.modelRetry} onDismissModelRetry={props.onDismissModelRetry} sessionBranches={props.sessionBranches}
                     onLogin={window.boss ? () => { void loginEntry(); } : undefined}
                     loginGuide={login.visibleIn(loginThreadId) ? <LoginChoice status={loginStatus} pending={login.choiceThreadId === loginThreadId} busy={login.busy} panelOpen={browserOpen} error={login.error?.threadId === loginThreadId ? login.error.message : undefined} onOpen={() => { void login.open(loginThreadId); }} onHide={login.hideForLater} onCancel={() => { void login.cancel(loginThreadId); }} onDismiss={() => login.dismiss(loginThreadId)} onSettings={() => openSettings("connections")} /> : undefined} />
                 </ErrorBoundary>
@@ -720,6 +729,9 @@ export function AppShell(props: AppShellProps) {
         </div>
       </div>
     </div>
+    {contextEditTarget && <ContextEditDialog key={`${contextEditTarget.threadId}:${contextEditTarget.itemId}`}
+      threadId={contextEditTarget.threadId} itemId={contextEditTarget.itemId} threadTitle={contextEditTarget.title}
+      title="后续模型上下文" onClose={() => setContextEditTarget(null)} onChanged={props.onContextEditChanged} />}
     <WorkspaceSkillDialogs dialog={skillDialog} onClose={() => setSkillDialog(null)} onChanged={skillChanged} />
     <SettingsDialog isOpen={settings} initialSection={settingsSection} onClose={() => setSettings(false)} theme={props.theme} onThemeChange={props.onThemeChange} onOpenShortcuts={() => { setSettings(false); props.onOpenShortcuts(); }} harnessUp={props.harnessUp ?? false} autoCompactionConfig={props.autoCompactionConfig === true} onLogin={() => { void loginEntry(true); }} />
     {search && <SearchDialog folders={allFolders} onSelect={select} onOpenMessage={openMessage} onClose={() => setSearch(false)} searchMessages={props.threadSearchable === true} searchArchived={props.threadSearchArchived === true} />}

@@ -7,12 +7,11 @@ import { ToolResultDetails } from "../components/ToolResultDetails";
 import { ToolTiming } from "../components/ToolTiming";
 import { QueuePanel } from "./QueuePanel";
 import { ApprovalDeadline } from "../components/ApprovalDeadline";
-import { ContextEditDialog } from "../components/ContextEditDialog";
 import { ModelRetryNotice } from "../components/ModelRetryNotice";
 import { BranchSummaryJobNotice, BranchSummaryMarker } from "../components/BranchSummaryNotice";
 import type { ModelRetryStatus } from "../data/modelRetry";
 import type { ModelDescriptor, QueueItem, TurnContinuationReadResponse } from "@boss-harness/protocol";
-import type { ContextBranchSummary, ContextCompactJob, ContextEditReadResponse, SkillDescriptor, SkillProblem } from "@boss-harness/protocol";
+import type { ContextBranchSummary, ContextCompactJob, SkillDescriptor, SkillProblem } from "@boss-harness/protocol";
 import { type MessageItem, type ConversationMode } from "../data/mockData";
 import type { SkillCatalogState, ApprovalDelivery, ApprovalOutcome } from "../data/harnessBridge";
 import { approvalBlockReason, approvalRejectionNotice } from "../data/approvalFailure";
@@ -78,6 +77,8 @@ export interface ConversationAreaProps {
   loginGuide?: React.ReactNode; onLogin?: () => void;
   onApprovalDecision?: (approvalId: string, approved: boolean, toolName: string, remember: boolean) => void | ApprovalDelivery | ApprovalOutcome | Promise<void | ApprovalDelivery | ApprovalOutcome>;
   onReviewDiff?: () => void; onRevertDiff?: () => void; onOpenRewind?: () => void; onOpenCockpit?: () => void;
+  /** 编辑弹窗由工作台外层持有，不随背景会话切换卸载。 */
+  onOpenContextEdit?: (itemId: string) => void;
 }
 /** 把命中区间滚到消息区中间；区间不可见（折叠块尚未展开等）时返回 false，由调用方退回消息级定位。 */
 function scrollRangeIntoCenter(range: Range): boolean {
@@ -91,7 +92,7 @@ function scrollRangeIntoCenter(range: Range): boolean {
 export const ConversationArea: React.FC<ConversationAreaProps> = ({
   messages: initialMessages, readOnly = false, archived = false, currentMode, onModeChange, onSendMessage, onQueueMessage, onCheckQueueSubmission, queueItems = [], queueTotalItems, queueActiveItems, queueTruncated, onRemoveQueueItem, onRetryQueueItem, onReadQueueItem, onUpdateQueueItem, onRefreshQueue, simulateLocal = true, harnessUp = false,
   running = false, taskBlocked = false, draft, onDraftChange, models, activeModelProvider, activeModelId, configuredModelLabel, onSelectModel, onOpenSettings, sessionReasoning,
-  onInterrupt, onApprovalDecision, onReviewDiff, onRevertDiff, onOpenRewind, loginGuide, onLogin,
+  onInterrupt, onApprovalDecision, onReviewDiff, onRevertDiff, onOpenRewind, onOpenContextEdit, loginGuide, onLogin,
   skills = [], skillCatalogState = "unavailable", skillCatalogError, onRefreshSkills, skillProblems = [],
   turnSkillIds = {}, onInspectSkill,
   focusMessageId, focusRevealTool = false, onFocusMessage,
@@ -136,8 +137,6 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   const feedbackNoteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [approvalError, setApprovalError] = useState("");
   const [pendingApproval, setPendingApproval] = useState<string | null>(null);
-  const [contextEditItemId, setContextEditItemId] = useState<string | null>(null);
-  const [contextEditStates, setContextEditStates] = useState<Record<string, { excluded: boolean }>>({});
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
   const [findCursor, setFindCursor] = useState<FindCursor>({ message: 0, offset: 0 });
@@ -402,11 +401,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
       : saved ? "已记录反馈，仅保存在本机。" : "已标记本次反馈，但本机存储不可用，重启后会丢失。" });
     feedbackNoteTimer.current = setTimeout(() => { feedbackNoteTimer.current = undefined; setFeedbackNote(null); }, 2600);
   };
-  const recordContextEdit = useCallback((state: ContextEditReadResponse) => {
-    setContextEditStates(previous => ({ ...previous, [state.itemId]: { excluded: state.excluded } }));
-  }, []);
-  const contextEditFor = (item: MessageItem) => item.contextEdit ?? contextEditStates[item.id];
-  const canEditContext = (item: MessageItem) => !simulateLocal && !running && Boolean(threadId && item.turnId)
+  const canEditContext = (item: MessageItem) => !simulateLocal && !running && Boolean(onOpenContextEdit && threadId && item.turnId)
     && (item.role === "user" ? typeof item.content === "string" : Boolean(item.paragraphs?.length));
   const handleApproval = async (msgId: string, decision: "approve" | "deny") => {
     const target = messages.find(message => message.id === msgId);
@@ -599,7 +594,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
                       </div>
                     );
                   })()}
-                  {contextEditFor(item) && <span className={`context-edit-badge ${contextEditFor(item)?.excluded ? "excluded" : "replaced"}`}>{contextEditFor(item)?.excluded ? "后续模型上下文已排除；原始记录保留" : "后续模型上下文已替换；原始记录保留"}</span>}
+                  {item.contextEdit && <span className={`context-edit-badge ${item.contextEdit?.excluded ? "excluded" : "replaced"}`}>{item.contextEdit?.excluded ? "后续模型上下文已排除；原始记录保留" : "后续模型上下文已替换；原始记录保留"}</span>}
                   <div className="user-msg-footer">
                     <button
                       className="user-msg-action-btn"
@@ -614,7 +609,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
                       type="button"
                       title="编辑后续模型上下文"
                       aria-label="编辑后续模型上下文"
-                      onClick={() => setContextEditItemId(item.id)}
+                      onClick={() => onOpenContextEdit?.(item.id)}
                     ><IconEdit size={12} /></button>}
                     {!archived && sessionBranches && item.turnId && <button
                       className="user-msg-action-btn"
@@ -759,7 +754,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
                 {item.paragraphs && item.paragraphs.length > 0 && (
                   <RichMarkdown content={item.paragraphs.join("\n\n")} />
                 )}
-                {contextEditFor(item) && <span className={`context-edit-badge ${contextEditFor(item)?.excluded ? "excluded" : "replaced"}`}>{contextEditFor(item)?.excluded ? "后续模型上下文已排除；原始记录保留" : "后续模型上下文已替换；原始记录保留"}</span>}
+                {item.contextEdit && <span className={`context-edit-badge ${item.contextEdit?.excluded ? "excluded" : "replaced"}`}>{item.contextEdit?.excluded ? "后续模型上下文已排除；原始记录保留" : "后续模型上下文已替换；原始记录保留"}</span>}
 
                 {/* 工具审批卡 ApprovalCard */}
                 {item.approval && (
@@ -947,7 +942,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
                     title="编辑后续模型上下文"
                     aria-label="编辑后续模型上下文"
                     type="button"
-                    onClick={() => setContextEditItemId(item.id)}
+                    onClick={() => onOpenContextEdit?.(item.id)}
                   ><IconEdit size={13} /></button>}
                   {copyText && <button
                     className="msg-action-btn"
@@ -1019,15 +1014,6 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
           <IconChevronDown size={14} />
         </button>
       )}
-
-      {contextEditItemId && threadId && <ContextEditDialog
-        key={`${threadId}:${contextEditItemId}`}
-        threadId={threadId}
-        itemId={contextEditItemId}
-        title="后续模型上下文"
-        onClose={() => setContextEditItemId(null)}
-        onChanged={recordContextEdit}
-      />}
 
       <div className="thread-composer-wrapper">
         <div className="thread-composer-inner">
