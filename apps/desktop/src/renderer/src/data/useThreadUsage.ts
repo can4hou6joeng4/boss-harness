@@ -73,13 +73,17 @@ async function readAll(threadId: string, view: UsageView, valid: () => boolean):
     ...(cacheWaste ? { cacheWaste } : {}) };
 }
 
-export function useThreadUsage(threadId: string | null, connected: boolean, supported: boolean, branchViews: boolean, running: boolean) {
-  const [isOpen, setIsOpen] = useState(false);
+export function useThreadUsage(threadId: string | null, connected: boolean, supported: boolean, branchViews: boolean, runningIds: ReadonlySet<string>) {
+  const [targetId, setTargetId] = useState<string | null>(null);
   const [state, setState] = useState<ThreadUsageState>({ loading: false, error: "", view: "log" });
   const version = useRef(0);
-  const current = useRef({ threadId, connected, supported, view: state.view });
+  const latestThread = useRef(threadId);
+  latestThread.current = threadId;
+  // 目标在打开时固定：通知切换活动会话不能改换读取对象。
+  const running = Boolean(targetId && runningIds.has(targetId));
+  const current = useRef({ threadId: targetId, connected, supported, view: state.view });
   // 内核未声明 sessionBranchViews 时只读全部记录。
-  current.current = { threadId, connected, supported, view: branchViews ? state.view : "log" };
+  current.current = { threadId: targetId, connected, supported, view: branchViews ? state.view : "log" };
   const refresh = useCallback(async () => {
     const { threadId: id, connected: up, supported: ok, view } = current.current;
     const mine = ++version.current;
@@ -92,16 +96,18 @@ export function useThreadUsage(threadId: string | null, connected: boolean, supp
       if (version.current === mine) setState(previous => ({ ...previous, loading: false, error: harnessErrorText(error), data: undefined }));
     }
   }, []);
-  // 打开、切换会话或视图、回合开始 / 结束与重新连接时重新读取；关闭时作废未完成的读取。
+  // 打开目标、切换视图、目标回合开始 / 结束与重新连接时重新读取；关闭时作废未完成的读取。
   useEffect(() => {
-    if (!isOpen) { version.current += 1; return; }
+    if (targetId === null) { version.current += 1; return; }
     void refresh();
-  }, [isOpen, threadId, connected, supported, branchViews, state.view, running, refresh]);
-  useEffect(() => { if (!supported || !threadId) setIsOpen(false); }, [supported, threadId]);
+  }, [targetId, connected, supported, branchViews, state.view, running, refresh]);
+  // 能力消失时收起；活动会话变化不影响已固定的目标。
+  useEffect(() => { if (!supported) setTargetId(null); }, [supported]);
   return {
-    isOpen, state: branchViews || state.view === "log" ? state : { ...state, view: "log" as const },
-    open: useCallback(() => setIsOpen(true), []),
-    close: useCallback(() => setIsOpen(false), []),
+    isOpen: targetId !== null && supported, targetId,
+    state: branchViews || state.view === "log" ? state : { ...state, view: "log" as const },
+    open: useCallback((id?: string) => { const next = id ?? latestThread.current; if (next) setTargetId(next); }, []),
+    close: useCallback(() => setTargetId(null), []),
     refresh,
     setView: useCallback((view: UsageView) => setState(previous => previous.view === view ? previous : { ...previous, view, data: undefined }), []),
   };
