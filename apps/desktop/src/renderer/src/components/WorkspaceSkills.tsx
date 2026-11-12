@@ -49,6 +49,8 @@ export function WorkspaceSkills(props: WorkspaceSkillsProps) {
   const [reload, setReload] = useState(0);
   /** 目录刷新后判断已读正文是否已经是最新快照，避免为同一份内容重复读取、闪回加载态。 */
   const detailRef = useRef<SkillReadResponse | null>(null);
+  /** 区分显式重读与目录摘要同步；按钮或保存触发的 reload 不能被快照复用跳过。 */
+  const detailRequestRef = useRef<{ id: string; reload: number } | null>(null);
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState<SkillReadResponse | null>(null);
@@ -84,11 +86,15 @@ export function WorkspaceSkills(props: WorkspaceSkillsProps) {
     props.onFocusSkill?.();
   }, [props.focusSkillId, props.skills, props.state, props.onFocusSkill]);
   useEffect(() => {
-    setDetail(null); setDetailError("");
-    if (!selectedId || !props.readable) return;
-    // 目录刷新可能先于或晚于正文读取完成：当前快照已属于目录里的这份摘要时不再重取。
+    const previousRequest = detailRequestRef.current;
+    detailRequestRef.current = selectedId && props.readable ? { id: selectedId, reload } : null;
+    // 只有目录同步才复用已读快照；显式重读必须访问文件，即使目录里的摘要还没更新。
+    // 决定复用前不能清空 detail，否则会连正文与编辑 / 删除入口一起移除。
     const current = detailRef.current;
-    if (current?.id === selectedId && current.digest === selectedDigest) return;
+    if (props.readable && previousRequest?.id === selectedId && previousRequest.reload === reload
+      && current?.id === selectedId && current.digest === selectedDigest) return;
+    setDetail(null); setDetailError("");
+    if (!selectedId || !props.readable) { setDetailLoading(false); return; }
     let active = true;
     setDetailLoading(true);
     readSkill(selectedId).then(value => {
