@@ -41,7 +41,7 @@ import { reduceModelRetry, settleModelRetryOnTurnEnd, type ModelRetryStatus } fr
 import { toMessage } from "./data/harnessBridge";
 import { deliveredTurnSkills } from "./data/turnSkills";
 import type { InitializeResponse, ModelDescriptor, QueueItem, TurnContinuationReadResponse } from "@boss-harness/protocol";
-import type { QueueIntent, QueueSubmissionCheck } from "./data/composerDraft";
+import { MAX_MESSAGE_TEXT_LENGTH, type QueueIntent, type QueueSubmissionCheck } from "./data/composerDraft";
 
 const LEGACY_ROUTE_HINT = "该旧会话记录的模型不属于默认线路，请先在模型菜单中选择线路后再发送。";
 function legacyRouteMismatch(session: { provider?: string; model?: string }, defaultModel: { provider: string; model: string } | null): boolean {
@@ -617,6 +617,11 @@ export function App(): JSX.Element {
     return (async (): Promise<SessionStartOutcome> => {
       if (window.boss && !harnessUp) { setError("本地内核未连接，请检查启动配置并重启应用。"); return { status: "failed" }; }
       if (startingRef.current) { setError("已有任务正在创建或运行，请等待结束或停止后再创建。"); return { status: "failed" }; }
+      // 首页在输入区校验后才追加项目上下文；创建会话前按最终消息再校验，避免留下空聊天。
+      if (prompt.length > MAX_MESSAGE_TEXT_LENGTH) {
+        setError(`首条消息连同项目上下文与附件共 ${prompt.length} 字符，超过单条 ${MAX_MESSAGE_TEXT_LENGTH} 字符上限；请减少附件或精简正文后再发送，草稿已保留。`);
+        return { status: "failed" };
+      }
       const requestVersion = selectionVersion.current;
       startingRef.current = true; setStartingSession(true);
       let started: SessionItem | null = null;
