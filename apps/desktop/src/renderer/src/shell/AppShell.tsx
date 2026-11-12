@@ -186,16 +186,21 @@ export function AppShell(props: AppShellProps) {
   /** 分别在启动时恢复，不长期保留可能含已删除内容的原始存储快照。 */
   const [draft, updateHomeDraft] = useState(() => restoreComposerDraft(loadComposerDraftStore().home));
   const [sessionDrafts, setSessionDrafts] = useState<Record<string, ComposerDraft>>(() => restoreSessionDrafts(loadComposerDraftStore()));
+  // 首页项目选择随草稿恢复；项目是否仍存在由下方 effect 在会话列表就绪后核对。
+  const [draftProjectId, setDraftProjectId] = useState(() => loadComposerDraftStore().home?.projectId ?? "");
   const deletedSessionDraftIds = useRef(new Set<string>());
   const draftRef = useRef(draft); draftRef.current = draft;
   const sessionDraftsRef = useRef(sessionDrafts); sessionDraftsRef.current = sessionDrafts;
+  const draftProjectIdRef = useRef(draftProjectId); draftProjectIdRef.current = draftProjectId;
+  /** 防抖保存、关闭补写与删除后的即时保存共用同一快照入口，避免遗漏首页项目字段。 */
+  const persistDrafts = () => saveComposerDrafts(draftRef.current, sessionDraftsRef.current, undefined, Date.now(), draftProjectIdRef.current);
   useEffect(() => {
-    const timer = window.setTimeout(() => saveComposerDrafts(draftRef.current, sessionDraftsRef.current), 300);
+    const timer = window.setTimeout(persistDrafts, 300);
     return () => window.clearTimeout(timer);
-  }, [draft, sessionDrafts]);
+  }, [draft, sessionDrafts, draftProjectId]);
   useEffect(() => {
     // 防抖窗口内关闭窗口或重载时补写一次，避免最后 300ms 的输入丢失。
-    const flush = () => saveComposerDrafts(draftRef.current, sessionDraftsRef.current);
+    const flush = () => persistDrafts();
     window.addEventListener("pagehide", flush);
     window.addEventListener("beforeunload", flush);
     return () => { window.removeEventListener("pagehide", flush); window.removeEventListener("beforeunload", flush); };
@@ -211,7 +216,6 @@ export function AppShell(props: AppShellProps) {
     const next = change(current);
     return next === current ? previous : { ...previous, [sessionDraftId]: next };
   });
-  const [draftProjectId, setDraftProjectId] = useState("");
   // 工作区模板等待用户确认替换的首页草稿；首页渲染确认条，写入或取消后清空。
   const [pendingTemplate, setPendingTemplate] = useState<string | null>(null);
   const [pendingNewTask, setPendingNewTask] = useState<{ projectId: string; draft: ComposerDraft } | null>(null);
@@ -238,6 +242,15 @@ export function AppShell(props: AppShellProps) {
       .map(session => ({ ...session, title: aliases[session.id] || session.title })),
   }));
   const currentProject = allFolders.find(folder => folder.sessions.some(session => session.id === props.activeSession?.id));
+  // 恢复的首页项目只在项目仍存在时生效：本地分组会随偏好同步加载，内核项目列表到达后同样核对；
+  // 项目已移除或 id 无效时回到「不指定项目」，不阻断正文与技能的恢复。
+  useEffect(() => {
+    if (!draftProjectId) return;
+    if (allFolders.some(folder => folder.id === draftProjectId)) return;
+    // 内核列表尚未加载时保留，避免把「还没读到」误判成「项目不存在」。
+    if (window.boss && props.sessionsLoaded !== true) return;
+    setDraftProjectId("");
+  }, [allFolders, draftProjectId, props.sessionsLoaded]);
   const title = page === "home" ? props.isHomeView ? "BOSS Harness" : aliases[props.activeSession?.id ?? ""] || props.activeSession?.title || "新聊天" : { recents: "最近聊天", library: "资料库", skills: "技能与工具" }[page];
   // 旧版本只写本机别名：连接内核后把遗留名称一次性写回内核，并删除本机别名。
   // 失败保留别名、不提示，下次启动再试；卸载后不再发起后续写入。
@@ -458,7 +471,7 @@ export function AppShell(props: AppShellProps) {
     // 立即同步关闭补写的快照与本地存储，不等待渲染提交或 300ms 防抖。
     sessionDraftsRef.current = removeDraft(sessionDraftsRef.current);
     setSessionDrafts(removeDraft);
-    saveComposerDrafts(draftRef.current, sessionDraftsRef.current);
+    persistDrafts();
     // 消息反馈按会话 id 分条保存：随权威删除一并移除，其他会话原样保留。
     const feedback = readStoredMessageFeedback();
     const remainingFeedback = clearThreadFeedback(feedback, id);
