@@ -32,6 +32,8 @@ export interface CockpitModalProps {
   harnessUp: boolean;
   /** 当前会话；首页、预览或无活动会话时为 null。 */
   threadId: string | null;
+  /** 当前会话标题；与 threadId 一起标明队列等会话级事实的归属。 */
+  threadTitle?: string;
 }
 
 const TABS: { key: CockpitTab; label: string }[] = [
@@ -116,7 +118,7 @@ function ApprovalRow({ approval }: { approval: PendingApproval }) {
   );
 }
 
-export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, harnessUp, threadId }) => {
+export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, harnessUp, threadId, threadTitle }) => {
   const [activeTab, setActiveTab] = useState<CockpitTab>("overview");
   const [snapshot, setSnapshot] = useState<CockpitSnapshot>({});
   const [errors, setErrors] = useState<CockpitErrors>({});
@@ -140,7 +142,9 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
     tabRefs.current[targetIndex]?.focus();
   };
 
-  useEffect(() => { checkEpoch.current += 1; setTaskChecks({}); }, [isOpen, threadId]);
+  // owner 核对属于具体任务，与活动会话无关：只在打开或关闭面板时清空，
+  // 通知切换背景会话不丢弃用户已经核对的持久记录结果。
+  useEffect(() => { checkEpoch.current += 1; setTaskChecks({}); }, [isOpen]);
   const runTaskCheck = useCallback(async (owner: RuntimeResourceOwner) => {
     const params = taskLocatorForOwner(owner);
     if (!params) return;
@@ -305,6 +309,8 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
             <section className="cockpit-card">
               <h3>待办与目录</h3>
               <div className="cockpit-facts">
+                <Fact label="当前会话" value={threadId === null ? "未选择会话"
+                  : threadTitle ? `${threadTitle}（${shortId(threadId)}）` : shortId(threadId)} />
                 <Fact label="待审批" value={errors.approvals ? "读取失败" : approvals
                   ? `${NUMBER.format(approvals.length)}${approvalsTruncated ? "（仍有更早项未显示）" : ""}`
                   : "未提供"} />
