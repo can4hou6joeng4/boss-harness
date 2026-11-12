@@ -12,6 +12,7 @@ import { LoginBrowserPanel } from "./LoginBrowserPanel";
 import { LoginChoice } from "../components/LoginChoice";
 import { usePlatformLogin } from "../data/usePlatformLogin";
 import { WorkspacePages } from "./WorkspacePages";
+import { WorkspaceSkillDialogs, type WorkspaceSkillDialog } from "../components/WorkspaceSkillDialogs";
 import { SettingsDialog, type SettingsSection } from "../components/SettingsDialog";
 import { SearchDialog } from "../components/SearchDialog";
 import { NotificationsDialog } from "../components/NotificationsDialog";
@@ -257,6 +258,17 @@ export function AppShell(props: AppShellProps) {
   const [skillRoot, setSkillRoot] = useState<string | null>(null);
   const [skillProblems, setSkillProblems] = useState<SkillProblem[]>([]);
   const [skillRefresh, setSkillRefresh] = useState(0);
+  // 技能管理是工作区操作，弹窗生命周期独立于背景页面与活动会话。
+  const [skillDialog, setSkillDialog] = useState<WorkspaceSkillDialog | null>(null);
+  const [skillMutationNotice, setSkillMutationNotice] = useState("");
+  const [skillMutationRevision, setSkillMutationRevision] = useState(0);
+  const openSkillDialog = (dialog: WorkspaceSkillDialog) => { setSkillMutationNotice(""); setSkillDialog(dialog); };
+  const skillChanged = (notice: string) => {
+    setSkillDialog(null);
+    setSkillMutationNotice(notice);
+    setSkillMutationRevision(previous => previous + 1);
+    setSkillRefresh(previous => previous + 1);
+  };
   const [history, setHistory] = useState<Route[]>([{ page: "home" }]), [cursor, setCursor] = useState(0);
   const cursorRef = useRef(cursor); cursorRef.current = cursor;
   const historyRef = useRef(history); historyRef.current = history;
@@ -692,7 +704,7 @@ export function AppShell(props: AppShellProps) {
                 <button type="button" onClick={() => resolveWorkspaceLeave(false)}>继续编辑</button>
               </>}
             </div>}
-            {page !== "home" ? <WorkspacePages page={page} folders={allFolders} messages={props.messages} onSelect={select} onNewTask={newTask} onDraft={useTemplate} tools={tools} toolCatalogState={toolCatalogState} toolCatalogError={toolCatalogError} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillsReadable={props.skillsReadable === true} skillsCreatable={props.skillsCreatable === true} skillsWritable={props.skillsWritable === true} skillsDeletable={props.skillsDeletable === true} skillRoot={skillRoot} skillProblems={skillProblems} onUseSkill={useSkillInNewChat} workspaceInstructionsEditable={props.workspaceInstructionsEditable === true} harnessUp={props.harnessUp === true} preview={props.simulateLocal ?? true} focusSkillId={skillFocus} onFocusSkill={() => setSkillFocus(null)} onInstructionsDirty={reportWorkspaceInstructionsDirty} onInstructionsSaving={reportWorkspaceInstructionsSaving} /> : props.isHomeView ? <HomeView key={draft.id} folders={allFolders} draft={draft} onDraftChange={updateHomeDraft} pendingTemplate={pendingTemplate} onResolveTemplate={resolveTemplate} pendingNewTaskProject={pendingNewTask?.projectId ?? null} onResolveNewTask={resolveNewTask} selectedProjectId={draftProjectId} onSelectProject={setDraftProjectId} onNewProject={() => setNewProject(true)} preview={!window.boss} harnessUp={props.harnessUp ?? false} blocked={props.taskBlocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId ?? "deepseek-v4"} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} currentMode={props.currentMode} onModeChange={props.onModeChange} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillProblems={skillProblems} onStartSessionWithPrompt={startInProject} onOpenSettings={() => openSettings("connections")} /> : <>
+            {page !== "home" ? <WorkspacePages page={page} folders={allFolders} messages={props.messages} onSelect={select} onNewTask={newTask} onDraft={useTemplate} tools={tools} toolCatalogState={toolCatalogState} toolCatalogError={toolCatalogError} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} onOpenSkillDialog={openSkillDialog} skillMutationNotice={skillMutationNotice} skillMutationRevision={skillMutationRevision} skillsReadable={props.skillsReadable === true} skillsCreatable={props.skillsCreatable === true} skillsWritable={props.skillsWritable === true} skillsDeletable={props.skillsDeletable === true} skillRoot={skillRoot} skillProblems={skillProblems} onUseSkill={useSkillInNewChat} workspaceInstructionsEditable={props.workspaceInstructionsEditable === true} harnessUp={props.harnessUp === true} preview={props.simulateLocal ?? true} focusSkillId={skillFocus} onFocusSkill={() => setSkillFocus(null)} onInstructionsDirty={reportWorkspaceInstructionsDirty} onInstructionsSaving={reportWorkspaceInstructionsSaving} /> : props.isHomeView ? <HomeView key={draft.id} folders={allFolders} draft={draft} onDraftChange={updateHomeDraft} pendingTemplate={pendingTemplate} onResolveTemplate={resolveTemplate} pendingNewTaskProject={pendingNewTask?.projectId ?? null} onResolveNewTask={resolveNewTask} selectedProjectId={draftProjectId} onSelectProject={setDraftProjectId} onNewProject={() => setNewProject(true)} preview={!window.boss} harnessUp={props.harnessUp ?? false} blocked={props.taskBlocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId ?? "deepseek-v4"} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} currentMode={props.currentMode} onModeChange={props.onModeChange} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillProblems={skillProblems} onStartSessionWithPrompt={startInProject} onOpenSettings={() => openSettings("connections")} /> : <>
               <div className="conversation-pane">
                 {props.simulateLocal && <div className="conversation-preview-badge">示例会话 · 交互预览</div>}
                 <ErrorBoundary key={props.activeSession?.id ?? "conversation"} scope="会话区" compact hint="侧边栏、导航和其他会话仍可使用；切换会话或重试即可恢复。">
@@ -708,6 +720,7 @@ export function AppShell(props: AppShellProps) {
         </div>
       </div>
     </div>
+    <WorkspaceSkillDialogs dialog={skillDialog} onClose={() => setSkillDialog(null)} onChanged={skillChanged} />
     <SettingsDialog isOpen={settings} initialSection={settingsSection} onClose={() => setSettings(false)} theme={props.theme} onThemeChange={props.onThemeChange} onOpenShortcuts={() => { setSettings(false); props.onOpenShortcuts(); }} harnessUp={props.harnessUp ?? false} autoCompactionConfig={props.autoCompactionConfig === true} onLogin={() => { void loginEntry(true); }} />
     {search && <SearchDialog folders={allFolders} onSelect={select} onOpenMessage={openMessage} onClose={() => setSearch(false)} searchMessages={props.threadSearchable === true} searchArchived={props.threadSearchArchived === true} />}
     {notifications && <NotificationsDialog folders={allFolders} preview={props.simulateLocal === true} refreshToken={approvalPulse} onSelect={select} onOpenMessage={openMessage} onLoaded={(approvals, truncated) => { setPendingApprovals(approvals.length); setPendingApprovalsTruncated(truncated); setApprovalCounts(countPendingApprovalsByThread(approvals)); }} onClose={() => setNotifications(false)} />}
