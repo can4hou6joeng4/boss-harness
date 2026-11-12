@@ -84,6 +84,8 @@ export interface ConversationAreaProps {
   scrollMemory?: { current: Map<string, number> };
   /** 当前会话历史仍在读取：显示加载提示，不展示成空会话。 */
   loadingHistory?: boolean;
+  /** 工具块与思考块的展开状态按会话保留在应用生命周期内；切换会话重建后恢复。 */
+  expansionMemory?: { current: Map<string, Set<string>> };
 }
 /** 把命中区间滚到消息区中间；区间不可见（折叠块尚未展开等）时返回 false，由调用方退回消息级定位。 */
 function scrollRangeIntoCenter(range: Range): boolean {
@@ -103,9 +105,18 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   focusMessageId, focusRevealTool = false, onFocusMessage,
   searchHighlight, onDismissSearchHighlight,
   threadId, continuationCheck, onContinueInterruptedTurn, modelRetry, onDismissModelRetry, sessionBranches,
-  scrollMemory, loadingHistory = false,
+  scrollMemory, loadingHistory = false, expansionMemory,
 }) => {
   const [messages, setMessages] = useState<MessageItem[]>(initialMessages);
+  // 工具块与思考块的展开状态跨会话重建保留；key 由消息与块类型组成。
+  const rememberBlock = (itemId: string, kind: string, open: boolean) => {
+    if (!threadId || !expansionMemory) return;
+    const key = `${itemId}:${kind}`;
+    const next = new Set(expansionMemory.current.get(threadId) ?? []);
+    if (open) next.add(key); else next.delete(key);
+    if (next.size) expansionMemory.current.set(threadId, next);
+    else expansionMemory.current.delete(threadId);
+  };
   const clipboard = useClipboardCopy();
   const [localDraft, setLocalDraft] = useState(createComposerDraft);
   const composerDraft = draft ?? localDraft;
@@ -388,6 +399,18 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
     attempt();
     return () => cancelAnimationFrame(frame);
   }, [messages, running]);
+  // 按会话恢复工具块与思考块的展开状态；不控制 open 属性，避免覆盖搜索定位等程序化展开。
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const keys = threadId ? expansionMemory?.current.get(threadId) : undefined;
+    if (!scroller || !keys?.size) return;
+    for (const block of scroller.querySelectorAll<HTMLDetailsElement>("details.tool-block, details.thinking-block")) {
+      const itemId = block.closest("[id^='message-']")?.id.slice("message-".length);
+      if (!itemId) continue;
+      const kind = block.classList.contains("tool-block") ? "tool" : "thinking";
+      if (keys.has(`${itemId}:${kind}`) && !block.open) block.open = true;
+    }
+  }, [messages, threadId, expansionMemory]);
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
     const atBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 120;
@@ -660,7 +683,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
               <div className={"msg-row-agent" + (findMatch ? " is-find-match" : "") + (currentFindId === item.id ? " is-find-current" : "") + (focusFlash === item.id ? " is-focus-target" : "")} id={"message-" + item.id}>
                 {/* 思考过程计时器 */}
                 {item.thinkingTime && (
-                  <details className="thinking-block">
+                  <details className="thinking-block" onToggle={event => rememberBlock(item.id, "thinking", event.currentTarget.open)}>
                     <summary className="thinking-summary">
                       <IconSparkles size={12} style={{ color: "var(--accent-color)" }} />
                       <span>{item.thinkingTime}</span>
@@ -693,7 +716,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
 
                 {/* 工具调用块 */}
                 {item.toolUse && (
-                  <details className="tool-block">
+                  <details className="tool-block" onToggle={event => rememberBlock(item.id, "tool", event.currentTarget.open)}>
                     <summary className="tool-summary">
                       <IconTerminal size={12} />
                       <span>调用工具: <strong>{item.toolUse.name}</strong></span>
