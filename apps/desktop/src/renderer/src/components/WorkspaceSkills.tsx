@@ -47,6 +47,8 @@ export function WorkspaceSkills(props: WorkspaceSkillsProps) {
   const [detailError, setDetailError] = useState("");
   const [detailLoading, setDetailLoading] = useState(false);
   const [reload, setReload] = useState(0);
+  /** 目录刷新后判断已读正文是否已经是最新快照，避免为同一份内容重复读取、闪回加载态。 */
+  const detailRef = useRef<SkillReadResponse | null>(null);
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState<SkillReadResponse | null>(null);
@@ -60,6 +62,7 @@ export function WorkspaceSkills(props: WorkspaceSkillsProps) {
   const selectedDigest = props.skills.find(skill => skill.id === selectedId)?.digest ?? "";
   // 切换选中项后旧的正文快照会保留到 effect 执行；详情区只认属于当前选中技能的正文。
   const shownDetail = visibleSkillDetail(selected, detail);
+  detailRef.current = detail;
   useEffect(() => {
     // 刷新期间目录仍是上一次结果，不能据此清空选中项；等读取进入终态再判断。
     if (selectedId && !skillSelectionSurvives(props.state === "loading", props.skills, selectedId)) {
@@ -83,6 +86,9 @@ export function WorkspaceSkills(props: WorkspaceSkillsProps) {
   useEffect(() => {
     setDetail(null); setDetailError("");
     if (!selectedId || !props.readable) return;
+    // 目录刷新可能先于或晚于正文读取完成：当前快照已属于目录里的这份摘要时不再重取。
+    const current = detailRef.current;
+    if (current?.id === selectedId && current.digest === selectedDigest) return;
     let active = true;
     setDetailLoading(true);
     readSkill(selectedId).then(value => {
@@ -108,7 +114,7 @@ export function WorkspaceSkills(props: WorkspaceSkillsProps) {
     </div>
     {notice && <p className="workspace-skill-source" role="status">{notice}</p>}
     {creating && <CreateSkillDialog root={props.root} onClose={() => setCreating(false)} onCreated={skill => { setCreating(false); setNotice(`已创建技能 ${skill.id}；目录刷新后可在列表中查看。`); props.onRefresh(); }} />}
-    {editing && <EditSkillDialog skill={editing} root={props.root} onClose={() => setEditing(null)} onSaved={skill => { setEditing(null); setNotice(`已保存技能 ${skill.id}；正文已刷新，下一回合生效。`); setReload(previous => previous + 1); }} />}
+    {editing && <EditSkillDialog skill={editing} root={props.root} onClose={() => setEditing(null)} onSaved={skill => { setEditing(null); setNotice(`已保存技能 ${skill.id}；技能目录与正文已刷新，下一回合生效。`); setReload(previous => previous + 1); props.onRefresh(); }} />}
     {deleting && <DeleteSkillDialog skill={deleting} root={props.root} onClose={() => setDeleting(null)} onDeleted={id => { setDeleting(null); setSelectedId(null); setDetail(null); setNotice(`已删除技能 ${id}；目录刷新后将从列表移除。`); props.onRefresh(); }} />}
     {props.state === "loading" && props.skills.length === 0 && <div className="page-tool-empty">正在读取工作区技能…</div>}
     {props.state === "error" && <div className="page-tool-empty">技能目录读取失败{props.error ? `：${props.error}` : ""}。这只表示读取没有完成，不代表工作区没有技能。</div>}
