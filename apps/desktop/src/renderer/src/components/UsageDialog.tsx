@@ -37,12 +37,14 @@ function Facts({ bucket, label }: { bucket: ThreadUsageBucket; label: string }) 
   </div>;
 }
 
+/** 打开弹窗时固定的用量目标：系统通知切换活动会话不能改换统计对象。 */
+export interface UsageTarget { threadId: string; title: string }
 /**
  * 会话用量（只读）：本会话合计、摘要任务与每回合 provider 上报用量。
  * 数值逐项来自 thread/usage/read；provider 未上报的字段显示为“—”，不估算、不计价。
  */
-export function UsageDialog({ isOpen, onClose, state, messages, branchViews, connected, onRefresh, onViewChange }: {
-  isOpen: boolean; onClose: () => void; state: ThreadUsageState; messages: MessageItem[]; branchViews: boolean; connected: boolean;
+export function UsageDialog({ isOpen, onClose, state, messages, target, branchViews, connected, onRefresh, onViewChange }: {
+  isOpen: boolean; onClose: () => void; state: ThreadUsageState; messages: MessageItem[]; target: UsageTarget; branchViews: boolean; connected: boolean;
   onRefresh: () => void; onViewChange: (view: UsageView) => void;
 }) {
   // 弹窗关闭时也要保持 hook 调用顺序一致，因此放在提前返回之前。
@@ -67,6 +69,8 @@ export function UsageDialog({ isOpen, onClose, state, messages, branchViews, con
   };
   return <ModalSurface title="会话用量" onClose={onClose} className="context-panel usage-dialog">
     <div className="context-panel-body">
+      <div className="context-panel-owner" data-usage-owner={target.threadId}><strong>{target.title || "当前会话"}</strong><code>{target.threadId}</code></div>
+      <p className="context-panel-note">用量目标在打开此窗口时确定；即使其他会话的通知切换了背景会话，这里仍显示上面这条会话的用量。</p>
       <p className="context-panel-source" data-usage-source>来源为 provider 上报的用量（按回合汇总已保存的记录，不做估算）；未上报的字段显示为“—”。费用未计价。</p>
       <div className="context-panel-section-heading usage-toolbar">
         {branchViews ? <div className="usage-view" role="radiogroup" aria-label="用量范围" ref={viewGroup} onKeyDown={moveView}>

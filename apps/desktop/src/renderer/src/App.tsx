@@ -11,7 +11,7 @@ import { UnifiedDiffModal } from "./components/UnifiedDiffModal";
 import { RevertConfirmModal } from "./components/RevertConfirmModal";
 import { KeyboardShortcutsModal } from "./components/KeyboardShortcutsModal";
 import { BranchDialog, type BranchTarget } from "./components/BranchDialog";
-import { UsageDialog } from "./components/UsageDialog";
+import { UsageDialog, type UsageTarget } from "./components/UsageDialog";
 import { ExportDialog, type ExportTarget } from "./components/ExportDialog";
 import { useThreadUsage } from "./data/useThreadUsage";
 import { UI_STORAGE_PREFIX } from "./data/uiStorage";
@@ -146,8 +146,17 @@ export function App(): JSX.Element {
   // 导出能力消失时收起弹窗；目标会话由打开动作固定，通知切换背景会话不改变它。
   useEffect(() => { if (!exportSupported) setExportTarget(null); }, [exportSupported]);
   const usageBranchViews = usageSupported && capabilities?.sessionBranchViews === true;
-  const threadUsage = useThreadUsage(contextThreadId, harnessUp, usageSupported, usageBranchViews,
-    Boolean(contextThreadId && runningThreadIds.has(contextThreadId)));
+  // 用量弹窗同样固定打开时的目标；通知切换背景会话不改变统计对象。
+  const [usageTarget, setUsageTarget] = useState<UsageTarget | null>(null);
+  useEffect(() => { if (!usageSupported) setUsageTarget(null); }, [usageSupported]);
+  const threadUsage = useThreadUsage(contextThreadId, harnessUp, usageSupported, usageBranchViews, runningThreadIds);
+  // 打开时快照目标会话；通知切换背景会话不改变用量统计对象。
+  const openUsage = useCallback(() => {
+    const session = activeRef.current;
+    if (!session) return;
+    setUsageTarget({ threadId: session.id, title: session.title });
+    threadUsage.open(session.id);
+  }, [threadUsage.open]);
   const sessionBranches = useSessionBranches(contextThreadId, harnessUp, branchCapability,
     id => replicaRef.current?.reload(id));
   const updateThread = useCallback((id: string, change: (previous: MessageItem[]) => MessageItem[]) => {
@@ -954,6 +963,8 @@ export function App(): JSX.Element {
     window.addEventListener("keydown", handle); return () => window.removeEventListener("keydown", handle);
   }, [handleNewTask, openRewind]);
   const preview = !window.boss && activeSession?.projectId !== HARNESS_PROJECT_ID;
+  // 目标仍在前台时使用实时消息；通知切走后使用打开时缓存的同会话消息做回合标签。
+  const usageMessages = usageTarget && activeSession?.id !== usageTarget.threadId ? cache.current.get(usageTarget.threadId) ?? [] : messages;
   const branchState = sessionBranches.state;
   const branchSummaryRunning = Boolean(contextThreadId && branchState.summaryJob?.status === "running");
   const compacting = branchSummaryRunning || contextPanel.state.lifecycleActive === true
@@ -988,7 +999,7 @@ export function App(): JSX.Element {
         onCancelSummary: () => { void sessionBranches.cancelSummary(); }, onDismissSummary: sessionBranches.dismissSummaryJob } : undefined}
       onInterrupt={handleInterrupt} onApprovalDecision={handleApproval} onStartSessionWithPrompt={handleStartSessionWithPrompt} models={modelOptions} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel} onSelectModel={handleSelectModel}
       skillsReadable={capabilities?.skillsRead === true} skillsCreatable={capabilities?.skillsCreate === true} skillsWritable={capabilities?.skillsWrite === true} skillsDeletable={capabilities?.skillsDelete === true} threadSearchable={capabilities?.threadSearch === true} threadSearchArchived={capabilities?.threadSearchArchived === true} workspaceInstructionsEditable={capabilities?.workspaceInstructionsEdit === true} onOpenCockpit={() => setIsCockpitOpen(true)} onOpenSideChat={() => setIsSideChatOpen(previous => !previous)} onOpenRewind={openRewind} onOpenContext={contextThreadId ? contextPanel.open : undefined}
-      onOpenUsage={usageSupported && contextThreadId && !preview ? threadUsage.open : undefined}
+      onOpenUsage={usageSupported && contextThreadId && !preview ? openUsage : undefined}
       onOpenExport={exportSupported && contextThreadId && !preview ? () => setExportTarget({ threadId: contextThreadId, title: activeSession?.title ?? "" }) : undefined}
       onOpenShortcuts={() => setIsShortcutsOpen(true)} onReviewDiff={() => setIsDiffModalOpen(true)} onRevertDiff={() => setIsRevertModalOpen(true)} />
     {error && <div className="app-toast" role="alert"><span>{error}</span>{!harnessUp && window.boss && <button onClick={() => { void reconnectHarness().then(status => {
@@ -1024,7 +1035,8 @@ export function App(): JSX.Element {
     <KeyboardShortcutsModal isOpen={isShortcutsOpen} onClose={() => setIsShortcutsOpen(false)} />
     {exportSupported && <ExportDialog target={exportTarget} onClose={() => setExportTarget(null)}
       branchViews={capabilities?.sessionBranchViews === true} connected={harnessUp} />}
-    {usageSupported && <UsageDialog isOpen={threadUsage.isOpen && Boolean(contextThreadId)} onClose={threadUsage.close} state={threadUsage.state} messages={messages}
+    {usageSupported && usageTarget && <UsageDialog isOpen={threadUsage.isOpen} target={usageTarget}
+      onClose={() => { setUsageTarget(null); threadUsage.close(); }} state={threadUsage.state} messages={usageMessages}
       branchViews={usageBranchViews} connected={harnessUp} onRefresh={() => { void threadUsage.refresh(); }} onViewChange={threadUsage.setView} />}
     {branchCapability && <BranchDialog isOpen={isBranchesOpen && branchesVisible} onClose={() => setIsBranchesOpen(false)} state={branchState} support={branchCapability}
       messages={messages} block={branchBlock} summaryUnavailable={branchSummaryUnavailable} initialTarget={branchInitialTarget}
