@@ -618,7 +618,7 @@ export function App(): JSX.Element {
       markRunning(id, false); timers.current.delete(id);
     }, 1300));
   }, [markRunning, updateThread]);
-  const handleSelectModel = useCallback(async (provider: string, model: string): Promise<boolean> => {
+  const handleSelectModel = useCallback(async (provider: string, model: string): Promise<boolean | string> => {
     const session = activeRef.current;
     if (session?.projectId === HARNESS_PROJECT_ID && !isHomeView) {
       if (!harnessUp || runningRef.current.has(session.id)) return false;
@@ -626,13 +626,13 @@ export function App(): JSX.Element {
       try {
         await setThreadModel(session.id, provider, model);
       } catch (error) {
-        if (selectionVersion.current === selectionVersionAtStart && activeRef.current?.id === session.id) {
-          const data = (error as { data?: { code?: unknown } } | null)?.data;
-          setError(data?.code === "MODEL_SWITCH_QUEUE_PENDING"
-            ? "会话仍有排队消息，请先处理或移除队列后再切换模型线路；当前会话选择保持不变。"
-            : `模型设置失败：${harnessErrorText(error)}；当前会话选择保持不变。`);
-        }
-        return false;
+        const data = (error as { data?: { code?: unknown } } | null)?.data;
+        const message = data?.code === "MODEL_SWITCH_QUEUE_PENDING"
+          ? "会话仍有排队消息，请先处理或移除队列后再切换模型线路；当前会话选择保持不变。"
+          : `模型设置失败：${harnessErrorText(error)}；当前会话选择保持不变。`;
+        if (selectionVersion.current === selectionVersionAtStart && activeRef.current?.id === session.id) setError(message);
+        // 切走后的失败也要回到发起时的输入区；返回原因而不是只给 false，重新打开菜单时才能核对。
+        return message;
       }
       const updated = { ...session, provider, model, reasoningEffort: null };
       setFolders(previous => previous.map(folder => ({

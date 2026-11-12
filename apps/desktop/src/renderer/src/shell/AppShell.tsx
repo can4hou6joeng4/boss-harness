@@ -87,7 +87,7 @@ export interface AppShellProps {
   onApprovalDecision?: (approvalId: string, approved: boolean, toolName: string, remember: boolean, messageId?: string, threadId?: string) => void | ApprovalDelivery | ApprovalOutcome | Promise<void | ApprovalDelivery | ApprovalOutcome>;
   onStartSessionWithPrompt: (prompt: string, domainId: string, provider: string, modelId: string, skillIds?: string[]) => Promise<SessionStartOutcome>;
   models?: ModelDescriptor[]; activeModelProvider?: string; activeModelId?: string;
-  onSelectModel?: (provider: string, modelId: string) => void | boolean | Promise<void | boolean>;
+  onSelectModel?: (provider: string, modelId: string) => void | boolean | string | Promise<void | boolean | string>;
   configuredModelLabel?: string;
   sessionReasoning?: SessionReasoningControl;
   onOpenCockpit: () => void; onOpenSideChat: () => void; onOpenRewind: () => void; onOpenShortcuts: () => void;
