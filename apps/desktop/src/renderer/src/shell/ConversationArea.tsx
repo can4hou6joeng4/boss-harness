@@ -86,6 +86,8 @@ export interface ConversationAreaProps {
   loadingHistory?: boolean;
   /** 工具块与思考块的展开状态按会话保留在应用生命周期内；切换会话重建后恢复。 */
   expansionMemory?: { current: Map<string, Set<string>> };
+  /** 用户阅读期间新到达的消息数按会话保留在应用生命周期内；切回恢复，回到底部清除。 */
+  unseenMemory?: { current: Map<string, number> };
 }
 /** 把命中区间滚到消息区中间；区间不可见（折叠块尚未展开等）时返回 false，由调用方退回消息级定位。 */
 function scrollRangeIntoCenter(range: Range): boolean {
@@ -105,7 +107,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   focusMessageId, focusRevealTool = false, onFocusMessage,
   searchHighlight, onDismissSearchHighlight,
   threadId, continuationCheck, onContinueInterruptedTurn, modelRetry, onDismissModelRetry, sessionBranches,
-  scrollMemory, loadingHistory = false, expansionMemory,
+  scrollMemory, loadingHistory = false, expansionMemory, unseenMemory,
 }) => {
   const [messages, setMessages] = useState<MessageItem[]>(initialMessages);
   // 工具块与思考块的展开状态跨会话重建保留；key 由消息与块类型组成。
@@ -144,6 +146,18 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   const [planEditing, setPlanEditing] = useState<Record<string, boolean>>({});
   const [planDrafts, setPlanDrafts] = useState<Record<string, string>>({});
   const [showScrollBottom, setShowScrollBottom] = useState(false);
+  // 用户不在底部时新到达的消息：回到底部按钮据此提示下方还有未查看的内容。
+  // 数量按会话保留，切到别的会话再切回时与滚动位置、展开状态一样恢复。
+  const [unseenBelow, setUnseenBelow] = useState(() => (threadId && unseenMemory ? unseenMemory.current.get(threadId) ?? 0 : 0));
+  const unseenBelowRef = useRef(unseenBelow);
+  const unseenBelowLabel = unseenBelow > 99 ? "99+" : String(unseenBelow);
+  const recordUnseenBelow = (next: number) => {
+    unseenBelowRef.current = next;
+    setUnseenBelow(next);
+    if (!threadId || !unseenMemory) return;
+    if (next > 0) unseenMemory.current.set(threadId, next);
+    else unseenMemory.current.delete(threadId);
+  };
   // 反馈按会话保存在本机偏好：切换会话或重启后仍能区分标记过的回复。
   const feedbackThreadId = threadId ?? "preview";
   const [feedback, setFeedback] = useState<MessageFeedbackStore>(() => feedbackForThread(readStoredMessageFeedback(), feedbackThreadId));
@@ -379,6 +393,14 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   // 父级重发消息时合并本地操作标记，不能整体替换：审批提交、问题回答与计划编辑只在本地副本里。
   useEffect(() => { setMessages(previous => mergeLocalMessageState(initialMessages, previous)); }, [initialMessages]);
   useEffect(() => { if (wasAtBottom.current) messagesEndRef.current?.scrollIntoView({ behavior: "auto" }); }, [messages, running, modelRetry?.phase]);
+  // 记录用户阅读期间新到达的行数：在底部时上面的跟随逻辑会直接带到最新内容，
+  // 只有不在底部时才把新增行算作未查看，回到按钮上提示。
+  const lastMessageCount = useRef(messages.length);
+  useEffect(() => {
+    const added = messages.length - lastMessageCount.current;
+    lastMessageCount.current = messages.length;
+    if (added > 0 && !wasAtBottom.current) recordUnseenBelow(unseenBelowRef.current + added);
+  }, [messages]);
   // 内容铺开后再恢复位置；布局或异步消息尚未就绪时短暂重试，用户先滚动则放弃，不抢回控制权。
   useEffect(() => {
     if (restoreTarget.current === null) return;
@@ -416,6 +438,8 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
     const atBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 120;
     wasAtBottom.current = atBottom;
     setShowScrollBottom(!atBottom);
+    // 回到底部即视为已查看，清除按钮上的新消息提示。
+    if (atBottom) recordUnseenBelow(0);
     // 用户自己滚动后，迟到的一次恢复不再生效。
     restoreTarget.current = null;
     // 滚动事件持续记录阅读位置：切走时无需依赖卸载时机读取 DOM，底部或不足一屏不保留。
@@ -1050,12 +1074,15 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
       {/* 悬浮回到底部按钮（交互规范） */}
       {showScrollBottom && (
         <button
-          className="scroll-to-bottom-btn"
+          className={unseenBelow > 0 ? "scroll-to-bottom-btn has-unseen" : "scroll-to-bottom-btn"}
           type="button"
-          title="回到底部"
+          title={unseenBelow > 0 ? `回到底部（${unseenBelowLabel} 条新消息）` : "回到底部"}
           onClick={scrollToBottom}
         >
           <IconChevronDown size={14} />
+          {unseenBelow > 0 && (
+            <span className="scroll-to-bottom-count">{unseenBelowLabel}</span>
+          )}
         </button>
       )}
 
