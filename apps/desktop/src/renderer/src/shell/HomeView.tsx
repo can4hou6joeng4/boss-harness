@@ -40,16 +40,20 @@ export function HomeView(props: Props) {
   const project = props.selectedProjectId;
   const [projectMenu, setProjectMenu] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
+  /** 事件处理器读取最新草稿：提交或附件读取可能在上一次渲染后才完成，不能依赖闭包里的旧快照。 */
+  const draftRef = useRef(props.draft);
+  draftRef.current = props.draft;
+  const draftBusyNow = () => draftRef.current.pendingReads > 0 || draftRef.current.submitting;
   const pendingNewTask = props.pendingNewTaskProject != null;
   const draftBusy = props.draft.pendingReads > 0 || props.draft.submitting;
   const newTaskProject = props.folders.find(folder => folder.id === props.pendingNewTaskProject)?.name;
   useEffect(() => {
     if (pendingNewTask || props.pendingTemplate) setPendingSuggestion(null);
   }, [pendingNewTask, props.pendingTemplate]);
-  // 建议卡会整段改写输入框：已有未发送正文时先显示确认条，避免一次误点丢掉草稿。
+  // 建议卡会整段改写输入框：已有未发送正文或草稿正在转交 / 读取附件时先显示确认条，避免一次误点丢掉唯一草稿。
   const applySuggestion = (prompt: string) => {
     props.onResolveNewTask?.(false); props.onResolveTemplate?.(false);
-    if (suggestionFillIntent(value, prompt) === "confirm") { setPendingSuggestion(prompt); return; }
+    if (suggestionFillIntent(draftRef.current.text, prompt) === "confirm" || draftBusyNow()) { setPendingSuggestion(prompt); return; }
     setValue(prompt);
     ref.current?.focus();
   };
@@ -72,10 +76,11 @@ export function HomeView(props: Props) {
       <div className="starter-prompts">
         {suggestions.map(item => <button key={item.title} onClick={() => applySuggestion(item.prompt)}><item.icon size={18} /><strong>{item.title}</strong><span>{item.detail}</span></button>)}
       </div>
-      {pendingSuggestion && <div className="home-suggestion-confirm" role="alert">
+      {pendingSuggestion && <div className="home-suggestion-confirm" role="alert" data-home-suggestion-confirm>
         <span>建议会替换当前未发送的草稿。</span>
-        <button type="button" onClick={() => { setValue(pendingSuggestion); ref.current?.focus(); }}>替换</button>
+        <button type="button" disabled={draftBusy} onClick={() => { if (draftBusyNow()) return; setValue(pendingSuggestion); ref.current?.focus(); }}>替换</button>
         <button type="button" onClick={() => setPendingSuggestion(null)}>取消</button>
+        {draftBusy && <span>正在读取附件或转交消息，请稍候。</span>}
       </div>}
       {props.pendingTemplate && <div className="home-suggestion-confirm" role="alert" data-home-template-confirm>
         <span>{templateConfirmText(props.draft)}</span>
