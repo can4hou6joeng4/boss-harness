@@ -83,6 +83,15 @@ export function feedbackForThread(store: MessageFeedbackStore, threadId: string)
   return result;
 }
 
+/** 删除会话后移除该会话的全部反馈条目；其他会话与无法解析的键原样保留。 */
+export function clearThreadFeedback(store: MessageFeedbackStore, threadId: string): MessageFeedbackStore {
+  const keys = Object.keys(store).filter(key => parseFeedbackEntryKey(key)?.[0] === threadId);
+  if (keys.length === 0) return store;
+  const next = { ...store };
+  for (const key of keys) delete next[key];
+  return next;
+}
+
 /** 读取本机偏好；存储缺失、损坏或不可用时返回空映射，界面按未标记渲染。 */
 export function readStoredMessageFeedback(): MessageFeedbackStore {
   try {
@@ -93,7 +102,9 @@ export function readStoredMessageFeedback(): MessageFeedbackStore {
 /** 写入本机偏好；失败（隐私模式、配额用尽）返回 false，由调用方如实提示。 */
 export function saveStoredMessageFeedback(store: MessageFeedbackStore): boolean {
   try {
-    localStorage.setItem(MESSAGE_FEEDBACK_STORAGE_KEY, JSON.stringify(store));
+    // 没有条目时移除存储键，避免删除最后一条反馈后留下空对象。
+    if (Object.keys(store).length === 0) localStorage.removeItem(MESSAGE_FEEDBACK_STORAGE_KEY);
+    else localStorage.setItem(MESSAGE_FEEDBACK_STORAGE_KEY, JSON.stringify(store));
     return true;
   } catch { return false; }
 }
