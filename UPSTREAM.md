@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 删除聊天时清理本机消息反馈（Issue #1042）
+
+沿用 [Pi（MIT）固定提交 `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `session-selector.ts`](https://github.com/earendil-works/pi/blob/a14cdf90f0a76532f3e20bc3c01872837cef24ba/packages/coding-agent/src/modes/interactive/components/session-selector.ts#L835) 所体现的「只在删除成功后清理界面镜像」原则，并把 #1040 的草稿清理边界扩展到消息反馈。独立实现，不复制源码或新增依赖。
+
+适配差异：Pi 的会话数据自带消息与反馈（如有），随文件一起删除；本项目的消息反馈只存在本机界面存储，按 `[会话 id, 消息 id]` 分条保存。清理只在该会话被权威确认移除时执行，按解析出的会话 id 过滤，不误删非法键或其他会话；不再有任何条目时移除存储键而非写入空对象。存储不可用时静默保留原状，不阻断删除结果；反馈上限、去重与界面提示不变。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 删除聊天时清理本机输入草稿（Issue #1040）
 
 参考 [Pi（MIT）固定提交 `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `session-selector.ts`](https://github.com/earendil-works/pi/blob/a14cdf90f0a76532f3e20bc3c01872837cef24ba/packages/coding-agent/src/modes/interactive/components/session-selector.ts#L835)：删除成功后移除当前与全部会话列表中的镜像并刷新，失败只报告原因并保留状态。本轮只采用权威删除结果驱动界面清理的原则，独立实现，不复制源码或新增依赖。

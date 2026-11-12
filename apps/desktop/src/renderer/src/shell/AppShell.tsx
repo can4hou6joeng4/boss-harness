@@ -30,6 +30,7 @@ import { createComposerDraft, withDraftText, type ComposerDraft, type UpdateComp
 import { homeDraftHasContent, templateFillIntent, withHomeDraftSkill } from "../data/homeDraftFill";
 import { createdSession, sessionStartSendOutcome, type SessionStartOutcome } from "../data/sessionStart";
 import { loadComposerDraftStore, restoreComposerDraft, restoreSessionDrafts, saveComposerDrafts } from "../data/composerDraftStorage";
+import { clearThreadFeedback, readStoredMessageFeedback, saveStoredMessageFeedback } from "../data/messageFeedback";
 import type { CheckQueueSubmission, ComposerQueue } from "../data/composerDraft";
 import { exportMarkdown } from "../data/exportMarkdown";
 import type { QueueItem } from "@boss-harness/protocol";
@@ -457,6 +458,10 @@ export function AppShell(props: AppShellProps) {
     sessionDraftsRef.current = removeDraft(sessionDraftsRef.current);
     setSessionDrafts(removeDraft);
     saveComposerDrafts(draftRef.current, sessionDraftsRef.current);
+    // 消息反馈按会话 id 分条保存：随权威删除一并移除，其他会话原样保留。
+    const feedback = readStoredMessageFeedback();
+    const remainingFeedback = clearThreadFeedback(feedback, id);
+    if (remainingFeedback !== feedback) saveStoredMessageFeedback(remainingFeedback);
     // 会话已不存在：同时清掉只存在于本设备的隐藏、置顶、别名与分组记录。
     setPinned(previous => previous.filter(item => item !== id));
     setHidden(previous => previous.filter(item => item !== id));
