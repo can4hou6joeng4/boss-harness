@@ -79,6 +79,23 @@ export function App(): JSX.Element {
   /** 会话列表是否至少成功加载过一次；通知定位在加载完成前保留意图，不把空列表当成会话已删除。 */
   const [sessionsLoaded, setSessionsLoaded] = useState(!window.boss);
   const [activeSession, setActiveSession] = useState<SessionItem | null>(null);
+  // 后台会话完成回合后，在用户切回该会话前保留一个「新完成」标记。
+  const [completedUnread, setCompletedUnread] = useState<ReadonlySet<string>>(() => new Set());
+  const completedUnreadRef = useRef<ReadonlySet<string>>(completedUnread);
+  completedUnreadRef.current = completedUnread;
+  const markCompletedUnread = useCallback((id: string) => {
+    if (completedUnreadRef.current.has(id)) return;
+    const next = new Set(completedUnreadRef.current).add(id);
+    completedUnreadRef.current = next;
+    setCompletedUnread(next);
+  }, []);
+  const clearCompletedUnread = useCallback((id: string) => {
+    if (!completedUnreadRef.current.has(id)) return;
+    const next = new Set(completedUnreadRef.current);
+    next.delete(id);
+    completedUnreadRef.current = next;
+    setCompletedUnread(next);
+  }, []);
   const [currentMode, setCurrentMode] = useState<ConversationMode>("agent");
   const [activeModelId, setActiveModelId] = useState("deepseek-v4");
   const [activeModelProvider, setActiveModelProvider] = useState("DeepSeek");
@@ -205,6 +222,11 @@ export function App(): JSX.Element {
     runningRef.current = next; setRunningThreadIds(next);
     setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.map(session => session.id === id ? { ...session, status: running ? "running" : "completed" } : session) })));
   }, []);
+  // 切到会话即视为已查看，清除后台完成标记；标记只在本次运行内保留。
+  useEffect(() => {
+    const id = activeSession?.id;
+    if (id) clearCompletedUnread(id);
+  }, [activeSession?.id, clearCompletedUnread]);
   /** 重试状态只用于观测：按会话保存，回合开始、断连或会话收尾时清理；已恢复的提示短暂停留后自动消失。 */
   const updateModelRetry = useCallback((id: string, change: (previous: ModelRetryStatus | undefined) => ModelRetryStatus | undefined) => {
     setModelRetries(previous => {
@@ -313,6 +335,8 @@ export function App(): JSX.Element {
         if (activeRef.current?.id === id) setContinuationCheck(null);
         markRunning(id, true); return;
       }
+      // 正常完成的回合若发生在其他会话，先在侧栏留一个未读标记；中断 / 异常已有各自的状态提示。
+      if (event.method === "turn/completed" && params.status === "completed" && activeRef.current?.id !== id) markCompletedUnread(id);
       if (params.kind !== "userMessage" && params.turnId && turnIds.current.has(id) && turnIds.current.get(id) !== params.turnId) return;
       if (event.method === "approval/requested" && params.approvalId && !params.consequential && params.toolName && rememberedApprovals.current.get(id)?.has(params.toolName)) {
         void respondApproval(params.approvalId, true).then(outcome => {
@@ -486,7 +510,7 @@ export function App(): JSX.Element {
     });
     void refresh();
     return () => { cancelled = true; replica.invalidate(); unsubscribe(); if (replicaRef.current === replica) replicaRef.current = null; };
-  }, [applyQueueBadge, applyQueuePage, clearModelRetry, markRunning, readContinuationCheck, updateModelRetry, updateThread]);
+  }, [applyQueueBadge, applyQueuePage, clearModelRetry, markCompletedUnread, markRunning, readContinuationCheck, updateModelRetry, updateThread]);
   useEffect(() => () => {
     for (const timer of timers.current.values()) clearTimeout(timer);
     for (const timer of retryTimers.current.values()) clearTimeout(timer);
@@ -1048,7 +1072,7 @@ export function App(): JSX.Element {
   }, [isBranchesOpen, branchTarget, branchDialogVisible]);
   return <>
     <AppShell isDark={isDark} theme={theme} onToggleTheme={() => setTheme(isDark ? "light" : "dark")} onThemeChange={setTheme} isSidebarOpen={isSidebarOpen} onToggleSidebar={() => setIsSidebarOpen(previous => !previous)}
-      folders={folders} activeSession={activeSession} isHomeView={isHomeView} messages={messages} turnSkillIds={turnSkillIds} currentMode={currentMode} onModeChange={setCurrentMode}
+      folders={folders} activeSession={activeSession} isHomeView={isHomeView} messages={messages} turnSkillIds={turnSkillIds} currentMode={currentMode} onModeChange={setCurrentMode} completedUnread={completedUnread}
       onSelectSession={handleSelectSession} onNewTask={handleNewTask} onDeleteSession={handleDeleteSession} onArchiveSession={handleArchiveSession} onRenameSession={window.boss ? handleRenameSession : undefined} onSendMessage={handleSendMessage} onQueueMessage={handleQueueMessage} onCheckQueueSubmission={handleCheckQueueSubmission} queueItems={queueItems} queueTotalItems={queueMeta.totalItems} queueActiveItems={queueMeta.activeItems} queueTruncated={queueMeta.truncated} onRemoveQueueItem={handleRemoveQueueItem} onRetryQueueItem={handleRetryQueueItem} onReadQueueItem={handleReadQueueItem} onUpdateQueueItem={capabilities?.queueUpdate === true ? handleUpdateQueueItem : undefined} onRefreshQueue={handleRefreshQueue} autoCompactionConfig={capabilities?.autoCompactionConfig === true} simulateLocal={preview} harnessUp={harnessUp} sessionsLoaded={sessionsLoaded}
       onCreateConnectionSession={createConnectionSession}
       sessionReasoning={contextThreadId ? sessionReasoning : undefined}
