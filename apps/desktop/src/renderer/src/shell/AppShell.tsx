@@ -181,10 +181,10 @@ export function AppShell(props: AppShellProps) {
   const [deleteSession, setDeleteSession] = useState<SessionItem | null>(null), [deleteBusy, setDeleteBusy] = useState(false);
   const [renameProject, setRenameProject] = useState<ProjectFolder | null>(null), [folderName, setFolderName] = useState("");
   const [removeProject, setRemoveProject] = useState<ProjectFolder | null>(null);
-  /** 启动时读取一次；之后按输入节奏防抖写回，见下方 effect。 */
-  const [initialDrafts] = useState(() => loadComposerDraftStore());
-  const [draft, updateHomeDraft] = useState(() => restoreComposerDraft(initialDrafts.home));
-  const [sessionDrafts, setSessionDrafts] = useState<Record<string, ComposerDraft>>(() => restoreSessionDrafts(initialDrafts));
+  /** 分别在启动时恢复，不长期保留可能含已删除内容的原始存储快照。 */
+  const [draft, updateHomeDraft] = useState(() => restoreComposerDraft(loadComposerDraftStore().home));
+  const [sessionDrafts, setSessionDrafts] = useState<Record<string, ComposerDraft>>(() => restoreSessionDrafts(loadComposerDraftStore()));
+  const deletedSessionDraftIds = useRef(new Set<string>());
   const draftRef = useRef(draft); draftRef.current = draft;
   const sessionDraftsRef = useRef(sessionDrafts); sessionDraftsRef.current = sessionDrafts;
   useEffect(() => {
@@ -203,6 +203,8 @@ export function AppShell(props: AppShellProps) {
   const sessionDraftId = props.activeSession?.id ?? "conversation";
   const sessionDraft = sessionDrafts[sessionDraftId] ?? createComposerDraft("session:" + sessionDraftId);
   const updateSessionDraft: UpdateComposerDraft = change => setSessionDrafts(previous => {
+    // 删除成功后，旧组件的附件读取等迟到回调不能为同一会话重新创建草稿。
+    if (deletedSessionDraftIds.current.has(sessionDraftId)) return previous;
     const current = previous[sessionDraftId] ?? createComposerDraft("session:" + sessionDraftId);
     const next = change(current);
     return next === current ? previous : { ...previous, [sessionDraftId]: next };
@@ -446,6 +448,15 @@ export function AppShell(props: AppShellProps) {
     finally { setDeleteBusy(false); }
     if (!removed) return;
     const id = target.id;
+    deletedSessionDraftIds.current.add(id);
+    const removeDraft = (previous: Record<string, ComposerDraft>) => {
+      if (!(id in previous)) return previous;
+      const next = { ...previous }; delete next[id]; return next;
+    };
+    // 立即同步关闭补写的快照与本地存储，不等待渲染提交或 300ms 防抖。
+    sessionDraftsRef.current = removeDraft(sessionDraftsRef.current);
+    setSessionDrafts(removeDraft);
+    saveComposerDrafts(draftRef.current, sessionDraftsRef.current);
     // 会话已不存在：同时清掉只存在于本设备的隐藏、置顶、别名与分组记录。
     setPinned(previous => previous.filter(item => item !== id));
     setHidden(previous => previous.filter(item => item !== id));
