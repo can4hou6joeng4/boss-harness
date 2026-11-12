@@ -113,6 +113,8 @@ export function App(): JSX.Element {
   const retryTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const [error, setError] = useState("");
   const activeRef = useRef<SessionItem | null>(null);
+  /** 首页手动选择的模型线路：后台刷新只在它已不可用时回退默认线路。 */
+  const homeModelChoiceRef = useRef<{ provider: string; model: string } | null>(null);
   const runningRef = useRef(new Set<string>());
   const replicaRef = useRef<HarnessReplica | null>(null);
   const turnIds = useRef(new Map<string, string>());
@@ -347,12 +349,16 @@ export function App(): JSX.Element {
           ? { provider: status.modelBridge.provider, model: status.modelBridge.model }
           : null;
         if (processDefault) {
-          const initial = processDefault;
-          setDefaultModel(initial);
+          setDefaultModel(processDefault);
+          // 首页没有会话承载模型线路：用户手动选择过就保留，只有显式新建会话或线路失效才回退默认。
+          const homeChoice = !activeRef.current ? homeModelChoiceRef.current : null;
+          const homeRoute = homeChoice ?? processDefault;
           if (!activeRef.current || activeRef.current.projectId !== HARNESS_PROJECT_ID) {
-            setActiveModelProvider(initial.provider); setActiveModelId(initial.model);
+            setActiveModelProvider(homeRoute.provider); setActiveModelId(homeRoute.model);
+            setConfiguredModelLabel(`${homeRoute.provider} · ${homeRoute.model}`);
+          } else {
+            setConfiguredModelLabel(`${processDefault.provider} · ${processDefault.model}`);
           }
-          setConfiguredModelLabel(`${initial.provider} · ${initial.model}`);
         }
         let modelCatalog: ModelDescriptor[] | null = null;
         try {
@@ -362,7 +368,19 @@ export function App(): JSX.Element {
         }
         if (cancelled) return;
         // 读取失败时保留现有选项，避免把一次 RPC 失败显示成「没有可切换的模型」。
-        if (modelCatalog) setModelOptions(modelCatalog.filter(model => model?.configured === true && model?.available === true));
+        const availableModels = modelCatalog
+          ? modelCatalog.filter(model => model?.configured === true && model?.available === true)
+          : null;
+        if (availableModels) setModelOptions(availableModels);
+        const homeChoice = !activeRef.current ? homeModelChoiceRef.current : null;
+        if (availableModels && homeChoice && !availableModels.some(model => model.provider === homeChoice.provider && model.id === homeChoice.model)) {
+          // 用户选择的线路在刷新后已不可用：清掉手动选择并回到默认线路，避免继续展示或使用失效线路。
+          homeModelChoiceRef.current = null;
+          if (!activeRef.current && processDefault) {
+            setActiveModelProvider(processDefault.provider); setActiveModelId(processDefault.model);
+            setConfiguredModelLabel(`${processDefault.provider} · ${processDefault.model}`);
+          }
+        }
         const version = lifecycleVersion.current;
         let sessions: Awaited<ReturnType<typeof listThreads>>;
         let archived: Awaited<ReturnType<typeof listThreads>>;
@@ -476,6 +494,7 @@ export function App(): JSX.Element {
     ++selectionVersion.current; ++continuationReadGeneration.current;
     activeRef.current = null; setActiveSession(null); setMessages([]); setIsHomeView(true); setContinuationCheck(null);
     setQueueItems([]); setQueueMeta({}); setTurnSkillIds({});
+    homeModelChoiceRef.current = null;
     if (defaultModel) { setActiveModelProvider(defaultModel.provider); setActiveModelId(defaultModel.model); setConfiguredModelLabel(`${defaultModel.provider} · ${defaultModel.model}`); }
   }, [defaultModel]);
   const handleNewTask = useCallback(() => {
@@ -578,6 +597,7 @@ export function App(): JSX.Element {
       activeRef.current = updated; setActiveSession(updated); setError("");
       void sessionReasoning.refresh(); void readContinuationCheck(updated);
     }
+    if (isHomeView) homeModelChoiceRef.current = { provider, model };
     setActiveModelProvider(provider); setActiveModelId(model); setConfiguredModelLabel(`${provider} · ${model}`);
     return true;
   }, [harnessUp, isHomeView, readContinuationCheck, sessionReasoning]);
