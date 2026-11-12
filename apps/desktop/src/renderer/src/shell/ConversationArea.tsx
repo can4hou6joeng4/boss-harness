@@ -318,10 +318,16 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  /** 事件处理器读取最新草稿：提交或附件读取可能在上一次渲染后才完成，不能依赖闭包里的旧快照。 */
+  const draftRef = useRef(composerDraft); draftRef.current = composerDraft;
+  const messageEditBusyNow = () => draftRef.current.pendingReads > 0 || draftRef.current.submitting;
+  const messageEditBusy = composerDraft.pendingReads > 0 || composerDraft.submitting;
   const requestMessageEdit = (content: string) => {
-    const existing = inputText.trim();
-    if (existing && existing !== content.trim()) {
-      setPendingMessageEdit({ content, draftId: composerDraft.id, textVersion: composerDraft.textVersion, threadId });
+    const latest = draftRef.current;
+    const existing = latest.text.trim();
+    // 忙碌时任何替换都先停下：提交结果未知时草稿是唯一还能重发的副本，附件读取也应按原草稿完成。
+    if ((existing && existing !== content.trim()) || latest.pendingReads > 0 || latest.submitting) {
+      setPendingMessageEdit({ content, draftId: latest.id, textVersion: latest.textVersion, threadId });
       return;
     }
     setInputText(content);
@@ -329,10 +335,13 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   };
   const resolveMessageEdit = (replace: boolean) => {
     const pending = currentMessageEdit;
+    // 忙碌期间保留确认条与原稿；按钮虽已禁用，直接调用处理器也不能绕过。
+    if (replace && messageEditBusyNow()) return;
     setPendingMessageEdit(null);
     if (replace && pending) {
-      // 更新时再次核对版本，防止两次渲染之间的新输入被旧确认覆盖。
+      // 更新时再次核对版本与忙碌状态，防止两次渲染之间的新输入或转交中的草稿被旧确认覆盖。
       updateDraft(previous => previous.id === pending.draftId && previous.textVersion === pending.textVersion
+        && previous.pendingReads === 0 && !previous.submitting
         ? withDraftText(previous, pending.content) : previous);
     }
     textareaRef.current?.focus();
@@ -1028,8 +1037,9 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
           {approvalError && <div className="composer-notice" role="alert">{approvalError}</div>}
           {currentMessageEdit && <div className="message-edit-confirm" role="alert" data-message-edit-confirm>
             <span>编辑此消息将替换当前未发送的正文；附件与已选技能保留。</span>
-            <button type="button" onClick={() => resolveMessageEdit(true)}>替换</button>
+            <button type="button" disabled={messageEditBusy} onClick={() => resolveMessageEdit(true)}>替换</button>
             <button type="button" onClick={() => resolveMessageEdit(false)}>取消</button>
+            {messageEditBusy && <span>正在读取附件或转交消息，请稍候。</span>}
           </div>}
           <div className="thread-composer-input"><Composer ref={textareaRef} value={inputText} onChange={setInputText} onSend={onSendMessage} onQueue={simulateLocal ? undefined : onQueueMessage} onCheckQueueSubmission={simulateLocal ? undefined : onCheckQueueSubmission} draft={composerDraft} onDraftChange={updateDraft} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={onRefreshSkills} skillProblems={skillProblems} history={recallHistory}
             readOnly={readOnly} archived={archived} isRunning={running} blocked={taskBlocked} onInterrupt={onInterrupt} preview={simulateLocal}
