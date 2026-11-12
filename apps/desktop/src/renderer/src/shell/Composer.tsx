@@ -123,19 +123,31 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   /**
    * 历史调取期间暂存进入前的草稿；↓ / Esc 或外部改写会让调取结束，随后清空。
    * 只在正文仍是最后一次调取内容时写回，避免覆盖用户后来显式编辑的正文。
+   * 进入调取时同时把原稿写入草稿字段，重启 / 重载时优先恢复它。
    */
+  const clearRecallDraft = () => updateDraft(previous =>
+    previous.recallDraft === undefined ? previous : { ...previous, recallDraft: undefined });
   const rememberRecall = (state: PromptRecallState, text: string) => {
-    if (state.index === -1) { recallStash.current = null; return; }
+    if (state.index === -1) { recallStash.current = null; clearRecallDraft(); return; }
     const stash = recallStash.current;
     if (stash && stash.draftId === composerDraft.id) stash.recalled = text;
-    else recallStash.current = { draftId: composerDraft.id, update: updateDraft, original: state.draft, recalled: text };
+    else {
+      recallStash.current = { draftId: composerDraft.id, update: updateDraft, original: state.draft, recalled: text };
+      // 重启 / 重载不会触发组件卸载时的写回，因此随草稿持久化进入调取前的正文。
+      updateDraft(previous => previous.id === composerDraft.id ? { ...previous, recallDraft: state.draft } : previous);
+    }
   };
   const restoreRecallBeforeLeaving = () => {
     const stash = recallStash.current;
     recallStash.current = null;
     if (!stash) return;
-    stash.update(previous => previous.id === stash.draftId && previous.text === stash.recalled && !previous.submitting
-      ? { ...previous, text: stash.original, textVersion: previous.textVersion + 1 } : previous);
+    stash.update(previous => {
+      if (previous.id !== stash.draftId) return previous;
+      const restore = previous.text === stash.recalled && !previous.submitting;
+      if (!restore && previous.recallDraft === undefined) return previous;
+      return { ...previous, text: restore ? stash.original : previous.text,
+        textVersion: previous.textVersion + (restore ? 1 : 0), recallDraft: undefined };
+    });
   };
   useEffect(() => () => restoreRecallBeforeLeaving(), []);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -143,7 +155,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   // 统一由共享判定退出历史；本组件自己写回的文本仍保留浏览位置。
   useEffect(() => {
     const next = recallAfterValueChange(recall.current, value, ownedText.current);
-    if (next.index === -1) recallStash.current = null;
+    if (next.index === -1 && recallStash.current) { recallStash.current = null; clearRecallDraft(); }
     recall.current = next;
   }, [value]);
   const dragDepth = useRef(0);
@@ -427,7 +439,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
       ref={element => { inputRef.current = element; if (typeof forwardedRef === "function") forwardedRef(element); else if (forwardedRef) forwardedRef.current = element; }} rows={2}
       placeholder={archived ? "已归档，恢复后可继续对话" : isRunning ? queueIntent === "steering" ? "补充当前任务要求…" : "安排当前任务结束后的下一步…" : blocked ? "另一个任务正在运行，请等待完成" : "和 BOSS Harness 一起工作"}
       title={history.length ? "↑ 调取已发送消息：有输入时只在该前缀的消息间移动 · ↓ 返回草稿 · Esc 退出历史" : undefined}
-      value={value} onChange={event => { recall.current = { index: -1, draft: "" }; recallStash.current = null; change(event.target.value); }}
+      value={value} onChange={event => { recall.current = { index: -1, draft: "" }; recallStash.current = null; clearRecallDraft(); change(event.target.value); }}
       onPaste={event => {
         const files = [...event.clipboardData.files];
         if (files.length) { event.preventDefault(); void addFiles(files); return; }
@@ -476,6 +488,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
           const draft = recall.current.draft;
           recall.current = { index: -1, draft: "" };
           recallStash.current = null;
+          clearRecallDraft();
           change(draft);
           requestAnimationFrame(() => { const area = inputRef.current; if (area) area.setSelectionRange(area.value.length, area.value.length); });
           return;

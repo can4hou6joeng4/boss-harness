@@ -27,6 +27,11 @@ export interface ComposerDraft {
   pendingReads: number;
   submitting: boolean;
   queueSubmission?: QueueSubmission;
+  /**
+   * 历史调取期间进入调取前的正文：只随本地草稿保存，重启恢复时优先于 `text`。
+   * 调取结束、显式编辑、外部改写或发送成功后清空。
+   */
+  recallDraft?: string;
 }
 export type UpdateComposerDraft = (change: (previous: ComposerDraft) => ComposerDraft) => void;
 /**
@@ -80,5 +85,5 @@ export function clearTransferredDraft(current: ComposerDraft, submitted: Compose
     textVersion: current.textVersion + (clearText ? 1 : 0),
     attachments: current.attachments.filter(file => !sent.has(file.id)),
     // 工作区入口可在回执期间追加技能：只移除本次已提交的 id，与附件的清理边界一致。
-    skillIds: (current.skillIds ?? []).filter(id => !sentSkills.has(id)), submitting: false, queueSubmission: undefined };
+    skillIds: (current.skillIds ?? []).filter(id => !sentSkills.has(id)), submitting: false, queueSubmission: undefined, recallDraft: undefined };
 }
