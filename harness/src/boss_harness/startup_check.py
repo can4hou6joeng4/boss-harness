@@ -15,7 +15,7 @@ def _check(name: str, status: str, code: str, message: str, hint: str) -> dict[s
     return {"name": name, "status": status, "code": code, "message": message, "hint": hint}
 
 
-def _model_check(load_config: Callable[[], ModelConfig]) -> dict[str, str]:
+def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str) -> dict[str, str]:
     try:
         config = load_config()
     except Exception:
@@ -24,10 +24,20 @@ def _model_check(load_config: Callable[[], ModelConfig]) -> dict[str, str]:
             "model", "error", "MODEL_CONFIG_INVALID", "模型配置无法解析。",
             "核对 provider、显式模型配置及本地 Codex 配置；完整配置方式见使用指南。",
         )
-    if config.provider == "none":
+    if config.max_tokens <= 0:
         return _check(
-            "model", "warning", "MODEL_DISABLED", "已禁用模型调用。",
-            "需要模型回合时配置模型线路；none 不会禁止招聘 CLI 或平台网络。",
+            "model", "error", "MODEL_CONFIG_INVALID", "模型输出上限必须是正整数。",
+            "将 BOSS_HARNESS_MAX_TOKENS 设为正整数，或取消设置以使用默认值。",
+        )
+    if config.provider == "none":
+        if requested_provider.strip().lower() == "none":
+            return _check(
+                "model", "warning", "MODEL_DISABLED", "已显式禁用模型调用。",
+                "需要模型回合时配置模型线路；none 不会禁止招聘 CLI 或平台网络。",
+            )
+        return _check(
+            "model", "warning", "MODEL_NOT_CONFIGURED", "未配置默认模型线路，自动回退为 none。",
+            "配置 provider 及对应凭据；核对桌面默认线路时使用 --check --provider openai。",
         )
     has_credential = bool(config.api_key) if config.provider == "openai" else any(
         (os.environ.get(name) or "").strip() for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
@@ -73,9 +83,11 @@ def _browser_check() -> dict[str, str]:
     )
 
 
-def startup_report(load_config: Callable[[], ModelConfig]) -> dict[str, Any]:
+def startup_report(
+    load_config: Callable[[], ModelConfig], *, requested_provider: str = ""
+) -> dict[str, Any]:
     """汇总静态检查；检查结果与实际模型、CLI 和平台可用性分别核对。"""
-    checks = [_model_check(load_config), _cli_check(), _browser_check()]
+    checks = [_model_check(load_config, requested_provider), _cli_check(), _browser_check()]
     return {
         "schemaVersion": 1,
         "version": __version__,

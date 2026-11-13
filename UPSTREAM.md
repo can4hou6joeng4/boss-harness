@@ -6,7 +6,7 @@
 
 同时核对 DeepSeek Harness MIT 提交 `39163dd30f703a79079e2d2446545cff3c453738` 的 `apps/cli/src/startup-diagnostics.ts` 与 `packages/boot/app-boot/src/startup-diagnostics.ts`：启动失败信息需有独立入口，结构化诊断应避免收集配置值。本项目按招聘隐私边界输出固定字段、固定检查码与静态建议，省略原始异常、端点、凭据、自定义模型值与本机路径；报告直接写到 stdout，不写诊断文件。
 
-适配约定：`boss-harness --check` 在构造 provider、ApplicationService 与 JSON-RPC 服务前返回；不创建状态目录、不读取会话、不执行招聘 CLI 或联网。模型配置错误返回退出码 2，显式 `none` 与业务 CLI 缺失标为警告；通过只代表本地配置检查，不能据此推断模型连通、平台认证或 CLI 实际运行能力。与索引修复互斥，正常 stdio 启动沿用原流程。不新增 RPC，协议与内核仍为 `0.2.0`。
+适配约定：`boss-harness --check` 在构造 provider、ApplicationService 与 JSON-RPC 服务前返回；不创建状态目录、不读取会话、不执行招聘 CLI 或联网。模型配置错误及非正输出上限返回退出码 2，显式 `none`、自动回退未配置与业务 CLI 缺失分别标为警告；通过只代表本地配置检查，不能据此推断模型连通、平台认证或 CLI 实际运行能力。与索引修复互斥，正常 stdio 启动沿用原流程。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 ## 最近聊天与搜索结果的相对时间独立于内核读取推进（Issue #1156）
 

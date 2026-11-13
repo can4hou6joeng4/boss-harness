@@ -42,11 +42,11 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 
 | 检查项 | 固定检查码 | 检查范围与限制 |
 | --- | --- | --- |
-| 模型配置 | `MODEL_CONFIG_VALID` / `MODEL_DISABLED` / `MODEL_CONFIG_INVALID` / `MODEL_CONFIG_INCOMPLETE` | 只复用本地解析，不构造 SDK 或发起请求；缺少必需配置或文件损坏记为错误，显式 `none` 记为禁用模型警告。 |
+| 模型配置 | `MODEL_CONFIG_VALID` / `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` / `MODEL_CONFIG_INVALID` / `MODEL_CONFIG_INCOMPLETE` | 只复用本地解析，不构造 SDK 或发起请求；缺少必需配置、文件损坏或非正输出上限记为错误，显式 `none` 与自动回退分别记为禁用模型、未配置模型警告。 |
 | 业务 CLI | `BOSS_CLI_FOUND` / `BOSS_CLI_UNAVAILABLE` | 只发现可执行文件，不执行 `boss schema`、版本查询、登录或任何工具；未发现可执行文件记为警告，文件存在不证明 CLI 能正常运行。 |
 | 浏览器来源 | `BROWSER_SOURCE_VALID` / `BROWSER_SOURCE_INVALID` | 只校验 `BOSS_HARNESS_BROWSER_SOURCE` 的取值，不读取浏览器或 Cookie，也不验证上游是否支持该选项。 |
 
-报告不包含端点、密钥、模型自定义值、本机路径、会话内容或异常原文，可用于报告安装问题。自检不创建状态目录、不读取会话、不写入索引，与 `--repair-state` 互斥。本地检查通过不代表模型可连接、认证有效、平台已登录或真实工具已验收；这些操作应分别在获得授权后核对。
+报告不包含端点、密钥、模型自定义值、本机路径、会话内容或异常原文，可用于报告安装问题。自检不创建状态目录、不读取会话、不写入索引，与 `--repair-state` 互斥。本地检查仅覆盖上表三项，不核对状态目录可写性、磁盘容量或其他内核运行参数。通过不代表模型可连接、认证有效、平台已登录或真实工具已验收；这些操作应分别在获得授权后核对。
 
 ## 单次模型请求期限
 
