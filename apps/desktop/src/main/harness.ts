@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { app, dialog, ipcMain, Notification, BrowserWindow, type IpcMainInvokeEvent, type MessageBoxReturnValue } from "electron";
-import { HarnessHostManager, HarnessRpcError, type HarnessHostConnection } from "@boss-harness/app-client";
+import { HarnessHostManager, HarnessRpcError, type HarnessConnectionStatus, type HarnessHostConnection } from "@boss-harness/app-client";
 import type { ApprovalFocusTarget, BadgeCountResult, JsonRpcNotification, NotificationTestResult,
-  SessionExportSaveResult, ThreadFocusTarget } from "@boss-harness/protocol";
+  SessionExportSaveResult, StartupDiagnosis, ThreadFocusTarget } from "@boss-harness/protocol";
 import { isTrustedRendererUrl, sessionExportFileName, validateHarnessRequest, validateLoginContext,
   validateSessionExportRequest, validateThreadExportResponse } from "./security";
 import { PlatformLogin } from "./platformLogin";
@@ -15,6 +15,7 @@ import { readTurnEvent, recordTurnStart, turnNotificationContent } from "./turnN
 import { quitConfirmationContent } from "./quitConfirmation";
 import { normalizeBadgeCount } from "./notificationBadge";
 import { NotificationRegistry } from "./notificationRegistry";
+import { StartupDiagnostics, runStartupCheck } from "./startupCheck";
 
 function findRepoRoot(start: string): string {
   let current = resolve(start);
@@ -30,6 +31,7 @@ function findRepoRoot(start: string): string {
 const manager = new HarnessHostManager();
 const windows = new Set<BrowserWindow>();
 let host: HarnessHostConnection | null = null;
+let diagnostics: StartupDiagnostics | null = null;
 let repoRoot = "";
 let ipcRegistered = false;
 const platformLogin = new PlatformLogin((method, params) => {
@@ -154,27 +156,61 @@ function notifyApproval(notification: JsonRpcNotification): void {
   } catch {}
 }
 
+type DesktopConnectionStatus = HarnessConnectionStatus & { startupDiagnosis?: StartupDiagnosis };
+
+/** 连接状态附带当前失败周期的本地自检结论；结论只在握手前失败后产生。 */
+function connectionStatus(connection: HarnessHostConnection): DesktopConnectionStatus {
+  const diagnosis = diagnostics?.result;
+  return { ...connection.status(), ...(diagnosis ? { startupDiagnosis: diagnosis } : {}) };
+}
+
+/**
+ * 握手前失败时安排一次本地自检，连接恢复后丢弃结论；转发给窗口的连接状态附带现有结论。
+ * 自动重试期间的重复失败共用同一份结论，不重复启动自检进程。
+ */
+function withStartupDiagnosis(notification: JsonRpcNotification): JsonRpcNotification {
+  if (notification.method !== "harness/connectionStatus") return notification;
+  const status = notification.params as Partial<HarnessConnectionStatus> | undefined;
+  if (status?.state === "ready") diagnostics?.reset();
+  else if (status?.state === "disconnected" && status.startupFailed === true) diagnostics?.request();
+  const diagnosis = diagnostics?.result;
+  return diagnosis ? { ...notification, params: { ...status, startupDiagnosis: diagnosis } } : notification;
+}
+
 function createHost(): HarnessHostConnection {
   repoRoot = findRepoRoot(app.getAppPath());
   const venvPython = resolve(repoRoot, ".venv", "bin", "python");
   const python = process.env.BOSS_HARNESS_PYTHON ?? (existsSync(venvPython) ? venvPython : "python3");
+  const env = {
+    PYTHONPATH: resolve(repoRoot, "harness", "src"), PYTHONUNBUFFERED: "1",
+    BOSS_HARNESS_PROVIDER: process.env.BOSS_HARNESS_PROVIDER ?? "openai",
+  };
   const connection = manager.add({
     hostId: "local",
     clientInfo: { name: "boss-harness-desktop", version: app.getVersion() },
     supportsReconnect: true,
     // Explicit user recovery is also exposed; this small retry budget covers process crashes.
     autoReconnect: { maxAttempts: 3, initialDelayMs: 500, maxDelayMs: 5_000 },
-    client: {
-      command: python, args: ["-m", "boss_harness", "--listen", "stdio://"], cwd: repoRoot,
-      env: {
-        PYTHONPATH: resolve(repoRoot, "harness", "src"), PYTHONUNBUFFERED: "1",
-        BOSS_HARNESS_PROVIDER: process.env.BOSS_HARNESS_PROVIDER ?? "openai",
-      },
-    },
+    client: { command: python, args: ["-m", "boss_harness", "--listen", "stdio://"], cwd: repoRoot, env },
   });
+  // 自检与内核共用解释器、工作目录和环境，结论才对应同一份启动配置；只额外固定输出编码。
+  diagnostics = new StartupDiagnostics(
+    (signal) => runStartupCheck({
+      command: python, args: ["-m", "boss_harness", "--check"], cwd: repoRoot,
+      env: { ...process.env, ...env, PYTHONIOENCODING: "utf-8" },
+    }, signal),
+    // 自检晚于断开通知结束：补发一次连接状态，窗口不需要轮询。
+    () => {
+      const status: JsonRpcNotification = {
+        jsonrpc: "2.0", method: "harness/connectionStatus", params: connectionStatus(connection),
+      };
+      for (const window of windows) send(window, status);
+    },
+  );
   connection.onNotification((notification) => {
     forgetTurnsOnDisconnect(notification);
-    for (const window of windows) send(window, notification);
+    const outgoing = withStartupDiagnosis(notification);
+    for (const window of windows) send(window, outgoing);
     notifyApproval(notification);
     notifyTurn(notification);
   });
@@ -301,12 +337,17 @@ function registerIPC(): void {
   });
   ipcMain.handle("harness:status", (event) => {
     trustedSender(event);
-    return { ...manager.get().status(), repoRoot };
+    return { ...connectionStatus(manager.get()), repoRoot };
   });
   ipcMain.handle("harness:reconnect", async (event) => {
     trustedSender(event);
-    await manager.get().reconnect();
-    return { ...manager.get().status(), repoRoot };
+    const connection = manager.get();
+    // 显式重连开启新的失败周期：旧结论对应的可能已经不是当前配置。
+    diagnostics?.reset();
+    // 启动失败不作为 IPC 异常抛出：原因由返回的连接状态与自检结论表达。
+    try { await connection.reconnect(); } catch { /* 见返回的连接状态。 */ }
+    await diagnostics?.settled();
+    return { ...connectionStatus(connection), repoRoot };
   });
   ipcMain.handle("notification:badge", (event, value: unknown): BadgeCountResult => {
     trustedSender(event);
@@ -328,7 +369,7 @@ function registerIPC(): void {
   });
   app.on("before-quit", (event) => {
     if (!confirmQuit(event)) return;
-    platformLogin.cancel(); manager.dispose(); host = null; windows.clear();
+    platformLogin.cancel(); diagnostics?.reset(); diagnostics = null; manager.dispose(); host = null; windows.clear();
   });
 }
 
@@ -340,7 +381,7 @@ export function attachHarness(window: BrowserWindow): void {
   host ??= createHost();
   registerIPC();
   window.webContents.on("did-finish-load", () => {
-    if (host) send(window, { jsonrpc: "2.0", method: "harness/connectionStatus", params: host.status() });
+    if (host) send(window, { jsonrpc: "2.0", method: "harness/connectionStatus", params: connectionStatus(host) });
   });
   void host.ensureReady().catch(() => { /* Host status conveys initialization and reconnect failures. */ });
 }

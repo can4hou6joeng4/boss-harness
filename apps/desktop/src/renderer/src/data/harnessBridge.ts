@@ -68,6 +68,7 @@ import {
   type QueueStatusCounts,
   type WorkspaceInstructionsText,
   type WorkspaceInstructionsWriteResponse,
+  type StartupDiagnosis,
 } from "@boss-harness/protocol";
 import { formatRelativeTime, safeSlice, stripIpcErrorWrapper } from "@boss-harness/shared";
 import { isQueueItem, queuePageOf, type QueuePage } from "./queueMapping";
@@ -99,6 +100,14 @@ export interface HarnessStatus {
   error?: string;
   state?: string;
   generation?: number;
+  /** 最近一次连接在握手完成前结束；状态读取失败时缺省。 */
+  startupFailed?: boolean;
+  /** 本次运行中内核曾经就绪。 */
+  wasReady?: boolean;
+  /** 已断开且自动恢复尚未用尽。 */
+  willRetry?: boolean;
+  /** 握手前失败后的本地自检结论；展示前经 `data/connectionNotice.ts` 校验。 */
+  startupDiagnosis?: StartupDiagnosis;
 }
 
 export type SkillCatalogState = "unavailable" | "loading" | "ready" | "empty" | "error";

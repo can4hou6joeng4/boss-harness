@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type { ApprovalFocusTarget, BadgeCountResult, InitializeResponse, JsonRpcNotification, NotificationTestResult,
   PlatformLoginStatus, PlatformLoginAction, PlatformLoginContext, SessionExportSaveRequest,
-  SessionExportSaveResult, ThreadFocusTarget } from "@boss-harness/protocol";
+  SessionExportSaveResult, StartupDiagnosis, ThreadFocusTarget } from "@boss-harness/protocol";
 import { createFocusRelay } from "@boss-harness/shared";
 
 interface HarnessStatus {
@@ -11,10 +11,18 @@ interface HarnessStatus {
   state: "cold" | "starting" | "initializing" | "ready" | "disconnected" | "stopped";
   generation: number;
   reconnectAttempt: number;
+  /** 最近一次连接在握手完成前结束。 */
+  startupFailed: boolean;
+  /** 本次运行中内核曾经就绪；断开后可能留有结果未确认的操作。 */
+  wasReady: boolean;
+  /** 已断开且自动恢复尚未用尽。 */
+  willRetry: boolean;
   retryAt?: number;
   modelBridge?: { provider: string; model: string; driven: boolean };
   capabilities?: InitializeResponse["capabilities"];
   error?: string;
+  /** 握手前失败后的本地自检结论；连接恢复或显式重连后不再返回。 */
+  startupDiagnosis?: StartupDiagnosis;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ConnectionCheck, ConnectionReport, ConnectionTarget, PlatformLoginStatus } from "@boss-harness/protocol";
-import { harnessErrorText, connectionReport } from "../data/harnessBridge";
+import { harnessErrorText, connectionReport, harnessStatus, reconnectHarness } from "../data/harnessBridge";
+import { connectionNoticeParts, connectionViewOf, mergeConnectionView, startupCheckRows, type ConnectionView } from "../data/connectionNotice";
 import { formatIsoClock } from "../data/timeFormat";
 
 const LABELS: Record<ConnectionCheck["state"], string> = {
@@ -20,7 +21,36 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
   const [requesting, setRequesting] = useState(false);
   const [login, setLogin] = useState<PlatformLoginStatus | null>(null);
   const [loginError, setLoginError] = useState("");
+  const [connection, setConnection] = useState<ConnectionView | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectError, setReconnectError] = useState("");
+  const mounted = useRef(true);
   const version = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    if (!window.boss) return () => { mounted.current = false; };
+    let updated = false;
+    const unsubscribe = window.boss.onNotification(notification => {
+      if (notification.method !== "harness/connectionStatus") return;
+      updated = true;
+      setConnection(previous => mergeConnectionView(previous, connectionViewOf(notification.params)));
+    });
+    // 打开设置时内核可能早已停止重试，不会再有状态通知：先读一次当前状态。
+    void harnessStatus().then(status => {
+      if (mounted.current && !updated) setConnection(previous => mergeConnectionView(previous, connectionViewOf(status)));
+    });
+    return () => { mounted.current = false; unsubscribe(); };
+  }, []);
+  const reconnect = (): void => {
+    setReconnecting(true); setReconnectError("");
+    void reconnectHarness().then(status => {
+      if (!mounted.current) return;
+      setReconnecting(false);
+      setConnection(previous => mergeConnectionView(previous, connectionViewOf(status)));
+      // 只有请求本身失败（没有连接状态）才单独提示；启动失败的原因由连接状态与自检结论给出。
+      if (!status.running && status.state === undefined) setReconnectError(`重新连接失败：${status.error || "本地内核仍未运行"}。`);
+    });
+  };
   const fetchReport = async (target?: ConnectionTarget): Promise<void> => {
     const current = ++version.current;
     setRequesting(true);
@@ -69,8 +99,27 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
     { target: "model", title: "模型服务", description: report?.model.model ? `${report.model.provider} · ${report.model.model}` : "由本机模型配置决定", check: report?.model, action: "测试模型" },
     { target: "platform", title: "BOSS 直聘账号", description: `本地认证信息：${AUTH_LABELS[report?.platform.authState ?? "unknown"] ?? "未检测"}；账号验证结果以标注时间为准`, check: report?.platform, action: "验证账号" },
   ];
+  // 未连接的原因与本地自检明细；已连接或仍在首次启动时不显示。
+  const notice = harnessUp ? null : connectionNoticeParts(connection);
+  const startupChecks = notice ? startupCheckRows(connection?.startupDiagnosis) : [];
+  const hasCheckError = startupChecks.some(check => check.status === "error");
+  const canReconnect = !harnessUp && Boolean(window.boss) && connection?.state === "disconnected";
+  const badge = <span className={`settings-badge${harnessUp ? " is-connected" : ""}`}><span className="settings-status-dot" />{harnessUp ? "运行中" : "未连接"}</span>;
   return <>
-    <div className="settings-row"><div className="settings-row-copy"><div className="settings-row-title">招聘 Harness</div><p className="settings-row-description">当前桌面进程提供的本机运行状态</p></div><span className={`settings-badge${harnessUp ? " is-connected" : ""}`}><span className="settings-status-dot" />{harnessUp ? "运行中" : "未连接"}</span></div>
+    <div className={`settings-row${notice ? " connection-check-row" : ""}`}><div className="settings-row-copy"><div className="settings-row-title">招聘 Harness</div><p className="settings-row-description">当前桌面进程提供的本机运行状态</p>
+      {notice && <div className="connection-startup" role="status">
+        <p className="connection-startup-headline">{notice.headline}</p>
+        {notice.diagnosis && !hasCheckError && <p className="settings-row-description">{notice.diagnosis}</p>}
+        {startupChecks.length > 0 && <ul className="connection-startup-checks" aria-label="本地配置自检结果">{startupChecks.map(check => <li key={check.key} className={`is-${check.status}`}>
+          <span className="connection-startup-check-title">{check.title}</span><span className="connection-startup-check-status">{check.label}</span>
+          <span>{check.text}<code>{check.code}</code></span>
+        </li>)}</ul>}
+        {notice.recovery && <p className="settings-row-description">{notice.recovery}</p>}
+      </div>}
+      {reconnectError && <p className="connection-login-status" role="alert">{reconnectError}</p>}
+    </div>{notice ? <div className="connection-check-controls">{badge}
+      {canReconnect && <button type="button" className="settings-button" disabled={reconnecting} onClick={reconnect}>{reconnecting ? "正在重新连接" : "重新连接"}</button>}
+    </div> : badge}</div>
     {rows.map(row => <div className="settings-row connection-check-row" key={row.target}>
       <div className="settings-row-copy"><div className="settings-row-title">{row.title}</div><p className="settings-row-description">{row.description}</p>
         {row.target === "local" && row.check?.browserSourcePolicy && <p className="settings-row-description">招聘 CLI 浏览器来源：{BROWSER_SOURCE_LABELS[row.check.browserSourcePolicy]}</p>}
@@ -90,6 +139,6 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
       </div>
     </div>)}
     {error && <p className="connection-check-error" role="alert">{error}<button type="button" className="settings-button" disabled={!harnessUp || requesting} onClick={() => { void fetchReport(); }}>刷新结果</button></p>}
-    <div className="settings-note"><div><h3>连接检查</h3><p>“测试模型”会向当前供应商发送一条小请求，可能产生费用。“验证账号”只读取登录账号信息，不发送消息。</p><p>检查结果仅代表标注时间的响应。新建会话默认只读，重启与分支继续保留此限制。</p><p>更改模型配置后重新启动应用。配置方式见 <code>docs/model-integration.md</code>。</p></div></div>
+    <div className="settings-note"><div><h3>连接检查</h3><p>“测试模型”会向当前供应商发送一条小请求，可能产生费用。“验证账号”只读取登录账号信息，不发送消息。</p><p>检查结果仅代表标注时间的响应。新建会话默认只读，重启与分支继续保留此限制。</p><p>更改模型配置后重新启动应用。配置方式见 <code>docs/USER_GUIDE.md</code> 的「模型配置来源」。</p></div></div>
   </>;
 }

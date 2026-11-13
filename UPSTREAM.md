@@ -1,5 +1,13 @@
 # 上游吸收记录
 
+## 桌面启动失败时的本地自检（Issue #1168）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/src/modes/rpc/rpc-client.ts`：RPC 客户端累积子进程 stderr，并在进程退出、启动错误与请求超时的错误消息里附带这些输出，用于解释启动失败。本项目沿用「失败要有可排查原因」的目标，但招聘内核的 stderr 可能含凭据、本机路径与私密招聘记录，传输层继续不读取 stderr，也不把它转发到渲染层；改由主进程在握手前失败时运行固定检查码的本地自检，只接收通过结构校验的固定字段。不引入 Pi 源码或依赖。
+
+同时沿用 #1166 的 `--check` 入口与 #1166 的上游核对（Pi 的 model-registry 边界、DeepSeek Harness 的结构化启动诊断），不新增复制或依赖。
+
+适配约定：宿主连接状态新增 `startupFailed`（最近一次连接在握手完成前结束）、`wasReady`（至少完成过一次握手）与 `willRetry`（仍在自动重试预算内），不改变自动重连次数与退避。握手前失败时，主进程以与内核相同的解释器、工作目录与环境（只多 `PYTHONIOENCODING=utf-8`）运行一次 `python -m boss_harness --check`，每个失败周期一次，就绪或显式重新连接后作废；只解析 `schemaVersion: 1` 报告中有界的固定字段，无法运行时映射为固定原因（`spawn` / `exit` / `timeout` / `invalid`）。结论只经既有连接状态与通知传递，不新增 RPC，界面不展示 stderr、异常原文、端点、凭据或本机路径。自动重试预算沿用宿主既有策略，重连不重置解释器与环境变量的来源。协议与内核仍为 `0.2.0`。
+
 ## 首次安装的本地只读配置自检（Issue #1166）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Provider Factories / Querying Models）与 `packages/coding-agent/src/core/model-registry.ts`：模型目录、已配置认证状态与实际流式请求分别有入口，SDK 可延迟至请求时加载。本轮采用本地配置状态与真实请求分别核对的边界，复用本仓库既有配置解析，不引入 Pi 依赖或复制源码。
