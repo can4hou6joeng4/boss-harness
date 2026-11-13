@@ -19,9 +19,9 @@
 | 交付项 | 当前范围 |
 | --- | --- |
 | 源码候选版本 | `0.2.0-rc.15`，Python 内核为 `0.2.0rc15`；stdio JSON-RPC 协议为 `0.2.0`。 |
-| 已发布版本 | 最近实际预发布为 [`v0.2.0-rc.14`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.14)（2026-10-29 发布，UTC 为 2026-10-28T19:22Z）。`rc.15` 正在准备，尚未创建对应 tag / Release；实际资产见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。 |
+| 已发布版本 | 最新候选预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)（2026-11-14 发布，UTC 为 2026-11-13T18:35:01Z）。tag 固定到源码提交 `560c86e2593592f86c61bdeddf0be099ec9d1272`。 |
 | 本机运行 | 从源码启动 Electron 桌面端，使用本机 Python 内核与另行安装的 `boss-agent-cli`。 |
-| 构建产物 | Electron main / preload / renderer，以及独立的 Python wheel / sdist；当前没有独立桌面安装包或签名发行流程。 |
+| 发布资产 | Python 内核 wheel / sdist、`build-info.json` 与 `SHA256SUMS.txt`；Electron main / preload / renderer 需从源码构建，当前没有独立桌面安装包或签名发行流程。 |
 | 源码许可 | 本项目采用 [MIT License](LICENSE)；Python wheel / sdist 随附相同许可文本，第三方依赖遵循各自许可证。 |
 
 更新内容见 [CHANGELOG](CHANGELOG.md)，版本准备、验证范围与发布步骤见 [发布约定](RELEASING.md)。源码版本、Release 与安装包分别核对，避免把一次源码构建当成完整桌面发行。
@@ -52,7 +52,7 @@
 
 ## 近期进展
 
-最近一批主干更新集中在长时间使用桌面工作台时的连续性与可控性：
+`v0.2.0-rc.15` 汇总了长时间使用桌面工作台时的连续性与可控性改进：
 
 - **找回工作现场**：启动后恢复上次打开的会话；切回已查看的会话时保留消息、队列、阅读位置与展开状态，后台失败的原因仍能在对应会话里查看。
 - **处理暂停队列**：支持逐条或批量重新排队、撤回暂停消息，批量处理中可「停止剩余」；遇到明确拒绝或结果未确认即停止，保留其余消息。
@@ -60,7 +60,7 @@
 - **持续观察状态**：运行状态中的已运行 / 已等待时长、审批到期提示以及最近聊天与搜索结果的相对时间按本机时间推进，无需靠成功的内核读取来刷新时间文案。
 - **稳定搜索选择**：消息命中异步到达、会话重排时保持已经选中的结果，回车继续打开原对象。
 
-这些改进已合入主干，是否进入已发布候选版本请核对相应 Release。每项变更的来源、验证与限制记录在 [CHANGELOG](CHANGELOG.md)；本地离线 Electron 验证不代表真实模型、招聘平台或独立安装包已经验收。
+这些改进已进入 [rc.15 候选预发布](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。每项变更的来源、验证与限制记录在 [CHANGELOG](CHANGELOG.md)；本地离线 Electron 验证不代表真实模型、招聘平台或独立安装包已经验收。
 
 ## 快速开始
 
@@ -78,6 +78,7 @@ Electron 运行时会在安装时从官方源下载并校验，因此首次安�
 ```sh
 git clone https://github.com/can4hou6joeng4/boss-harness.git
 cd boss-harness
+git checkout v0.2.0-rc.15
 uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python -e ./harness
 npm ci

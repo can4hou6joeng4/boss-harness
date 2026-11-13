@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1164](https://github.com/can4hou6joeng4/boss-harness/issues/1164)：rc.15 实际发布后同步 README 的候选链接、发布时间、固定源码提交与四项发布资产，首次安装固定到该 tag，近期进展明确为本候选已包含；发布约定按用户要求限定社区正文只介绍本项目自身，内部来源记录继续保留。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.15 - 2026-11-14
 
 本节汇总第十五个候选版本的源码与交付内容；实际发布状态以 [GitHub Release](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15) 为准。
