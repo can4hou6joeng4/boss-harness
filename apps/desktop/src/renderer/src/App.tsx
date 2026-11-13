@@ -161,6 +161,8 @@ export function App(): JSX.Element {
   const rememberedApprovals = useRef(new Map<string, Set<string>>());
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const selectionVersion = useRef(0);
+  // 失败原因按会话保存：切到失败的会话时恢复提示；重新发起回合或用户关闭提示后清除。
+  const sessionErrors = useRef(new Map<string, string>());
   const continuationReadGeneration = useRef(0);
   const continuationSubmitting = useRef<string | null>(null);
   const lastEsc = useRef(0);
@@ -313,6 +315,7 @@ export function App(): JSX.Element {
         const deleted = (params as { deletedThreadId?: unknown }).deletedThreadId;
         if (typeof deleted === "string") {
           cache.current.delete(deleted);
+          sessionErrors.current.delete(deleted);
           setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== deleted) })));
         }
         return;
@@ -338,6 +341,8 @@ export function App(): JSX.Element {
         clearModelRetry(id);
         if (params.turnId) turnIds.current.set(id, params.turnId);
         if (activeRef.current?.id === id) setContinuationCheck(null);
+        // 新回合开始说明旧失败不再适用：删除该会话的记录，正在显示时一并清除提示。
+        if (sessionErrors.current.delete(id) && activeRef.current?.id === id) setError("");
         markRunning(id, true); return;
       }
       // 正常完成的回合若发生在其他会话，先在侧栏留一个未读标记；中断 / 异常已有各自的状态提示。
@@ -371,6 +376,8 @@ export function App(): JSX.Element {
       if (event.method === "thread/leafChanged") { void replica.reload(id); return; }
       if (event.method === "session/error") {
         const message = params.message ?? "任务遇到错误，请检查后重试。";
+        // 失败原因与所属会话绑定：切到该会话时恢复原文，不必只剩侧栏的「上次异常」徽标。
+        sessionErrors.current.set(id, message);
         // 失败提示要说明所属会话：后台会话的问题不能看起来像当前会话出错。
         if (activeRef.current?.id === id) { setError(message); return; }
         const title = foldersRef.current.flatMap(folder => folder.sessions).find(session => session.id === id)?.title;
@@ -530,6 +537,9 @@ export function App(): JSX.Element {
   const handleSelectSession = useCallback((session: SessionItem) => {
     const requestVersion = ++selectionVersion.current;
     activeRef.current = session; setActiveSession(session); setIsHomeView(false); setError("");
+    // 失败原因属于会话：切到真正失败的会话时恢复提示，用户点进来就是为了看原因。
+    const previousFailure = sessionErrors.current.get(session.id);
+    if (previousFailure) setError(previousFailure);
     if (legacyRouteMismatch(session, defaultModel)) setError(LEGACY_ROUTE_HINT);
     const provider = session.provider ?? defaultModel?.provider ?? activeModelProvider;
     const model = session.model ?? (provider === defaultModel?.provider ? defaultModel.model : undefined)
@@ -1120,7 +1130,7 @@ export function App(): JSX.Element {
     {error && <div className="app-toast" role="alert"><span>{error}</span>{!harnessUp && window.boss && <button onClick={() => { void reconnectHarness().then(status => {
       // 重连按钮此前没有任何结果反馈：失败时仍停留在同一条错误上，用户无法判断是否试过。
       setError(status.running ? "" : `重新连接失败：${status.error || "本地内核仍未运行"}。请检查启动配置后重启应用。`);
-    }); }}>重新连接</button>}<button onClick={() => setError("")} aria-label="关闭提示"><IconClose size={14} /></button></div>}
+    }); }}>重新连接</button>}<button onClick={() => { setError(""); const activeId = activeRef.current?.id; if (activeId) sessionErrors.current.delete(activeId); }} aria-label="关闭提示"><IconClose size={14} /></button></div>}
     <CockpitModal isOpen={isCockpitOpen} onClose={() => setIsCockpitOpen(false)} harnessUp={harnessUp} threadId={contextThreadId} threadTitle={activeSession?.title} />
     <ContextPanel isOpen={contextPanel.isOpen} onClose={() => { contextPanel.close(); setContextTarget(null); }} threadId={contextPanelThreadId} title={contextTarget?.title ?? activeSession?.title ?? ""} connected={harnessUp} busy={contextPanel.busy} state={contextPanel.state} onKeepRecentChange={contextPanel.changeKeepRecent} onRefresh={() => { void contextPanel.refresh(); }} onPlan={() => { void contextPanel.plan(); }} onStart={() => { void contextPanel.start(); }} onCancel={() => { void contextPanel.cancel(); }} autoCompaction={autoCompaction} workspaceEditor={capabilities?.workspaceInstructionsEdit === true} />
     <SideChatModal isOpen={isSideChatOpen} onClose={() => setIsSideChatOpen(false)}
