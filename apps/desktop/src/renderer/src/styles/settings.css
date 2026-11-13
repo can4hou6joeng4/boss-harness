@@ -748,3 +748,12 @@ html[data-motion="reduced"] *::after {
 .connection-account-notice p { margin: 4px 0 0; }
 .connection-check-controls .settings-button.is-primary { background: var(--text-main, #1f2927); color: var(--bg-window, #fff); border-color: transparent; }
 .connection-check-controls .settings-button.is-primary:disabled { opacity: .45; }
+.connection-startup { margin-top: 10px; }
+.connection-startup-headline { margin: 0; color: var(--text-main); font-size: calc(var(--ui-font-size, 13px) - 1px); line-height: 1.6; }
+.connection-startup-checks { list-style: none; margin: 10px 0 0; padding: 0; border-top: 1px solid var(--border-subtle, var(--border-color)); }
+.connection-startup-checks li { display: grid; grid-template-columns: 76px 36px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-subtle, var(--border-color)); color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.connection-startup-check-title { color: var(--text-main); }
+.connection-startup-checks .is-error .connection-startup-check-status { color: var(--accent-error); }
+.connection-startup-checks .is-warning .connection-startup-check-status { color: var(--accent-warning); }
+.connection-startup-checks .is-ok .connection-startup-check-status { color: var(--accent-green); }
+.connection-startup-checks code { display: block; margin-top: 2px; color: var(--text-faint); font-family: var(--font-mono); font-size: 11px; overflow-wrap: anywhere; }

@@ -32,6 +32,7 @@ import { reduceHarnessEvent, autoApprovalFallback, type HarnessEvent } from "./d
 import { unconfirmedFailure } from "./data/confirmationFailure";
 import { sendFailureNotice, sendFailureRecheckNotice } from "./data/sendFailure";
 import { sessionStartNotice, type SessionStartOutcome } from "./data/sessionStart";
+import { connectionNotice, connectionViewOf, mergeConnectionView, type ConnectionView } from "./data/connectionNotice";
 import { HarnessReplica } from "./data/harnessReplica";
 import { patchQueuePage, queueItemsOf, queueSubmissionLookup, type QueuePage } from "./data/queueMapping";
 import { patchQueueBadge, queueBadgeOf } from "./data/queueBadge";
@@ -48,6 +49,16 @@ import { MAX_MESSAGE_TEXT_LENGTH, type QueueIntent, type QueueSubmissionCheck } 
 const LEGACY_ROUTE_HINT = "该旧会话记录的模型不属于默认线路，请先在模型菜单中选择线路后再发送。";
 function legacyRouteMismatch(session: { provider?: string; model?: string }, defaultModel: { provider: string; model: string } | null): boolean {
   return !session.provider && !!session.model && !!defaultModel && session.model !== defaultModel.model;
+}
+/**
+ * 用一份连接状态快照更新最近的连接视图并返回提示文案。
+ * 快照不含连接状态（如状态读取失败）时返回空串，由调用方展示读取错误。
+ */
+function noticeFromStatus(latest: { current: ConnectionView | null }, status: unknown): string {
+  const view = connectionViewOf(status);
+  if (!view) return "";
+  latest.current = mergeConnectionView(latest.current, view);
+  return connectionNotice(latest.current);
 }
 /** 打开分支弹窗时固定的目标会话；通知切换背景会话不能改换分支来源。 */
 interface BranchSessionTarget {
@@ -66,6 +77,8 @@ export function App(): JSX.Element {
     window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true);
   const isDark = resolveDarkTheme(theme, systemPrefersDark);
   const [harnessUp, setHarnessUp] = useState(false);
+  // 最近一次连接状态：断开通知本身不带来源与重试信息，提示文案从这里取。
+  const connectionRef = useRef<ConnectionView | null>(null);
   const [continuationSupported, setContinuationSupported] = useState(false);
   const [capabilities, setCapabilities] = useState<InitializeResponse["capabilities"]>();
   const branchViewsRef = useRef(false);
@@ -450,8 +463,10 @@ export function App(): JSX.Element {
         setCapabilities(status?.running ? status.capabilities : undefined);
         if (!status?.running) {
           // 状态查询失败（没有 state，error 带原因）与内核明确断开都要提示，不能静默停在未连接状态。
-          if (status?.error) setError(status.error);
-          else if (status?.state === "disconnected" || status?.state === "stopped") setError("本地内核未连接，可重新连接后恢复会话。");
+          // 断开的提示按连接状态生成：区分启动失败与就绪后断开，不直接展示内部错误文本。
+          const notice = noticeFromStatus(connectionRef, status);
+          if (notice) setError(notice);
+          else if (status?.state === undefined && status?.error) setError(status.error);
           return;
         }
         const processDefault = status.modelBridge
@@ -533,15 +548,25 @@ export function App(): JSX.Element {
     const unsubscribe = window.boss.onNotification(raw => {
       const event = raw as HarnessEvent;
       if (event.method === "harness/connectionStatus") {
+        const previous = connectionRef.current;
+        const view = mergeConnectionView(previous, connectionViewOf(event.params));
+        connectionRef.current = view;
         if (event.params?.state === "ready") { setError(""); void refresh(); }
-        else { setHarnessUp(false); setContinuationSupported(false); setCapabilities(undefined); }
+        else {
+          setHarnessUp(false); setContinuationSupported(false); setCapabilities(undefined);
+          // 提示跟随连接状态更新：重试是否用尽、自检结论到达都要反映；
+          // 自动重试的过渡状态没有新信息，不重新弹出已关闭的提示。
+          const notice = view !== previous ? connectionNotice(view) : "";
+          if (notice) setError(notice);
+        }
         return;
       }
       if (event.method === "harness/disconnected") {
         replica.invalidate(); setHarnessUp(false); setContinuationSupported(false); setCapabilities(undefined); setConfiguredModelLabel(undefined); setModelOptions([]);
         for (const timer of retryTimers.current.values()) clearTimeout(timer);
         retryTimers.current.clear(); setModelRetries({});
-        setError("本地内核已断开，正在恢复连接；结果未确认的对外操作请先核对平台状态。");
+        // 连接状态先于断开通知到达；缺少状态时退回通用提示，仍提醒核对结果未确认的操作。
+        setError(connectionNotice(connectionRef.current) || "本地内核已断开，正在恢复连接；结果未确认的对外操作请先核对平台状态。");
         for (const id of runningRef.current) markRunning(id, false);
         return;
       }
@@ -1179,8 +1204,10 @@ export function App(): JSX.Element {
       onOpenExport={exportSupported && contextThreadId && !preview ? () => setExportTarget({ threadId: contextThreadId, title: activeSession?.title ?? "" }) : undefined}
       onOpenShortcuts={() => setIsShortcutsOpen(true)} onReviewDiff={() => setIsDiffModalOpen(true)} onRevertDiff={() => setIsRevertModalOpen(true)} />
     {error && <div className="app-toast" role="alert"><span>{error}</span>{!harnessUp && window.boss && <button onClick={() => { void reconnectHarness().then(status => {
-      // 重连按钮此前没有任何结果反馈：失败时仍停留在同一条错误上，用户无法判断是否试过。
-      setError(status.running ? "" : `重新连接失败：${status.error || "本地内核仍未运行"}。请检查启动配置后重启应用。`);
+      // 重连结果以主进程返回的连接状态为准：仍未就绪时给出启动失败原因与本地自检结论，
+      // 与连接状态通知使用同一套文案，不会互相覆盖成不同说法。
+      setError(status.running ? "" : noticeFromStatus(connectionRef, status)
+        || `重新连接失败：${status.error || "本地内核仍未运行"}。请检查启动配置后重启应用。`);
     }); }}>重新连接</button>}<button onClick={() => { setError(""); const activeId = activeRef.current?.id; if (activeId) sessionErrors.current.delete(activeId); }} aria-label="关闭提示"><IconClose size={14} /></button></div>}
     <CockpitModal isOpen={isCockpitOpen} onClose={() => setIsCockpitOpen(false)} harnessUp={harnessUp} threadId={contextThreadId} threadTitle={activeSession?.title} />
     <ContextPanel isOpen={contextPanel.isOpen} onClose={() => { contextPanel.close(); setContextTarget(null); }} threadId={contextPanelThreadId} title={contextTarget?.title ?? activeSession?.title ?? ""} connected={harnessUp} busy={contextPanel.busy} state={contextPanel.state} onKeepRecentChange={contextPanel.changeKeepRecent} onRefresh={() => { void contextPanel.refresh(); }} onPlan={() => { void contextPanel.plan(); }} onStart={() => { void contextPanel.start(); }} onCancel={() => { void contextPanel.cancel(); }} autoCompaction={autoCompaction} workspaceEditor={capabilities?.workspaceInstructionsEdit === true} />

@@ -9,6 +9,12 @@ export interface HarnessConnectionStatus {
   generation: number;
   running: boolean;
   reconnectAttempt: number;
+  /** The latest connection ended before its handshake completed. Cleared on ready and explicit reconnect. */
+  startupFailed: boolean;
+  /** This host completed at least one handshake, so a disconnect may leave unconfirmed outcomes. */
+  wasReady: boolean;
+  /** Disconnected while the automatic recovery budget is not exhausted. */
+  willRetry: boolean;
   retryAt?: number;
   error?: string;
   modelBridge?: InitializeResponse["modelBridge"];
@@ -58,6 +64,8 @@ export class HarnessHostConnection {
   #retryTimer: ReturnType<typeof setTimeout> | null = null;
   #retryAt: number | undefined;
   #reconnectAttempt = 0;
+  #startupFailed = false;
+  #wasReady = false;
 
   constructor(options: HarnessHostOptions) {
     this.options = options;
@@ -65,9 +73,14 @@ export class HarnessHostConnection {
   }
 
   status(): HarnessConnectionStatus {
+    const retry = this.options.autoReconnect;
     return {
       hostId: this.hostId, state: this.#state, generation: this.#generation,
       running: this.#state === "ready", reconnectAttempt: this.#reconnectAttempt,
+      startupFailed: this.#startupFailed, wasReady: this.#wasReady,
+      // Mirrors #scheduleReconnect: observers can tell a pending retry from an exhausted budget.
+      willRetry: this.#state === "disconnected" && this.options.supportsReconnect === true &&
+        retry !== undefined && this.#reconnectAttempt < retry.maxAttempts,
       ...(this.#retryAt !== undefined ? { retryAt: this.#retryAt } : {}),
       ...(this.#error ? { error: this.#error } : {}),
       ...(this.#initialized ? { modelBridge: this.#initialized.modelBridge } : {}),
@@ -127,6 +140,8 @@ export class HarnessHostConnection {
       connection.notify("initialized");
       this.#initialized = response;
       this.#error = undefined;
+      this.#startupFailed = false;
+      this.#wasReady = true;
       // A process that briefly becomes ready and crashes again must not reset
       // the retry budget. Explicit reconnect starts a new recovery budget.
       this.#setState("ready");
@@ -182,6 +197,7 @@ export class HarnessHostConnection {
     this.#clearApprovals();
     if (old) this.#retire(old);
     this.#reconnectAttempt = 0;
+    this.#startupFailed = false;
     const restart = this.ensureReady().finally(() => { if (this.#restarting === restart) this.#restarting = null; });
     this.#restarting = restart;
     this.#setState("disconnected");
@@ -205,6 +221,8 @@ export class HarnessHostConnection {
 
   #disconnected(client: HarnessClient, generation: number, message: string): void {
     if (!this.#isCurrent(client, generation)) return;
+    // A connection that never completed its handshake failed to start; a ready one dropped.
+    this.#startupFailed = this.#initialized === undefined;
     this.#client = null; this.#initialized = undefined; this.#error = message;
     this.#clearApprovals();
     this.#retire(client);

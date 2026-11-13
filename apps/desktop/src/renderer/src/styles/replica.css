@@ -512,7 +512,9 @@ button.user-skill-chip:hover { border-color: var(--text-muted); color: var(--tex
 @keyframes agent-pulse { 50% { opacity: .25; } }
 .conversation-empty { margin: auto; display: flex; flex-direction: column; gap: 12px; align-items: center; color: var(--text-faint); padding: 40px; }
 .app-toast { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); z-index: 1200; max-width: min(560px, 90vw); display: flex; gap: 16px; align-items: center; padding: 13px 16px; background: var(--panel-glass); border: 1px solid var(--border-active); border-radius: 12px; box-shadow: var(--shadow-popup); font-size: 12px; color: var(--text-main); }
-.app-toast button { display: flex; border: 0; background: transparent; cursor: pointer; color: var(--text-muted); }
+/* 多行提示不能把操作按钮挤成竖排：按钮保持自身宽度，由文案换行。 */
+.app-toast > span { min-width: 0; overflow-wrap: anywhere; }
+.app-toast button { display: flex; flex-shrink: 0; border: 0; background: transparent; cursor: pointer; color: var(--text-muted); white-space: nowrap; }
 .sidechat-floating-window { max-width: calc(100vw - 24px); max-height: calc(100vh - 70px); }
 @media (max-width: 700px) { .diff-file-list { width: 160px; } .diff-review-footer { flex-wrap: wrap; } .cockpit-dialog .cockpit-body>div { grid-template-columns: 1fr !important; } }
 @media (prefers-reduced-motion: reduce) { .agent-running-indicator>span { animation: none; } }

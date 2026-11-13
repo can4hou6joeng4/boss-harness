@@ -673,6 +673,22 @@ export interface ThreadFocusTarget { threadId: string }
 export interface NotificationTestResult { sent: boolean; supported: boolean }
 /** 桌面进程内 IPC：应用图标徽标是否被当前平台接受。 */
 export interface BadgeCountResult { applied: boolean }
+/** 桌面进程内 IPC：内核启动失败后本地自检的一项结论，字段取自 `boss-harness --check` 的固定输出。 */
+export interface StartupCheckEntry {
+  name: string;
+  status: "ok" | "warning" | "error";
+  code: string;
+  message: string;
+  hint: string;
+}
+/**
+ * 桌面进程内 IPC：内核启动失败后的本地自检结论；不经内核 RPC。
+ * `unavailable` 表示自检本身没有给出合规报告：解释器无法启动（spawn）、进程异常退出（exit）、
+ * 超时（timeout）或输出不合规（invalid）。
+ */
+export type StartupDiagnosis =
+  | { kind: "report"; ok: boolean; checks: StartupCheckEntry[] }
+  | { kind: "unavailable"; reason: "spawn" | "exit" | "timeout" | "invalid" };
 export type ApprovalRespondResponse =
   | { accepted: true }
   | {
