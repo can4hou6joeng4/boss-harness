@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import { app, dialog, ipcMain, Notification, BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import { app, dialog, ipcMain, Notification, BrowserWindow, type IpcMainInvokeEvent, type MessageBoxReturnValue } from "electron";
 import { HarnessHostManager, HarnessRpcError, type HarnessHostConnection } from "@boss-harness/app-client";
 import type { ApprovalFocusTarget, BadgeCountResult, JsonRpcNotification, NotificationTestResult,
   SessionExportSaveResult, ThreadFocusTarget } from "@boss-harness/protocol";
@@ -12,6 +12,7 @@ import { sessionExportWriteError } from "./exportErrors";
 import { writeSessionExport } from "./sessionExportWrite";
 import { approvalNotificationContent, rememberApproval } from "./approvalNotification";
 import { readTurnEvent, recordTurnStart, turnNotificationContent } from "./turnNotification";
+import { quitConfirmationContent } from "./quitConfirmation";
 import { normalizeBadgeCount } from "./notificationBadge";
 import { NotificationRegistry } from "./notificationRegistry";
 
@@ -96,6 +97,16 @@ function sendThreadFocus(target: BrowserWindow, focus: ThreadFocusTarget): void 
 const turnStartedAt = new Map<string, number>();
 
 /**
+ * 连接断开或重连时清空运行中回合：上一代内核进程的回合无法继续，
+ * 也不应让退出确认基于残留状态反复拦截。
+ */
+function forgetTurnsOnDisconnect(notification: JsonRpcNotification): void {
+  if (notification.method !== "harness/connectionStatus") return;
+  const params = notification.params as { state?: unknown } | undefined;
+  if (params?.state !== "ready") turnStartedAt.clear();
+}
+
+/**
  * 窗口不在前台时，用系统通知提示运行较久（≥ 20 秒）的回合已结束。
  * 开始时间来自 `turn/started`；缺少配对开始时间时不猜测时长，也不提醒。
  */
@@ -162,11 +173,47 @@ function createHost(): HarnessHostConnection {
     },
   });
   connection.onNotification((notification) => {
+    forgetTurnsOnDisconnect(notification);
     for (const window of windows) send(window, notification);
     notifyApproval(notification);
     notifyTurn(notification);
   });
   return connection;
+}
+
+let quitConfirmed = false;
+let quitPromptOpen = false;
+
+/**
+ * 存在运行中回合时拦截退出并显示原生确认框。
+ * 返回 true 表示可以继续退出；选择「继续运行」会取消本次退出并恢复主窗口。
+ */
+function confirmQuit(event: { preventDefault(): void }): boolean {
+  if (quitConfirmed) return true;
+  const content = quitConfirmationContent(turnStartedAt.size);
+  if (!content) return true;
+  event.preventDefault();
+  if (quitPromptOpen) return false;
+  quitPromptOpen = true;
+  const parent = [...windows].find((window) => !window.isDestroyed());
+  let prompt: Promise<MessageBoxReturnValue>;
+  try {
+    prompt = parent ? dialog.showMessageBox(parent, content) : dialog.showMessageBox(content);
+  } catch {
+    prompt = Promise.reject(new Error("quit confirmation could not open"));
+  }
+  void prompt.then(({ response }) => {
+    quitPromptOpen = false;
+    if (response !== 1) { revealWindow(); return; }
+    quitConfirmed = true;
+    app.quit();
+  }, () => {
+    // 确认框无法显示或完成时按用户明确的退出意图继续退出，避免应用无法关闭。
+    quitPromptOpen = false;
+    quitConfirmed = true;
+    app.quit();
+  });
+  return false;
 }
 
 function registerIPC(): void {
@@ -279,7 +326,10 @@ function registerIPC(): void {
       return { sent: false, supported: true };
     }
   });
-  app.once("before-quit", () => { platformLogin.cancel(); manager.dispose(); host = null; windows.clear(); });
+  app.on("before-quit", (event) => {
+    if (!confirmQuit(event)) return;
+    platformLogin.cancel(); manager.dispose(); host = null; windows.clear();
+  });
 }
 
 /** Windows subscribe to the host registry; closing one window cannot stop the backend. */
