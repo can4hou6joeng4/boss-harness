@@ -64,6 +64,9 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   // 批量撤回的确认快照；批量进行中禁用关闭，避免重复确认。
   const [removeTargets, setRemoveTargets] = useState<QueueItem[] | null>(null);
   const batchCancel = useRef(false);
+  // 用户请求在当前条目完成后停止批量；与切换会话导致的停止区分，按普通提示结算。
+  const batchHalt = useRef(false);
+  const [batchStopping, setBatchStopping] = useState(false);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; batchCancel.current = true; }, []);
   const clipboard = useClipboardCopy();
@@ -175,22 +178,29 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     if (batch || queueBusy || !onRetry || retryablePaused.length < 2) return;
     const targets = retryablePaused;
     batchCancel.current = false;
+    batchHalt.current = false;
+    setBatchStopping(false);
     actions.setError(""); setBatchNotice("");
     setBatch({ mode: "retry", total: targets.length, done: 0 });
     let done = 0;
+    let halted = false;
     let stopped: string | null = null;
     for (const item of targets) {
       if (batchCancel.current) { stopped = "已切换会话，剩余暂停消息未重新排队。"; break; }
+      if (batchHalt.current) { halted = true; break; }
       const notice = await retry(item);
       if (notice) { stopped = notice; break; }
       done += 1;
       if (alive.current) setBatch(current => current ? { ...current, done } : current);
     }
-    const summary = stopped
-      ? `已重新排队 ${done} 条；${stopped}其余暂停消息保持原样。`
-      : `已重新排队 ${done} 条暂停消息。`;
+    const summary = halted
+      ? `已重新排队 ${done} 条；已停止，其余暂停消息保持原样。`
+      : stopped
+        ? `已重新排队 ${done} 条；${stopped}其余暂停消息保持原样。`
+        : `已重新排队 ${done} 条暂停消息。`;
     if (!alive.current) { actions.setError(summary); return; }
     setBatch(null);
+    setBatchStopping(false);
     if (stopped) actions.setError(summary); else setBatchNotice(summary);
   };
   /** 撤回一条并返回停止原因；null 表示本条已确认撤回。`certain` 为 false 表示结果未确认。 */
@@ -248,27 +258,40 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     if (batch || queueBusy || !removeTargets || removeTargets.length < 2) return;
     const targets = removeTargets;
     batchCancel.current = false;
+    batchHalt.current = false;
+    setBatchStopping(false);
     actions.setError(""); setBatchNotice("");
     setBatch({ mode: "remove", total: targets.length, done: 0 });
     let done = 0;
+    let halted = false;
     let stopped: string | null = null;
     let certain = true;
     for (const item of targets) {
       if (batchCancel.current) { stopped = "已切换会话，剩余暂停消息未撤回。"; break; }
+      if (batchHalt.current) { halted = true; break; }
       const failure = await removeOne(item);
       if (failure) { stopped = failure.stop; certain = failure.certain; break; }
       done += 1;
       if (alive.current) setBatch(current => current ? { ...current, done } : current);
     }
-    const summary = stopped
-      ? certain
-        ? `已撤回 ${done} 条；${stopped}其余暂停消息保持原样。`
-        : `已撤回 ${done} 条；${stopped}其余暂停消息未撤回。`
-      : `已撤回 ${done} 条暂停消息。`;
+    const summary = halted
+      ? `已撤回 ${done} 条；已停止，其余暂停消息保持原样。`
+      : stopped
+        ? certain
+          ? `已撤回 ${done} 条；${stopped}其余暂停消息保持原样。`
+          : `已撤回 ${done} 条；${stopped}其余暂停消息未撤回。`
+        : `已撤回 ${done} 条暂停消息。`;
     if (alive.current) setRemoveTargets(null);
     if (!alive.current) { actions.setError(summary); return; }
     setBatch(null);
+    setBatchStopping(false);
     if (stopped) actions.setError(summary); else setBatchNotice(summary);
+  };
+  /** 请求停止批量：当前在途条目完成后不再开始下一条，已成功的条目不回滚。 */
+  const stopBatch = () => {
+    if (!batch || batchHalt.current) return;
+    batchHalt.current = true;
+    setBatchStopping(true);
   };
   const collapsedItems = selectVisibleQueueItems(items, false);
   const visibleItems = showAll ? selectVisibleQueueItems(items, true) : collapsedItems;
@@ -344,6 +367,9 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
       {onRetry && retryablePaused.length >= 2 && <button type="button" disabled={batch !== null || queueBusy || !connected}
         title={connected ? "按列表顺序逐条用完整正文与技能重新创建排队消息并撤回旧项；遇到拒绝或结果未确认时停止，不自动重试" : "本机内核未连接，恢复连接后再重新排队"}
         onClick={() => { void retryAll(); }}>{batch?.mode === "retry" ? `正在重新排队…（${batch.done}/${batch.total}）` : `重新排队全部暂停项（${retryablePaused.length}）`}</button>}
+      {batch?.mode === "retry" && <button type="button" className="turn-queue-batch-stop" disabled={batchStopping}
+        title="完成当前这一条后不再开始下一条；已重新排队的项保持原样"
+        onClick={stopBatch}>{batchStopping ? "正在停止…" : "停止剩余"}</button>}
       {removablePaused.length >= 2 && <button type="button" className="turn-queue-batch-remove" disabled={batch !== null || queueBusy || !connected}
         title={connected ? "按列表顺序逐条撤回暂停消息；撤回后正文不会自动恢复，遇到拒绝或结果未确认时停止" : "本机内核未连接，恢复连接后再撤回"}
         onClick={startRemoveAll}>{batch?.mode === "remove" ? `正在撤回…（${batch.done}/${batch.total}）` : `撤回全部暂停项（${removablePaused.length}）`}</button>}
@@ -405,7 +431,9 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
         {removeTargets.length > 3 && <p className="dialog-note">另有 {removeTargets.length - 3} 条未展开；撤回范围以打开确认框时的暂停列表为准。</p>}
         {!connected && <p className="queue-input-edit-error" role="alert">本机内核未连接，恢复连接后才能撤回。</p>}
         <div className="dialog-actions">
-          <button type="button" className="secondary-button" disabled={removeBusy || batch?.mode === "remove"} onClick={closeRemoveAll}>取消</button>
+          {batch?.mode === "remove"
+            ? <button type="button" className="secondary-button" disabled={batchStopping} onClick={stopBatch}>{batchStopping ? "正在停止…" : "停止剩余"}</button>
+            : <button type="button" className="secondary-button" disabled={removeBusy} onClick={closeRemoveAll}>取消</button>}
           <button type="button" className="solid-button danger-button" disabled={removeBusy || batch !== null || !connected}
             onClick={() => { void removeAll(); }}>{batch?.mode === "remove" ? `正在撤回…（${batch.done}/${batch.total}）` : `确认撤回 ${removeTargets.length} 条`}</button>
         </div>
