@@ -2,6 +2,7 @@
   "name": "@boss-harness/shared",
   "version": "0.2.0-rc.15",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "main": "src/index.ts",
   "exports": {

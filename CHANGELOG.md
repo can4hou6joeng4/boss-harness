@@ -4,9 +4,9 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-## 0.2.0-rc.15 - 2026-11-13
+## 0.2.0-rc.15 - 2026-11-14
 
-本节为第十五个候选版本的源码准备记录；对应 tag / Release 尚未创建。
+本节汇总第十五个候选版本的源码与交付内容；实际发布状态以 [GitHub Release](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15) 为准。
 
 ### 本版概览
 
@@ -16,7 +16,9 @@
 
 内核与业务桥的权限、恢复、上下文预算、模型传输、日志和快照完整性改进，以及每项变更的来源与验证范围，保留在下面的完整记录中。此次不重新实现这些机制；源码版本汇总不代表真实模型、招聘平台或独立安装包已验收。本版汇总的既有条目包含 `v0.2.0-rc.14` 之后合入的新增 RPC 方法（如 `thread/search`、`thread/export`、`task/read`、`approval/list`、`queue/update`、技能读写与 `turn/continue`），协议版本仍为 `0.2.0`；本次版本准备自身未改动 RPC 实现，范围以各条目为准。
 
-交付仍为源码运行与 Python 内核 wheel / sdist，没有独立桌面安装包或签名发行流程，源码许可证尚待选定。发布准备、资产与文档核对见 [发布约定](RELEASING.md)。
+交付为 MIT 许可的源码与 Python 内核 wheel / sdist，包内随附许可文本；桌面仍从源码运行，没有独立桌面安装包或签名发行流程。发布准备、资产与文档核对见 [发布约定](RELEASING.md)。
+
+- [Issue #1162](https://github.com/can4hou6joeng4/boss-harness/issues/1162)：正式采用 MIT License，同步 npm 与 Python 许可元数据，wheel / sdist 随附与根目录一致的许可文本；发布资产从包含许可证的合并提交重新构建，替换发布前的无许可证候选产物，不改写已发布版本。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 - [Issue #1160](https://github.com/can4hou6joeng4/boss-harness/issues/1160)：从当前主干独立准备 npm `0.2.0-rc.15` / Python `0.2.0rc15`，同步工作区、锁文件、运行时版本与 README；归档累计未发布变更并补充本版概览，保留完整来源记录。旧发布 PR #167 保持原样，新的 tag / Release 另待具体授权。不新增 RPC，协议与内核仍为 `0.2.0`。
 
