@@ -6,6 +6,7 @@ import { approvalRemainingText, groupPendingApprovals, nextApprovalIndex } from 
 import { notificationGroupLabel } from "../data/notificationLabels";
 import { harnessErrorText, listPendingApprovals } from "../data/harnessBridge";
 import { sessionRows } from "../data/sessionRows";
+import { createSingleFlightReload } from "../data/singleFlightReload";
 import type { ProjectFolder, SessionItem } from "../data/mockData";
 
 type PendingState =
@@ -30,37 +31,37 @@ export function NotificationsDialog({ folders, preview = false, refreshToken, on
   const [reload, setReload] = useState(0);
   const loaded = useRef(onLoaded); loaded.current = onLoaded;
   const silentReload = useRef<() => void>(() => {});
+  const previousRefreshToken = useRef(refreshToken);
 
   useEffect(() => {
     if (preview) return;
-    let cancelled = false, inFlight = false;
-    const load = (silent: boolean) => {
-      if (inFlight) return;
-      inFlight = true;
-      if (!silent) setState({ status: "loading" });
-      void listPendingApprovals(100).then(
-        result => { if (cancelled) return; setState({ status: "ready", approvals: result.approvals, truncated: result.truncated, now: Date.now() }); loaded.current?.(result.approvals, result.truncated); },
-        cause => {
-          if (cancelled) return;
-          // 后台刷新失败保留已有列表；首次读取失败才展示错误与重试。
-          setState(previous => silent && previous.status === "ready" ? previous : { status: "error", message: harnessErrorText(cause) });
-        },
-      ).finally(() => { inFlight = false; });
-    };
-    silentReload.current = () => load(true);
-    load(false);
+    let cancelled = false;
+    setState({ status: "loading" });
+    // 与侧栏共用单飞和尾随合并：慢读取期间的审批变化不能丢弃，结束后补读最新状态。
+    const refresh = createSingleFlightReload(() => listPendingApprovals(100).then(
+      result => { if (cancelled) return; setState({ status: "ready", approvals: result.approvals, truncated: result.truncated, now: Date.now() }); loaded.current?.(result.approvals, result.truncated); },
+      cause => {
+        if (cancelled) return;
+        // 后台刷新失败保留已有列表；首次读取失败才展示错误与重试。
+        setState(previous => previous.status === "ready" ? previous : { status: "error", message: harnessErrorText(cause) });
+      },
+    ));
+    silentReload.current = refresh.run;
+    refresh.run();
     // 打开期间每 15 秒静默重读，让新审批、已处理项与到期提示保持新鲜。
-    const timer = window.setInterval(() => { if (document.visibilityState !== "hidden") load(true); }, 15_000);
-    const onFocus = () => load(true);
+    const timer = window.setInterval(() => { if (document.visibilityState !== "hidden") refresh.run(); }, 15_000);
+    const onFocus = refresh.run;
     window.addEventListener("focus", onFocus);
     return () => {
-      cancelled = true; silentReload.current = () => {};
+      cancelled = true; refresh.cancel(); silentReload.current = () => {};
       window.clearInterval(timer); window.removeEventListener("focus", onFocus);
     };
   }, [reload, preview]);
 
   useEffect(() => {
-    // 审批事件到达时立即静默重读；首次挂载由上面的加载负责，inFlight 会合并重复请求。
+    // 只响应打开后的新事件：挂载时已有的计数不能为首次读取额外排一次补读。
+    if (previousRefreshToken.current === refreshToken) return;
+    previousRefreshToken.current = refreshToken;
     if (preview || !refreshToken) return;
     silentReload.current();
   }, [refreshToken, preview]);
