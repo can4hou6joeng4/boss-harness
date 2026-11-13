@@ -58,9 +58,11 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   const [removeTarget, setRemoveTarget] = useState<QueueItem | null>(null);
   // 折叠状态优先显示暂停项；展开后渲染内核已载入的全部条目。
   const [showAll, setShowAll] = useState(false);
-  // 批量重新排队：串行处理暂停项，展示进度；面板卸载时停止处理剩余项。
-  const [batch, setBatch] = useState<{ total: number; done: number } | null>(null);
+  // 批量重新排队 / 批量撤回：串行处理暂停项，展示进度；面板卸载时停止处理剩余项。
+  const [batch, setBatch] = useState<{ mode: "retry" | "remove"; total: number; done: number } | null>(null);
   const [batchNotice, setBatchNotice] = useState("");
+  // 批量撤回的确认快照；批量进行中禁用关闭，避免重复确认。
+  const [removeTargets, setRemoveTargets] = useState<QueueItem[] | null>(null);
   const batchCancel = useRef(false);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; batchCancel.current = true; }, []);
@@ -71,7 +73,7 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     setViewing(current => syncQueueDialogItem(current, items));
     setEditing(current => syncQueueEditDialog(current, items));
   }, [items, setEditing]);
-  if (!items.length && !editing && !removeTarget) return null;
+  if (!items.length && !editing && !removeTarget && !removeTargets) return null;
   const editChanged = editing !== null && editing.draft !== editing.originalInput;
   // 撤回确认框绑定实时条目：条目被投递或撤回后禁止继续提交，但保留正文供核对。
   const removeLive = removeTarget ? items.find(item => item.id === removeTarget.id) : undefined;
@@ -93,6 +95,8 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   const canRetry = (item: QueueItem) => Boolean(onRetry) && queueItemRetryable(item);
   // 批量入口只处理可重试的暂停项；不可重试的暂停项仍需用户核对后撤回。
   const retryablePaused = items.filter(canRetry);
+  // 批量撤回只覆盖暂停项：排队与投递中的消息仍按单条确认撤回。
+  const removablePaused = items.filter(item => item.status === "paused");
   const showFullInput = async (item: QueueItem) => {
     if (!onReadFull || reading) return;
     clipboard.reset();
@@ -172,7 +176,7 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     const targets = retryablePaused;
     batchCancel.current = false;
     actions.setError(""); setBatchNotice("");
-    setBatch({ total: targets.length, done: 0 });
+    setBatch({ mode: "retry", total: targets.length, done: 0 });
     let done = 0;
     let stopped: string | null = null;
     for (const item of targets) {
@@ -189,30 +193,82 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     setBatch(null);
     if (stopped) actions.setError(summary); else setBatchNotice(summary);
   };
+  /** 撤回一条并返回停止原因；null 表示本条已确认撤回。`certain` 为 false 表示结果未确认。 */
+  const removeOne = async (item: QueueItem): Promise<{ stop: string; certain: boolean } | null> => {
+    const current = actions.getState();
+    if (current.pendingRetryId !== null || current.pendingRemoveId !== null) {
+      return { stop: "另一条队列操作仍在进行，本次没有发出。", certain: true };
+    }
+    actions.beginRemove(item.id);
+    let outcome: QueueActionOutcome;
+    try {
+      outcome = await onRemove(item.id);
+    } catch (cause) {
+      const stop = `撤回结果尚未确认：${harnessErrorText(cause)}。请核对队列状态。`;
+      actions.settleRemove(item.id, stop);
+      return { stop, certain: false };
+    }
+    const notice = queueActionNotice("撤回", outcome);
+    actions.settleRemove(item.id, notice ?? "");
+    return notice ? { stop: notice, certain: outcome.status === "skipped" } : null;
+  };
   // 首次点击只打开确认框，不发出任何队列写请求；取消或关闭保持条目原样。
   const startRemove = (item: QueueItem) => {
     const current = actions.getState();
     if (batch || current.pendingRetryId !== null || current.pendingRemoveId !== null) return;
     actions.setError(""); actions.setRemoveMessage(""); setRemoveTarget(item);
   };
+  /** 打开批量撤回确认框；只持有暂停项快照，不发出任何队列写请求。 */
+  const startRemoveAll = () => {
+    const current = actions.getState();
+    if (batch || current.pendingRetryId !== null || current.pendingRemoveId !== null || !connected || removablePaused.length < 2) return;
+    actions.setError(""); actions.setRemoveMessage(""); setBatchNotice("");
+    setRemoveTargets(removablePaused);
+  };
   const closeRemove = () => {
     if (removeBusy) return;
     setRemoveTarget(null); actions.setRemoveMessage("");
+  };
+  const closeRemoveAll = () => {
+    if (removeBusy || batch?.mode === "remove") return;
+    setRemoveTargets(null);
   };
   const confirmRemove = async () => {
     // 同步读取最新锁：两次快速确认不能都穿过渲染快照，向同一队列项重复撤回。
     const current = actions.getState();
     if (!removeTarget || current.pendingRetryId !== null || current.pendingRemoveId !== null || !removeAvailable) return;
-    const id = removeTarget.id;
-    actions.beginRemove(id);
-    try {
-      const notice = queueActionNotice("撤回", await onRemove(id));
-      // 结果未确认时保留确认框与正文，让用户看到提示后再决定是否核对。
-      actions.settleRemove(id, notice ?? "");
-      if (!notice) setRemoveTarget(null);
-    } catch (cause) {
-      actions.settleRemove(id, `撤回结果尚未确认：${harnessErrorText(cause)}。请核对队列状态。`);
+    const failure = await removeOne(removeTarget);
+    if (!failure) setRemoveTarget(null);
+  };
+  /**
+   * 批量撤回：按列表顺序逐条串行撤回暂停项，每条确认后再开始下一条。
+   * 遇到拒绝或结果未确认立即停止；面板卸载时不再发出新的请求，已完成结果仍写回原会话。
+   */
+  const removeAll = async () => {
+    if (batch || queueBusy || !removeTargets || removeTargets.length < 2) return;
+    const targets = removeTargets;
+    batchCancel.current = false;
+    actions.setError(""); setBatchNotice("");
+    setBatch({ mode: "remove", total: targets.length, done: 0 });
+    let done = 0;
+    let stopped: string | null = null;
+    let certain = true;
+    for (const item of targets) {
+      if (batchCancel.current) { stopped = "已切换会话，剩余暂停消息未撤回。"; break; }
+      const failure = await removeOne(item);
+      if (failure) { stopped = failure.stop; certain = failure.certain; break; }
+      done += 1;
+      if (alive.current) setBatch(current => current ? { ...current, done } : current);
     }
+    const summary = stopped
+      ? certain
+        ? `已撤回 ${done} 条；${stopped}其余暂停消息保持原样。`
+        : `已撤回 ${done} 条；${stopped}其余暂停消息未撤回。`
+      : `已撤回 ${done} 条暂停消息。`;
+    if (alive.current) setRemoveTargets(null);
+    if (!alive.current) { actions.setError(summary); return; }
+    setBatch(null);
+    if (stopped) actions.setError(summary); else setBatchNotice(summary);
   };
   const collapsedItems = selectVisibleQueueItems(items, false);
   const visibleItems = showAll ? selectVisibleQueueItems(items, true) : collapsedItems;
@@ -284,10 +340,13 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
         ><IconClose size={14} /></button>}
       </li>)}
     </ul>
-    {onRetry && retryablePaused.length >= 2 && <div className="turn-queue-batch">
-      <button type="button" disabled={batch !== null || queueBusy || !connected}
+    {((onRetry && retryablePaused.length >= 2) || removablePaused.length >= 2) && <div className="turn-queue-batch">
+      {onRetry && retryablePaused.length >= 2 && <button type="button" disabled={batch !== null || queueBusy || !connected}
         title={connected ? "按列表顺序逐条用完整正文与技能重新创建排队消息并撤回旧项；遇到拒绝或结果未确认时停止，不自动重试" : "本机内核未连接，恢复连接后再重新排队"}
-        onClick={() => { void retryAll(); }}>{batch ? `正在重新排队…（${batch.done}/${batch.total}）` : `重新排队全部暂停项（${retryablePaused.length}）`}</button>
+        onClick={() => { void retryAll(); }}>{batch?.mode === "retry" ? `正在重新排队…（${batch.done}/${batch.total}）` : `重新排队全部暂停项（${retryablePaused.length}）`}</button>}
+      {removablePaused.length >= 2 && <button type="button" className="turn-queue-batch-remove" disabled={batch !== null || queueBusy || !connected}
+        title={connected ? "按列表顺序逐条撤回暂停消息；撤回后正文不会自动恢复，遇到拒绝或结果未确认时停止" : "本机内核未连接，恢复连接后再撤回"}
+        onClick={startRemoveAll}>{batch?.mode === "remove" ? `正在撤回…（${batch.done}/${batch.total}）` : `撤回全部暂停项（${removablePaused.length}）`}</button>}
     </div>}
     {batchNotice && !error && <p className="turn-queue-note" role="status">{batchNotice}</p>}
     {(error || (removeTarget ? "" : removeMessage)) && <p className="turn-queue-error" role="status">{error || removeMessage}</p>}
@@ -331,6 +390,24 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
           <button type="button" className="secondary-button" disabled={removeBusy} onClick={closeRemove}>取消</button>
           <button type="button" className="solid-button danger-button" disabled={removeBusy || !removeAvailable || !connected}
             onClick={() => { void confirmRemove(); }}>{removeBusy ? "正在撤回…" : "确认撤回"}</button>
+        </div>
+      </div>
+    </ModalSurface>}
+    {removeTargets && <ModalSurface title="撤回暂停消息" onClose={closeRemoveAll} closeDisabled={removeBusy || batch?.mode === "remove"} className="queue-remove-dialog queue-batch-remove-dialog">
+      <div className="dialog-form queue-input-dialog">
+        <p className="dialog-note">将撤回 {removeTargets.length} 条暂停消息；撤回后这些消息不会再投递，正文也不会自动恢复。排队中、投递中与已结束项不在本次范围内。</p>
+        <ul className="queue-batch-remove-list">
+          {removeTargets.slice(0, 3).map(item => <li key={item.id}>
+            <span>{item.kind === "steering" ? "当前回合" : "后续回合"}</span>
+            <p>{safeSlice(item.input, 120)}</p>
+          </li>)}
+        </ul>
+        {removeTargets.length > 3 && <p className="dialog-note">另有 {removeTargets.length - 3} 条未展开；撤回范围以打开确认框时的暂停列表为准。</p>}
+        {!connected && <p className="queue-input-edit-error" role="alert">本机内核未连接，恢复连接后才能撤回。</p>}
+        <div className="dialog-actions">
+          <button type="button" className="secondary-button" disabled={removeBusy || batch?.mode === "remove"} onClick={closeRemoveAll}>取消</button>
+          <button type="button" className="solid-button danger-button" disabled={removeBusy || batch !== null || !connected}
+            onClick={() => { void removeAll(); }}>{batch?.mode === "remove" ? `正在撤回…（${batch.done}/${batch.total}）` : `确认撤回 ${removeTargets.length} 条`}</button>
         </div>
       </div>
     </ModalSurface>}
