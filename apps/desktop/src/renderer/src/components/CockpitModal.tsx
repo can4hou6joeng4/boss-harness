@@ -72,8 +72,10 @@ function SourceError({ label, error }: { label: string; error?: string }) {
   return error ? <p className="cockpit-error" role="status">{label}读取失败：{error}</p> : null;
 }
 
-function OwnerRow({ owner, check, onCheck }: {
+function OwnerRow({ owner, elapsedSeconds, check, onCheck }: {
   owner: RuntimeResourceOwner;
+  /** 自本机收到运行资源快照以来的经过秒数；面板打开期间随本地时钟推进。 */
+  elapsedSeconds: number;
   check?: TaskCheckState;
   onCheck: () => void;
 }) {
@@ -87,7 +89,7 @@ function OwnerRow({ owner, check, onCheck }: {
       <div className="cockpit-row-main">
         <div className="cockpit-row-title">{ownerKindLabel(owner.kind)} · {shortId(owner.id)}</div>
         <div className="cockpit-row-sub">
-          会话 {shortId(owner.threadId)} · {ownerStateLabel(owner.state)} · 已运行 {durationText(owner.ageSeconds)}
+          会话 {shortId(owner.threadId)} · {ownerStateLabel(owner.state)} · 已运行 {durationText(owner.ageSeconds + elapsedSeconds)}
         </div>
         {flags ? <div className="cockpit-row-sub cockpit-row-alert-text">{flags}</div> : null}
         {checkable ? <div className="cockpit-row-actions">
@@ -217,7 +219,7 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
     void load(true);
   }, [isOpen, load]);
 
-  // 期限按本机时间前进：面板只在内核事件与手动刷新时重读快照，不能因此冻结到期提示。
+  // 期限与运行时长按本机时间前进：面板只在内核事件与手动刷新时重读快照，不能因此冻结文案。
   // 节拍与通知面板、聊天内审批卡一致；只更新本地时钟，不触发任何读取。
   useEffect(() => {
     if (!isOpen) return;
@@ -255,6 +257,9 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
   const approvalRequiredCount = toolsKnown ? tools.filter(tool => tool.requiresApproval).length : undefined;
   const configuredModelCount = modelsKnown ? models.filter(model => model.configured).length : undefined;
   const updatedText = updatedAt === null ? "" : formatLocalClock(new Date(updatedAt));
+  // 运行时长与读取时刻一起前进：内核只在读取那一刻算出 ageSeconds / waitingSeconds，
+  // 面板停开期间要叠加本机经过时间，否则「已运行 / 已等待」会冻结。快照重读后按新的读取时刻重新起算。
+  const elapsedSeconds = updatedAt === null ? 0 : Math.max(0, (now - updatedAt) / 1000);
 
   return (
     <ModalSurface title="运行状态" onClose={onClose} className="cockpit-dialog">
@@ -354,12 +359,12 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
             {resources ? (
               <>
                 <h3 className="cockpit-subheading">运行中或收尾中的 owner（{NUMBER.format(resources.ownerCount)}）</h3>
-                <p className="dialog-note">可逐个 owner 经 task/read 核对持久记录；核对为只读，不恢复、不重放、不取消任务。</p>
+                <p className="dialog-note">可逐个 owner 经 task/read 核对持久记录；核对为只读，不恢复、不重放、不取消任务。时长按本机时间推进，内核快照只在刷新时更新。</p>
                 {resources.ownersTruncated ? <p className="dialog-note">明细已按内核上限截断，仅显示 {resources.owners.length} 项。</p> : null}
                 {resources.owners.length === 0
                   ? <p className="cockpit-empty">当前没有运行中或收尾中的回合与摘要任务。</p>
                   : <div className="cockpit-list">{resources.owners.map((owner, index) => <OwnerRow key={`${owner.kind}:${owner.id}:${index}`} owner={owner}
-                    check={taskChecks[`${owner.kind}:${owner.id}`]} onCheck={() => { void runTaskCheck(owner); }} />)}</div>}
+                    elapsedSeconds={elapsedSeconds} check={taskChecks[`${owner.kind}:${owner.id}`]} onCheck={() => { void runTaskCheck(owner); }} />)}</div>}
                 <h3 className="cockpit-subheading">容量等待（{NUMBER.format(resources.waiterCount)}）</h3>
                 {resources.waitersTruncated ? <p className="dialog-note">等待明细已按内核上限截断，仅显示 {resources.waiters.length} 项。</p> : null}
                 {resources.waiters.length === 0
@@ -368,7 +373,7 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
                     <div className="cockpit-row" key={`${waiter.threadId}:${waiter.position}:${index}`}>
                       <div className="cockpit-row-main">
                         <div className="cockpit-row-title">第 {waiter.position} 位 · 会话 {shortId(waiter.threadId)}</div>
-                        <div className="cockpit-row-sub">已等待 {durationText(waiter.waitingSeconds)}</div>
+                        <div className="cockpit-row-sub">已等待 {durationText(waiter.waitingSeconds + elapsedSeconds)}</div>
                       </div>
                     </div>
                   ))}</div>}
