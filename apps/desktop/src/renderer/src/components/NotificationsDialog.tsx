@@ -46,11 +46,16 @@ export function NotificationsDialog({ folders, preview = false, refreshToken, on
         setState(previous => previous.status === "ready" ? previous : { status: "error", message: harnessErrorText(cause) });
       },
     ));
-    silentReload.current = refresh.run;
+    const refreshView = () => {
+      // 到期提示按本机时间前进，不依赖本次列表读取成功；慢读取或失败仍保留正确期限。
+      setState(previous => previous.status === "ready" ? { ...previous, now: Date.now() } : previous);
+      refresh.run();
+    };
+    silentReload.current = refreshView;
     refresh.run();
     // 打开期间每 15 秒静默重读，让新审批、已处理项与到期提示保持新鲜。
-    const timer = window.setInterval(() => { if (document.visibilityState !== "hidden") refresh.run(); }, 15_000);
-    const onFocus = refresh.run;
+    const timer = window.setInterval(() => { if (document.visibilityState !== "hidden") refreshView(); }, 15_000);
+    const onFocus = refreshView;
     window.addEventListener("focus", onFocus);
     return () => {
       cancelled = true; refresh.cancel(); silentReload.current = () => {};
