@@ -100,3 +100,45 @@ export function queueSubmissionLookup(page: QueuePage, clientUserMessageId: stri
   if (item) return item.status === "cancelled" ? { status: "cancelled", item } : { status: "found", item };
   return page.truncated === true ? { status: "unknown" } : { status: "missing" };
 }
+
+/**
+ * 把本地新入队、撤回或编辑的条目合入当前会话的队列投影。
+ * 重新计算待处理数量与总数，使界面与侧栏徽标即时收敛，不依赖后续轮询。
+ */
+export function patchQueuePage(page: QueuePage | undefined, item: QueueItem): QueuePage {
+  const currentItems = page?.items ?? [];
+  const index = currentItems.findIndex(existing => existing.id === item.id);
+  const exists = index >= 0;
+  const previousItem = exists ? currentItems[index] : undefined;
+  const items = exists
+    ? currentItems.map((existing, i) => i === index ? item : existing)
+    : [...currentItems, item];
+
+  const wasActive = previousItem
+    ? previousItem.status === "queued" || previousItem.status === "delivering" || previousItem.status === "paused"
+    : false;
+  const nowActive = item.status === "queued" || item.status === "delivering" || item.status === "paused";
+
+  const loadedActive = items.filter(entry => entry.status === "queued" || entry.status === "delivering" || entry.status === "paused").length;
+  let activeItems: number;
+  if (typeof page?.activeItems === "number") {
+    const delta = (!wasActive && nowActive) ? 1 : (wasActive && !nowActive) ? -1 : 0;
+    activeItems = Math.max(0, page.activeItems + delta);
+  } else {
+    activeItems = loadedActive;
+  }
+
+  let totalItems: number | undefined;
+  if (typeof page?.totalItems === "number") {
+    totalItems = Math.max(page.totalItems + (exists ? 0 : 1), items.length);
+  } else if (items.length > 0) {
+    totalItems = items.length;
+  }
+
+  return {
+    items,
+    totalItems,
+    activeItems,
+    truncated: page?.truncated,
+  };
+}

@@ -33,7 +33,7 @@ import { unconfirmedFailure } from "./data/confirmationFailure";
 import { sendFailureNotice, sendFailureRecheckNotice } from "./data/sendFailure";
 import { sessionStartNotice, type SessionStartOutcome } from "./data/sessionStart";
 import { HarnessReplica } from "./data/harnessReplica";
-import { queueItemsOf, queueSubmissionLookup, type QueuePage } from "./data/queueMapping";
+import { patchQueuePage, queueItemsOf, queueSubmissionLookup, type QueuePage } from "./data/queueMapping";
 import { patchQueueBadge, queueBadgeOf } from "./data/queueBadge";
 import { queueItemRetryable } from "./data/queueRetry";
 import { createQueueReadGuard } from "./data/queueReadGuard";
@@ -134,14 +134,20 @@ export function App(): JSX.Element {
       return changed ? next : previous;
     });
   }, []);
+  // 按会话记录队列投影缓存；当前会话同时更新渲染状态，后台会话预热缓存供切入时立即呈现。
   const applyQueuePage = useCallback((page: QueuePage, threadId?: string) => {
-    setQueueItems(page.items);
-    setQueueMeta({ totalItems: page.totalItems, activeItems: page.activeItems, truncated: page.truncated });
-    if (threadId) applyQueueBadge(page, threadId);
-    // 已投递且非去重回执的后续回合带 turnId 与实际技能；运行中的用户消息据此立即显示标签，
-    // 不必等到回合结束后的恢复。去重关联的是已有请求，本次参数未必等于该回合实际注入的技能。
-    const delivered = deliveredTurnSkills(page.items);
-    if (Object.keys(delivered).length) setTurnSkillIds(previous => ({ ...previous, ...delivered }));
+    if (threadId) {
+      queueCache.current.set(threadId, page);
+      applyQueueBadge(page, threadId);
+    }
+    if (!threadId || activeRef.current?.id === threadId) {
+      setQueueItems(page.items);
+      setQueueMeta({ totalItems: page.totalItems, activeItems: page.activeItems, truncated: page.truncated });
+      // 已投递且非去重回执的后续回合带 turnId 与实际技能；运行中的用户消息据此立即显示标签，
+      // 不必等到回合结束后的恢复。去重关联的是已有请求，本次参数未必等于该回合实际注入的技能。
+      const delivered = deliveredTurnSkills(page.items);
+      if (Object.keys(delivered).length) setTurnSkillIds(previous => ({ ...previous, ...delivered }));
+    }
   }, [applyQueueBadge]);
   const [modelRetries, setModelRetries] = useState<Record<string, ModelRetryStatus>>({});
   const retryTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -158,6 +164,8 @@ export function App(): JSX.Element {
   const startingRef = useRef(false);
   const [startingSession, setStartingSession] = useState(false);
   const cache = useRef(new Map<string, MessageItem[]>());
+  // 队列投影按会话保留：切换会话时立即呈现，避免清空闪烁；resume 失败时不丢失已排队任务。
+  const queueCache = useRef(new Map<string, QueuePage>());
   const versions = useRef(new Map<string, number>());
   const rememberedApprovals = useRef(new Map<string, Set<string>>());
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -319,6 +327,7 @@ export function App(): JSX.Element {
         const deleted = (params as { deletedThreadId?: unknown }).deletedThreadId;
         if (typeof deleted === "string") {
           cache.current.delete(deleted);
+          queueCache.current.delete(deleted);
           sessionErrors.current.delete(deleted);
           setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== deleted) })));
         }
@@ -328,11 +337,10 @@ export function App(): JSX.Element {
       if (["queue/updated", "turn/steeringApplied", "turn/started", "turn/completed"].includes(event.method)) {
         const read = queueReads.current.issue(id);
         void listQueue(id).then(page => {
-          // 徽标对任何会话都更新；队列面板只属于当前会话。并发通知只允许最新一次读取写入：
+          // 徽标与缓存对任何会话都更新；队列面板只属于当前会话。并发通知只允许最新一次读取写入：
           // 较早发出的读取若后到，会回退刚撤回 / 刚编辑的条目。
           read.commit(() => {
-            applyQueueBadge(page, id);
-            if (activeRef.current?.id === id) applyQueuePage(page);
+            applyQueuePage(page, id);
           });
         }).catch(cause => {
           // 内核报告队列变化但读取失败：保留面板旧内容，明确提示可能已过期；不自动重试。
@@ -399,16 +407,24 @@ export function App(): JSX.Element {
     }, snapshot => {
       if (cancelled) return;
       const id = snapshot.thread.id;
-      if (activeRef.current?.id === id) {
-        // resume 快照与 queue/list 共用同一份校验：畸形条目不能直接进入渲染状态。
-        // 快照比此前发出的队列读取更新：让它们全部失效，避免旧响应覆盖。
-        queueReads.current.invalidate(id);
-        setQueueItems(queueItemsOf(snapshot.queue) ?? []);
-        setQueueMeta({
+      const resumedItems = queueItemsOf(snapshot.queue);
+      if (resumedItems) {
+        const page: QueuePage = {
+          items: resumedItems,
           totalItems: typeof snapshot.queueTotalItems === "number" ? snapshot.queueTotalItems : undefined,
           activeItems: typeof snapshot.queueActiveItems === "number" ? snapshot.queueActiveItems : undefined,
           truncated: typeof snapshot.queueTruncated === "boolean" ? snapshot.queueTruncated : undefined,
-        });
+        };
+        queueCache.current.set(id, page);
+        if (activeRef.current?.id === id) {
+          queueReads.current.invalidate(id);
+          setQueueItems(page.items);
+          setQueueMeta({
+            totalItems: page.totalItems,
+            activeItems: page.activeItems,
+            truncated: page.truncated,
+          });
+        }
       }
       const real = snapshot.items.map(toMessage).filter((item): item is MessageItem => item !== null);
       // resume 固定 excludeTurns，快照里没有回合摘要；历史技能标签从回合列表补。
@@ -550,8 +566,10 @@ export function App(): JSX.Element {
       ?? modelOptions.find(candidate => candidate.provider === provider)?.id ?? activeModelId;
     setActiveModelProvider(provider); setActiveModelId(model);
     setConfiguredModelLabel(legacyRouteMismatch(session, defaultModel) ? `需选择线路 · ${model}` : `${provider} · ${model}`);
-    setQueueItems([]);
-    setQueueMeta({});
+    // 队列投影与消息一样按会话保留：切到已有缓存的会话时立刻呈现，不闪烁清空；resume 失败时也不会丢失已排队任务。
+    const cachedQueue = queueCache.current.get(session.id);
+    setQueueItems(cachedQueue?.items ?? []);
+    setQueueMeta(cachedQueue ? { totalItems: cachedQueue.totalItems, activeItems: cachedQueue.activeItems, truncated: cachedQueue.truncated } : {});
     // 技能映射属于当前会话：回合 id 不保证跨会话唯一，旧映射不能留给新会话命中。
     setTurnSkillIds({});
     void readContinuationCheck(session);
@@ -629,6 +647,7 @@ export function App(): JSX.Element {
       warning = failure.message;
     }
     cache.current.delete(session.id);
+    queueCache.current.delete(session.id);
     setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== session.id) })));
     // 只清空会话视图，不调用 handleNewTask，避免连删除结果提示一起清掉。
     if (activeRef.current?.id === session.id) clearActiveConversation();
@@ -862,7 +881,7 @@ export function App(): JSX.Element {
       const item = await steerTurn({ threadId: session.id, expectedTurnId, input: text, clientUserMessageId });
       if (activeRef.current?.id === session.id) {
         queueReads.current.invalidate(session.id);
-        setQueueItems(previous => [...previous.filter(existing => existing.id !== item.id), item]);
+        applyQueuePage(patchQueuePage(queueCache.current.get(session.id), item), session.id);
       }
       return true;
     }
@@ -872,7 +891,7 @@ export function App(): JSX.Element {
       ...(policy ? { autoCompaction: policy } : {}) });
     if (activeRef.current?.id === session.id) {
       queueReads.current.invalidate(session.id);
-      setQueueItems(previous => [...previous.filter(existing => existing.id !== item.id), item]);
+      applyQueuePage(patchQueuePage(queueCache.current.get(session.id), item), session.id);
     }
     return true;
   }, [harnessUp, autoCompaction.take]);
@@ -941,7 +960,12 @@ export function App(): JSX.Element {
         read.commit(() => applyQueuePage(page, session.id));
       } else {
         // 刷新失败时按本地结果收敛；若已有更新的读取在途，交给它写入，避免回退。
-        read.commit(() => setQueueItems(previous => queueRetryLocalItems(previous, item.id, created, removed)));
+        read.commit(() => {
+          const previousPage = queueCache.current.get(session.id);
+          const items = queueRetryLocalItems(previousPage?.items ?? queueItems, item.id, created, removed);
+          const activeItems = items.filter(entry => entry.status === "queued" || entry.status === "delivering" || entry.status === "paused").length;
+          applyQueuePage({ items, totalItems: Math.max(previousPage?.totalItems ?? items.length, items.length), activeItems, truncated: previousPage?.truncated }, session.id);
+        });
       }
       const notices: string[] = [];
       if (refreshFailure) {
@@ -952,7 +976,7 @@ export function App(): JSX.Element {
       if (notices.length) setError(notices.join(""));
     }
     return { status: "done" };
-  }, [applyQueuePage, harnessUp]);
+  }, [applyQueuePage, harnessUp, queueItems]);
   const handleRemoveQueueItem = useCallback(async (queueId: string): Promise<QueueActionOutcome> => {
     const session = activeRef.current;
     if (!session || session.projectId !== HARNESS_PROJECT_ID) return { status: "skipped", reason: "当前会话不连接本机内核" };
@@ -961,7 +985,7 @@ export function App(): JSX.Element {
       const item = await removeQueuedItem(session.id, queueId);
       if (activeRef.current?.id === session.id) {
         queueReads.current.invalidate(session.id);
-        setQueueItems(previous => previous.map(existing => existing.id === item.id ? item : existing));
+        applyQueuePage(patchQueuePage(queueCache.current.get(session.id), item), session.id);
       }
       return { status: "done" };
     } catch (cause) {
@@ -1009,10 +1033,10 @@ export function App(): JSX.Element {
     const updated = await updateQueuedItem(session.id, item.id, input);
     if (activeRef.current?.id === session.id) {
       queueReads.current.invalidate(session.id);
-      setQueueItems(previous => previous.map(existing => existing.id === updated.id ? updated : existing));
+      applyQueuePage(patchQueuePage(queueCache.current.get(session.id), updated), session.id);
     }
     return updated;
-  }, [harnessUp]);
+  }, [applyQueuePage, harnessUp]);
   const handleInterrupt = useCallback(() => {
     const id = activeRef.current?.id; if (!id || !runningRef.current.has(id)) return;
     const timer = timers.current.get(id);
