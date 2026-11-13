@@ -2,6 +2,24 @@
 
 ## 未发布
 
+后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
+
+## 0.2.0-rc.15 - 2026-11-13
+
+本节为第十五个候选版本的源码准备记录；对应 tag / Release 尚未创建。
+
+### 本版概览
+
+自 `v0.2.0-rc.14` 以来的改进在本次候选中汇总。项目统一命名为 BOSS Harness / `boss-harness`，旧环境变量、状态目录与技能目录保留兼容读取；下方「兼容变化」列出迁移与导出格式的具体影响。
+
+桌面工作台补齐会话恢复、阅读与草稿保留、跨会话审批与队列状态、暂停消息的串行批量处理和停止剩余、退出确认、消息搜索与定位、技能及上下文编辑；运行时长、审批期限和会话相对时间在窗口保持打开时持续更新。
+
+内核与业务桥的权限、恢复、上下文预算、模型传输、日志和快照完整性改进，以及每项变更的来源与验证范围，保留在下面的完整记录中。此次不重新实现这些机制；源码版本汇总不代表真实模型、招聘平台或独立安装包已验收。
+
+交付仍为源码运行与 Python 内核 wheel / sdist，没有独立桌面安装包或签名发行流程，源码许可证尚待选定。发布准备、资产与文档核对见 [发布约定](RELEASING.md)。
+
+- [Issue #1160](https://github.com/can4hou6joeng4/boss-harness/issues/1160)：从当前主干独立准备 npm `0.2.0-rc.15` / Python `0.2.0rc15`，同步工作区、锁文件、运行时版本与 README；归档累计未发布变更并补充本版概览，保留完整来源记录。旧发布 PR #167 保持原样，新的 tag / Release 另待具体授权。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ### 兼容变化
 
 - 项目命名统一为 `boss-harness`：GitHub 仓库改名为 `can4hou6joeng4/boss-harness`（旧链接由 GitHub 重定向），npm 根包改为 `boss-harness`、桌面包改为 `boss-harness-desktop`，TypeScript 工作区 scope 改为 `@boss-harness/*`；桌面展示名由 BOSS-CLI 改为 BOSS Harness。内核状态目录新增 `BOSS_HARNESS_DIR` 与默认 `~/.boss-harness/harness`，旧 `BOSS_CLI_HARNESS_DIR` 与 `~/.boss-cli/harness` 仍兼容读取（新目录一旦存在即优先）；工作区技能目录改为 `.boss-harness/skills`，旧 `.boss-cli/skills` 在新目录不存在时继续加载。上游相关 `BOSS_CLI_BIN`、`BOSS_CLI_DATA_DIR`、`boss-agent-cli` 与 `boss_hr_*` 工具名保持不变，协议仍为 `0.2.0`。

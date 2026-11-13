@@ -1,7 +1,7 @@
 {
   "name": "boss-harness-desktop",
   "productName": "BOSS Harness",
-  "version": "0.2.0-rc.14",
+  "version": "0.2.0-rc.15",
   "private": true,
   "description": "BOSS Harness 桌面端外壳（Electron + React）",
   "main": "./out/main/index.js",
