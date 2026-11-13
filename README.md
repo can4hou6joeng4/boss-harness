@@ -19,7 +19,7 @@
 | 交付项 | 当前范围 |
 | --- | --- |
 | 源码候选版本 | `0.2.0-rc.15`，Python 内核为 `0.2.0rc15`；stdio JSON-RPC 协议为 `0.2.0`。 |
-| 已发布版本 | 最近实际预发布为 [`v0.2.0-rc.14`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.14)（2026-10-28）。`rc.15` 正在准备，尚未创建对应 tag / Release；实际资产见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。 |
+| 已发布版本 | 最近实际预发布为 [`v0.2.0-rc.14`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.14)（2026-10-29 发布，UTC 为 2026-10-28T19:22Z）。`rc.15` 正在准备，尚未创建对应 tag / Release；实际资产见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。 |
 | 本机运行 | 从源码启动 Electron 桌面端，使用本机 Python 内核与另行安装的 `boss-agent-cli`。 |
 | 构建产物 | Electron main / preload / renderer，以及独立的 Python wheel / sdist；当前没有独立桌面安装包或签名发行流程。 |
 | 源码许可 | 仓库尚未选定并提交许可证；当前不宣称已有开源许可。 |
