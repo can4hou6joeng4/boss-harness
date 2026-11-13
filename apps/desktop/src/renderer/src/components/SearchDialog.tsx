@@ -3,6 +3,7 @@ import { ModalSurface } from "./ModalSurface";
 import { IconSearch, IconChat, IconChevronRight, IconClose } from "./Icons";
 import type { ProjectFolder, SessionItem } from "../data/mockData";
 import { sessionRows } from "../data/sessionRows";
+import { useLocalNow } from "../data/useLocalNow";
 import { buildSearchOptions, searchHitFocus, searchRoleLabel, type SearchOption } from "../data/searchOptions";
 import { searchEmptyCopy, searchStatusText, type MessageSearchState } from "../data/searchStatus";
 import { splitKernelQueryHighlight, splitQueryHighlight } from "../data/findHighlight";
@@ -38,6 +39,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
   /** 打开会话并定位到命中的消息；缺省时退回只打开会话。工具命中传入展开工具块的意图，查询词用于目标消息内的关键词高亮。 */
   onOpenMessage?: (session: SessionItem, itemId: string, revealToolBlock: boolean, query: string) => void;
 }) {
+  const now = useLocalNow();
   // 与聊天内查找一致：打开时沿用适合作为关键词的选中文本，单行、非空白且不超过 120 个字符。
   const [query, setQuery] = useState(() => findSeedFromSelection(
     typeof window === "undefined" ? null : window.getSelection()?.toString(),
@@ -150,7 +152,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
         </>}
         {sessionOptions.map(option => {
           const { row } = option;
-          return <button type="button" key={option.key} {...optionProps(option)}><IconChat size={17} /><span><strong><Highlighted text={row.session.title} query={query} /></strong><small>{row.session.archived === true ? "已归档 · " : ""}<Highlighted text={row.project} query={query} /> · {row.session.updatedAt ? formatRelativeTime(row.session.updatedAt) : row.session.timeAgo}</small></span><IconChevronRight size={13} /></button>;
+          return <button type="button" key={option.key} {...optionProps(option)}><IconChat size={17} /><span><strong><Highlighted text={row.session.title} query={query} /></strong><small>{row.session.archived === true ? "已归档 · " : ""}<Highlighted text={row.project} query={query} /> · {row.session.updatedAt ? formatRelativeTime(row.session.updatedAt, now) : row.session.timeAgo}</small></span><IconChevronRight size={13} /></button>;
         })}
       </div>
       {!sessionOptions.length && !messageOptions.length && shownMessageState !== "loading" && <div className="search-empty"><IconSearch size={28} /><strong>{empty.title}</strong><span>{empty.hint}</span></div>}
