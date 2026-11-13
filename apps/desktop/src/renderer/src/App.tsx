@@ -15,6 +15,7 @@ import { UsageDialog, type UsageTarget } from "./components/UsageDialog";
 import { ExportDialog, type ExportTarget } from "./components/ExportDialog";
 import { useThreadUsage } from "./data/useThreadUsage";
 import { UI_STORAGE_PREFIX } from "./data/uiStorage";
+import { readLastSessionId, rememberLastSessionId } from "./data/lastSession";
 import { parseThemePreference, resolveDarkTheme, serializeThemePreference, type ThemePreference } from "./data/themePreference";
 import { branchSupport, branchSwitchBlock, useSessionBranches } from "./data/useSessionBranches";
 import { IconClose } from "./components/Icons";
@@ -161,6 +162,9 @@ export function App(): JSX.Element {
   const rememberedApprovals = useRef(new Map<string, Set<string>>());
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const selectionVersion = useRef(0);
+  // 启动恢复上次会话：会话列表完成首次加载后才判断，记录指向已删除会话时留在首页。
+  const lastSessionRestore = useRef<"pending" | "done">(window.boss ? "pending" : "done");
+  const firstSessionRecord = useRef(true);
   // 失败原因按会话保存：切到失败的会话时恢复提示；重新发起回合或用户关闭提示后清除。
   const sessionErrors = useRef(new Map<string, string>());
   const continuationReadGeneration = useRef(0);
@@ -585,6 +589,22 @@ export function App(): JSX.Element {
       setActiveModelProvider(provider); setActiveModelId(model); setConfiguredModelLabel(needsRoute ? `需选择线路 · ${model}` : `${provider} · ${model}`);
     });
   }, [activeModelId, activeModelProvider, defaultModel, modelOptions, readContinuationCheck]);
+  useEffect(() => {
+    // 启动后恢复上次会话：等会话列表成功加载，记录里的会话已删除或不再列出时清除记录、留在首页。
+    if (lastSessionRestore.current !== "pending" || !sessionsLoaded) return;
+    lastSessionRestore.current = "done";
+    const id = readLastSessionId();
+    if (!id) return;
+    const session = folders.flatMap(folder => folder.sessions).find(item => item.id === id);
+    if (!session) { rememberLastSessionId(null); return; }
+    handleSelectSession(session);
+  }, [sessionsLoaded, folders, handleSelectSession]);
+  useEffect(() => {
+    // 首次渲染保留存储里的记录供上面的恢复读取；之后随视图更新，停在首页即清除。
+    if (firstSessionRecord.current) { firstSessionRecord.current = false; return; }
+    if (!window.boss || lastSessionRestore.current !== "done") return;
+    rememberLastSessionId(isHomeView ? null : activeSession?.id ?? null);
+  }, [isHomeView, activeSession?.id]);
   /** 清空当前会话视图；不碰错误提示，供「删除后仍需提示」等调用方复用。 */
   const clearActiveConversation = useCallback(() => {
     ++selectionVersion.current; ++continuationReadGeneration.current;
