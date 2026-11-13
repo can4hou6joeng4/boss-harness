@@ -3,6 +3,7 @@ import { IconHistory, IconFolder, IconSearch, IconPlus, IconSparkles, IconChevro
 import { ModalSurface } from "../components/ModalSurface";
 import { STRATEGY_DOMAINS, type ProjectFolder, type SessionItem, type MessageItem } from "../data/mockData";
 import { sessionRows } from "../data/sessionRows";
+import { useLocalNow } from "../data/useLocalNow";
 import type { SkillDescriptor, SkillProblem, ToolDescriptor } from "@boss-harness/protocol";
 import type { SkillCatalogState, ToolCatalogState } from "../data/harnessBridge";
 import { WorkspaceSkills } from "../components/WorkspaceSkills";
@@ -13,6 +14,7 @@ import { formatRelativeTime } from "@boss-harness/shared";
 import type { WorkspacePage } from "./NavigationRail";
 interface Props { page: WorkspacePage; folders: ProjectFolder[]; messages: MessageItem[]; onSelect: (session: SessionItem) => void; onNewTask: () => void; onDraft: (text: string) => void; tools: ToolDescriptor[]; toolCatalogState: ToolCatalogState; toolCatalogError: string; skills: SkillDescriptor[]; skillCatalogState: SkillCatalogState; skillCatalogError?: string; onRefreshSkills: () => void; onOpenSkillDialog: (dialog: WorkspaceSkillDialog) => void; skillMutationNotice: string; skillMutationRevision: number; skillsReadable: boolean; skillsCreatable: boolean; skillsWritable: boolean; skillsDeletable: boolean; skillRoot?: string | null; skillProblems: SkillProblem[]; onUseSkill: (skillId: string) => void; workspaceInstructionsEditable: boolean; harnessUp: boolean; preview: boolean; focusSkillId?: string | null; onFocusSkill?: () => void; /** 工作区说明的未保存状态交给外层，页面卸载前用于拦截导航。 */ onInstructionsDirty?: (dirty: boolean) => void; /** 工作区说明的保存在途状态交给外层。 */ onInstructionsSaving?: (saving: boolean) => void; }
 export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, onDraft, tools, toolCatalogState, toolCatalogError, skills, skillCatalogState, skillCatalogError = "", onRefreshSkills, onOpenSkillDialog, skillMutationNotice, skillMutationRevision, skillsReadable, skillsCreatable, skillsWritable, skillsDeletable, skillRoot = null, skillProblems = [], onUseSkill, workspaceInstructionsEditable, harnessUp, preview, focusSkillId = null, onFocusSkill, onInstructionsDirty, onInstructionsSaving }: Props) {
+  const now = useLocalNow(page === "recents");
   const [query, setQuery] = useState(""), [file, setFile] = useState<string | null>(null);
   const [libraryQuery, setLibraryQuery] = useState("");
   const [copyNote, setCopyNote] = useState<{ key: string; text: string } | null>(null);
@@ -30,7 +32,7 @@ export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, o
   };
   const recentRows = sessionRows(folders, query);
   if (page === "recents") return <div className="workspace-page" data-screen-label="最近聊天"><div className="page-heading"><div><h1>最近聊天</h1><p>从上次停下的地方继续。</p></div><button className="subtle-button" onClick={onNewTask}><IconPlus size={15} />新聊天</button></div><div className="page-search"><IconSearch size={16} /><input aria-label="筛选最近聊天" placeholder="搜索聊天…" value={query} onChange={event => setQuery(event.target.value)} /></div>
-    <div className="recent-table">{recentRows.map(({ session, project }) => <button className="recent-row" key={session.id} onClick={() => onSelect(session)}><span className="recent-row-icon"><IconHistory size={18} /></span><span><strong>{session.title}</strong><small>{project}</small></span><time dateTime={session.updatedAt}>{session.updatedAt ? formatRelativeTime(session.updatedAt) : session.timeAgo}</time><IconChevronRight size={14} /></button>)}
+    <div className="recent-table">{recentRows.map(({ session, project }) => <button className="recent-row" key={session.id} onClick={() => onSelect(session)}><span className="recent-row-icon"><IconHistory size={18} /></span><span><strong>{session.title}</strong><small>{project}</small></span><time dateTime={session.updatedAt}>{session.updatedAt ? formatRelativeTime(session.updatedAt, now) : session.timeAgo}</time><IconChevronRight size={14} /></button>)}
     {!recentRows.length && <p className="page-empty-note">{query.trim() ? "没有找到匹配的聊天" : "还没有聊天，创建一个任务开始吧"}</p>}</div></div>;
   if (page === "library") {
     const files = collectLibraryFiles(messages);
