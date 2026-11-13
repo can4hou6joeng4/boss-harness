@@ -42,7 +42,9 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
   const [query, setQuery] = useState(() => findSeedFromSelection(
     typeof window === "undefined" ? null : window.getSelection()?.toString(),
     { editable: typeof document === "undefined" ? false : isEditableTarget(document.activeElement) },
-  ) ?? ""), [index, setIndex] = useState(0);
+  ) ?? "");
+  // 显式选择绑定结果标识，异步消息命中插入前方时仍打开原对象；未选择时默认首项。
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [hitBatch, setHitBatch] = useState<ThreadSearchBatch | null>(null);
   const [messageState, setMessageState] = useState<MessageSearchState>("idle");
   // 最近一次请求完成（成功或失败）时的输入；不等同于当前输入，用于避免把旧状态当成当前结论。
@@ -66,7 +68,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
   const status = searchStatusText(query, rows.length, messageOptions.length, shownMessageState);
   const inputRef = useRef<HTMLInputElement>(null), resultsRef = useRef<HTMLDivElement>(null);
   const listId = useId(), statusId = useId();
-  const selected = Math.min(index, Math.max(0, options.length - 1));
+  const selected = Math.max(0, options.findIndex(option => option.key === selectedKey));
   useLayoutEffect(() => {
     resultsRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
   }, [selected, options[selected]?.key]);
@@ -106,28 +108,31 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
       onClose();
     } else { onSelect(option.row.session); onClose(); }
   };
-  const move = (delta: number) => setIndex(options.length ? (selected + delta + options.length) % options.length : 0);
+  const move = (delta: number) => {
+    const next = options.length ? options[(selected + delta + options.length) % options.length] : undefined;
+    setSelectedKey(next?.key ?? null);
+  };
   const optionProps = (option: SearchOption) => {
     const current = options.findIndex(entry => entry.key === option.key);
     return {
       role: "option" as const, tabIndex: -1, id: `${listId}-${current}`, "aria-selected": current === selected,
       className: `search-result${current === selected ? " highlighted" : ""}${option.kind === "message" ? " search-message-hit" : ""}`,
-      onPointerMove: (event: React.PointerEvent) => { if (event.pointerType === "mouse" && (event.movementX || event.movementY)) setIndex(current); },
+      onPointerMove: (event: React.PointerEvent) => { if (event.pointerType === "mouse" && (event.movementX || event.movementY)) setSelectedKey(option.key); },
       onClick: () => openOption(option),
     };
   };
   return <ModalSurface title="搜索聊天" onClose={onClose} className="search-dialog">
-    <div className="search-field"><IconSearch size={19} /><input ref={inputRef} role="combobox" aria-label="搜索聊天和项目" aria-autocomplete="list" aria-expanded="true" aria-controls={listId} aria-describedby={statusId} aria-activedescendant={options.length ? `${listId}-${selected}` : undefined} autoComplete="off" placeholder="搜索聊天和项目…" value={query} onChange={event => { setQuery(event.target.value); setIndex(0); }} onKeyDown={event => {
+    <div className="search-field"><IconSearch size={19} /><input ref={inputRef} role="combobox" aria-label="搜索聊天和项目" aria-autocomplete="list" aria-expanded="true" aria-controls={listId} aria-describedby={statusId} aria-activedescendant={options.length ? `${listId}-${selected}` : undefined} autoComplete="off" placeholder="搜索聊天和项目…" value={query} onChange={event => { setQuery(event.target.value); setSelectedKey(null); }} onKeyDown={event => {
       if (event.nativeEvent.isComposing || event.keyCode === 229 || event.metaKey || event.ctrlKey || event.altKey) return;
       if (event.key === "ArrowDown") { event.preventDefault(); move(1); }
       if (event.key === "ArrowUp") { event.preventDefault(); move(-1); }
       if (event.key === "Enter" && options[selected]) { event.preventDefault(); event.stopPropagation(); openOption(options[selected]); }
-    }} />{query && <button type="button" className="search-clear" aria-label="清除搜索" onClick={() => { setQuery(""); setIndex(0); inputRef.current?.focus(); }}><IconClose size={15} /></button>}</div>
+    }} />{query && <button type="button" className="search-clear" aria-label="清除搜索" onClick={() => { setQuery(""); setSelectedKey(null); inputRef.current?.focus(); }}><IconClose size={15} /></button>}</div>
     <div className="search-results" ref={resultsRef}>
       <p id={statusId} role="status">{status}</p>
       {!query.trim() && recent.length > 0 && <div className="search-recent" role="group" aria-label="最近搜索">
         <span className="search-recent-label">最近搜索</span>
-        {recent.map(term => <button type="button" key={term} className="search-recent-chip" onClick={() => { setQuery(term); setIndex(0); inputRef.current?.focus(); }}>{term}</button>)}
+        {recent.map(term => <button type="button" key={term} className="search-recent-chip" onClick={() => { setQuery(term); setSelectedKey(null); inputRef.current?.focus(); }}>{term}</button>)}
         <button type="button" className="search-recent-clear" onClick={() => { clearRecentSearches(); setRecent([]); }}>清除</button>
       </div>}
       <div id={listId} role="listbox" aria-label="聊天与消息搜索结果">
@@ -149,6 +154,6 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
         })}
       </div>
       {!sessionOptions.length && !messageOptions.length && shownMessageState !== "loading" && <div className="search-empty"><IconSearch size={28} /><strong>{empty.title}</strong><span>{empty.hint}</span></div>}
-    </div><div className="search-footer">{searchArchived && <label className="search-archived-toggle" title="同时搜索已归档会话；归档不会删除消息"><input type="checkbox" checked={includeArchived} onChange={event => { setIncludeArchived(event.target.checked); setIndex(0); }} />含已归档</label>}<span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>↵</kbd> 打开</span><span><kbd>esc</kbd> 关闭</span></div>
+    </div><div className="search-footer">{searchArchived && <label className="search-archived-toggle" title="同时搜索已归档会话；归档不会删除消息"><input type="checkbox" checked={includeArchived} onChange={event => { setIncludeArchived(event.target.checked); setSelectedKey(null); }} />含已归档</label>}<span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>↵</kbd> 打开</span><span><kbd>esc</kbd> 关闭</span></div>
   </ModalSurface>;
 }
