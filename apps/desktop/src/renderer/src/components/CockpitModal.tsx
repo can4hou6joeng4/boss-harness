@@ -103,15 +103,15 @@ function OwnerRow({ owner, check, onCheck }: {
   );
 }
 
-function ApprovalRow({ approval }: { approval: PendingApproval }) {
-  const urgency = approvalUrgency(approval.deadline);
+function ApprovalRow({ approval, now }: { approval: PendingApproval; now: number }) {
+  const urgency = approvalUrgency(approval.deadline, now);
   const badge = urgency === "expired" ? "已过期" : urgency === "soon" ? "即将到期" : "待处理";
   return (
     <div className={`cockpit-row ${urgency === "expired" || urgency === "soon" ? "cockpit-row-attention" : ""}`}>
       <div className="cockpit-row-main">
         <div className="cockpit-row-title">{approval.toolName}</div>
         {approval.summary ? <div className="cockpit-row-sub">{approval.summary}</div> : null}
-        <div className="cockpit-row-sub">会话 {shortId(approval.threadId)} · {approvalRemainingText(approval.deadline)}</div>
+        <div className="cockpit-row-sub">会话 {shortId(approval.threadId)} · {approvalRemainingText(approval.deadline, now)}</div>
       </div>
       <span className={`cockpit-badge ${urgency === "expired" || urgency === "soon" ? "cockpit-badge-warn" : ""}`}>{badge}</span>
     </div>
@@ -126,6 +126,7 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
   const [loadedOnce, setLoadedOnce] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [taskChecks, setTaskChecks] = useState<Record<string, TaskCheckState>>({});
+  const [now, setNow] = useState(() => Date.now());
   const epoch = useRef(0);
   const checkEpoch = useRef(0);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -215,6 +216,15 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
     if (!isOpen) { epoch.current += 1; return; }
     void load(true);
   }, [isOpen, load]);
+
+  // 期限按本机时间前进：面板只在内核事件与手动刷新时重读快照，不能因此冻结到期提示。
+  // 节拍与通知面板、聊天内审批卡一致；只更新本地时钟，不触发任何读取。
+  useEffect(() => {
+    if (!isOpen) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !harnessUp) return;
@@ -374,7 +384,7 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
               approvals.length === 0
                 ? <p className="cockpit-empty">当前没有待审批的调用。写操作仍会逐次请求批准。</p>
                 : <>
-                  <div className="cockpit-list">{approvals.map(approval => <ApprovalRow key={approval.approvalId} approval={approval} />)}</div>
+                  <div className="cockpit-list">{approvals.map(approval => <ApprovalRow key={approval.approvalId} approval={approval} now={now} />)}</div>
                   {approvalsTruncated
                     ? <p className="cockpit-empty">审批清单最多显示 {APPROVAL_LIMIT} 条，仍有更早的待审批未返回；其余请求仍以内核待审批状态为准。</p>
                     : null}
