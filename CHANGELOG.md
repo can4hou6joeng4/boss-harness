@@ -2,6 +2,24 @@
 
 ## 未发布
 
+后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
+
+## 0.2.0-rc.15 - 2026-11-13
+
+本节为第十五个候选版本的源码准备记录；对应 tag / Release 尚未创建。
+
+### 本版概览
+
+自 `v0.2.0-rc.14` 以来的改进在本次候选中汇总。项目统一命名为 BOSS Harness / `boss-harness`，旧环境变量、状态目录与技能目录保留兼容读取；下方「兼容变化」列出迁移与导出格式的具体影响。
+
+桌面工作台补齐会话恢复、阅读与草稿保留、跨会话审批与队列状态、暂停消息的串行批量处理和停止剩余、退出确认、消息搜索与定位、技能及上下文编辑；运行时长、审批期限和会话相对时间在窗口保持打开时持续更新。
+
+内核与业务桥的权限、恢复、上下文预算、模型传输、日志和快照完整性改进，以及每项变更的来源与验证范围，保留在下面的完整记录中。此次不重新实现这些机制；源码版本汇总不代表真实模型、招聘平台或独立安装包已验收。本版汇总的既有条目包含 `v0.2.0-rc.14` 之后合入的新增 RPC 方法（如 `thread/search`、`thread/export`、`task/read`、`approval/list`、`queue/update`、技能读写与 `turn/continue`），协议版本仍为 `0.2.0`；本次版本准备自身未改动 RPC 实现，范围以各条目为准。
+
+交付仍为源码运行与 Python 内核 wheel / sdist，没有独立桌面安装包或签名发行流程，源码许可证尚待选定。发布准备、资产与文档核对见 [发布约定](RELEASING.md)。
+
+- [Issue #1160](https://github.com/can4hou6joeng4/boss-harness/issues/1160)：从当前主干独立准备 npm `0.2.0-rc.15` / Python `0.2.0rc15`，同步工作区、锁文件、运行时版本与 README；归档累计未发布变更并补充本版概览，保留完整来源记录。旧发布 PR #167 保持原样，新的 tag / Release 另待具体授权。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ### 兼容变化
 
 - 项目命名统一为 `boss-harness`：GitHub 仓库改名为 `can4hou6joeng4/boss-harness`（旧链接由 GitHub 重定向），npm 根包改为 `boss-harness`、桌面包改为 `boss-harness-desktop`，TypeScript 工作区 scope 改为 `@boss-harness/*`；桌面展示名由 BOSS-CLI 改为 BOSS Harness。内核状态目录新增 `BOSS_HARNESS_DIR` 与默认 `~/.boss-harness/harness`，旧 `BOSS_CLI_HARNESS_DIR` 与 `~/.boss-cli/harness` 仍兼容读取（新目录一旦存在即优先）；工作区技能目录改为 `.boss-harness/skills`，旧 `.boss-cli/skills` 在新目录不存在时继续加载。上游相关 `BOSS_CLI_BIN`、`BOSS_CLI_DATA_DIR`、`boss-agent-cli` 与 `boss_hr_*` 工具名保持不变，协议仍为 `0.2.0`。
@@ -600,7 +618,8 @@
 - 参考 Pi 的增量 JSONL 解码：会话头、条目读取与事件索引冷重建均按 64 KiB 块流式解析；会话头与事件单行限制为 8 MiB，正文上限见 Issue #195。会话头在 JSON 解码前拒绝超限首行，读取保留 LF/CRLF/CR、坏 UTF-8 和坏行处理语义，避免长期 JSONL 的原始文件副本进入内存。
 - 参考 Pi 会话管理器的增量 JSONL 解码：事件 SQLite 索引冷重建现在按 64 KiB 块流式读取 `events.jsonl`，单行限制为 8 MiB；坏 JSON 行仍跳过，超限行拒绝，事件顺序、游标冲突校验和 checkpoint 语义不变。
 
-- [Issue #179](https://github.com/can4hou6joeng4/boss-cli/issues/179)：将冻结恢复快照改为私有 SQLite 磁盘存储，按固定 JSONL 文件切面流式构建并按页读取；限制记录、来源、单快照与缓存磁盘预算，冻结 revision、toolCall、context edit、live delta、turn 与队列投影，并在过期、淘汰、删除、关闭或预算失败时清理。- [Issue #174](https://github.com/can4hou6joeng4/boss-cli/issues/174)：删除意图落盘前失败时保留原摘要任务终态、查询引用与缓存顺序；删除事务已提交或持久删除意图已存在时才退休目标任务，即使最终目录 `fsync` 失败也不会留下已删除会话的任务引用。- [Issue #173](https://github.com/can4hou6joeng4/boss-cli/issues/173)：回合与队列权威结算后，终态事件分别尽力发布；某类事件持久化或发送异常不再跳过另一事件，也不再丢失已排入后续回合的交接责任。事件不会重放，执行与队列结算异常仍按原路径处理。
+- [Issue #179](https://github.com/can4hou6joeng4/boss-cli/issues/179)：将冻结恢复快照改为私有 SQLite 磁盘存储，按固定 JSONL 文件切面流式构建并按页读取；限制记录、来源、单快照与缓存磁盘预算，冻结 revision、toolCall、context edit、live delta、turn 与队列投影，并在过期、淘汰、删除、关闭或预算失败时清理。
+- [Issue #173](https://github.com/can4hou6joeng4/boss-cli/issues/173)：回合与队列权威结算后，终态事件分别尽力发布；某类事件持久化或发送异常不再跳过另一事件，也不再丢失已排入后续回合的交接责任。事件不会重放，执行与队列结算异常仍按原路径处理。
 - [Issue #171](https://github.com/can4hou6joeng4/boss-cli/issues/171)：OpenAI Responses 在 `response.completed` 或 `response.incomplete` 后拒绝任何额外流事件，防止后置工具复用输出索引替换已确认的文本并进入执行器；协议错误不重试。
 - [Issue #169](https://github.com/can4hou6joeng4/boss-cli/issues/169)：会话删除事务已提交或删除意图已持久化后清理失败时，同步退休该会话的容量等待项，避免已删除或隐藏会话阻断其他 follow-up 的 FIFO 唤醒；提交前失败仍保留有效等待工作。
 - [Issue #163](https://github.com/can4hou6joeng4/boss-cli/issues/163)：将摘要 worker 句柄与启动决策纳入 shutdown 所有权；关闭期间取消的摘要不会晚启动，正常启动仍由共享期限内的关闭流程等待收尾。
