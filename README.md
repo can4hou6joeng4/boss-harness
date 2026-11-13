@@ -90,6 +90,18 @@ BOSS_HARNESS_PROVIDER=none npm run dev
 
 `none` 会跳过模型调用，但 `/tools`、`/search`、`/status`、`/stats`、`/recommend`、`/jobs`、`/chat`、`/candidates` 仍会直接调用上游只读工具；未安装或未配置该 CLI 时这些命令不可用。真实模型请求可能联网并产生费用。
 
+### 本地配置自检（主干新增）
+
+`--check` 已在主干提供，尚未进入上方的 `v0.2.0-rc.15` 发布。使用主干源码安装内核后，可在启动桌面前运行：
+
+```sh
+.venv/bin/boss-harness --check
+.venv/bin/boss-harness --check --provider openai
+.venv/bin/boss-harness --check --provider none
+```
+
+自检复用启动时的模型配置解析，检查业务 CLI 的本地可执行文件与浏览器来源选项；不创建状态目录、不读取会话、不构造模型客户端，不联网或执行业务 CLI。输出为脱敏 JSON，省略端点、凭据、模型自定义值、本机路径与异常原文；存在配置错误时退出码为 2，仅有警告时为 0。`none` 和业务 CLI 缺失会分别标注警告，通过本地检查不代表模型连通、平台已登录或工具已经验收。详细检查码见[使用指南](docs/USER_GUIDE.md#本地配置自检)。
+
 ## 试跑一条任务
 
 桌面启动并完成上游 CLI 配置后，可以按下面的顺序从只读入口开始：

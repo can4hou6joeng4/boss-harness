@@ -5,6 +5,7 @@
 ## 快速导航
 
 - [模型配置](#模型配置来源)
+- [本地配置自检](#本地配置自检)
 - [模型请求期限](#单次模型请求期限)
 - [职位搜索](#明确条件搜索)
 - [求职者沟通列表](#求职者沟通列表)
@@ -32,6 +33,20 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 缺少任一项时才读取 `BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 或默认 `~/.codex/config.toml`，按此顺序选择文件，显式字段仍优先。读取 TOML 需要 Python 3.11+；已有文件不可读或语法损坏时明确报错，不退到其他 provider。文件不存在或缺少可用 profile 时继续检查端点与凭据，缺项会报错；未提供模型且没有可用文件模型时保留既有 `DEFAULT_MODEL`。
 
 当前文件适配要求文件自身同时提供 `model`、`model_provider` 及该 provider 的 `base_url` 才形成可用 profile；认证仅识别 `experimental_bearer_token`，尚未适配 Codex 的 `env_key`、OAuth 或任意 `wire_api`。配置解析只读本地文件，不探测真实服务。
+
+## 本地配置自检
+
+此入口属于主干新增能力，尚未进入 `v0.2.0-rc.15`。在主干源码完成内核安装后，运行 `.venv/bin/boss-harness --check`；与正常启动一样，可传入 `--provider` 与 `--model`，沿用上文的配置优先级。只核对不使用模型时，可显式传入 `--provider none`。CLI 自动模式在未设置 provider 且没有 Anthropic 凭据时会回退为 `none` 并给出警告；核对桌面默认的 OpenAI 线路时，请显式使用 `--check --provider openai`。
+
+命令向 stdout 输出单份 JSON 报告，`schemaVersion` 为 `1`，`ok` 表示未发现本地配置错误；`checks` 逐项提供固定检查码、`ok` / `warning` / `error` 状态、说明及处理建议。存在 `error` 时退出码为 `2`，全部通过或仅有警告时为 `0`。
+
+| 检查项 | 固定检查码 | 检查范围与限制 |
+| --- | --- | --- |
+| 模型配置 | `MODEL_CONFIG_VALID` / `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` / `MODEL_CONFIG_INVALID` / `MODEL_CONFIG_INCOMPLETE` | 只复用本地解析，不构造 SDK 或发起请求；缺少必需配置、文件损坏或非正输出上限记为错误，显式 `none` 与自动回退分别记为禁用模型、未配置模型警告。 |
+| 业务 CLI | `BOSS_CLI_FOUND` / `BOSS_CLI_UNAVAILABLE` | 只发现可执行文件，不执行 `boss schema`、版本查询、登录或任何工具；未发现可执行文件记为警告，文件存在不证明 CLI 能正常运行。 |
+| 浏览器来源 | `BROWSER_SOURCE_VALID` / `BROWSER_SOURCE_INVALID` | 只校验 `BOSS_HARNESS_BROWSER_SOURCE` 的取值，不读取浏览器或 Cookie，也不验证上游是否支持该选项。 |
+
+报告不包含端点、密钥、模型自定义值、本机路径、会话内容或异常原文，可用于报告安装问题。自检不创建状态目录、不读取会话、不写入索引，与 `--repair-state` 互斥。本地检查仅覆盖上表三项，不核对状态目录可写性、磁盘容量或其他内核运行参数。通过不代表模型可连接、认证有效、平台已登录或真实工具已验收；这些操作应分别在获得授权后核对。
 
 ## 单次模型请求期限
 

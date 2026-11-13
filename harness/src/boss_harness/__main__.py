@@ -46,7 +46,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="boss-harness", description="BOSS Harness Agent Harness 内核")
     parser.add_argument("--listen", default="stdio://", help="传输端点，当前仅支持 stdio://")
     parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR), help="内核状态目录")
-    parser.add_argument("--repair-state", action="store_true", help="独占状态目录，备份 SQLite 索引后从原始日志重建")
+    maintenance = parser.add_mutually_exclusive_group()
+    maintenance.add_argument("--repair-state", action="store_true", help="独占状态目录，备份 SQLite 索引后从原始日志重建")
+    maintenance.add_argument("--check", action="store_true", help="只读检查本地启动配置，输出脱敏 JSON，不联网、不执行业务 CLI")
     parser.add_argument(
         "--provider",
         default="auto",
@@ -56,6 +58,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", default=None, help=f"模型 id，默认 {DEFAULT_MODEL}")
     parser.add_argument("--version", action="version", version=f"boss-harness {__version__}")
     args = parser.parse_args(argv)
+
+    if args.check:
+        from boss_harness.startup_check import startup_report
+        requested = args.provider if args.provider != "auto" else os.environ.get("BOSS_HARNESS_PROVIDER", "")
+        report = startup_report(lambda: _build_config(args), requested_provider=requested)
+        print(json.dumps(report, ensure_ascii=False))
+        return 0 if report["ok"] else 2
 
     if args.repair_state:
         from boss_harness.maintenance import repair_index

@@ -160,6 +160,11 @@ def resolve_binary(explicit: str | None = None) -> BinaryChoice:
     return BinaryChoice("boss", "path")
 
 
+def binary_available(binary: str) -> bool:
+    """只读核对本地可执行文件，不运行 CLI。"""
+    return (Path(binary).is_file() and os.access(binary, os.X_OK)) if "/" in binary else which(binary) is not None
+
+
 class BossCliTool:
     """一个 boss 命令就是一个工具。始终传 --json 并捕获管道。"""
 
@@ -173,7 +178,7 @@ class BossCliTool:
         self.cancel_event: threading.Event | None = None
 
     def available(self) -> bool:
-        return (Path(self.binary).is_file() and os.access(self.binary, os.X_OK)) if "/" in self.binary else which(self.binary) is not None
+        return binary_available(self.binary)
 
     def call(self, *args: str, timeout: int = DEFAULT_TIMEOUT_SECONDS, stdin: str | None = None) -> ToolResult:
         argv = [self.binary, "--json"]

@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1166](https://github.com/can4hou6joeng4/boss-harness/issues/1166)：新增 `boss-harness --check` 本地只读配置自检，沿用模型配置优先级及业务 CLI 发现与可执行检查，独立校验浏览器来源；输出版本化脱敏 JSON、固定检查码和处理建议。配置错误或非正模型输出上限退出 2，显式禁用模型、自动回退未配置和 CLI 缺失分别标为警告；不构造 SDK、不创建状态目录、不读取会话、不执行 CLI 或联网，与索引修复互斥。本地检查不代表模型连通、平台登录或真实工具可用，README 与使用指南标明该能力尚未进入 rc.15。28 种真实 CLI 隔离场景通过，网络、外部进程、持久写入尝试及 SDK 导入均为 0；类型检查、桌面与 Python wheel / sdist 构建通过，独立 venv 安装后核对自检命令与既有只读 stdio 握手，新增模块字节与包内一致。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1164](https://github.com/can4hou6joeng4/boss-harness/issues/1164)：rc.15 实际发布后同步 README 的候选链接、发布时间、固定源码提交与四项发布资产，首次安装固定到该 tag，近期进展明确为本候选已包含；发布约定按用户要求限定社区正文只介绍本项目自身，内部来源记录继续保留。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.15 - 2026-11-14
