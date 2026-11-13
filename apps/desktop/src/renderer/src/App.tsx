@@ -76,6 +76,9 @@ export function App(): JSX.Element {
   const [isHomeView, setIsHomeView] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 700);
   const [folders, setFolders] = useState<ProjectFolder[]>(() => window.boss ? [] : MOCK_PROJECT_FOLDERS.map(folder => ({ ...folder, sessions: folder.sessions.map(session => ({ ...session, status: "completed" })) })));
+  // 通知处理是长生命周期闭包：会话标题经 ref 读取最新列表，后台失败提示才能指向正确的会话。
+  const foldersRef = useRef<ProjectFolder[]>(folders);
+  foldersRef.current = folders;
   /** 会话列表是否至少成功加载过一次；通知定位在加载完成前保留意图，不把空列表当成会话已删除。 */
   const [sessionsLoaded, setSessionsLoaded] = useState(!window.boss);
   const [activeSession, setActiveSession] = useState<SessionItem | null>(null);
@@ -366,7 +369,14 @@ export function App(): JSX.Element {
         return;
       }
       if (event.method === "thread/leafChanged") { void replica.reload(id); return; }
-      if (event.method === "session/error") { setError(params.message ?? "任务遇到错误，请检查后重试。"); return; }
+      if (event.method === "session/error") {
+        const message = params.message ?? "任务遇到错误，请检查后重试。";
+        // 失败提示要说明所属会话：后台会话的问题不能看起来像当前会话出错。
+        if (activeRef.current?.id === id) { setError(message); return; }
+        const title = foldersRef.current.flatMap(folder => folder.sessions).find(session => session.id === id)?.title;
+        setError(title ? `会话「${title}」：${message}` : message);
+        return;
+      }
       if (event.method === "thread/updated") {
         lifecycleVersion.current += 1; markRunning(id, false);
         // 回合已收尾：等待中的重试不再成立（中断转为“已停止”）；终态说明保留到下一回合、自动消失或手动关闭。
