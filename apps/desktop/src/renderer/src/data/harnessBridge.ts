@@ -456,7 +456,7 @@ export async function readQueueItem(threadId: string, queueId: string): Promise<
 export async function removeQueuedItem(threadId: string, queueId: string): Promise<QueueItem> {
   const api = bridge();
   if (!api) throw new Error("本地 Harness 未连接");
-  const response = await api.request<QueueItemResponse>(ClientMethods.queueRemove, { threadId, queueId });
+  const response = await contextRequest<QueueItemResponse>(ClientMethods.queueRemove, { threadId, queueId });
   return requireQueueItem(response);
 }
 

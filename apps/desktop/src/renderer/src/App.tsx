@@ -989,14 +989,21 @@ export function App(): JSX.Element {
       }
       return { status: "done" };
     } catch (cause) {
-      if (activeRef.current?.id !== session.id) return { status: "uncertain" };
-      // 撤回是否生效未知；能读到队列就按内核状态收敛，读不到则说明两条原因并提示面板可能过期。
+      const rejection = isHarnessRpcRejection(cause)
+        ? { status: "skipped" as const, reason: harnessErrorText(cause) } : null;
+      if (activeRef.current?.id !== session.id) return rejection ?? { status: "uncertain" };
+      // 明确拒绝没有撤回条目，但视图可能已过期；重读队列，断连或回执不可读仍按未确认处理。
       let page: QueuePage | null = null;
       let rereadFailure: unknown = null;
       const read = queueReads.current.issue(session.id);
       try { page = await listQueue(session.id); } catch (verify) { rereadFailure = verify; }
-      if (activeRef.current?.id !== session.id) return { status: "uncertain" };
+      if (activeRef.current?.id !== session.id) return rejection ?? { status: "uncertain" };
       if (page) read.commit(() => applyQueuePage(page, session.id));
+      if (rejection) {
+        return rereadFailure
+          ? { status: "skipped", reason: `${rejection.reason}；队列刷新失败（${harnessErrorText(rereadFailure)}），面板可能已过期` }
+          : rejection;
+      }
       setError(page
         ? `撤回结果尚未确认（${harnessErrorText(cause)}），已重新读取队列；不会自动重复撤回。`
         : unconfirmedFailure("撤回结果", cause, rereadFailure, "请稍后核对，不会自动重复撤回。"));
