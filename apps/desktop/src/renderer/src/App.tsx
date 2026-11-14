@@ -126,6 +126,8 @@ export function App(): JSX.Element {
   // 回合实际注入的技能；旧内核不返回 turns[].skillIds 时为空，界面不显示。
   const [turnSkillIds, setTurnSkillIds] = useState<Record<string, string[]>>({});
   const [runningThreadIds, setRunningThreadIds] = useState(new Set<string>());
+  // 停止请求在途的会话：按钮显示正在停止并禁用，避免静默忽略重复点击。
+  const [stoppingThreadId, setStoppingThreadId] = useState<string | null>(null);
   const [continuationCheck, setContinuationCheck] = useState<{
     threadId: string; sourceTurnId: string; loading: boolean; submitting?: boolean;
     uncertain?: boolean; response?: TurnContinuationReadResponse; error?: string;
@@ -1117,6 +1119,7 @@ export function App(): JSX.Element {
     // 返回「没有可停止的回合」，界面不能把它当成失败。请求结算后允许再次发起停止。
     if (interruptInFlight.current.has(id)) return;
     interruptInFlight.current.add(id);
+    setStoppingThreadId(id);
     // 停止说明先写入；重新读取若失败，读取记录会覆盖它，必须在同一次读取结算后补回停止主因。
     const recheckAfterStopFailure = (notice: string, combine: (readFailure: string) => string) => {
       reportSessionError(id, notice);
@@ -1136,7 +1139,7 @@ export function App(): JSX.Element {
     }).catch(cause => {
       if (!runningRef.current.has(id)) return;
       recheckAfterStopFailure(stopFailureNotice(cause), readFailure => stopFailureRecheckNotice(cause, readFailure));
-    }).finally(() => { interruptInFlight.current.delete(id); });
+    }).finally(() => { interruptInFlight.current.delete(id); setStoppingThreadId(current => current === id ? null : current); });
   }, [markRunning, reportSessionError, updateThread]);
   const handleApproval = useCallback(async (approvalId: string, approved: boolean, toolName: string, remember: boolean, messageId?: string, threadId?: string) => {
     const session = activeRef.current;
@@ -1230,7 +1233,7 @@ export function App(): JSX.Element {
       onSelectSession={handleSelectSession} onNewTask={handleNewTask} onDeleteSession={handleDeleteSession} onArchiveSession={handleArchiveSession} onRenameSession={window.boss ? handleRenameSession : undefined} onSendMessage={handleSendMessage} onQueueMessage={handleQueueMessage} onCheckQueueSubmission={handleCheckQueueSubmission} queueItems={queueItems} queueTotalItems={queueMeta.totalItems} queueActiveItems={queueMeta.activeItems} queueTruncated={queueMeta.truncated} onRemoveQueueItem={handleRemoveQueueItem} onRetryQueueItem={handleRetryQueueItem} onReadQueueItem={handleReadQueueItem} onUpdateQueueItem={capabilities?.queueUpdate === true ? handleUpdateQueueItem : undefined} onRefreshQueue={handleRefreshQueue} autoCompactionConfig={capabilities?.autoCompactionConfig === true} simulateLocal={preview} harnessUp={harnessUp} sessionsLoaded={sessionsLoaded}
       onCreateConnectionSession={createConnectionSession}
       sessionReasoning={contextThreadId ? sessionReasoning : undefined}
-      running={Boolean(activeSession && runningThreadIds.has(activeSession.id))} taskBlocked={startingSession || branchSummaryRunning}
+      running={Boolean(activeSession && runningThreadIds.has(activeSession.id))} stopping={Boolean(activeSession && stoppingThreadId === activeSession.id)} taskBlocked={startingSession || branchSummaryRunning}
       continuationCheck={continuationCheck} onContinueInterruptedTurn={handleContinueInterruptedTurn}
       modelRetry={activeSession && !isHomeView ? modelRetries[activeSession.id] : undefined}
       onDismissModelRetry={() => { const id = activeRef.current?.id; if (id) clearModelRetry(id); }}
