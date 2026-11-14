@@ -303,6 +303,8 @@ class ApplicationService:
         model_tool_specs(self.registry.specs())
         self.provider_factory = provider_factory
         self._model_configs = self._discover_model_configs()
+        # 握手、配置读取与运行器共用目录中的生效默认线路（none 已规范为 model=none）。
+        config = self.config = self._model_configs[config.provider]
         self.workspace = (workspace or Path.cwd()).resolve()
         if isinstance(lifecycle_hooks, LifecycleHooks):
             if hook_timeout != 0.25 or expose_tool_results_to_hooks:

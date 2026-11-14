@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 生效默认线路与模型目录一致（Issue #1186）
+
+沿用本仓库 #1182 已核对的 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Querying Models / Provider Factories）与 `packages/coding-agent/src/core/model-registry.ts`：模型目录与实际调用委托同一运行时，目录项是宿主可见的可用线路，鉴权解析只做适配，不在目录与请求之间引入第二套默认值。所读材料未定义 `none` provider 或本地 RPC 规则；本轮只采用「握手、配置读取与新建会话引用同一份生效目录项」的职责边界，独立复用本项目已有的目录规范，不复制源码、不引入依赖。
+
+适配约定：`ApplicationService` 构造时把生效默认配置切换为模型目录中同一 provider 的条目；`none` 条目沿用既有 `replace(config, model="none", effort=None)` 规范，握手、`config/read`、`model/list`、`thread/start` 和摘要线路判断因此一致。真实 provider 的原配置对象不变，旧会话的线路记录不迁移。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 会话列表旧读取不覆盖较新变更（Issue #1184）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（Control session storage / Continue or switch sessions）与 `packages/coding-agent/src/core/session-manager.ts`（`SessionManager.list`、`listAll`、`listSessionsFromDir`）：会话选择器提供查找、重命名与删除，列表异步读取会话文件并按活动时间排序。所读入口未定义 Electron 列表的异步回执失效规则；本轮只采用持久化事实与界面投影分开的职责边界，独立实现桌面保护，不推断上游存在同类问题，不复制源码、不引入依赖。

@@ -90,6 +90,8 @@ BOSS_HARNESS_PROVIDER=none npm run dev
 
 `none` 会跳过模型调用，但 `/tools`、`/search`、`/status`、`/stats`、`/recommend`、`/jobs`、`/chat`、`/candidates` 仍会直接调用上游只读工具；未安装或未配置该 CLI 时这些命令不可用。真实模型请求可能联网并产生费用。
 
+以 `none` 启动时，握手与 `config/read` 报告的默认线路统一为 `none · none`，与 `model/list` 的目录项一致，可直接新建会话；不需要再设置 `BOSS_HARNESS_MODEL`，残留的模型或推理档位变量会被忽略。
+
 ### 本地配置自检（rc.16 候选）
 
 `--check` 已进入 `v0.2.0-rc.16` 候选，尚未发布。使用候选源码安装内核后，可在启动桌面前运行：
@@ -235,7 +237,7 @@ flowchart LR
 | steering 投递 | `BOSS_HARNESS_STEERING_MODE` 为 `all`（默认，每个投递点注入全部排队 steering）或 `one-at-a-time`（每次只注入最早一条）。 |
 | 持久附件存储 | 默认最多 512 MiB、4096 个对象；`BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_BYTES` 和 `BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_OBJECTS` 可分别设置正整数上限，实际生效值可由 `config/read` 查询。 |
 
-`BOSS_HARNESS_MODEL` 覆盖进程默认 provider 的模型；多 provider 目录中的其他线路使用对应的 `BOSS_HARNESS_OPENAI_MODEL` 或 `BOSS_HARNESS_ANTHROPIC_MODEL`。OpenAI 的端点、凭据和模型均显式配置齐全时不会读取 Codex profile；缺项时才按上表查找本地配置。OpenAI 线路仅支持 Responses 协议；读取到可用 Codex profile 后，`wire_api` 缺省或为空白时使用 `responses`，显式值忽略大小写和首尾空白，其他值以 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝。请配置支持 Responses 的端点，不自动回退到 Chat Completions。
+`BOSS_HARNESS_MODEL` 覆盖进程默认 provider 的模型；多 provider 目录中的其他线路使用对应的 `BOSS_HARNESS_OPENAI_MODEL` 或 `BOSS_HARNESS_ANTHROPIC_MODEL`。OpenAI 的端点、凭据和模型均显式配置齐全时不会读取 Codex profile；缺项时才按上表查找本地配置。OpenAI 线路仅支持 Responses 协议；读取到可用 Codex profile 后，`wire_api` 缺省或为空白时使用 `responses`，显式值忽略大小写和首尾空白，其他值以 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝。请配置支持 Responses 的端点，不自动回退到 Chat Completions。`none` 不读取模型名与推理档位变量：握手、`config/read` 与新建会话都使用目录中的 `none · none`。
 
 `model/list` 只列出本机已配置且当前可用的 provider/model，不探测远程目录，也不返回端点或凭据。`thread/start` 可为新会话选择 provider/model；空闲会话可通过 `thread/model/set` 切换到目录中的精确组合，选择会写入会话元数据并由 fork 继承。旧会话未记录 provider 时，仅当其模型属于进程默认线路才沿用，否则以 `MODEL_ROUTE_SELECTION_REQUIRED` 拒绝回合，需先 `thread/model/set` 选择线路；切换模型会清除不再适用的推理档位。活动回合、压缩、分支摘要进行中或仍有排队消息（`MODEL_SWITCH_QUEUE_PENDING`）时不可切换；fork 继承会话当前线路，而非来源回合当时的线路；来源回合之后切换过线路的中断回合不再允许续接。能力字段为 `capabilities.sessionModelSelection`。`turn/start.model` 只能覆盖为会话线路本身的模型 ID，跨线路模型以 `MODEL_ROUTE_MISMATCH` 拒绝而不改写；provider 由会话选择决定，大小写与 `codex` 别名以内核规范化为准。
 

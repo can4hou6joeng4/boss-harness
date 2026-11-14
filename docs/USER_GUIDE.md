@@ -32,6 +32,8 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 
 三项齐备时不访问 Codex 配置文件，Python 3.10 也可使用这一路线；可选推理强度只取 `BOSS_HARNESS_EFFORT`，未指定则由模型服务决定，不再继承文件中的值。`BOSS_HARNESS_MODEL` 覆盖进程默认 provider 的模型；`BOSS_HARNESS_OPENAI_MODEL` 可为 OpenAI 线路提供模型，Anthropic 线路对应 `BOSS_HARNESS_ANTHROPIC_MODEL`。
 
+选择 `none` 时（显式 `--provider none`、`BOSS_HARNESS_PROVIDER=none` 或没有可用凭据时自动回退），内核不读取模型名与推理档位：握手、`config/read`、`model/list` 与新建会话统一使用 `none · none`，设置 `BOSS_HARNESS_MODEL` 或 `BOSS_HARNESS_EFFORT` 不会改变该线路，也不会发起模型请求。`none` 仍可调用招聘 CLI 与上游只读工具。
+
 缺少任一项时才读取 `BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 或默认 `~/.codex/config.toml`，按此顺序选择文件，显式字段仍优先。读取 TOML 需要 Python 3.11+；已有文件不可读或语法损坏时明确报错，不退到其他 provider。文件不存在或缺少可用 profile 时继续检查端点与凭据，缺项会报错；未提供模型且没有可用文件模型时保留既有 `DEFAULT_MODEL`。
 
 当前文件适配要求文件自身同时提供 `model`、`model_provider` 及该 provider 的 `base_url` 才形成可用 profile；凭据支持 provider 的 `experimental_bearer_token`，或由 `env_key` 指定环境变量名并从该变量读取；显式 `BOSS_HARNESS_OPENAI_API_KEY` 优先于文件凭据，文件内 `experimental_bearer_token` 优先于 `env_key`。OpenAI 线路仅支持 Responses：profile 的 `wire_api` 缺省或为空白时使用 `responses`，显式值忽略首尾空白并按不区分大小写处理；其他值或非字符串会以 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝，不自动改用其他协议。应选择支持 Responses 的端点，不能仅修改标识来适配只支持 Chat Completions 的服务。尚未适配 Codex 的 OAuth。配置解析只读本地文件，不探测真实服务。
