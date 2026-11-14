@@ -8,6 +8,7 @@ from typing import Any
 
 from boss_harness import __version__
 from boss_harness.models import ModelConfig
+from boss_harness.models.config_errors import ModelConfigError
 from boss_harness.tools.boss_cli import binary_available, resolve_binary, resolve_browser_source_override
 
 
@@ -18,6 +19,8 @@ def _check(name: str, status: str, code: str, message: str, hint: str) -> dict[s
 def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str) -> dict[str, str]:
     try:
         config = load_config()
+    except ModelConfigError as exc:
+        return _check("model", "error", exc.code, exc.message, exc.hint)
     except Exception:
         # 配置异常可能带有文件名、环境值或原始 TOML，不输出异常文本。
         return _check(

@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 模型配置自检的具体失败原因（Issue #1170）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Provider Factories / Querying Models）与 `packages/coding-agent/src/core/model-registry.ts`：模型目录读取与实际请求分开，SDK 可以延迟加载；认证解析单独返回成功或失败，缺少 API key 时有明确结论。该兼容层还可能采用异常或 cause 的文本。本项目沿用配置事实与真实请求分离的边界，招聘场景的诊断只从内部固定码取静态说明与建议，不匹配或转发异常原文。不复制 Pi 源码，不新增依赖。
+
+适配约定：OpenAI 端点 / 凭据缺失和 strict 模式下 Codex 文件不可读 / TOML 损坏 / 路径不是普通文件，改抛内部 `ModelConfigError`（`ValueError` 子类）；类只接受已登记的检查码，说明与建议来自静态表。`--check` 优先识别该类型，其他解析异常仍回退为 `MODEL_CONFIG_INVALID`。配置优先级、完整显式线路绕过文件、缺失文件返回空 profile，以及非 strict 读取失败的回退不变；Python 缺少 TOML 解析器时保留原有 `RuntimeError`。报告仍为 `schemaVersion: 1`，检查码新增但字段与退出码不变，调用方应保留未知码展示。桌面使用 #1168 的通用自检桥接，无需增加分支。自检不构造模型客户端、不执行招聘 CLI 或联网。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 桌面启动失败时的本地自检（Issue #1168）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/src/modes/rpc/rpc-client.ts`：RPC 客户端累积子进程 stderr，并在进程退出、启动错误与请求超时的错误消息里附带这些输出，用于解释启动失败。本项目沿用「失败要有可排查原因」的目标，但招聘内核的 stderr 可能含凭据、本机路径与私密招聘记录，传输层继续不读取 stderr，也不把它转发到渲染层；改由主进程在握手前失败时运行固定检查码的本地自检，只接收通过结构校验的固定字段。不引入 Pi 源码或依赖。

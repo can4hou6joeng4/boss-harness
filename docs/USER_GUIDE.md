@@ -43,15 +43,27 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 
 | 检查项 | 固定检查码 | 检查范围与限制 |
 | --- | --- | --- |
-| 模型配置 | `MODEL_CONFIG_VALID` / `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` / `MODEL_CONFIG_INVALID` / `MODEL_CONFIG_INCOMPLETE` | 只复用本地解析，不构造 SDK 或发起请求；缺少必需配置、文件损坏或非正输出上限记为错误，显式 `none` 与自动回退分别记为禁用模型、未配置模型警告。 |
+| 模型配置 | `MODEL_CONFIG_VALID` / `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` / `MODEL_CONFIG_INVALID` / `MODEL_CONFIG_INCOMPLETE`，以及下表的具体错误码 | 只复用本地解析，不构造 SDK 或发起请求；缺少必需配置、文件损坏或非正输出上限记为错误，显式 `none` 与自动回退分别记为禁用模型、未配置模型警告。 |
 | 业务 CLI | `BOSS_CLI_FOUND` / `BOSS_CLI_UNAVAILABLE` | 只发现可执行文件，不执行 `boss schema`、版本查询、登录或任何工具；未发现可执行文件记为警告，文件存在不证明 CLI 能正常运行。 |
 | 浏览器来源 | `BROWSER_SOURCE_VALID` / `BROWSER_SOURCE_INVALID` | 只校验 `BOSS_HARNESS_BROWSER_SOURCE` 的取值，不读取浏览器或 Cookie，也不验证上游是否支持该选项。 |
+
+主干中的模型配置错误进一步提供以下固定码，尚未进入 `v0.2.0-rc.15`；命令行与桌面显示同样的说明和建议：
+
+| 固定检查码 | 含义与处理 |
+| --- | --- |
+| `MODEL_ENDPOINT_MISSING` | OpenAI 线路缺少端点；设置 `BOSS_HARNESS_OPENAI_BASE_URL`，或在有效 Codex profile 的 provider 中配置 `base_url`。 |
+| `MODEL_CREDENTIAL_MISSING` | OpenAI 线路缺少凭据；设置 `BOSS_HARNESS_OPENAI_API_KEY`，或在有效 Codex profile 的 provider 中配置 `experimental_bearer_token`。 |
+| `MODEL_CODEX_UNREADABLE` | 无法读取 Codex 配置文件；核对配置路径与读取权限。 |
+| `MODEL_CODEX_INVALID_TOML` | Codex 配置的 TOML 格式无效；检查语法与文件编码。 |
+| `MODEL_CODEX_NOT_FILE` | Codex 配置路径不是普通文件；将 `BOSS_HARNESS_CODEX_CONFIG` 指向文件，或核对 `CODEX_HOME` 下的 `config.toml`。 |
+
+一次自检只报告解析时遇到的第一个模型配置错误，修复后应再次运行；业务 CLI 与浏览器来源仍独立检查。配置来源与覆盖顺序不变：完整显式模型、端点和凭据会跳过 Codex 文件；需要补全时，损坏或不可读的已有文件会明确失败，文件缺失则继续核对必需字段。未细分的错误（如 provider 无效、输出上限或请求期限非法）继续返回 `MODEL_CONFIG_INVALID`；Anthropic 缺少必需字段仍为 `MODEL_CONFIG_INCOMPLETE`。报告结构与 `schemaVersion: 1` 不变，按检查码处理的调用方应保留未知码的通用错误展示。
 
 报告不包含端点、密钥、模型自定义值、本机路径、会话内容或异常原文，可用于报告安装问题。自检不创建状态目录、不读取会话、不写入索引，与 `--repair-state` 互斥。本地检查仅覆盖上表三项，不核对状态目录可写性、磁盘容量或其他内核运行参数。通过不代表模型可连接、认证有效、平台已登录或真实工具已验收；这些操作应分别在获得授权后核对。
 
 ## 桌面启动失败时的自检
 
-本地内核未能完成启动时，桌面会自动运行一次上述自检，每个失败周期一次。只检查连接从未就绪的这一轮：握手完成前就失败才运行，自动重试期间沿用同一结论，就绪或点「重新连接」后作废，恢复连接后提示自动清除。
+本地内核未能完成启动时，桌面会自动运行一次上述自检，每个失败周期一次。本次连接在握手完成前失败才运行，包括曾经就绪后重新启动失败；自动重试期间沿用同一结论，就绪或点「重新连接」后作废，恢复连接后提示自动清除。
 
 - 自检使用与内核相同的解释器、工作目录与环境（只额外设置输出编码），因此结论与内核实际使用的配置一致；它不调用模型、不执行业务 CLI、不访问招聘平台。
 - 错误项的说明与建议显示在底部提示条，以及「设置 → 模型与连接」的「招聘 Harness」行；后者还逐项列出通过、警告与错误的检查码。
