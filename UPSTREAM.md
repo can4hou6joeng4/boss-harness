@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 自动摘要提交使用业务线路预算（Issue #1190）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/src/core/compaction/compaction.ts`（`CompactionSettings`、`shouldCompact`、`compact` 与 `generateSummary`）：触发判断的 `contextWindow` 与摘要生成的 `model` 分别由调用方传入；所读入口没有给出独立摘要模型后的本地提交校验规则。本项目采用触发容量与摘要请求各由所属模型负责的边界，独立修正已有自动路径，不推断上游存在同类问题，不复制源码、不引入依赖。
+
+适配约定：自动阈值 / 预算压缩和上下文溢出恢复在提交检查点前，按当前 runner 的业务 provider 与请求模型查询容量和匹配 usage；摘要生成继续使用独立摘要线路，checkpoint 中的 `summaryProvider` / `summaryModel` / `summaryEffort` 仍描述生成来源。业务请求容纳不下时沿用 `COMPACTION_INSUFFICIENT` 暂停，保留原始历史及旧检查点，不发布新 checkpoint 或继续业务请求。手动摘要路径已按业务线路校验，继续使用原实现。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 生效默认线路与模型目录一致（Issue #1186）
 
 沿用本仓库 #1182 已核对的 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Querying Models / Provider Factories）与 `packages/coding-agent/src/core/model-registry.ts`：模型目录与实际调用委托同一运行时，目录项是宿主可见的可用线路，鉴权解析只做适配，不在目录与请求之间引入第二套默认值。所读材料未定义 `none` provider 或本地 RPC 规则；本轮只采用「握手、配置读取与新建会话引用同一份生效目录项」的职责边界，独立复用本项目已有的目录规范，不复制源码、不引入依赖。

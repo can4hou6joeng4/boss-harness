@@ -133,6 +133,8 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 
 内核默认启用自动压缩：输入预算使用达到 80% 时生成摘要，并尽量保留最近 20000 token。桌面「设置 → 上下文」可查看并修改这三项默认值；内核侧对应 `config/autoCompaction/set`（能力 `autoCompactionConfig`），只接受 `enabled`、`triggerPercent`（1–100）与 `keepRecentTokens`（1–1000000）。保存后立即在当前进程生效，并原子写入内核状态目录下的 `config.json`；重启后仍生效，其他顶层配置键保持不变。摘要使用的 provider、model、effort 不在此界面修改，仍由启动配置决定。
 
+摘要可以使用与业务回合不同的 provider 或模型。自动压缩与上下文溢出恢复均在提交前，按业务回合实际使用的 provider/model 检查摘要、保留历史、当前输入及工具定义的完整预算。容纳不下时以 `COMPACTION_INSUFFICIENT` 暂停，不保存新摘要检查点、不继续业务请求，原始记录与既有检查点保留；可减少当前输入或保留目标，或新建会话后明确继续。
+
 策略来源经 `config/read` 的 `autoCompactionSource` 如实返回：`environment` 表示由 `BOSS_HARNESS_COMPACTION` 管理，`stored` 表示来自 `config.json`，`default` 表示内置默认，`explicit` 表示调用方在构造内核时显式指定。环境变量优先于持久配置；此时设置页只读，直接调用 `config/autoCompaction/set` 会以 `AUTO_COMPACTION_ENV_MANAGED` 拒绝，不会静默覆盖环境变量；显式构造的内核以 `AUTO_COMPACTION_EXPLICIT` 拒绝写入。配置文件缺失或字段非法时按内置默认读取；文件存在但不可读或不是 JSON 对象时，保存会明确失败而不是覆盖原文件。单回合覆盖的语义不变：它优先于默认值，发送一次后消耗，不写入会话或 `config.json`。
 
 ## 快速提问

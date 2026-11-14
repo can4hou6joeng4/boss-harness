@@ -2776,8 +2776,9 @@ class ApplicationService:
                 replacement = self.context.compacted_request(request, summary, plan,
                                                               _active_turn_id=turn["turnId"])
                 try:
-                    self.context.prepare(replacement, self.model_catalog.resolve(config.provider, request.model),
-                                         provider=config.provider, thread_id=thread_id)
+                    # 摘要可用独立线路；提交前须按实际业务请求的容量与 usage 核对。
+                    self.context.prepare(replacement, self.model_catalog.resolve(runner.config.provider, request.model),
+                                         provider=runner.config.provider, thread_id=thread_id)
                 except ContextBudgetExceeded:
                     raise ContextCompactionFailed("COMPACTION_INSUFFICIENT",
                         "摘要与当前请求仍超过完整预算；请减少输入或保留范围，或新建会话") from None

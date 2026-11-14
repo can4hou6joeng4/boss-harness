@@ -4,7 +4,7 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前没有未发布的变更。
+- [Issue #1190](https://github.com/can4hou6joeng4/boss-harness/issues/1190)：自动摘要提交前按实际业务线路校验完整预算。此前跨 provider 摘要会用摘要 provider 与业务模型 ID 查询容量，可能误拒绝可用摘要，或先保存业务模型容纳不下的新检查点、再因预算超限暂停。自动阈值 / 预算压缩与溢出恢复现在按业务 runner 的 provider 和请求模型查询容量、匹配 usage；摘要生成、输出预留与来源元数据继续使用独立摘要配置。容纳不下时沿用 `COMPACTION_INSUFFICIENT` 暂停，不提交新检查点、不发起后续业务请求，原始历史与已有检查点保留。实际 stdio 入口在合成 provider 下复现两种旧行为，修复后七种场景通过，覆盖跨 provider 较大 / 较小 / 未声明容量、同 provider 独立摘要模型与溢出恢复；独立 wheel 安装后同组复验通过，审计网络、外部进程及模型 SDK 导入尝试均为零。类型检查、桌面构建、离线 wheel / sdist 构建与依赖检查通过，两个包及安装后模块与源码字节一致，许可匹配且无测试材料。README、使用指南、技术参考与上游记录同步。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.16 - 2026-11-14
 
