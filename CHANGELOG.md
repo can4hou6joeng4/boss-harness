@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1178](https://github.com/can4hou6joeng4/boss-harness/issues/1178)：修正「内核与业务契约参考」中「桌面不提供删除按钮」的过期说明，并按当前实现补全桌面会话管理文档：删除入口、确认框会一并清除的本机未发送正文 / 附件 / 已选技能 / 正在读取的附件 / 消息反馈、`THREAD_BUSY` 拒绝，以及 `THREAD_DELETE_INCOMPLETE` / `THREAD_NOT_FOUND` 与未确认结果的处理；使用指南新增归档与删除会话说明，README 能力地图补充会话管理条目。纯文档改动，不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.16 - 2026-11-14
 
 本节汇总第十六个候选版本的源码与交付内容；实际发布状态以 [GitHub Release](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.16) 为准。
