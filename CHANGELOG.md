@@ -4,6 +4,18 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+## 0.2.0-rc.17 - 2026-11-14
+
+本节汇总第十七个候选版本的源码与交付内容；rc.16 与 rc.17 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.16，本次修复独立摘要线路的提交预算：摘要生成继续使用摘要 provider / model，提交检查点前则按实际业务模型核对完整请求，避免误拒可用摘要或先保存业务模型容纳不下的检查点。相对最新实际发布 rc.15，本候选还包含下方 rc.16 的本地配置自检、启动诊断、模型线路一致性与会话列表可靠性改进。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。本次不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1192](https://github.com/can4hou6joeng4/boss-harness/issues/1192)：同步根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本为 npm `0.2.0-rc.17` / Python `0.2.0rc17`；README 与使用指南标明当前候选，首次安装继续使用已有 rc.15 tag，保留 rc.16 历史记录。候选版本准备不代表实际 tag、Release、资产上传或包注册表发布。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1190](https://github.com/can4hou6joeng4/boss-harness/issues/1190)：自动摘要提交前按实际业务线路校验完整预算。此前跨 provider 摘要会用摘要 provider 与业务模型 ID 查询容量，可能误拒绝可用摘要，或先保存业务模型容纳不下的新检查点、再因预算超限暂停。自动阈值 / 预算压缩与溢出恢复现在按业务 runner 的 provider 和请求模型查询容量、匹配 usage；摘要生成、输出预留与来源元数据继续使用独立摘要配置。容纳不下时沿用 `COMPACTION_INSUFFICIENT` 暂停，不提交新检查点、不发起后续业务请求，原始历史与已有检查点保留。实际 stdio 入口在合成 provider 下复现两种旧行为，修复后七种场景通过，覆盖跨 provider 较大 / 较小 / 未声明容量、同 provider 独立摘要模型与溢出恢复；独立 wheel 安装后同组复验通过，审计网络、外部进程及模型 SDK 导入尝试均为零。类型检查、桌面构建、离线 wheel / sdist 构建与依赖检查通过，两个包及安装后模块与源码字节一致，许可匹配且无测试材料。README、使用指南、技术参考与上游记录同步。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.16 - 2026-11-14
