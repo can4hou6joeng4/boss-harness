@@ -6,7 +6,7 @@ import { ModalSurface } from "../components/ModalSurface";
 import { useClipboardCopy } from "../data/clipboardCopy";
 import { harnessErrorText } from "../data/harnessBridge";
 import { queueRefreshErrorText, type QueueRefreshResult } from "../data/queueRefresh";
-import { queueActionNotice, type QueueActionOutcome } from "../data/queueAction";
+import { queueActionNotice, type QueueActionOutcome, type QueueRetryOutcome } from "../data/queueAction";
 import { useQueueActions } from "../data/queueActionState";
 import { queueItemRetryable } from "../data/queueRetry";
 import { queueSkillLabels } from "../data/queueSkillLabels";
@@ -39,8 +39,8 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   onUpdateInput?: (item: QueueItem, input: string) => Promise<QueueItem>;
   /** 撤回队列项；`skipped` 表示请求没有发出，`uncertain` 表示结果无法确认。 */
   onRemove: (id: string) => Promise<QueueActionOutcome>;
-  /** 重新排队暂停项；结果语义与 onRemove 一致。 */
-  onRetry?: (item: QueueItem) => Promise<QueueActionOutcome>;
+  /** 重新排队暂停项；`partial` 表示新项已受理，但旧项撤回尚未确认。 */
+  onRetry?: (item: QueueItem) => Promise<QueueRetryOutcome>;
 }): JSX.Element | null {
   // 重新排队与撤回的在途锁、失败原因按会话保留；通知切换导致面板卸载也不能遗忘在途写入。
   const actions = useQueueActions(threadId);
@@ -153,25 +153,28 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     setConfirmEditClose(false);
     await saveEditing(submitted => updateInput(submitted.item, submitted.draft));
   };
-  /** 返回停止原因；null 表示本条已成功。 */
-  const retry = async (item: QueueItem): Promise<string | null> => {
+  /** 分开返回新项受理事实与停止原因：旧项撤回未确认时仍须计入已受理数量。 */
+  const retry = async (item: QueueItem): Promise<{ accepted: boolean; notice: string | null }> => {
     // 读取会话级最新状态：切回后的新组件不能沿用渲染时的旧锁。
     const current = actions.getState();
-    if (current.pendingRetryId !== null || current.pendingRemoveId !== null) return "另一条队列操作仍在进行，本次没有发出。";
+    if (current.pendingRetryId !== null || current.pendingRemoveId !== null) return { accepted: false, notice: "另一条队列操作仍在进行，本次没有发出。" };
     actions.beginRetry(item.id);
+    let accepted = false;
     let notice: string | null = null;
     try {
-      notice = queueActionNotice("重新排队", await onRetry!(item));
+      const outcome = await onRetry!(item);
+      accepted = outcome.status === "done" || outcome.status === "partial";
+      notice = queueActionNotice("重新排队", outcome);
     } catch (cause) {
       // 入队或回执异常：请求可能已经发出，无法证明没有生效，按未确认处理。
       notice = `重新排队结果尚未确认：${harnessErrorText(cause)}。请核对队列状态。`;
     }
-    // 迟到结果按发起时的队列项结算；成功也要清除提示，恢复按钮可用性。
+    // 迟到结果按发起时的队列项结算；部分完成的提示也保留在发起会话中。
     actions.settleRetry(item.id, notice ?? "");
-    return notice;
+    return { accepted, notice };
   };
   /**
-   * 批量重新排队：按列表顺序逐条串行处理暂停项，每条成功后再开始下一条。
+   * 批量重新排队：按列表顺序逐条串行处理暂停项，创建与撤回均确认后再开始下一条。
    * 遇到拒绝或结果未确认立即停止，剩余项保持暂停；面板卸载时不再发出新的请求。
    */
   const retryAll = async () => {
@@ -188,10 +191,12 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     for (const item of targets) {
       if (batchCancel.current) { stopped = "已切换会话，剩余暂停消息未重新排队。"; break; }
       if (batchHalt.current) { halted = true; break; }
-      const notice = await retry(item);
-      if (notice) { stopped = notice; break; }
-      done += 1;
-      if (alive.current) setBatch(current => current ? { ...current, done } : current);
+      const result = await retry(item);
+      if (result.accepted) {
+        done += 1;
+        if (alive.current) setBatch(current => current ? { ...current, done } : current);
+      }
+      if (result.notice) { stopped = result.notice; break; }
     }
     const summary = halted
       ? `已重新排队 ${done} 条；已停止，其余暂停消息保持原样。`
@@ -330,6 +335,8 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
         onClick={() => { void refresh(); }}>{refreshing ? "刷新中…" : "刷新"}</button>}
     </div>
     {!connected && <p className="turn-queue-stale" role="status">本机内核已断开，队列状态可能已过期；恢复连接后会重新读取。</p>}
+    {batchNotice && !error && <p className="turn-queue-note" role="status">{batchNotice}</p>}
+    {(error || (removeTarget ? "" : removeMessage)) && <p className="turn-queue-error" role="status">{error || removeMessage}</p>}
     <ul>
       {visibleItems.map(item => <li key={item.id}>
         <div className="turn-queue-item-copy">
@@ -374,8 +381,6 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
         title={connected ? "按列表顺序逐条撤回暂停消息；撤回后正文不会自动恢复，遇到拒绝或结果未确认时停止" : "本机内核未连接，恢复连接后再撤回"}
         onClick={startRemoveAll}>{batch?.mode === "remove" ? `正在撤回…（${batch.done}/${batch.total}）` : `撤回全部暂停项（${removablePaused.length}）`}</button>}
     </div>}
-    {batchNotice && !error && <p className="turn-queue-note" role="status">{batchNotice}</p>}
-    {(error || (removeTarget ? "" : removeMessage)) && <p className="turn-queue-error" role="status">{error || removeMessage}</p>}
     </section>}
     {viewing && <QueueInputDialog item={viewing.item} input={viewing.input} skillLabels={viewingSkillLabels}
       retryAvailable={canRetry(viewing.item)} copyFeedback={copyFeedback}

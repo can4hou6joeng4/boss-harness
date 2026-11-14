@@ -45,7 +45,7 @@ import type { ModelRetryStatus } from "../data/modelRetry";
 import type { FindMemoryState, SessionBranchesView } from "./ConversationArea";
 import type { ThemePreference } from "../data/themePreference";
 import { dropSessionHistory, nextReachableIndex } from "../data/routeHistory";
-import type { QueueActionOutcome } from "../data/queueAction";
+import type { QueueActionOutcome, QueueRetryOutcome } from "../data/queueAction";
 import "../styles/login-sidebar.css";
 
 export interface AppShellProps {
@@ -61,7 +61,7 @@ export interface AppShellProps {
   onArchiveSession?: (session: SessionItem, archived: boolean) => Promise<boolean>;
   /** 重命名会话；成功写入内核标题并持久化，返回 false 表示名称未保存（失败原因由外层提示）。 */
   onRenameSession?: (session: SessionItem, name: string, options?: { silent?: boolean }) => Promise<boolean>;
-  onQueueMessage?: ComposerQueue; onCheckQueueSubmission?: CheckQueueSubmission; queueItems?: QueueItem[]; queueTotalItems?: number; queueActiveItems?: number; queueTruncated?: boolean; onRemoveQueueItem?: (id: string) => Promise<QueueActionOutcome>; onRetryQueueItem?: (item: QueueItem) => Promise<QueueActionOutcome>; onReadQueueItem?: (item: QueueItem) => Promise<QueueItem>; onUpdateQueueItem?: (item: QueueItem, input: string) => Promise<QueueItem>; onRefreshQueue?: () => Promise<QueueRefreshResult>;
+  onQueueMessage?: ComposerQueue; onCheckQueueSubmission?: CheckQueueSubmission; queueItems?: QueueItem[]; queueTotalItems?: number; queueActiveItems?: number; queueTruncated?: boolean; onRemoveQueueItem?: (id: string) => Promise<QueueActionOutcome>; onRetryQueueItem?: (item: QueueItem) => Promise<QueueRetryOutcome>; onReadQueueItem?: (item: QueueItem) => Promise<QueueItem>; onUpdateQueueItem?: (item: QueueItem, input: string) => Promise<QueueItem>; onRefreshQueue?: () => Promise<QueueRefreshResult>;
   simulateLocal?: boolean; harnessUp?: boolean; running?: boolean; taskBlocked?: boolean;
   /** 会话列表是否至少成功加载过一次；通知定位在列表加载完成前需要保留意图。 */
   sessionsLoaded?: boolean;
