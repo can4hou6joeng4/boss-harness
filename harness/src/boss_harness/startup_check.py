@@ -9,9 +9,14 @@ from pathlib import Path
 from typing import Any
 
 from boss_harness import __version__
+from boss_harness.application import steering_mode_from_environment
+from boss_harness.compaction import CompactionPolicy
 from boss_harness.models import ModelConfig
+from boss_harness.models.capabilities import ModelCatalog
 from boss_harness.models.config_errors import ModelConfigError
 from boss_harness.private_files import check_private_directory
+from boss_harness.resources import AttachmentStore
+from boss_harness.turn_limits import model_request_limit_from_environment
 from boss_harness.tools.boss_cli import binary_available, resolve_binary, resolve_browser_source_override
 
 
@@ -124,11 +129,40 @@ def _state_check(state_dir: Path) -> dict[str, str]:
     )
 
 
+# 与 ApplicationService 构造时的读取顺序一致；每项复用正常启动的解析函数，只给出静态说明。
+_RUNTIME_OPTIONS: tuple[tuple[str, Callable[[], object], str, str], ...] = (
+    ("STEERING_MODE_INVALID", steering_mode_from_environment, "转向消息模式配置无效。",
+     "将 BOSS_HARNESS_STEERING_MODE 设为 all 或 one-at-a-time，或取消设置。"),
+    ("MAX_MODEL_REQUESTS_INVALID", model_request_limit_from_environment, "单回合模型请求上限配置无效。",
+     "将 BOSS_HARNESS_MAX_MODEL_REQUESTS 设为 1 到 64 的十进制整数，或取消设置。"),
+    ("ATTACHMENT_STORAGE_LIMIT_INVALID", AttachmentStore.limits_from_environment, "附件存储上限配置无效。",
+     "将 BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_BYTES 与 BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_OBJECTS 设为正的十进制整数，或取消设置。"),
+    ("MODEL_LIMITS_INVALID", ModelCatalog.from_environment, "模型容量配置无效。",
+     "核对 BOSS_HARNESS_MODEL_LIMITS 的 JSON 结构、provider/model 键与容量取值，或取消设置；格式见内核与业务契约参考。"),
+    ("COMPACTION_CONFIG_INVALID", CompactionPolicy.from_environment, "自动压缩配置无效。",
+     "核对 BOSS_HARNESS_COMPACTION 的 JSON 字段、类型与取值范围，或取消设置；格式见内核与业务契约参考。"),
+)
+
+
+def _runtime_check() -> dict[str, str]:
+    for code, load, message, hint in _RUNTIME_OPTIONS:
+        try:
+            load()
+        except Exception:
+            # 解析错误可能带有环境值或 JSON 片段，只输出登记的静态说明。
+            return _check("runtimeOptions", "error", code, message, hint)
+    return _check(
+        "runtimeOptions", "ok", "RUNTIME_OPTIONS_VALID", "内核运行参数的本地校验通过。",
+        "只校验转向模式、模型请求上限、附件存储上限、模型容量与自动压缩环境变量的格式和取值；未读取状态目录中的持久设置。",
+    )
+
+
 def startup_report(
     load_config: Callable[[], ModelConfig], *, state_dir: Path, requested_provider: str = ""
 ) -> dict[str, Any]:
     """汇总静态检查；检查结果与实际模型、CLI 和平台可用性分别核对。"""
-    checks = [_model_check(load_config, requested_provider), _cli_check(), _browser_check(), _state_check(state_dir)]
+    checks = [_model_check(load_config, requested_provider), _cli_check(), _browser_check(), _state_check(state_dir),
+              _runtime_check()]
     return {
         "schemaVersion": 1,
         "version": __version__,

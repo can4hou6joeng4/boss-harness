@@ -50,6 +50,19 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 | 业务 CLI | `BOSS_CLI_FOUND` / `BOSS_CLI_UNAVAILABLE` | 只发现可执行文件，不执行 `boss schema`、版本查询、登录或任何工具；未发现可执行文件记为警告，文件存在不证明 CLI 能正常运行。 |
 | 浏览器来源 | `BROWSER_SOURCE_VALID` / `BROWSER_SOURCE_INVALID` | 只校验 `BOSS_HARNESS_BROWSER_SOURCE` 的取值，不读取浏览器或 Cookie，也不验证上游是否支持该选项。 |
 | 状态目录 | `STATE_DIRECTORY_VALID` 及下文的目录错误码 | 只读核对实际状态路径的目录类型、所有权、父目录与 ACL 安全规则，以及基本访问条件；缺失路径只核对已有父目录，不创建或试写。 |
+| 运行参数 | `RUNTIME_OPTIONS_VALID` 及下文的运行参数错误码 | 复用正常启动的解析，校验转向模式、模型请求上限、附件存储上限、模型容量与自动压缩环境变量的格式和取值；不读取状态目录中的持久设置。 |
+
+运行参数检查（尚未发布，将随下一候选交付）覆盖取值无效时会让内核启动失败的环境变量，按启动时的读取顺序报告遇到的第一个错误，修复后应再次运行：
+
+| 固定检查码 | 环境变量与处理 |
+| --- | --- |
+| `STEERING_MODE_INVALID` | `BOSS_HARNESS_STEERING_MODE` 只能是 `all` 或 `one-at-a-time`；也可取消设置。 |
+| `MAX_MODEL_REQUESTS_INVALID` | `BOSS_HARNESS_MAX_MODEL_REQUESTS` 须为 1 到 64 的十进制整数。 |
+| `ATTACHMENT_STORAGE_LIMIT_INVALID` | `BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_BYTES` 与 `BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_OBJECTS` 须为正的十进制整数。 |
+| `MODEL_LIMITS_INVALID` | `BOSS_HARNESS_MODEL_LIMITS` 的 JSON 结构、`provider/model` 键或容量取值无效；格式见[内核与业务契约参考](TECHNICAL_REFERENCE.md)。 |
+| `COMPACTION_CONFIG_INVALID` | `BOSS_HARNESS_COMPACTION` 的 JSON 字段、类型或取值范围无效；格式见[内核与业务契约参考](TECHNICAL_REFERENCE.md)。 |
+
+报告不回显这些变量的原值。检查只判断格式与取值范围，不核对摘要线路的凭据、声明的容量是否与模型服务一致，也不读取 `config.json` 中的持久自动压缩设置。
 
 模型配置错误进一步提供以下固定码（rc.17 候选内容，尚未发布）；命令行与桌面显示同样的说明和建议：
 
@@ -76,7 +89,7 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 
 已有目录沿用正常启动的安全规则，不要求统一改成某一权限值；自检也不会自动收紧权限。目录缺失时只核对已有父目录，后续目录由正常启动创建。路径无法解析（如符号链接环）同属无效路径：自检报 `STATE_DIRECTORY_INVALID`，正常启动与 `--repair-state` 都以固定中文说明和退出码 2 结束，不打印 Python 回溯或本机绝对路径。检查不获取占用锁、不打开索引或会话、不尝试真实写入；通过不证明磁盘空间充足、路径没有被另一内核占用或索引与会话完整，实际启动仍是最终核对。
 
-报告不包含端点、密钥、模型自定义值、本机路径、会话内容或异常原文，可用于报告安装问题。自检不创建状态目录、不修改权限、不读取会话、不写入索引，与 `--repair-state` 互斥。本地检查仅覆盖上表四项，不核对模型 SDK 是否已安装或其他内核运行参数。通过不代表模型可连接、认证有效、平台已登录或真实工具已验收；这些操作应分别在获得授权后核对。
+报告不包含端点、密钥、模型自定义值、本机路径、会话内容或异常原文，可用于报告安装问题。自检不创建状态目录、不修改权限、不读取会话、不写入索引，与 `--repair-state` 互斥。本地检查仅覆盖上表五项，不核对模型 SDK 是否已安装，也不核对审批期限、重试次数等取值无效时回退默认值的参数。通过不代表模型可连接、认证有效、平台已登录或真实工具已验收；这些操作应分别在获得授权后核对。
 
 ## 桌面启动失败时的自检
 

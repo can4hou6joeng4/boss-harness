@@ -1,5 +1,9 @@
 # 上游吸收记录
 
+## 本地自检覆盖启动期运行参数（Issue #1194）
+
+本项为本项目自检入口的范围补全，未采用 Pi 或其他上游的具体机制，不复制源码、不引入依赖。自检直接调用内核启动时已有的环境变量解析函数（转向模式、模型请求上限、附件存储上限、模型容量、自动压缩），因此两处规则不会分叉；错误只映射为登记的固定检查码与静态说明。报告在既有四项之后追加 `runtimeOptions`，`schemaVersion` 仍为 `1`。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 自动摘要提交使用业务线路预算（Issue #1190）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/src/core/compaction/compaction.ts`（`CompactionSettings`、`shouldCompact`、`compact` 与 `generateSummary`）：触发判断的 `contextWindow` 与摘要生成的 `model` 分别由调用方传入；所读入口没有给出独立摘要模型后的本地提交校验规则。本项目采用触发容量与摘要请求各由所属模型负责的边界，独立修正已有自动路径，不推断上游存在同类问题，不复制源码、不引入依赖。

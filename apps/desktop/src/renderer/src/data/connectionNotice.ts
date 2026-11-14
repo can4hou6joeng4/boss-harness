@@ -39,7 +39,7 @@ export interface StartupCheckRow {
 
 const UNCONFIRMED = "结果未确认的对外操作请先核对平台状态。";
 const NOT_CONNECTED = "本地内核未连接，可重新连接后恢复会话。";
-const CHECK_TITLES = new Map([["model", "模型配置"], ["bossCli", "业务 CLI"], ["browserSource", "浏览器来源"], ["stateDirectory", "状态目录"]]);
+const CHECK_TITLES = new Map([["model", "模型配置"], ["bossCli", "业务 CLI"], ["browserSource", "浏览器来源"], ["stateDirectory", "状态目录"], ["runtimeOptions", "运行参数"]]);
 const STATUS_LABELS: Record<StartupCheckEntry["status"], string> = { ok: "通过", warning: "警告", error: "错误" };
 const UNAVAILABLE: Record<Extract<StartupDiagnosis, { kind: "unavailable" }>["reason"], string> = {
   spawn: "未能启动 Python 解释器：请确认仓库根目录已创建 .venv，或 BOSS_HARNESS_PYTHON 指向可执行的 Python 3.10 及以上版本。",
