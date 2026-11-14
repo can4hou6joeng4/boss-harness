@@ -174,6 +174,8 @@ export function App(): JSX.Element {
   const runningRef = useRef(new Set<string>());
   // 停止请求在途的会话：重复点击通常会在第一个请求受理后拿到「没有可停止的回合」，不能报成失败。
   const interruptInFlight = useRef(new Set<string>());
+  // 受理停止后等待回合结束通知；超时兜底允许重试，避免通知丢失时按钮永久禁用。
+  const interruptReleaseTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const replicaRef = useRef<HarnessReplica | null>(null);
   const turnIds = useRef(new Map<string, string>());
   // 队列读取只允许最新一次写入面板；本地已提交的变更会让此前发出的读取失效。
@@ -269,12 +271,20 @@ export function App(): JSX.Element {
     updateThread(state.threadId, previous => previous.map(message => message.id === state.itemId
       ? { ...message, contextEdit: edited ? { excluded: state.excluded } : undefined } : message));
   }, [updateThread]);
+  const releaseInterrupt = useCallback((id: string) => {
+    const timer = interruptReleaseTimers.current.get(id);
+    if (timer) { clearTimeout(timer); interruptReleaseTimers.current.delete(id); }
+    interruptInFlight.current.delete(id);
+    setStoppingThreadId(current => current === id ? null : current);
+  }, []);
   const markRunning = useCallback((id: string, running: boolean) => {
     const next = new Set(runningRef.current);
     if (running) next.add(id); else next.delete(id);
     runningRef.current = next; setRunningThreadIds(next);
     setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.map(session => session.id === id ? { ...session, status: running ? "running" : "completed" } : session) })));
-  }, []);
+    // 回合结束即停止受理已经落地：恢复停止按钮并清除在途标记（含等待中的兜底计时器）。
+    if (!running) releaseInterrupt(id);
+  }, [releaseInterrupt]);
   // 切到会话即视为已查看，清除后台完成标记；标记只在本次运行内保留。
   useEffect(() => {
     const id = activeSession?.id;
@@ -365,6 +375,7 @@ export function App(): JSX.Element {
           cache.current.delete(deleted);
           queueCache.current.delete(deleted);
           sessionErrors.current.delete(deleted);
+          releaseInterrupt(deleted);
           if (errorOwner.current === deleted) showError("");
           setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== deleted) })));
           void refresh();
@@ -607,10 +618,11 @@ export function App(): JSX.Element {
     });
     void refresh();
     return () => { cancelled = true; replica.invalidate(); unsubscribe(); if (replicaRef.current === replica) replicaRef.current = null; };
-  }, [applyQueueBadge, applyQueuePage, clearModelRetry, markCompletedUnread, markRunning, readContinuationCheck, reportSessionError, updateModelRetry, updateThread]);
+  }, [applyQueueBadge, applyQueuePage, clearModelRetry, markCompletedUnread, markRunning, readContinuationCheck, releaseInterrupt, reportSessionError, updateModelRetry, updateThread]);
   useEffect(() => () => {
     for (const timer of timers.current.values()) clearTimeout(timer);
     for (const timer of retryTimers.current.values()) clearTimeout(timer);
+    for (const timer of interruptReleaseTimers.current.values()) clearTimeout(timer);
   }, []);
   const handleSelectSession = useCallback((session: SessionItem) => {
     const requestVersion = ++selectionVersion.current;
@@ -1120,6 +1132,8 @@ export function App(): JSX.Element {
     if (interruptInFlight.current.has(id)) return;
     interruptInFlight.current.add(id);
     setStoppingThreadId(id);
+    // 受理成功时回合收尾稍后才结束：保持按钮禁用直到运行状态清除；通知丢失时兜底恢复，允许再次尝试。
+    interruptReleaseTimers.current.set(id, setTimeout(() => releaseInterrupt(id), 10000));
     // 停止说明先写入；重新读取若失败，读取记录会覆盖它，必须在同一次读取结算后补回停止主因。
     const recheckAfterStopFailure = (notice: string, combine: (readFailure: string) => string) => {
       reportSessionError(id, notice);
@@ -1133,14 +1147,17 @@ export function App(): JSX.Element {
     // 携带界面正在展示的回合：该回合已被排队的后续回合替代时，内核拒绝而不是中断新回合。
     const expectedTurnId = turnIds.current.get(id);
     void interruptTurn(id, expectedTurnId).then(interrupted => {
-      if (!interrupted && runningRef.current.has(id)) {
-        recheckAfterStopFailure(stopMissingNotice, stopMissingRecheckNotice);
+      if (!interrupted) {
+        // 内核明确回报没有可停止的回合：无需等待回合结束通知，立即恢复可停止并按既有规则核对。
+        releaseInterrupt(id);
+        if (runningRef.current.has(id)) recheckAfterStopFailure(stopMissingNotice, stopMissingRecheckNotice);
       }
     }).catch(cause => {
+      releaseInterrupt(id);
       if (!runningRef.current.has(id)) return;
       recheckAfterStopFailure(stopFailureNotice(cause), readFailure => stopFailureRecheckNotice(cause, readFailure));
-    }).finally(() => { interruptInFlight.current.delete(id); setStoppingThreadId(current => current === id ? null : current); });
-  }, [markRunning, reportSessionError, updateThread]);
+    });
+  }, [markRunning, releaseInterrupt, reportSessionError, updateThread]);
   const handleApproval = useCallback(async (approvalId: string, approved: boolean, toolName: string, remember: boolean, messageId?: string, threadId?: string) => {
     const session = activeRef.current;
     const targetThreadId = threadId ?? session?.id;
