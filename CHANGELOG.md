@@ -4,6 +4,20 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+## 0.2.0-rc.18 - 2026-11-14
+
+本节汇总第十八个候选版本的源码与交付内容；rc.16、rc.17 与 rc.18 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.17，本次把更多配置错误纳入启动前的本地自检并统一为固定原因：自检新增「运行参数」检查项；供应商拼写、输出上限与请求期限错误各有固定检查码，正常启动不再输出解析异常原文；Anthropic 线路的服务端回退开关按固定写法解析，无法识别的取值明确失败。使用指南补充此前未说明的运行参数。相对最新实际发布 rc.15，本候选还包含下方 rc.17 与 rc.16 的内容。
+
+升级注意：`BOSS_HARNESS_SERVER_FALLBACK` 的 `False`、`off`、`no` 由开启变为关闭，其他非标准写法在 Anthropic 线路会让启动失败；按检查码处理的调用方会看到非正输出上限由 `MODEL_CONFIG_INVALID` 改为 `MODEL_MAX_TOKENS_INVALID`，自检报告在既有四项之后多出 `runtimeOptions` 一项。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。本次不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1202](https://github.com/can4hou6joeng4/boss-harness/issues/1202)：同步根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本为 npm `0.2.0-rc.18` / Python `0.2.0rc18`；README 与使用指南标明当前候选，首次安装继续使用已有 rc.15 tag，保留 rc.16 与 rc.17 历史记录。候选版本准备不代表实际 tag、Release、资产上传或包注册表发布。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1200](https://github.com/can4hou6joeng4/boss-harness/issues/1200)：文档补充此前未说明的环境变量。使用指南新增「其他运行参数」一节，逐项列出 `BOSS_HARNESS_MAX_TOKENS`、`BOSS_HARNESS_MAX_MODEL_REQUESTS`、`BOSS_HARNESS_RETRY_ATTEMPTS`、`BOSS_HARNESS_RETRY_BASE_MS`、`BOSS_HARNESS_APPROVAL_TIMEOUT` 与桌面使用的 `BOSS_HARNESS_PYTHON` 的作用、默认值、范围，以及取值无效时是启动失败、使用默认值还是收敛到边界；README 配置表补充对应入口。只改文档，运行行为不变。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 - [Issue #1198](https://github.com/can4hou6joeng4/boss-harness/issues/1198)：Anthropic 线路的 `BOSS_HARNESS_SERVER_FALLBACK` 不再把 `False`、`off`、`no`、带空白的 `0` 或任意拼写错误当作开启。此前只有精确的 `0`、`false` 与空值算关闭，其余取值一律让请求携带服务端回退参数并走 beta 接口：非官方端点默认关闭，用户按常见写法想保持关闭时反而开启；官方端点想关闭时不生效，均无提示。现在取值去除首尾空白并按不区分大小写解析，`1` / `true` / `yes` / `on` 为开启，`0` / `false` / `no` / `off` 为关闭；未设置仍按端点是否为官方主机取默认值，空值仍为关闭。其他取值以新增固定检查码 `MODEL_SERVER_FALLBACK_INVALID` 明确失败：自检的模型配置项报错并给出静态处理建议，正常启动输出同一固定码并以退出码 2 结束，不回显变量取值或异常原文。`none` 与 OpenAI 线路不使用该开关，不因它失败。兼容影响：此前靠非标准写法（如 `enabled`）开启的配置需改为上述写法；`False`、`off`、`no` 的含义由开启变为关闭。使用指南补充该变量与 `BOSS_HARNESS_THINKING` 的作用、默认值与可接受写法。不新增 RPC，协议与内核仍为 `0.2.0`。
