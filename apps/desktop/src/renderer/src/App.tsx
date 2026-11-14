@@ -1097,14 +1097,24 @@ export function App(): JSX.Element {
       clearTimeout(timer); timers.current.delete(id); markRunning(id, false);
       updateThread(id, previous => [...previous, { id: "stopped-" + Date.now(), role: "agent", paragraphs: ["已停止界面演示。"] }]); return;
     }
+    // 停止回执属于发起时的会话：切走不显示到另一聊天，切回仍能核对；重新发起回合会清除。
+    const report = (message: string) => {
+      sessionErrors.current.set(id, message);
+      if (activeRef.current?.id !== id) {
+        const title = foldersRef.current.flatMap(folder => folder.sessions).find(session => session.id === id)?.title;
+        setError(title ? `会话「${title}」：${message}` : message);
+        return;
+      }
+      setError(message);
+    };
     void interruptTurn(id).then(interrupted => {
       if (!interrupted && runningRef.current.has(id)) {
-        setError("未找到可停止的任务，正在重新读取会话状态。");
+        report("未找到可停止的任务，正在重新读取会话状态。");
         void replicaRef.current?.resume(id);
       }
     }).catch(cause => {
       if (!runningRef.current.has(id)) return;
-      setError(`停止请求未确认：${harnessErrorText(cause)}。正在重新读取会话状态；不会自动重复停止。`);
+      report(`停止请求未确认：${harnessErrorText(cause)}。正在重新读取会话状态；不会自动重复停止。`);
       void replicaRef.current?.resume(id);
     });
   }, [markRunning, updateThread]);
