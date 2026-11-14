@@ -1,14 +1,17 @@
 """本地启动配置自检；只输出固定诊断，不运行模型或业务工具。"""
 from __future__ import annotations
 
+import errno
 import os
 import sys
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from boss_harness import __version__
 from boss_harness.models import ModelConfig
 from boss_harness.models.config_errors import ModelConfigError
+from boss_harness.private_files import check_private_directory
 from boss_harness.tools.boss_cli import binary_available, resolve_binary, resolve_browser_source_override
 
 
@@ -86,11 +89,46 @@ def _browser_check() -> dict[str, str]:
     )
 
 
+def _state_check(state_dir: Path) -> dict[str, str]:
+    try:
+        # 与 StateDirectoryOwner 一样先按 cwd 解析；环境变量中的 ~ 不由内核展开。
+        check_private_directory(state_dir.resolve())
+    except NotADirectoryError:
+        return _check(
+            "stateDirectory", "error", "STATE_DIRECTORY_NOT_DIRECTORY", "状态路径或其父级不是目录。",
+            "核对 --state-dir、BOSS_HARNESS_DIR 及旧变量 BOSS_CLI_HARNESS_DIR；保留已有文件，选择独立目录。",
+        )
+    except PermissionError:
+        return _check(
+            "stateDirectory", "error", "STATE_DIRECTORY_ACCESS_DENIED", "状态目录或已有父目录的访问权限不足。",
+            "已有状态目录需可读、可写、可进入；缺失路径的已有父目录需可写、可进入。核对权限后重新连接。",
+        )
+    except OSError as exc:
+        if exc.errno == errno.ENOTSUP:
+            return _check(
+                "stateDirectory", "error", "STATE_DIRECTORY_UNSUPPORTED", "当前系统无法执行内核要求的私有状态目录保护。",
+                "当前私有状态机制要求受支持的 macOS 或 Linux 及相应文件与 ACL 能力；核对系统和解释器。",
+            )
+        return _check(
+            "stateDirectory", "error", "STATE_DIRECTORY_UNAVAILABLE", "无法核对状态目录的本地条件。",
+            "核对状态路径、文件系统与访问权限；自检不会创建目录或修改权限。",
+        )
+    except (ValueError, RuntimeError):
+        return _check(
+            "stateDirectory", "error", "STATE_DIRECTORY_INVALID", "状态路径或目录安全条件不符合内核要求。",
+            "使用当前用户拥有的独立目录，避免根目录及允许他人修改的父目录或 ACL；不要放宽权限。",
+        )
+    return _check(
+        "stateDirectory", "ok", "STATE_DIRECTORY_VALID", "状态目录路径与基本访问条件检查通过。",
+        "未创建目录、修改权限或试写文件；未核对磁盘空间、占用锁、索引与会话完整性。",
+    )
+
+
 def startup_report(
-    load_config: Callable[[], ModelConfig], *, requested_provider: str = ""
+    load_config: Callable[[], ModelConfig], *, state_dir: Path, requested_provider: str = ""
 ) -> dict[str, Any]:
     """汇总静态检查；检查结果与实际模型、CLI 和平台可用性分别核对。"""
-    checks = [_model_check(load_config, requested_provider), _cli_check(), _browser_check()]
+    checks = [_model_check(load_config, requested_provider), _cli_check(), _browser_check(), _state_check(state_dir)]
     return {
         "schemaVersion": 1,
         "version": __version__,

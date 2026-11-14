@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         from boss_harness.startup_check import startup_report
         requested = args.provider if args.provider != "auto" else os.environ.get("BOSS_HARNESS_PROVIDER", "")
-        report = startup_report(lambda: _build_config(args), requested_provider=requested)
+        report = startup_report(lambda: _build_config(args), state_dir=Path(args.state_dir), requested_provider=requested)
         print(json.dumps(report, ensure_ascii=False))
         return 0 if report["ok"] else 2
 
