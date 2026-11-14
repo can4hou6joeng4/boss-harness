@@ -624,6 +624,11 @@ export interface ThreadUpdatedParams {
 
 export interface TurnInterruptParams {
   threadId: string;
+  /**
+   * 发起停止时界面正在展示的回合；内核仅在它仍是活动回合时取消。
+   * 缺省时取消该会话当前的活动回合（旧客户端行为）。
+   */
+  turnId?: string;
 }
 
 /** 中断请求的应答：`interrupted` 为 false 表示那一轮已经收尾，没有可中断的回合。 */

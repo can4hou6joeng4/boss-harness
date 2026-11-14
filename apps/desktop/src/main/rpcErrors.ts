@@ -25,6 +25,8 @@ const PRESERVED: ReadonlySet<string> = new Set([
   "turn/continue",
   "turn/start",
   "turn/steer",
+  // 停止被明确拒绝（如目标回合已变化）需要与回执未确认区分展示。
+  "turn/interrupt",
 ]);
 
 export function preservesRpcError(method: string): boolean {

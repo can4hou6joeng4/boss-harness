@@ -222,6 +222,10 @@ export function validateHarnessRequest(payload: unknown): { method: string; para
   if (payload.method === "turn/start" && (typeof params?.input !== "string" || !params.input.trim())) {
     throw new Error("turn input is required");
   }
+  if (payload.method === "turn/interrupt" && params?.turnId !== undefined &&
+    (typeof params.turnId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(params.turnId))) {
+    throw new Error("invalid interrupt turn id");
+  }
   if ((payload.method === "turn/start" || payload.method === "queue/add") &&
     params && "autoCompaction" in params && !validAutoCompaction(params.autoCompaction)) {
     throw new Error("invalid auto compaction policy");

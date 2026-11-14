@@ -31,6 +31,7 @@ import { isCommandChord } from "./data/shortcuts";
 import { reduceHarnessEvent, autoApprovalFallback, hasApprovalDecision, type HarnessEvent } from "./data/harnessEvents";
 import { unconfirmedFailure } from "./data/confirmationFailure";
 import { sendFailureNotice, sendFailureRecheckNotice } from "./data/sendFailure";
+import { stopFailureNotice } from "./data/stopFailure";
 import { sessionStartNotice, type SessionStartOutcome } from "./data/sessionStart";
 import { connectionNotice, connectionViewOf, mergeConnectionView, type ConnectionView } from "./data/connectionNotice";
 import { HarnessReplica } from "./data/harnessReplica";
@@ -1107,14 +1108,16 @@ export function App(): JSX.Element {
       }
       setError(message);
     };
-    void interruptTurn(id).then(interrupted => {
+    // 携带界面正在展示的回合：该回合已被排队的后续回合替代时，内核拒绝而不是中断新回合。
+    const expectedTurnId = turnIds.current.get(id);
+    void interruptTurn(id, expectedTurnId).then(interrupted => {
       if (!interrupted && runningRef.current.has(id)) {
         report("未找到可停止的任务，正在重新读取会话状态。");
         void replicaRef.current?.resume(id);
       }
     }).catch(cause => {
       if (!runningRef.current.has(id)) return;
-      report(`停止请求未确认：${harnessErrorText(cause)}。正在重新读取会话状态；不会自动重复停止。`);
+      report(stopFailureNotice(cause));
       void replicaRef.current?.resume(id);
     });
   }, [markRunning, updateThread]);
