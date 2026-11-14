@@ -1,4 +1,9 @@
-/** 审批回答被内核明确拒绝后的界面文案与收敛动作。 */
+/** 审批回执的界面文案与明确拒绝后的收敛动作。 */
+
+/** 回执未知不能说成请求没有送达；工具结果须独立核对，不能直接重复裁决。 */
+export function approvalUnconfirmedNotice(reason?: string, action: "审批" | "自动批准" = "审批"): string {
+  return `${action}结果尚未确认${reason ? `（${reason}）` : ""}；请先核对审批与工具结果，不要直接重复提交。`;
+}
 
 /** 审批卡按钮不可提交的原因；`null` 表示可以提交。 */
 export type ApprovalBlockReason = "archived" | "submitted" | "selfPending" | "otherPending";
