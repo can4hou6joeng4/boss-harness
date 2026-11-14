@@ -21,7 +21,7 @@ import { branchSupport, branchSwitchBlock, useSessionBranches } from "./data/use
 import { IconClose } from "./components/Icons";
 import { MOCK_PROJECT_FOLDERS, MOCK_CONVERSATION_THREAD, type ProjectFolder, type SessionItem, type MessageItem, type ConversationMode } from "./data/mockData";
 import { HARNESS_PROJECT_ID, HARNESS_PROJECT_NAME, archiveThread, configuredModels, deleteThread, harnessErrorText, harnessStatus, isHarnessRpcRejection, forkThread, interruptTurn, listThreads, listQueue, readTurnSkillIds, queueFollowUp, readQueueItem, reconnectHarness, removeQueuedItem, renameThread, respondApproval, sendTurn, setThreadModel, startThread, steerTurn, readTurnContinuation, continueTurn, unarchiveThread, updateQueuedItem } from "./data/harnessBridge";
-import { approvalRejectionNotice, approvalRejectionRefreshes } from "./data/approvalFailure";
+import { approvalRejectionNotice, approvalRejectionRefreshes, approvalUnconfirmedNotice } from "./data/approvalFailure";
 import { approvalSubmissionFor } from "./data/approvalSubmission";
 import { deleteThreadFailure } from "./data/deleteThreadError";
 import { resolveQuickAskRoute } from "./data/quickAsk";
@@ -384,11 +384,11 @@ export function App(): JSX.Element {
       if (event.method === "approval/requested" && params.approvalId && !params.consequential && params.toolName && rememberedApprovals.current.get(id)?.has(params.toolName)) {
         void respondApproval(params.approvalId, true).then(outcome => {
           if (outcome.delivery === "accepted") return;
-          // 自动批准没被受理：把审批卡放回界面，否则回合会停在运行态等一个看不见的决定。
+          // 自动批准没有确认受理：把审批卡放回界面供核对，不能把未知结果说成确定未送达。
           updateThread(id, previous => autoApprovalFallback(previous, event, outcome.delivery));
           const reason = outcome.reason ? `（${outcome.reason}）` : "";
           setError(outcome.delivery === "unconfirmed"
-            ? `自动批准请求未送达${reason}，已显示本次审批；请检查连接后手动确认。`
+            ? `${approvalUnconfirmedNotice(outcome.reason, "自动批准")}已显示本次审批供核对。`
             : `自动批准未被内核受理${reason || "（可能已过期）"}，已显示本次审批；请手动确认。`);
         });
         return;
@@ -1115,7 +1115,7 @@ export function App(): JSX.Element {
       if (outcome.code && approvalRejectionRefreshes(outcome.code)) void replicaRef.current?.resume(targetThreadId);
       const detail = outcome.reason ?? "";
       if (messageId) submission.settle(messageId, outcome.delivery === "unconfirmed"
-        ? `审批请求未送达${detail ? `：${detail}` : ""}，请检查连接后重试；这张审批卡仍可再次提交。`
+        ? approvalUnconfirmedNotice(detail)
         : approvalRejectionNotice(outcome.code, detail));
       return outcome;
     }
