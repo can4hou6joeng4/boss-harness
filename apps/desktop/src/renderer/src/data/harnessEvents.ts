@@ -141,8 +141,14 @@ export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent,
 /** 自动批准回执未确认受理时恢复卡片，但不能用旧请求覆盖已收到的同一审批结论。 */
 export function autoApprovalFallback(previous: MessageItem[], event: HarnessEvent, delivery: ApprovalDelivery): MessageItem[] {
   if (delivery === "accepted") return previous;
-  const approvalId = event.params?.approvalId;
-  // 裁决通知、工具完成或恢复快照可能先于 RPC 回执到达；按审批身份保留较新的事实。
-  if (approvalId && previous.some(message => message.approval?.approvalId === approvalId && message.approval.decision !== undefined)) return previous;
-  return reduceHarnessEvent(previous, event);
+  return hasApprovalDecision(previous, event.params?.approvalId) ? previous : reduceHarnessEvent(previous, event);
+}
+
+/**
+ * 同一审批是否已有 approve / deny / expired 结论。裁决通知、工具完成通知或恢复快照
+ * 都可能先于 RPC 回执到达，回退与提示都要按这个事实区分。
+ */
+export function hasApprovalDecision(previous: MessageItem[], approvalId?: string): boolean {
+  return Boolean(approvalId) && previous.some(message => message.approval &&
+    message.approval.approvalId === approvalId && message.approval.decision !== undefined);
 }

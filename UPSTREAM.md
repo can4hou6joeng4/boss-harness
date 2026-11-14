@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 自动批准明确拒绝按码说明（Issue #1218）
+
+本项修正复用本仓库 #1108、#1210 与 #1216 的审批回执与去重约定，未采用 Pi 或其他上游的具体机制，不复制源码、不引入依赖。桌面手动路径已按内核拒绝码（`APPROVAL_CLOSED`、`APPROVAL_CONFLICT`、`APPROVAL_NOT_FOUND`、`APPROVAL_INVALID`、`APPROVAL_AMBIGUOUS`、`APPROVAL_EXPIRED`、`APPROVAL_BUSY`）给出不同说明并按码刷新会话，自动批准路径此前没有复用这套判定。
+
+适配约定：自动批准被明确拒绝时复用同一拒绝码区分与「只有回合结束或审批记录变更才重读」的刷新规则；`APPROVAL_BUSY` 表示回合仍在运行，不重读全量快照，只提示等待或停止。已有同一 `approvalId` 结论时说明界面未重新开放操作，未知回执继续使用先核对、不直接重复提交的文案。提示仍写入来源会话，不自动重发裁决，不增加 RPC、工具授权或新的快照读取路径。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 迟到自动回执保留已知审批结论（Issue #1216）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/agent/README.md`（Event Types）与 `packages/agent/src/agent.ts`（`processEvents`）：先将事件归并到内部状态，再依次等待订阅者；工具结束事件按 `toolCallId` 移除待执行标识。所读入口没有本项目的审批 RPC 或 Electron 缓存回退约定。本轮采用收到的事件事实应保留在状态投影中的边界，独立补齐已有自动批准回退，不推断上游存在同类问题，不复制源码、不引入依赖。
