@@ -44,6 +44,8 @@ class CodexModelProfile:
     #: 端点的 bearer 凭据。用 Secret 包装而不是裸字符串：repr 会显示 `<redacted>`，
     #: 且它不可 JSON 序列化，所以误写进日志或 `asdict` 快照都拿不到明文。
     bearer_token: Secret | None = None
+    #: provider 声明的环境变量名；解析配置时只记录名称，由调用方用其环境映射取值。
+    env_key: str | None = None
 
 
 def config_path(
@@ -120,6 +122,7 @@ def profile_from_mapping(data: dict[str, Any]) -> CodexModelProfile | None:
         return None
 
     token = entry.get("experimental_bearer_token")
+    env_key = str(entry.get("env_key") or "").strip() or None
     effort = str(data.get("model_reasoning_effort") or "").strip() or None
     return CodexModelProfile(
         model=model,
@@ -128,4 +131,5 @@ def profile_from_mapping(data: dict[str, Any]) -> CodexModelProfile | None:
         provider_id=provider_id or str(entry.get("name") or ""),
         effort=effort,
         bearer_token=Secret(str(token).strip()) if token else None,
+        env_key=env_key,
     )

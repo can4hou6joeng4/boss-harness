@@ -160,6 +160,9 @@ def _openai_config(env: Mapping[str, str]) -> ModelConfig:
     model = explicit_model or (profile.model if profile else "") or DEFAULT_MODEL
     base_url = explicit_url or (profile.base_url if profile else None)
     file_key = profile.bearer_token.get() if profile and profile.bearer_token else ""
+    # Codex 官方推荐把 provider 密钥放在环境变量中；显式文件令牌保持优先以兼容既有配置。
+    if not file_key and profile and profile.env_key:
+        file_key = (env.get(profile.env_key) or "").strip()
     raw_key = explicit_key or file_key
     effort = (env.get("BOSS_HARNESS_EFFORT") or "").strip() or (profile.effort if profile else None)
 

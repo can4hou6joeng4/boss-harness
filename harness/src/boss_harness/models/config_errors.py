@@ -19,7 +19,7 @@ _DIAGNOSTICS: dict[ModelConfigErrorCode, tuple[str, str]] = {
     ),
     "MODEL_CREDENTIAL_MISSING": (
         "OpenAI 线路缺少凭据。",
-        "设置 BOSS_HARNESS_OPENAI_API_KEY，或在有效 Codex profile 的 provider 中配置 experimental_bearer_token。",
+        "设置 BOSS_HARNESS_OPENAI_API_KEY，或在有效 Codex profile 的 provider 中配置 experimental_bearer_token 或 env_key 指向的环境变量。",
     ),
     "MODEL_CODEX_UNREADABLE": (
         "无法读取 Codex 模型配置文件。",

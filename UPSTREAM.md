@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## Codex profile 的 env_key 凭据（Issue #1180）
+
+沿用本仓库 #1170 已核对的 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Provider Factories / Querying Models）与 `packages/coding-agent/src/core/model-registry.ts`：模型目录、认证解析与真实请求分开，缺少凭据时给出明确结论。本轮只扩展本地 Codex 配置适配，不复制 Pi 源码，不新增依赖。
+
+适配约定：`CodexModelProfile` 只记录 provider 的 `env_key` 环境变量名，解析配置时不读取进程环境；`resolve_config(environ=...)` 使用调用方传入的环境映射，按「显式 `BOSS_HARNESS_OPENAI_API_KEY` > `experimental_bearer_token` > `env_key` 指向的环境变量」解析凭据，缺失或为空仍报固定 `MODEL_CREDENTIAL_MISSING`。`--check` 复用同一解析，不构造模型客户端、不联网。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 状态目录的只读启动诊断（Issue #1172）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（Control session storage）与 `packages/coding-agent/src/core/session-manager.ts`（`getDefaultSessionDirPath`、`getDefaultSessionDir` 与构造器）：目录位置可配置，命令行优先覆盖；持久化初始化按需创建目录。本项目保留已有状态路径选择与私有目录策略，在初始化前提供独立的只读核对；不复制 Pi 源码，不新增依赖。

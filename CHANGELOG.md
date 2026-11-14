@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1180](https://github.com/can4hou6joeng4/boss-harness/issues/1180)：Codex profile 支持 `env_key` 凭据。此前只识别 `experimental_bearer_token`，按 Codex 推荐把密钥放在环境变量中的合法 provider 配置会被判为缺少凭据，`--check` 报 `MODEL_CREDENTIAL_MISSING`。现在解析时只记录 `env_key` 的环境变量名，`resolve_config(environ=...)` 用调用方传入的环境映射取值；优先级为显式 `BOSS_HARNESS_OPENAI_API_KEY` > `experimental_bearer_token` > `env_key`，变量缺失或为空仍报同一固定码，提示补充 `env_key` 路径。`--check` 复用该解析，不构造客户端、不联网。使用指南、README、内核参考与上游吸收记录同步。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1178](https://github.com/can4hou6joeng4/boss-harness/issues/1178)：修正「内核与业务契约参考」中「桌面不提供删除按钮」的过期说明，并按当前实现补全桌面会话管理文档：删除入口、确认框会一并清除的本机未发送正文 / 附件 / 已选技能 / 正在读取的附件 / 消息反馈、`THREAD_BUSY` 拒绝，以及 `THREAD_DELETE_INCOMPLETE` / `THREAD_NOT_FOUND` 与未确认结果的处理；使用指南新增归档与删除会话说明，README 能力地图补充会话管理条目。纯文档改动，不新增 RPC，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.16 - 2026-11-14
