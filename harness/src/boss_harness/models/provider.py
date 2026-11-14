@@ -124,9 +124,9 @@ def resolve_config(
     if (env.get("BOSS_HARNESS_THINKING") or "").strip() == "summarized":
         thinking = {"type": "adaptive", "display": "summarized"}
 
-    fallback_default = _is_first_party_base_url(base_url)
-    if env.get("BOSS_HARNESS_SERVER_FALLBACK") is not None:
-        fallback_default = env["BOSS_HARNESS_SERVER_FALLBACK"] not in ("0", "false", "")
+    # none 线路不发模型请求，不因这个只属于 Anthropic 请求形状的开关而失败。
+    server_side_fallback = _server_side_fallback(
+        env, _is_first_party_base_url(base_url), strict=resolved == "anthropic")
 
     return ModelConfig(
         provider=resolved,
@@ -138,7 +138,7 @@ def resolve_config(
         effort=(env.get("BOSS_HARNESS_EFFORT") or "").strip() or None,
         thinking=thinking,
         base_url=base_url,
-        server_side_fallback=fallback_default,
+        server_side_fallback=server_side_fallback,
     )
 
 
@@ -178,6 +178,29 @@ def _openai_config(env: Mapping[str, str]) -> ModelConfig:
         base_url=base_url,
         api_key=Secret(raw_key),
     )
+
+
+_SWITCH_ON = frozenset({"1", "true", "yes", "on"})
+_SWITCH_OFF = frozenset({"0", "false", "no", "off"})
+
+
+def _server_side_fallback(env: Mapping[str, str], default: bool, *, strict: bool) -> bool:
+    """未设置按端点取默认值，空值为关闭；其余须是可识别的开关写法。
+
+    拼错或大小写不同的关闭写法若被当作开启，请求会带上网关未必支持的 beta 参数，
+    因此无法识别的取值明确失败，错误不带原始取值；`strict` 为假时改用默认值。
+    """
+    raw = env.get("BOSS_HARNESS_SERVER_FALLBACK")
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if not value or value in _SWITCH_OFF:
+        return False
+    if value in _SWITCH_ON:
+        return True
+    if not strict:
+        return default
+    raise ModelConfigError("MODEL_SERVER_FALLBACK_INVALID")
 
 
 def _request_timeout_seconds(env: Mapping[str, str]) -> int:
