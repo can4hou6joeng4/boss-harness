@@ -1,4 +1,3 @@
-import { unconfirmedFailure } from "./confirmationFailure";
 import { harnessErrorText, isHarnessRpcRejection } from "./harnessBridge";
 
 /**
@@ -12,9 +11,8 @@ export function sendFailureNotice(error: unknown): string {
     : `提交结果尚未确认：${harnessErrorText(error)}。正在读取会话状态，请核对记录后再决定下一步。`;
 }
 
-/** 发送失败后重新读取会话也失败时的提示：主因与核对原因都要保留。 */
-export function sendFailureRecheckNotice(error: unknown, verification: unknown): string {
-  return isHarnessRpcRejection(error)
-    ? `发送失败：${harnessErrorText(error)}；重新读取会话状态也失败（${harnessErrorText(verification)}）。请稍后手动刷新核对。`
-    : unconfirmedFailure("提交结果", error, verification, "请稍后手动刷新核对。");
+/** 读取失败记录已含原因与处理建议；保留发送主因，不重复包裹读取说明。 */
+export function sendFailureRecheckNotice(error: unknown, verificationFailure: string): string {
+  const primary = isHarnessRpcRejection(error) ? "发送失败" : "提交结果尚未确认";
+  return `${primary}：${harnessErrorText(error)}；${verificationFailure}`;
 }
