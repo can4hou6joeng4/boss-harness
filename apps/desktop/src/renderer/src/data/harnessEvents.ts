@@ -138,10 +138,11 @@ export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent,
   return index >= 0 ? previous.map((message, slot) => slot === index ? item : message) : [...previous, item];
 }
 
-/**
- * 「本会话始终批准」的自动应答收尾：只有内核确认受理时才吞掉审批事件。
- * 未受理时把卡片放回消息列表，否则回合会一直等待一个界面上不存在的决定。
- */
+/** 自动批准回执未确认受理时恢复卡片，但不能用旧请求覆盖已收到的同一审批结论。 */
 export function autoApprovalFallback(previous: MessageItem[], event: HarnessEvent, delivery: ApprovalDelivery): MessageItem[] {
-  return delivery === "accepted" ? previous : reduceHarnessEvent(previous, event);
+  if (delivery === "accepted") return previous;
+  const approvalId = event.params?.approvalId;
+  // 裁决通知、工具完成或恢复快照可能先于 RPC 回执到达；按审批身份保留较新的事实。
+  if (approvalId && previous.some(message => message.approval?.approvalId === approvalId && message.approval.decision !== undefined)) return previous;
+  return reduceHarnessEvent(previous, event);
 }
