@@ -415,11 +415,18 @@ export async function setThreadReasoning(threadId: string, effort: string | null
     reasoningEffort: thread.reasoningEffort, projectId: HARNESS_PROJECT_ID };
 }
 
-/** 中断当前回合。返回内核的如实回报：没有在跑的回合时为 false；请求失败由调用方重新读取状态。 */
-export async function interruptTurn(threadId: string): Promise<boolean> {
+/**
+ * 中断界面正在展示的回合。返回内核的如实回报：没有在跑的回合时为 false。
+ *
+ * 携带 `turnId` 时内核只在它仍是活动回合时取消；该回合已被后续回合替代会以
+ * `-32004` 明确拒绝，调用方据此区分「没有中断任何回合」与「回执未确认」。
+ * 不知道回合 id 时退回只带线程，保持旧行为。
+ */
+export async function interruptTurn(threadId: string, turnId?: string): Promise<boolean> {
   const api = bridge();
   if (!api) throw new Error("本地 Harness 未连接");
-  const response = await api.request<TurnInterruptResponse>(ClientMethods.turnInterrupt, { threadId });
+  const response = await contextRequest<TurnInterruptResponse>(ClientMethods.turnInterrupt,
+    turnId ? { threadId, turnId } : { threadId });
   if (!response || typeof response.interrupted !== "boolean") throw new Error("中断响应无法识别");
   return response.interrupted;
 }
