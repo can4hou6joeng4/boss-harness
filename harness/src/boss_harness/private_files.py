@@ -154,6 +154,15 @@ def _has_directory_allow_acl(descriptor: int, *, reject_file_inherit: bool = Fal
 
 
 def ensure_private_directory(path: Path, mode: int = 0o700) -> None:
+    _walk_private_directory(path, mode, create=True)
+
+
+def check_private_directory(path: Path) -> None:
+    """只读核对目录规则与基本访问条件，不创建路径或修改权限。"""
+    _walk_private_directory(path, 0o700, create=False)
+
+
+def _walk_private_directory(path: Path, mode: int, *, create: bool) -> None:
     uid = ensure_private_file_support()
     directory = Path(path).expanduser().resolve()
     if not directory.parts[1:]:
@@ -170,6 +179,11 @@ def ensure_private_directory(path: Path, mode: int = 0o700) -> None:
             try:
                 child = os.open(component, flags, dir_fd=descriptor)
             except FileNotFoundError:
+                if not create:
+                    # 首个缺失路径只需核对已有父目录；后续路径由正常启动按私有规则创建。
+                    if not os.access(".", os.W_OK | os.X_OK, dir_fd=descriptor):
+                        raise PermissionError(errno.EACCES, "状态目录的已有父目录不可写或不可进入")
+                    return
                 try:
                     os.mkdir(component, mode, dir_fd=descriptor)
                     created = True
@@ -197,6 +211,9 @@ def ensure_private_directory(path: Path, mode: int = 0o700) -> None:
                 externally_searchable = bool(opened.st_mode & 0o055)
                 if _has_directory_allow_acl(child, reject_file_inherit=externally_searchable):
                     raise ValueError("状态目录 ACL 允许其他用户访问")
+                if not create and index == len(directory.parts[1:]) - 1:
+                    if not os.access(".", os.R_OK | os.W_OK | os.X_OK, dir_fd=child):
+                        raise PermissionError(errno.EACCES, "状态目录不可读取、写入或进入")
             except BaseException:
                 os.close(child)
                 raise

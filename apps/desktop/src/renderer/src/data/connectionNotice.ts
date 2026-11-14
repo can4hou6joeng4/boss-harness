@@ -39,7 +39,7 @@ export interface StartupCheckRow {
 
 const UNCONFIRMED = "结果未确认的对外操作请先核对平台状态。";
 const NOT_CONNECTED = "本地内核未连接，可重新连接后恢复会话。";
-const CHECK_TITLES = new Map([["model", "模型配置"], ["bossCli", "业务 CLI"], ["browserSource", "浏览器来源"]]);
+const CHECK_TITLES = new Map([["model", "模型配置"], ["bossCli", "业务 CLI"], ["browserSource", "浏览器来源"], ["stateDirectory", "状态目录"]]);
 const STATUS_LABELS: Record<StartupCheckEntry["status"], string> = { ok: "通过", warning: "警告", error: "错误" };
 const UNAVAILABLE: Record<Extract<StartupDiagnosis, { kind: "unavailable" }>["reason"], string> = {
   spawn: "未能启动 Python 解释器：请确认仓库根目录已创建 .venv，或 BOSS_HARNESS_PYTHON 指向可执行的 Python 3.10 及以上版本。",
@@ -123,7 +123,7 @@ function diagnosisSummary(diagnosis: StartupDiagnosis | undefined): string {
   if (diagnosis.kind === "unavailable") return UNAVAILABLE[diagnosis.reason];
   const errors = diagnosis.checks.filter(check => check.status === "error");
   // 自检通过而内核仍起不来：如实说明自检的范围，不把「未发现错误」说成「配置正确」。
-  if (!errors.length) return "本地配置自检未发现错误；自检不核对内核依赖是否已安装、状态目录是否可写及其他运行参数，请逐项排查。";
+  if (!errors.length) return "本地配置自检未发现错误；自检仅覆盖返回的检查项，请继续核对内核依赖、实际写入、磁盘空间、占用锁与其他运行参数。";
   return `自检发现：${errors.map(check => sentence(check.message) + sentence(check.hint)).join("")}`;
 }
 
@@ -134,7 +134,7 @@ function diagnosisSummary(diagnosis: StartupDiagnosis | undefined): string {
 function startupRecovery(diagnosis: StartupDiagnosis | undefined): string {
   if (diagnosis?.kind === "unavailable" && diagnosis.reason === "spawn") return "解释器在应用启动时选定，处理后请重启应用。";
   if (diagnosis?.kind === "unavailable" && diagnosis.reason === "exit") return "安装依赖后可重新连接；更换解释器需重启应用。";
-  return "修正配置文件后可重新连接；环境变量改动需重启应用。";
+  return "修正配置文件或状态目录条件后可重新连接；环境变量改动需重启应用。";
 }
 
 /** 分段的连接提示；已连接、启动中或握手中返回 null。 */

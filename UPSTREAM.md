@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 状态目录的只读启动诊断（Issue #1172）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（Control session storage）与 `packages/coding-agent/src/core/session-manager.ts`（`getDefaultSessionDirPath`、`getDefaultSessionDir` 与构造器）：目录位置可配置，命令行优先覆盖；持久化初始化按需创建目录。本项目保留已有状态路径选择与私有目录策略，在初始化前提供独立的只读核对；不复制 Pi 源码，不新增依赖。
+
+适配约定：`--check` 使用正常启动实际选择的 `state_dir`，与 `StateDirectoryOwner` 一样先按 cwd 解析。目录检查与正常创建共用已有的逐级目录描述符、类型及 inode 核对、所有权、父目录写权限和 macOS ACL 规则；只读分支在首个缺失路径处核对已有父目录的基本访问能力后返回，不创建路径、不修改权限、不获取锁、不枚举状态文件或读取会话。已有目标目录另核对读取、写入与进入权限；正常初始化的创建与权限收紧行为保留。`stateDirectory` 检查及固定码加入既有 `schemaVersion: 1` 报告，沿用错误退出 2、脱敏静态建议和桌面通用桥接。基本检查不证明实际写入、磁盘容量、所有权锁、索引或会话完整性，正常启动仍执行全部检查。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 模型配置自检的具体失败原因（Issue #1170）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Provider Factories / Querying Models）与 `packages/coding-agent/src/core/model-registry.ts`：模型目录读取与实际请求分开，SDK 可以延迟加载；认证解析单独返回成功或失败，缺少 API key 时有明确结论。该兼容层还可能采用异常或 cause 的文本。本项目沿用配置事实与真实请求分离的边界，招聘场景的诊断只从内部固定码取静态说明与建议，不匹配或转发异常原文。不复制 Pi 源码，不新增依赖。
