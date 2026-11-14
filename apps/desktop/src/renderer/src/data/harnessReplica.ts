@@ -1,5 +1,5 @@
 import type { EventListResponse, ItemContentReference, ItemContentReadResponse, ItemListResponse, ThreadItem, ThreadReadResponse } from "@boss-harness/protocol";
-import { safeSlice } from "@boss-harness/shared";
+import { safeSlice, stripIpcErrorWrapper } from "@boss-harness/shared";
 import type { HarnessEvent } from "./harnessEvents";
 
 interface Api { request<T>(method: string, params?: unknown): Promise<T> }
@@ -258,7 +258,8 @@ export class HarnessReplica {
   }
 
   private reportFailure(threadId: string, error: unknown): void {
-    const detail = error instanceof Error ? safeSlice(error.message, 300) : "响应无效";
+    // 非保留错误码的方法会由主进程抛出，Electron 在渲染层拼接 IPC 包装；提示只保留真实原因。
+    const detail = error instanceof Error ? safeSlice(stripIpcErrorWrapper(error.message), 300) : "响应无效";
     const message = `读取会话内容失败：${detail}。已保留当前内容，请重新打开会话重试。`;
     if (threadId) this.failures.set(threadId, message);
     this.onEvent({ method: "session/error", params: { threadId, message } });
