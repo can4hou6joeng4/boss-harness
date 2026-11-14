@@ -74,8 +74,11 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 | `MODEL_CODEX_INVALID_TOML` | Codex 配置的 TOML 格式无效；检查语法与文件编码。 |
 | `MODEL_CODEX_NOT_FILE` | Codex 配置路径不是普通文件；将 `BOSS_HARNESS_CODEX_CONFIG` 指向文件，或核对 `CODEX_HOME` 下的 `config.toml`。 |
 | `MODEL_CODEX_WIRE_API_UNSUPPORTED` | Codex profile 声明了内核不支持的协议或值类型；选择支持 Responses 的端点并将 `wire_api` 设为 `responses`，或使用完整显式 OpenAI 配置跳过该文件。 |
+| `MODEL_PROVIDER_UNKNOWN` | `BOSS_HARNESS_PROVIDER` 的取值无法识别；设为 `none`、`anthropic`、`openai` 或 `codex`，或取消设置以自动选择。 |
+| `MODEL_MAX_TOKENS_INVALID` | `BOSS_HARNESS_MAX_TOKENS` 不是正整数；设为正整数，或取消设置以使用默认值。 |
+| `MODEL_REQUEST_TIMEOUT_INVALID` | `BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS` 不是 1 到 3600 的整数；修正取值，或取消设置以使用默认值。 |
 
-一次自检只报告解析时遇到的第一个模型配置错误，修复后应再次运行；业务 CLI、浏览器来源与状态目录仍独立检查。配置来源与覆盖顺序不变：完整显式模型、端点和凭据会跳过 Codex 文件；需要补全时，损坏或不可读的已有文件以及可用 profile 中不支持的 `wire_api` 会明确失败，文件缺失则继续核对必需字段。正常启动对已登记的模型配置错误在 stderr 输出同一固定码与静态说明，退出码为 `2`。未细分的错误（如 provider 无效、输出上限或请求期限非法）继续返回 `MODEL_CONFIG_INVALID`；Anthropic 缺少必需字段仍为 `MODEL_CONFIG_INCOMPLETE`。报告结构与 `schemaVersion: 1` 不变，按检查码处理的调用方应保留未知码的通用错误展示。
+一次自检只报告解析时遇到的第一个模型配置错误，修复后应再次运行；业务 CLI、浏览器来源与状态目录仍独立检查。配置来源与覆盖顺序不变：完整显式模型、端点和凭据会跳过 Codex 文件；需要补全时，损坏或不可读的已有文件以及可用 profile 中不支持的 `wire_api` 会明确失败，文件缺失则继续核对必需字段。正常启动对已登记的模型配置错误在 stderr 输出同一固定码与静态说明，退出码为 `2`。供应商拼写、输出上限与请求期限错误使用上表的专用码（尚未发布，将随下一候选交付）；其余未细分的错误继续返回 `MODEL_CONFIG_INVALID`；Anthropic 缺少必需字段仍为 `MODEL_CONFIG_INCOMPLETE`。报告结构与 `schemaVersion: 1` 不变，按检查码处理的调用方应保留未知码的通用错误展示。
 
 状态目录检查同属 rc.17 候选内容，尚未发布，使用正常启动实际选择的路径：`--state-dir` 优先于 `BOSS_HARNESS_DIR`，其次为旧变量 `BOSS_CLI_HARNESS_DIR`；均未设置时，新默认目录不存在而旧默认目录存在才沿用旧目录。相对路径按启动工作目录解析，环境变量中的 `~` 不额外展开，符号链接沿用正常启动的真实路径解析方式。
 

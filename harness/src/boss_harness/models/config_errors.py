@@ -5,6 +5,9 @@ from typing import Literal
 
 
 ModelConfigErrorCode = Literal[
+    "MODEL_PROVIDER_UNKNOWN",
+    "MODEL_MAX_TOKENS_INVALID",
+    "MODEL_REQUEST_TIMEOUT_INVALID",
     "MODEL_ENDPOINT_MISSING",
     "MODEL_CREDENTIAL_MISSING",
     "MODEL_CODEX_UNREADABLE",
@@ -14,6 +17,18 @@ ModelConfigErrorCode = Literal[
 ]
 
 _DIAGNOSTICS: dict[ModelConfigErrorCode, tuple[str, str]] = {
+    "MODEL_PROVIDER_UNKNOWN": (
+        "模型供应商取值无法识别。",
+        "将 BOSS_HARNESS_PROVIDER 设为 none、anthropic、openai 或 codex，或取消设置以自动选择。",
+    ),
+    "MODEL_MAX_TOKENS_INVALID": (
+        "模型输出上限必须是正整数。",
+        "将 BOSS_HARNESS_MAX_TOKENS 设为正整数，或取消设置以使用默认值。",
+    ),
+    "MODEL_REQUEST_TIMEOUT_INVALID": (
+        "模型请求总时限必须是 1 到 3600 的整数秒。",
+        "将 BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS 设为 1 到 3600 的整数，或取消设置以使用默认值。",
+    ),
     "MODEL_ENDPOINT_MISSING": (
         "OpenAI 线路缺少端点。",
         "设置 BOSS_HARNESS_OPENAI_BASE_URL，或在有效 Codex profile 的 provider 中配置 base_url。",

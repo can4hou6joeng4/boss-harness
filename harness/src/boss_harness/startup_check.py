@@ -37,7 +37,7 @@ def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str
         )
     if config.max_tokens <= 0:
         return _check(
-            "model", "error", "MODEL_CONFIG_INVALID", "模型输出上限必须是正整数。",
+            "model", "error", "MODEL_MAX_TOKENS_INVALID", "模型输出上限必须是正整数。",
             "将 BOSS_HARNESS_MAX_TOKENS 设为正整数，或取消设置以使用默认值。",
         )
     if config.provider == "none":

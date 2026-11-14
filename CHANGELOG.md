@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1196](https://github.com/can4hou6joeng4/boss-harness/issues/1196)：供应商拼写、输出上限与请求期限错误新增固定检查码 `MODEL_PROVIDER_UNKNOWN`、`MODEL_MAX_TOKENS_INVALID`、`MODEL_REQUEST_TIMEOUT_INVALID`。此前三者在自检中落到通用的 `MODEL_CONFIG_INVALID`，建议指向 provider 与 Codex 配置；正常启动把解析异常原文（含变量取值）打印到 stderr，非正输出上限还要到内核构造阶段才以另一种措辞失败。现在解析处抛出保持 `ValueError` 兼容的固定原因，输出上限在解析时校验为正整数，自检与正常启动给出同一固定码、静态说明与处理建议，退出码仍为 2，不含异常原文或取值。未设置、空值、带空白的合法数值、`codex` 别名、配置来源优先级与其他检查码不变；按码处理的调用方会看到非正输出上限由 `MODEL_CONFIG_INVALID` 改为专用码。实际 CLI 入口 16 种隔离场景通过，其中 10 种失败场景同时核对正常启动的 stderr；网络、外部进程、模型 SDK 导入与持久写入尝试均为零。README 与使用指南同步。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1194](https://github.com/can4hou6joeng4/boss-harness/issues/1194)：本地自检新增「运行参数」检查项。此前 `BOSS_HARNESS_STEERING_MODE`、`BOSS_HARNESS_MAX_MODEL_REQUESTS`、附件存储上限、`BOSS_HARNESS_MODEL_LIMITS` 或 `BOSS_HARNESS_COMPACTION` 取值无效时内核以退出码 2 启动失败，`--check` 与桌面启动失败诊断却报告未发现错误。现在自检复用正常启动的同一套解析函数，按读取顺序报告第一个错误，使用五个固定检查码与静态处理建议，不回显变量原值或异常原文；全部有效或未设置时为 `RUNTIME_OPTIONS_VALID`。报告仍为 `schemaVersion: 1`，在既有四项之后追加一项，既有检查项输出与退出码规则不变；不读取状态目录中的持久设置。桌面提示条与设置页沿用既有展示并补充「运行参数」标题。实际 CLI 入口 14 种隔离场景通过，覆盖未设置、全部合法、各变量无效取值、多项同时无效与模型配置错误并存；网络、外部进程、模型 SDK 导入与持久写入尝试均为零。README 与使用指南同步检查码和范围限制。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.17 - 2026-11-14
