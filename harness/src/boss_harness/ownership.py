@@ -6,12 +6,12 @@ import fcntl
 import os
 from pathlib import Path
 
-from boss_harness.private_files import ensure_private_directory, open_private_file
+from boss_harness.private_files import ensure_private_directory, open_private_file, resolve_private_path
 
 
 class StateDirectoryOwner:
     def __init__(self, root: Path) -> None:
-        self.root = Path(root).resolve()
+        self.root = resolve_private_path(root)
         ensure_private_directory(self.root)
         self._fd: int | None = None
         self._fd = open_private_file(self.root / ".owner.lock", os.O_RDWR)

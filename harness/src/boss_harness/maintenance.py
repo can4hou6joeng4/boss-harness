@@ -8,7 +8,12 @@ import os
 from pathlib import Path
 import uuid
 
-from boss_harness.private_files import ensure_private_directory, open_private_file, restrict_private_file
+from boss_harness.private_files import (
+    ensure_private_directory,
+    open_private_file,
+    resolve_private_path,
+    restrict_private_file,
+)
 from boss_harness.ownership import StateDirectoryOwner
 from boss_harness.session import SessionStore
 
@@ -23,7 +28,7 @@ def _sha256_file(path: Path) -> str:
 
 
 def repair_index(root: Path) -> dict:
-    root = root.resolve()
+    root = resolve_private_path(root)
     owner = StateDirectoryOwner(root)
     backup = root / "repairs" / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8])
     names = ("state.sqlite3", "state.sqlite3-wal", "state.sqlite3-shm")
