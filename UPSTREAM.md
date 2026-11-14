@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 停止与会话核对均失败时保留原因（Issue #1234）
+
+沿用 Issue #1232 对同一固定 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md` 与 `packages/coding-agent/src/core/session-manager.ts`（`setSessionFile`、`_loadEntries`）的核对结论：所读入口描述会话身份与读取处理，没有本项目发送或停止失败后再读会话的提示合并规则。本轮沿用同一 `HarnessReplica.resume()` 返回 `null` 的既有契约，补上停止路径的调用方式，不推断上游存在同类问题，不复制源码、不引入依赖。
+
+适配约定：停止路径捕获本次使用的副本，读取返回 `null` 且有对应失败记录时，将停止主因与该记录合并；明确拒绝保留内核码与「没有中断任何回合」，未确认保留「不会自动重复停止」，没有可停止回合时保留原结论；读取记录已有的处理建议不重复包裹。提示仍按来源会话保存，继续不自动重发停止。成功读取、受理停止、目标回合绑定与授权范围不变。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 发送与会话核对均失败时保留原因（Issue #1232）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md` 与 `packages/coding-agent/src/core/session-manager.ts`（`setSessionFile`、`_loadEntries`）：所读入口描述会话身份与读取处理，没有本项目发送失败后再读会话的提示合并规则。本轮修复本仓库 `HarnessReplica.resume()` 返回 `null` 的既有契约调用方式，不推断上游存在同类问题，不复制源码、不引入依赖。

@@ -31,7 +31,7 @@ import { isCommandChord } from "./data/shortcuts";
 import { reduceHarnessEvent, autoApprovalFallback, hasApprovalDecision, type HarnessEvent } from "./data/harnessEvents";
 import { unconfirmedFailure } from "./data/confirmationFailure";
 import { sendFailureNotice, sendFailureRecheckNotice } from "./data/sendFailure";
-import { stopFailureNotice } from "./data/stopFailure";
+import { stopFailureNotice, stopFailureRecheckNotice, stopMissingNotice, stopMissingRecheckNotice } from "./data/stopFailure";
 import { sessionStartNotice, type SessionStartOutcome } from "./data/sessionStart";
 import { connectionNotice, connectionViewOf, mergeConnectionView, type ConnectionView } from "./data/connectionNotice";
 import { HarnessReplica } from "./data/harnessReplica";
@@ -1104,17 +1104,25 @@ export function App(): JSX.Element {
       clearTimeout(timer); timers.current.delete(id); markRunning(id, false);
       updateThread(id, previous => [...previous, { id: "stopped-" + Date.now(), role: "agent", paragraphs: ["已停止界面演示。"] }]); return;
     }
+    // 停止说明先写入；重新读取若失败，读取记录会覆盖它，必须在同一次读取结算后补回停止主因。
+    const recheckAfterStopFailure = (notice: string, combine: (readFailure: string) => string) => {
+      reportSessionError(id, notice);
+      const replica = replicaRef.current;
+      void replica?.resume(id).then(snapshot => {
+        // resume 以 null 表示读取失败；读取失败记录已含原因与处理建议。
+        const readFailure = replica?.lastFailure(id);
+        if (!snapshot && readFailure) reportSessionError(id, combine(readFailure));
+      });
+    };
     // 携带界面正在展示的回合：该回合已被排队的后续回合替代时，内核拒绝而不是中断新回合。
     const expectedTurnId = turnIds.current.get(id);
     void interruptTurn(id, expectedTurnId).then(interrupted => {
       if (!interrupted && runningRef.current.has(id)) {
-        reportSessionError(id, "未找到可停止的任务，正在重新读取会话状态。");
-        void replicaRef.current?.resume(id);
+        recheckAfterStopFailure(stopMissingNotice, stopMissingRecheckNotice);
       }
     }).catch(cause => {
       if (!runningRef.current.has(id)) return;
-      reportSessionError(id, stopFailureNotice(cause));
-      void replicaRef.current?.resume(id);
+      recheckAfterStopFailure(stopFailureNotice(cause), readFailure => stopFailureRecheckNotice(cause, readFailure));
     });
   }, [markRunning, reportSessionError, updateThread]);
   const handleApproval = useCallback(async (approvalId: string, approved: boolean, toolName: string, remember: boolean, messageId?: string, threadId?: string) => {
