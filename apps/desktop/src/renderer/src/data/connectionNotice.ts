@@ -41,6 +41,7 @@ const UNCONFIRMED = "结果未确认的对外操作请先核对平台状态。";
 const NOT_CONNECTED = "本地内核未连接，可重新连接后恢复会话。";
 const CHECK_TITLES = new Map([["model", "模型配置"], ["bossCli", "业务 CLI"], ["browserSource", "浏览器来源"], ["stateDirectory", "状态目录"], ["runtimeOptions", "运行参数"]]);
 const STATUS_LABELS: Record<StartupCheckEntry["status"], string> = { ok: "通过", warning: "警告", error: "错误" };
+const STATUS_ORDER: Record<StartupCheckEntry["status"], number> = { error: 0, warning: 1, ok: 2 };
 const UNAVAILABLE: Record<Extract<StartupDiagnosis, { kind: "unavailable" }>["reason"], string> = {
   spawn: "未能启动 Python 解释器：请确认仓库根目录已创建 .venv，或 BOSS_HARNESS_PYTHON 指向可执行的 Python 3.10 及以上版本。",
   exit: "内核模块未能运行本地自检：请确认 Python 版本不低于 3.10，并已按安装步骤安装内核依赖。",
@@ -174,7 +175,7 @@ export function connectionNotice(view: ConnectionView | null | undefined): strin
   return parts ? `${parts.headline}${parts.diagnosis}${parts.recovery}` : "";
 }
 
-/** 设置页的自检明细：全部检查项及固定检查码；没有合规报告时为空。 */
+/** 设置页先列错误再列警告与通过项，同类项顺序不变；只排序展示行，不改原始报告。 */
 export function startupCheckRows(diagnosis: StartupDiagnosis | undefined): StartupCheckRow[] {
   if (diagnosis?.kind !== "report") return [];
   return diagnosis.checks.map((check, index) => ({
@@ -184,5 +185,5 @@ export function startupCheckRows(diagnosis: StartupDiagnosis | undefined): Start
     label: STATUS_LABELS[check.status],
     text: `${sentence(check.message)}${sentence(check.hint)}`,
     code: check.code,
-  }));
+  })).sort((left, right) => STATUS_ORDER[left.status] - STATUS_ORDER[right.status]);
 }
