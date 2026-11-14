@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 迟到自动回执保留已知审批结论（Issue #1216）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/agent/README.md`（Event Types）与 `packages/agent/src/agent.ts`（`processEvents`）：先将事件归并到内部状态，再依次等待订阅者；工具结束事件按 `toolCallId` 移除待执行标识。所读入口没有本项目的审批 RPC 或 Electron 缓存回退约定。本轮采用收到的事件事实应保留在状态投影中的边界，独立补齐已有自动批准回退，不推断上游存在同类问题，不复制源码、不引入依赖。
+
+适配约定：自动回执未确认受理时，先检查来源会话缓存中同一 `approvalId` 是否已有裁决通知、工具完成通知或已恢复快照提供的结论；已有结论则保留原投影，尚无结论才重放旧请求。只保护该次审批，其他审批结论不阻止恢复；切回读取失败也不能重新开放已处理卡片。来源会话说明、其他手动在途锁及工具终态保持原有规则，不增加重发、全量快照读取或工具权限；审批决定与工具执行结果仍分别核对。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 自动批准回执提示归属来源会话（Issue #1212）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（Continue or switch sessions）与 `packages/coding-agent/src/core/session-manager.ts`（`setSessionFile`、`_loadEntries` 与 `getSessionId`）：继续或切换会话保留各自身份，读取会话头恢复对应的会话 ID。所读入口没有定义 Electron 自动审批异步回执提示的归属机制；本轮独立复用本项目 #1108 已有的会话级审批状态，补齐既有自动批准回退，不推断上游存在同类问题，不复制源码、不引入依赖。
