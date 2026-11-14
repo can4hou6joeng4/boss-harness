@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1240](https://github.com/can4hou6joeng4/boss-harness/issues/1240)：停止请求在途时重复点击不再发出第二个请求。此前停止按钮在回合运行期间始终可点，`handleInterrupt` 没有在途保护：第一次停止请求尚未返回时再次点击会各自发起 `turn/interrupt`，第一个受理后第二个通常返回 `interrupted: false`，界面按「没有可停止的回合」写入「未找到可停止的任务，正在重新读取会话状态。」，与受理停止不产生失败提示的约定不符，并额外触发一次会话重读。现在按会话记录停止请求在途，在途期间忽略重复点击，请求结算后（受理、拒绝、失败或未找到回合）恢复可停止；第一次请求的失败归属、重读失败组合提示与目标回合绑定规则不变。仅渲染层实现，不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1238](https://github.com/can4hou6joeng4/boss-harness/issues/1238)：后台会话失败提示关闭后不再重新出现。失败提示按会话保存后，后台会话的失败以「会话「标题」：」前缀显示；此前关闭按钮、新回合开始与删除会话都只按当前活动会话判断是否清除提示，后台提示显示期间活动会话是另一个，关闭后切回来源会话提示会重新出现，来源开始新回合或删除后旧提示也仍停留。现在记录提示条属于哪个会话：关闭时清除该会话的记录，来源新回合或删除时一并清除正在显示的提示；当前会话自身提示的关闭与清除规则不变，其他会话记录不受影响。仅渲染层实现，不新增 RPC，协议与内核仍为 `0.2.0`。
 
 - [Issue #1236](https://github.com/can4hou6joeng4/boss-harness/issues/1236)：会话读取失败提示去掉主进程拼接前缀。`thread/resume`、`thread/read` 等未列入保留错误码的方法失败时由主进程抛出，渲染层收到的是 `Error invoking remote method 'harness:request': Error: …`；`HarnessReplica.reportFailure` 此前直接使用该消息写入提示与会话失败记录，用户看到的读取原因带着内部包装，发送 / 停止与读取同时失败的组合提示同样受影响。现在先经共享的 `stripIpcErrorWrapper` 去掉包装再截断，副本内部错误（如「会话恢复已过期」）文案不变，长度上限与既有提示结构不变。仅渲染层实现，不新增 RPC，协议与内核仍为 `0.2.0`。
