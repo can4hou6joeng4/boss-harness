@@ -52,6 +52,36 @@ export function approvalRejectionNotice(code: string | undefined, reason: string
 }
 
 /**
+ * 自动批准被内核明确拒绝时的提示。复用手动路径的拒绝码区分，但说明的是自动提交：
+ * 不再接受裁决的审批不引导手动点击，仍由活动回合持有的审批提醒不要反复提交；
+ * 已有同一审批结论时如实说明界面未重新开放操作。
+ */
+export function autoApprovalRejectionNotice(code: string | undefined, reason: string, decided: boolean): string {
+  const detail = reason ? `：${reason}` : "";
+  if (decided) {
+    return `自动批准未被内核受理${detail}；该审批已有结论，界面未重新开放操作。审批结论不代表工具执行成功，请核对工具结果。`;
+  }
+  switch (code) {
+    case "APPROVAL_BUSY":
+      return `自动批准未被内核受理${detail}；审批仍由活动回合持有，请先停止回合或等待它结束后再处理，不要反复提交。`;
+    case "APPROVAL_CLOSED":
+      return `自动批准未被内核受理${detail}；审批所属回合已结束或会话已归档，已不再接受裁决，正在刷新会话状态。`;
+    case "APPROVAL_CONFLICT":
+      return `自动批准未被内核受理${detail}；该审批已按相反决策处理，正在刷新会话状态。`;
+    case "APPROVAL_NOT_FOUND":
+      return `自动批准未被内核受理${detail}；审批不存在或所属会话已删除，正在刷新会话状态。`;
+    case "APPROVAL_INVALID":
+      return `自动批准未被内核受理${detail}；审批记录无效，正在刷新会话状态。`;
+    case "APPROVAL_AMBIGUOUS":
+      return `自动批准未被内核受理${detail}；审批记录重复，内核拒绝自动批准，正在刷新会话状态。`;
+    case "APPROVAL_EXPIRED":
+      return `自动批准未被内核受理${detail}；审批已失效，不再接受裁决，正在刷新会话状态。`;
+    default:
+      return `自动批准未被内核受理${detail || "（可能已过期）"}；已显示本次审批供核对，请刷新会话后再处理。`;
+  }
+}
+
+/**
  * 只有回合已经结束或审批记录已变更时才重读会话。
  * APPROVAL_BUSY 表示回合仍在运行，全量快照会覆盖正在流式输出的增量。
  */

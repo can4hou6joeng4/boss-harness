@@ -21,14 +21,14 @@ import { branchSupport, branchSwitchBlock, useSessionBranches } from "./data/use
 import { IconClose } from "./components/Icons";
 import { MOCK_PROJECT_FOLDERS, MOCK_CONVERSATION_THREAD, type ProjectFolder, type SessionItem, type MessageItem, type ConversationMode } from "./data/mockData";
 import { HARNESS_PROJECT_ID, HARNESS_PROJECT_NAME, archiveThread, configuredModels, deleteThread, harnessErrorText, harnessStatus, isHarnessRpcRejection, forkThread, interruptTurn, listThreads, listQueue, readTurnSkillIds, queueFollowUp, readQueueItem, reconnectHarness, removeQueuedItem, renameThread, respondApproval, sendTurn, setThreadModel, startThread, steerTurn, readTurnContinuation, continueTurn, unarchiveThread, updateQueuedItem } from "./data/harnessBridge";
-import { approvalRejectionNotice, approvalRejectionRefreshes, approvalUnconfirmedNotice } from "./data/approvalFailure";
+import { approvalRejectionNotice, approvalRejectionRefreshes, approvalUnconfirmedNotice, autoApprovalRejectionNotice } from "./data/approvalFailure";
 import { approvalSubmissionFor } from "./data/approvalSubmission";
 import { deleteThreadFailure } from "./data/deleteThreadError";
 import { resolveQuickAskRoute } from "./data/quickAsk";
 import { sessionTitleFromPrompt } from "./data/sessionTitle";
 import { matchesContinuation, resumedSession } from "./data/sessionState";
 import { isCommandChord } from "./data/shortcuts";
-import { reduceHarnessEvent, autoApprovalFallback, type HarnessEvent } from "./data/harnessEvents";
+import { reduceHarnessEvent, autoApprovalFallback, hasApprovalDecision, type HarnessEvent } from "./data/harnessEvents";
 import { unconfirmedFailure } from "./data/confirmationFailure";
 import { sendFailureNotice, sendFailureRecheckNotice } from "./data/sendFailure";
 import { sessionStartNotice, type SessionStartOutcome } from "./data/sessionStart";
@@ -385,12 +385,18 @@ export function App(): JSX.Element {
         void respondApproval(params.approvalId, true).then(outcome => {
           if (outcome.delivery === "accepted") return;
           // 自动批准没有确认受理：把审批卡放回界面供核对，不能把未知结果说成确定未送达。
+          // 回退与提示都以回执到达时的缓存为准：结论可能先于回执写入。
+          const decided = hasApprovalDecision(cache.current.get(id) ?? [], params.approvalId);
           updateThread(id, previous => autoApprovalFallback(previous, event, outcome.delivery));
-          const reason = outcome.reason ? `（${outcome.reason}）` : "";
+          // 明确拒绝时按拒绝码收敛，与手动路径一致：不再接受裁决的审批重读一次会话；
+          // APPROVAL_BUSY 表示回合仍在运行，全量快照会覆盖正在流式输出的增量，只提示等待。
+          if (outcome.delivery === "rejected" && !decided && outcome.code && approvalRejectionRefreshes(outcome.code)) {
+            void replicaRef.current?.resume(id);
+          }
           // 自动回执也归来源会话：切走不串到当前聊天，切回后仍能核对。
           approvalSubmissionFor(id).reportError(outcome.delivery === "unconfirmed"
             ? `${approvalUnconfirmedNotice(outcome.reason, "自动批准")}已显示本次审批供核对。`
-            : `自动批准未被内核受理${reason || "（可能已过期）"}，已显示本次审批；请手动确认。`);
+            : autoApprovalRejectionNotice(outcome.code, outcome.reason ?? "", decided));
         });
         return;
       }
