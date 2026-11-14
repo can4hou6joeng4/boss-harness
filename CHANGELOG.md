@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1204](https://github.com/can4hou6joeng4/boss-harness/issues/1204)：内核在构造阶段启动失败时，stderr 在既有失败行之后追加一行固定提示，指向不联网、不写入的 `boss-harness --check`。此前状态目录不可用、系统不满足私有状态目录要求或运行参数取值无效时，命令行只看到异常类名与系统错误原文，没有任何内容指向已能给出固定检查码与处理建议的自检；桌面会自动运行自检，直接启动内核的用户则无从得知。提示为固定文字，不含路径、变量取值或异常内容；既有失败行、退出码 2 与空 stdout 不变，模型配置、浏览器来源、`--check` 与 `--repair-state` 的输出不变。使用指南同步。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.18 - 2026-11-14
 
 本节汇总第十八个候选版本的源码与交付内容；rc.16、rc.17 与 rc.18 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
