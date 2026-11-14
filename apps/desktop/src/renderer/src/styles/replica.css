@@ -123,6 +123,8 @@ kbd { font: 10px var(--font-sans); color: var(--text-faint); }
 .composer-submit:disabled { opacity: .24; }
 .composer-stop { width: 29px; height: 29px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: transparent; color: var(--text-muted); border: 1px solid var(--border-color); cursor: pointer; margin-left: 2px; }
 .composer-stop:hover { color: var(--accent-warning); border-color: var(--accent-warning); }
+.composer-stop:disabled { cursor: default; opacity: .55; }
+.composer-stop:disabled:hover { color: var(--text-muted); border-color: var(--border-color); }
 .turn-queue { margin: 0 5px 8px; max-height: 156px; overflow-y: auto; border-bottom: 1px solid var(--border-color); color: var(--text-muted); }
 .turn-queue-heading { display: flex; align-items: center; gap: 8px; padding: 0 4px 5px; font-size: 11px; }
 .turn-queue-heading strong { color: var(--text-main); font-weight: 550; }

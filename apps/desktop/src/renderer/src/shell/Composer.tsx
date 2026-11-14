@@ -24,7 +24,7 @@ export interface ComposerProps {
   onQueue?: ComposerQueue;
   onCheckQueueSubmission?: CheckQueueSubmission;
   draft?: ComposerDraft; onDraftChange?: UpdateComposerDraft;
-  isRunning?: boolean; blocked?: boolean; onInterrupt?: () => void; preview?: boolean;
+  isRunning?: boolean; blocked?: boolean; onInterrupt?: () => void; /** 停止请求在途：按钮禁用并说明正在停止。 */ stopping?: boolean; preview?: boolean;
   currentMode?: ConversationMode; onModeChange?: (mode: ConversationMode) => void;
   models?: ModelDescriptor[]; activeModelProvider?: string; activeModelId?: string; configuredModelLabel?: string;
   onSelectModel?: (provider: string, id: string) => void | boolean | string | Promise<void | boolean | string>; onOpenSettings?: () => void;
@@ -53,7 +53,7 @@ function queueRestoreDraftUnchanged(current: ComposerDraft, snapshot: ComposerDr
 
 export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function Composer({
   threadId,
-  value, onChange, onSend, draft, onDraftChange, isRunning = false, blocked = false, onInterrupt, preview = true, readOnly = false, archived = false,
+  value, onChange, onSend, draft, onDraftChange, isRunning = false, blocked = false, onInterrupt, stopping = false, preview = true, readOnly = false, archived = false,
   onQueue, onCheckQueueSubmission,
   currentMode = "agent", onModeChange, models = [], activeModelProvider, activeModelId, configuredModelLabel, onSelectModel, onOpenSettings, home = false, onLogin,
   skills = [], skillCatalogState = "unavailable", skillCatalogError, onRefreshSkills, skillProblems = [],
@@ -619,7 +619,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
           </Popover>
         </div>
         <button type="button" className="composer-submit" aria-label={queueModeActive ? queueIntent === "steering" ? "转向当前回合" : "排入后续回合" : "发送消息"} title={queueModeActive ? queueIntent === "steering" ? "转向当前回合 · Enter" : "排入后续回合 · Enter" : submitting ? "正在转交消息" : "发送 · Enter"} disabled={archived || (blocked && !isRunning) || readingAttachments || submitting || (!value.trim() && !attachments.length)} onClick={() => { void submit(); }}><IconSend size={18} /></button>
-        {isRunning && onInterrupt && <button type="button" className="composer-stop" aria-label="停止任务" title="停止当前任务" onClick={onInterrupt}><IconStop size={15} /></button>}
+        {isRunning && onInterrupt && <button type="button" className="composer-stop" aria-label={stopping ? "正在停止任务" : "停止任务"} title={stopping ? "正在停止任务，请稍候" : "停止当前任务"} disabled={stopping} aria-busy={stopping || undefined} onClick={onInterrupt}><IconStop size={15} /></button>}
       </div>
     </div>
     {skillQueueNotice && <div className="composer-notice" role="status">{skillQueueNotice}<button type="button" className="composer-menu-retry" disabled={submitting} onClick={() => updateDraft(previous => ({ ...previous, skillIds: [] }))}>清除已选技能</button></div>}
