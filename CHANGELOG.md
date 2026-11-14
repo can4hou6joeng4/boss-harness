@@ -4,6 +4,18 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+当前没有未发布的变更。
+
+## 0.2.0-rc.16 - 2026-11-14
+
+本节汇总第十六个候选版本的源码与交付内容；实际发布状态以 [GitHub Release](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.16) 为准。
+
+### 本版概览
+
+自 `v0.2.0-rc.15` 以来的改进在本次候选中汇总，主题是启动与配置可诊断性：新增不联网的本地配置自检入口；桌面在内核握手前失败时展示同一套自检结果；模型配置与状态目录错误提供固定检查码、静态说明与处理建议；状态目录路径无法解析时以明确的启动失败退出，不再打印回溯；Codex profile 支持 `env_key` 凭据并拒绝非 Responses 协议；`none` 模式的握手、配置读取与新建会话统一为 `none · none`；桌面列表刷新不再把已删除聊天放回。
+
+这些检查只覆盖本地静态条件，不证明模型连通、平台登录、依赖完整、实际写入、磁盘空间或索引与会话完整；真实模型、招聘平台与独立安装包仍未验收。桌面继续从源码运行，交付为 MIT 许可的源码与 Python 内核 wheel / sdist。本版没有新增 RPC，协议仍为 `0.2.0`。
+
 - [Issue #1186](https://github.com/can4hou6joeng4/boss-harness/issues/1186)：无模型模式的新建会话不再被默认线路不一致拒绝。以 `none` 启动时握手与 `config/read` 曾报告通用默认模型，而 `model/list` 把同一 provider 规范为 `none`，桌面按握手值调用 `thread/start` 会收到 `MODEL_ROUTE_UNAVAILABLE`。现在 `ApplicationService` 在创建时采用模型目录中同一 provider 的生效条目（none 为 `model=none`、无推理档位），使握手、配置读取、目录、新建会话与构造检查共用同一线路；启动日志同步显示该生效配置。显式 none、自动回退与残留模型 / 档位变量都落到该条目且不发起模型请求，显式模型覆盖的解析与校验规则不变，真实 provider 原配置与旧会话记录不迁移。实际 stdio 子进程五种场景与独立 wheel 安装后同组核对全部通过，真实 Electron 以 README 的默认 `none` 启动时首页显示 `none · none`，生产新建回调成功且 `thread/list`、`config/read`、`model/list` 一致；探针记录的网络、外部进程与模型 SDK 导入尝试均为零。类型检查、桌面构建与离线 wheel / sdist 构建通过，变更模块在源码与包内字节一致，包内无测试材料。README、使用指南、技术参考与上游吸收记录同步。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 - [Issue #1184](https://github.com/can4hou6joeng4/boss-harness/issues/1184)：桌面列表刷新不再把已删除聊天重新放回。会话通知与本地成功的新建、删除、重命名、归档 / 恢复及模型设置会使在途旧列表失效；旧成功结果不回写列表或当前会话，旧失败不覆盖提示，沿用现有单飞与尾随刷新补读最新列表。当前读取失败仍保留已有列表并说明原因，未知删除结果继续提示核对。真实 Electron 窗口、生产 preload / renderer / IPC 与 `none` 内核中核对八种场景，覆盖删除竞态、重命名、新建、归档 / 恢复、迟到失败与当前失败（列表失败为受控注入）；模型、招聘平台网络及 Python 外部进程 / SDK 导入尝试为零。类型检查与桌面构建通过，README、使用指南、技术参考与上游吸收记录同步，并按实际界面修正归档入口为侧栏菜单。不新增 RPC，协议与内核仍为 `0.2.0`。
@@ -13,16 +25,6 @@
 - [Issue #1180](https://github.com/can4hou6joeng4/boss-harness/issues/1180)：Codex profile 支持 `env_key` 凭据。此前只识别 `experimental_bearer_token`，按 Codex 推荐把密钥放在环境变量中的合法 provider 配置会被判为缺少凭据，`--check` 报 `MODEL_CREDENTIAL_MISSING`。现在解析时只记录 `env_key` 的环境变量名，`resolve_config(environ=...)` 用调用方传入的环境映射取值；优先级为显式 `BOSS_HARNESS_OPENAI_API_KEY` > `experimental_bearer_token` > `env_key`，变量缺失或为空仍报同一固定码，提示补充 `env_key` 路径。`--check` 复用该解析，不构造客户端、不联网。使用指南、README、内核参考与上游吸收记录同步。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 - [Issue #1178](https://github.com/can4hou6joeng4/boss-harness/issues/1178)：修正「内核与业务契约参考」中「桌面不提供删除按钮」的过期说明，并按当前实现补全桌面会话管理文档：删除入口、确认框会一并清除的本机未发送正文 / 附件 / 已选技能 / 正在读取的附件 / 消息反馈、`THREAD_BUSY` 拒绝，以及 `THREAD_DELETE_INCOMPLETE` / `THREAD_NOT_FOUND` 与未确认结果的处理；使用指南新增归档与删除会话说明，README 能力地图补充会话管理条目。纯文档改动，不新增 RPC，协议与内核仍为 `0.2.0`。
-
-## 0.2.0-rc.16 - 2026-11-14
-
-本节汇总第十六个候选版本的源码与交付内容；实际发布状态以 [GitHub Release](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.16) 为准。
-
-### 本版概览
-
-自 `v0.2.0-rc.15` 以来的改进在本次候选中汇总，主题是启动与配置可诊断性：新增不联网的本地配置自检入口；桌面在内核握手前失败时展示同一套自检结果；模型配置与状态目录错误提供固定检查码、静态说明与处理建议；状态目录路径无法解析时以明确的启动失败退出，不再打印回溯。
-
-这些检查只覆盖本地静态条件，不证明模型连通、平台登录、依赖完整、实际写入、磁盘空间或索引与会话完整；真实模型、招聘平台与独立安装包仍未验收。桌面继续从源码运行，交付为 MIT 许可的源码与 Python 内核 wheel / sdist。本版没有新增 RPC，协议仍为 `0.2.0`。
 
 - [Issue #1174](https://github.com/can4hou6joeng4/boss-harness/issues/1174)：状态目录路径无法解析（如符号链接环）时，正常启动与 `--repair-state` 不再以退出码 1 输出 Python 回溯。路径解析统一经 `resolve_private_path`，把 `pathlib` 包装的 `RuntimeError`（含 `ELOOP`）转为既有的目录规则错误：启动沿用干净退出（退出码 2、单行静态说明），维护命令输出「索引修复失败：状态目录路径无法解析」，两者都不含本机绝对路径。自检仍报 `STATE_DIRECTORY_INVALID`，报告结构与退出码不变；字面 `~` 不展开、相对路径按启动工作目录解析、合法目录与符号链接到目录的创建行为保持不变。34 项既有隔离真实 CLI 场景结果与修复前逐字节一致，26 项库级创建与异常映射核对通过；符号链接环的正常启动、中间路径环节点、`--check` 与 `--repair-state` 实跑核对通过。README 与使用指南补充该边界。不新增 RPC，协议与内核仍为 `0.2.0`。
 
