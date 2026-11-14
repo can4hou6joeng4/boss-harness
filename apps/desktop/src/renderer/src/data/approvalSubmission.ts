@@ -11,7 +11,7 @@ import { useState, useSyncExternalStore } from "react";
 export interface ApprovalSubmissionState {
   /** 正在提交的审批卡消息；同一会话同一时间只允许一张卡提交。 */
   pendingMessageId: string | null;
-  /** 最近一次提交的未确认或拒绝原因；重新提交时清除。 */
+  /** 手动或自动批准最近的未确认或拒绝原因；重新提交时清除。 */
   error: string;
   /** 「本次会话记住选择」按审批卡消息保存，通知切换后仍保留。 */
   remember: Record<string, boolean>;
@@ -35,6 +35,8 @@ function createSubmissions() {
       if (state.pendingMessageId !== messageId) return;
       update({ ...state, pendingMessageId: null, error });
     },
+    /** 自动批准没有手动提交锁；只记录来源会话提示，保留其他卡片的在途状态。 */
+    reportError: (error: string) => update({ ...state, error }),
     setRemember: (messageId: string, checked: boolean) => {
       const remember = { ...state.remember };
       if (checked) remember[messageId] = true; else delete remember[messageId];
