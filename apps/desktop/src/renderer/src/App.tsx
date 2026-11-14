@@ -191,14 +191,20 @@ export function App(): JSX.Element {
   const firstSessionRecord = useRef(true);
   // 失败原因按会话保存：切到失败的会话时恢复提示；重新发起回合或用户关闭提示后清除。
   const sessionErrors = useRef(new Map<string, string>());
+  // 提示条可能显示后台会话的失败：记住当前提示属于哪个会话，关闭或来源变化时才能清理对应记录。
+  const errorOwner = useRef<string | null>(null);
+  const showError = useCallback((message: string, ownerId?: string | null) => {
+    errorOwner.current = message ? (ownerId ?? activeRef.current?.id ?? null) : null;
+    setError(message);
+  }, []);
   // 异步失败归属发起时的会话；后台提示标明来源，切回时恢复原文。
   const reportSessionError = useCallback((threadId: string, message: string) => {
     sessionErrors.current.set(threadId, message);
     const title = activeRef.current?.id !== threadId
       ? foldersRef.current.flatMap(folder => folder.sessions).find(session => session.id === threadId)?.title
       : undefined;
-    setError(title ? `会话「${title}」：${message}` : message);
-  }, []);
+    showError(title ? `会话「${title}」：${message}` : message, threadId);
+  }, [showError]);
   const continuationReadGeneration = useRef(0);
   const continuationSubmitting = useRef<string | null>(null);
   const lastEsc = useRef(0);
@@ -355,6 +361,7 @@ export function App(): JSX.Element {
           cache.current.delete(deleted);
           queueCache.current.delete(deleted);
           sessionErrors.current.delete(deleted);
+          if (errorOwner.current === deleted) showError("");
           setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== deleted) })));
           void refresh();
         }
@@ -371,7 +378,7 @@ export function App(): JSX.Element {
           });
         }).catch(cause => {
           // 内核报告队列变化但读取失败：保留面板旧内容，明确提示可能已过期；不自动重试。
-          if (read.isCurrent() && activeRef.current?.id === id) setError(`队列更新读取失败：${harnessErrorText(cause)}。队列面板保留上一次内容，可能已过期。`);
+          if (read.isCurrent() && activeRef.current?.id === id) showError(`队列更新读取失败：${harnessErrorText(cause)}。队列面板保留上一次内容，可能已过期。`);
         });
       }
       if (["thread/created", "thread/archived", "thread/unarchived", "thread/renamed", "thread/model/updated"].includes(event.method)) {
@@ -383,8 +390,8 @@ export function App(): JSX.Element {
         clearModelRetry(id);
         if (params.turnId) turnIds.current.set(id, params.turnId);
         if (activeRef.current?.id === id) setContinuationCheck(null);
-        // 新回合开始说明旧失败不再适用：删除该会话的记录，正在显示时一并清除提示。
-        if (sessionErrors.current.delete(id) && activeRef.current?.id === id) setError("");
+        // 新回合开始说明旧失败不再适用：删除该会话的记录；提示条正显示它时一并清除，其他会话的提示不受影响。
+        if (sessionErrors.current.delete(id) && errorOwner.current === id) showError("");
         markRunning(id, true); return;
       }
       // 正常完成的回合若发生在其他会话，先在侧栏留一个未读标记；中断 / 异常已有各自的状态提示。
@@ -483,8 +490,8 @@ export function App(): JSX.Element {
           // 状态查询失败（没有 state，error 带原因）与内核明确断开都要提示，不能静默停在未连接状态。
           // 断开的提示按连接状态生成：区分启动失败与就绪后断开，不直接展示内部错误文本。
           const notice = noticeFromStatus(connectionRef, status);
-          if (notice) setError(notice);
-          else if (status?.state === undefined && status?.error) setError(status.error);
+          if (notice) showError(notice);
+          else if (status?.state === undefined && status?.error) showError(status.error);
           return;
         }
         const processDefault = status.modelBridge
@@ -506,7 +513,7 @@ export function App(): JSX.Element {
         try {
           modelCatalog = await configuredModels();
         } catch (cause) {
-          if (!cancelled) setError(`模型列表读取失败：${harnessErrorText(cause)}。模型选项未更新，请稍后重试或重新连接。`);
+          if (!cancelled) showError(`模型列表读取失败：${harnessErrorText(cause)}。模型选项未更新，请稍后重试或重新连接。`);
         }
         if (cancelled) return;
         // 读取失败时保留现有选项，避免把一次 RPC 失败显示成「没有可切换的模型」。
@@ -534,7 +541,7 @@ export function App(): JSX.Element {
           if (cancelled) return;
           if (listVersion !== threadListVersion.current) { refreshAgain = true; return; }
           // 读取失败时保留当前列表，避免把一次 RPC 失败显示成「没有会话」。
-          setError(`会话列表读取失败：${harnessErrorText(cause)}。会话列表未更新，请稍后重试或重新连接。`);
+          showError(`会话列表读取失败：${harnessErrorText(cause)}。会话列表未更新，请稍后重试或重新连接。`);
           return;
         }
         if (cancelled) return;
@@ -573,13 +580,13 @@ export function App(): JSX.Element {
         const previous = connectionRef.current;
         const view = mergeConnectionView(previous, connectionViewOf(event.params));
         connectionRef.current = view;
-        if (event.params?.state === "ready") { setError(""); void refresh(); }
+        if (event.params?.state === "ready") { showError(""); void refresh(); }
         else {
           setHarnessUp(false); setContinuationSupported(false); setCapabilities(undefined);
           // 提示跟随连接状态更新：重试是否用尽、自检结论到达都要反映；
           // 自动重试的过渡状态没有新信息，不重新弹出已关闭的提示。
           const notice = view !== previous ? connectionNotice(view) : "";
-          if (notice) setError(notice);
+          if (notice) showError(notice);
         }
         return;
       }
@@ -588,7 +595,7 @@ export function App(): JSX.Element {
         for (const timer of retryTimers.current.values()) clearTimeout(timer);
         retryTimers.current.clear(); setModelRetries({});
         // 连接状态先于断开通知到达；缺少状态时退回通用提示，仍提醒核对结果未确认的操作。
-        setError(connectionNotice(connectionRef.current) || "本地内核已断开，正在恢复连接；结果未确认的对外操作请先核对平台状态。");
+        showError(connectionNotice(connectionRef.current) || "本地内核已断开，正在恢复连接；结果未确认的对外操作请先核对平台状态。");
         for (const id of runningRef.current) markRunning(id, false);
         return;
       }
@@ -603,11 +610,11 @@ export function App(): JSX.Element {
   }, []);
   const handleSelectSession = useCallback((session: SessionItem) => {
     const requestVersion = ++selectionVersion.current;
-    activeRef.current = session; setActiveSession(session); setIsHomeView(false); setError("");
+    activeRef.current = session; setActiveSession(session); setIsHomeView(false); showError("");
     // 失败原因属于会话：切到真正失败的会话时恢复提示，用户点进来就是为了看原因。
     const previousFailure = sessionErrors.current.get(session.id);
-    if (previousFailure) setError(previousFailure);
-    if (legacyRouteMismatch(session, defaultModel)) setError(LEGACY_ROUTE_HINT);
+    if (previousFailure) showError(previousFailure);
+    if (legacyRouteMismatch(session, defaultModel)) showError(LEGACY_ROUTE_HINT);
     const provider = session.provider ?? defaultModel?.provider ?? activeModelProvider;
     const model = session.model ?? (provider === defaultModel?.provider ? defaultModel.model : undefined)
       ?? modelOptions.find(candidate => candidate.provider === provider)?.id ?? activeModelId;
@@ -637,7 +644,7 @@ export function App(): JSX.Element {
       setLoadingHistory(null);
       // 具体原因已随 session/error 送到界面；这里沿用它，只有取不到时才回退到通用文案。
       if (!snapshot) {
-        setError(replicaRef.current?.lastFailure(session.id) ?? "读取会话失败，已保留当前内容。请检查本地内核连接。");
+        showError(replicaRef.current?.lastFailure(session.id) ?? "读取会话失败，已保留当前内容。请检查本地内核连接。");
         return;
       }
       // resume 在途期间列表刷新（改名 / 归档 / 切换线路都会触发 refresh）可能已写入更新的元数据：
@@ -650,7 +657,7 @@ export function App(): JSX.Element {
       const updated = { ...base, provider: snapshot.thread.provider, model: snapshot.thread.model };
       activeRef.current = updated; setActiveSession(updated);
       const needsRoute = legacyRouteMismatch(updated, defaultModel);
-      if (needsRoute) setError(LEGACY_ROUTE_HINT);
+      if (needsRoute) showError(LEGACY_ROUTE_HINT);
       setActiveModelProvider(provider); setActiveModelId(model); setConfiguredModelLabel(needsRoute ? `需选择线路 · ${model}` : `${provider} · ${model}`);
     });
   }, [activeModelId, activeModelProvider, defaultModel, modelOptions, readContinuationCheck]);
@@ -680,7 +687,7 @@ export function App(): JSX.Element {
     if (defaultModel) { setActiveModelProvider(defaultModel.provider); setActiveModelId(defaultModel.model); setConfiguredModelLabel(`${defaultModel.provider} · ${defaultModel.model}`); }
   }, [defaultModel]);
   const handleNewTask = useCallback(() => {
-    clearActiveConversation(); setError("");
+    clearActiveConversation(); showError("");
   }, [clearActiveConversation]);
   /** 删除会话：失败时保留列表并提示原因；已移除（含内核稍后继续清理）时同步清掉本地状态。 */
   const handleDeleteSession = useCallback(async (session: SessionItem): Promise<boolean> => {
@@ -690,7 +697,7 @@ export function App(): JSX.Element {
     } catch (cause) {
       const failure = deleteThreadFailure(cause);
       // 只有内核明确拒绝才能断言聊天仍存在；结果未确认时保留列表并提示核对，不臆断删除结果。
-      if (failure.status !== "incomplete") { setError(failure.message); return false; }
+      if (failure.status !== "incomplete") { showError(failure.message); return false; }
       warning = failure.message;
     }
     threadListVersion.current += 1;
@@ -699,7 +706,7 @@ export function App(): JSX.Element {
     setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== session.id) })));
     // 只清空会话视图，不调用 handleNewTask，避免连删除结果提示一起清掉。
     if (activeRef.current?.id === session.id) clearActiveConversation();
-    if (warning) setError(warning);
+    if (warning) showError(warning);
     return true;
   }, [clearActiveConversation]);
   /** 归档/恢复会话：成功由内核事件触发列表刷新；失败保留原状态并给出真实原因。 */
@@ -710,7 +717,7 @@ export function App(): JSX.Element {
       threadListVersion.current += 1;
       return true;
     } catch (cause) {
-      setError(`${archived ? "归档" : "恢复"}聊天失败：${harnessErrorText(cause)}。${archived ? "聊天未归档" : "聊天仍未恢复"}，列表保持不变。`);
+      showError(`${archived ? "归档" : "恢复"}聊天失败：${harnessErrorText(cause)}。${archived ? "聊天未归档" : "聊天仍未恢复"}，列表保持不变。`);
       return false;
     }
   }, []);
@@ -727,7 +734,7 @@ export function App(): JSX.Element {
     try {
       title = (await renameThread(session.id, name)).title;
     } catch (cause) {
-      if (!options?.silent) setError(`重命名失败：${harnessErrorText(cause)}。聊天名称保持不变。`);
+      if (!options?.silent) showError(`重命名失败：${harnessErrorText(cause)}。聊天名称保持不变。`);
       return false;
     }
     threadListVersion.current += 1;
@@ -748,7 +755,7 @@ export function App(): JSX.Element {
       const session = await startThread("BOSS 直聘账号连接", activeModelId, activeModelProvider);
       insertSession(session); handleSelectSession(session);
       return session;
-    } catch (cause) { setError(`连接会话创建失败：${harnessErrorText(cause)}`); return null; }
+    } catch (cause) { showError(`连接会话创建失败：${harnessErrorText(cause)}`); return null; }
     finally { startingRef.current = false; setStartingSession(false); }
   };
   const simulate = useCallback((id: string) => {
@@ -770,7 +777,7 @@ export function App(): JSX.Element {
         const message = data?.code === "MODEL_SWITCH_QUEUE_PENDING"
           ? "会话仍有排队消息，请先处理或移除队列后再切换模型线路；当前会话选择保持不变。"
           : `模型设置失败：${harnessErrorText(error)}；当前会话选择保持不变。`;
-        if (selectionVersion.current === selectionVersionAtStart && activeRef.current?.id === session.id) setError(message);
+        if (selectionVersion.current === selectionVersionAtStart && activeRef.current?.id === session.id) showError(message);
         // 切走后的失败也要回到发起时的输入区；返回原因而不是只给 false，重新打开菜单时才能核对。
         return message;
       }
@@ -781,7 +788,7 @@ export function App(): JSX.Element {
         sessions: folder.sessions.map(item => item.id === updated.id ? { ...item, provider, model, reasoningEffort: null } : item),
       })));
       if (selectionVersion.current !== selectionVersionAtStart || activeRef.current?.id !== session.id) return true;
-      activeRef.current = updated; setActiveSession(updated); setError("");
+      activeRef.current = updated; setActiveSession(updated); showError("");
       void sessionReasoning.refresh(); void readContinuationCheck(updated);
     }
     if (isHomeView) homeModelChoiceRef.current = { provider, model };
@@ -789,8 +796,8 @@ export function App(): JSX.Element {
     return true;
   }, [harnessUp, isHomeView, readContinuationCheck, sessionReasoning]);
   const send = useCallback(async (id: string, text: string, real: boolean, model: string | undefined, skillIds: string[] = []): Promise<boolean | "uncertain"> => {
-    if (real && !harnessUp) { setError("本地内核未连接，请重启应用后再发起任务。"); return false; }
-    if (runningRef.current.has(id)) { setError("该会话仍在运行，请等待结束或停止后再发送。"); return false; }
+    if (real && !harnessUp) { showError("本地内核未连接，请重启应用后再发起任务。"); return false; }
+    if (runningRef.current.has(id)) { showError("该会话仍在运行，请等待结束或停止后再发送。"); return false; }
     const clientId = crypto.randomUUID();
     updateThread(id, previous => [...previous, { id: clientId, role: "user", content: text }]);
     if (!real) { simulate(id); return true; }
@@ -826,11 +833,11 @@ export function App(): JSX.Element {
   }, [harnessUp, updateThread, markRunning, reportSessionError, simulate, autoCompaction.take]);
   const handleStartSessionWithPrompt = useCallback((prompt: string, _domain: string, provider: string, modelId: string, skillIds: string[] = []): Promise<SessionStartOutcome> => {
     return (async (): Promise<SessionStartOutcome> => {
-      if (window.boss && !harnessUp) { setError("本地内核未连接，请检查启动配置并重启应用。"); return { status: "failed" }; }
-      if (startingRef.current) { setError("已有任务正在创建或运行，请等待结束或停止后再创建。"); return { status: "failed" }; }
+      if (window.boss && !harnessUp) { showError("本地内核未连接，请检查启动配置并重启应用。"); return { status: "failed" }; }
+      if (startingRef.current) { showError("已有任务正在创建或运行，请等待结束或停止后再创建。"); return { status: "failed" }; }
       // 首页在输入区校验后才追加项目上下文；创建会话前按最终消息再校验，避免留下空聊天。
       if (prompt.length > MAX_MESSAGE_TEXT_LENGTH) {
-        setError(`首条消息连同项目上下文与附件共 ${prompt.length} 字符，超过单条 ${MAX_MESSAGE_TEXT_LENGTH} 字符上限；请减少附件或精简正文后再发送，草稿已保留。`);
+        showError(`首条消息连同项目上下文与附件共 ${prompt.length} 字符，超过单条 ${MAX_MESSAGE_TEXT_LENGTH} 字符上限；请减少附件或精简正文后再发送，草稿已保留。`);
         return { status: "failed" };
       }
       const requestVersion = selectionVersion.current;
@@ -846,7 +853,7 @@ export function App(): JSX.Element {
         // 会话已经建立，但首条消息是否送达无法确认：留在首页保留草稿，并指出可核对的位置。
         if (transferred === "uncertain") {
           const outcome: SessionStartOutcome = { status: "unconfirmed", session: started };
-          setError(sessionStartNotice(outcome) ?? "");
+          showError(sessionStartNotice(outcome) ?? "");
           return outcome;
         }
         // 明确拒绝说明消息没有进入会话；会话已经存在，不能再让调用方以为创建失败。
@@ -863,17 +870,17 @@ export function App(): JSX.Element {
         // 首条消息的提交结果同样无法确认，不能报告「未能创建会话」。
         if (started) {
           const outcome: SessionStartOutcome = { status: "unconfirmed", session: started };
-          setError(`首条消息提交失败：${harnessErrorText(cause)}。${sessionStartNotice(outcome)}`);
+          showError(`首条消息提交失败：${harnessErrorText(cause)}。${sessionStartNotice(outcome)}`);
           return outcome;
         }
-        setError(`创建会话失败：${harnessErrorText(cause)}`); return { status: "failed" };
+        showError(`创建会话失败：${harnessErrorText(cause)}`); return { status: "failed" };
       } finally { startingRef.current = false; setStartingSession(false); }
     })();
   }, [harnessUp, insertSession, send]);
   const handleSendMessage = useCallback((text: string, skillIds: string[] = []) => {
     const session = activeRef.current; if (!session || !text.trim()) return false;
     if (session.projectId !== HARNESS_PROJECT_ID) return send(session.id, text, false, activeModelId, skillIds);
-    if (legacyRouteMismatch(session, defaultModel)) { setError(LEGACY_ROUTE_HINT); return false; }
+    if (legacyRouteMismatch(session, defaultModel)) { showError(LEGACY_ROUTE_HINT); return false; }
     // 会话线路由内核持久化的 provider/model 决定；只发送会话自身记录的模型，避免切换后携带旧选择。
     return send(session.id, text, true, session.model, skillIds);
   }, [send, activeModelId, defaultModel]);
@@ -929,7 +936,7 @@ export function App(): JSX.Element {
     if (intent === "steering") {
       const expectedTurnId = turnIds.current.get(session.id);
       if (!runningRef.current.has(session.id) || !expectedTurnId) {
-        setError("当前回合已结束或状态尚未同步；消息仍保留在输入框，请刷新后再提交。");
+        showError("当前回合已结束或状态尚未同步；消息仍保留在输入框，请刷新后再提交。");
         await replicaRef.current?.resume(session.id);
         return false;
       }
@@ -981,7 +988,7 @@ export function App(): JSX.Element {
       return { status: "skipped", reason: `读取完整输入失败（${harnessErrorText(cause)}）` };
     }
     if (!queueItemRetryable(full)) {
-      if (activeRef.current?.id === session.id) setError("队列项状态已变化或当前不支持重新排队，请刷新队列后再决定。");
+      if (activeRef.current?.id === session.id) showError("队列项状态已变化或当前不支持重新排队，请刷新队列后再决定。");
       return { status: "skipped", reason: "队列项状态已变化或当前不支持重新排队，请先刷新队列" };
     }
     let created: QueueItem;
@@ -1024,7 +1031,7 @@ export function App(): JSX.Element {
       }
       if (refreshFailure) {
         // 新请求已受理；刷新失败时按本地结果更新并说明其余条目可能过期，不回滚这次重新排队。
-        setError(`重新排队已受理，但队列刷新失败：${harnessErrorText(refreshFailure)}。界面按本地结果更新，其余条目可能已过期。`);
+        showError(`重新排队已受理，但队列刷新失败：${harnessErrorText(refreshFailure)}。界面按本地结果更新，其余条目可能已过期。`);
       }
     }
     // 面板按会话保存部分完成回执；批量须停止，但不能漏计已经受理的新项。
@@ -1057,7 +1064,7 @@ export function App(): JSX.Element {
           ? { status: "skipped", reason: `${rejection.reason}；队列刷新失败（${harnessErrorText(rereadFailure)}），面板可能已过期` }
           : rejection;
       }
-      setError(page
+      showError(page
         ? `撤回结果尚未确认（${harnessErrorText(cause)}），已重新读取队列；不会自动重复撤回。`
         : unconfirmedFailure("撤回结果", cause, rereadFailure, "请稍后核对，不会自动重复撤回。"));
       return { status: "uncertain" };
@@ -1157,8 +1164,8 @@ export function App(): JSX.Element {
   }, [updateThread]);
   const openRewind = useCallback(() => {
     const session = activeRef.current;
-    if (!session) { setError("请先打开一段聊天。"); return; }
-    if (runningRef.current.has(session.id)) { setError("请先停止当前回合，再选择分支位置。"); return; }
+    if (!session) { showError("请先打开一段聊天。"); return; }
+    if (runningRef.current.has(session.id)) { showError("请先停止当前回合，再选择分支位置。"); return; }
     // 目标与消息在打开时固定：通知切换活动会话后，确认仍在原会话上执行。
     setRewindTarget({ threadId: session.id, title: session.title, messages: cache.current.get(session.id) ?? [],
       fork: !(!window.boss && session.projectId !== HARNESS_PROJECT_ID) });
@@ -1244,9 +1251,9 @@ export function App(): JSX.Element {
     {error && <div className="app-toast" role="alert"><span>{error}</span>{!harnessUp && window.boss && <button onClick={() => { void reconnectHarness().then(status => {
       // 重连结果以主进程返回的连接状态为准：仍未就绪时给出启动失败原因与本地自检结论，
       // 与连接状态通知使用同一套文案，不会互相覆盖成不同说法。
-      setError(status.running ? "" : noticeFromStatus(connectionRef, status)
+      showError(status.running ? "" : noticeFromStatus(connectionRef, status)
         || `重新连接失败：${status.error || "本地内核仍未运行"}。请检查启动配置后重启应用。`);
-    }); }}>重新连接</button>}<button onClick={() => { setError(""); const activeId = activeRef.current?.id; if (activeId) sessionErrors.current.delete(activeId); }} aria-label="关闭提示"><IconClose size={14} /></button></div>}
+    }); }}>重新连接</button>}<button onClick={() => { const owner = errorOwner.current ?? activeRef.current?.id ?? null; if (owner) sessionErrors.current.delete(owner); showError(""); }} aria-label="关闭提示"><IconClose size={14} /></button></div>}
     <CockpitModal isOpen={isCockpitOpen} onClose={() => setIsCockpitOpen(false)} harnessUp={harnessUp} threadId={contextThreadId} threadTitle={activeSession?.title} />
     <ContextPanel isOpen={contextPanel.isOpen} onClose={() => { contextPanel.close(); setContextTarget(null); }} threadId={contextPanelThreadId} title={contextTarget?.title ?? activeSession?.title ?? ""} connected={harnessUp} busy={contextPanel.busy} state={contextPanel.state} onKeepRecentChange={contextPanel.changeKeepRecent} onRefresh={() => { void contextPanel.refresh(); }} onPlan={() => { void contextPanel.plan(); }} onStart={() => { void contextPanel.start(); }} onCancel={() => { void contextPanel.cancel(); }} autoCompaction={autoCompaction} workspaceEditor={capabilities?.workspaceInstructionsEdit === true} />
     <SideChatModal isOpen={isSideChatOpen} onClose={() => setIsSideChatOpen(false)}
@@ -1254,7 +1261,7 @@ export function App(): JSX.Element {
       onAsk={async question => {
         // 复用既有会话创建与发送链路；不新增 RPC，也不在本地生成任何回复。
         const resolved = resolveQuickAskRoute(activeSession, defaultModel, modelOptions);
-        if (!resolved.ok) { setError(resolved.reason); return { status: "failed" as const }; }
+        if (!resolved.ok) { showError(resolved.reason); return { status: "failed" as const }; }
         return handleStartSessionWithPrompt(question, "", resolved.route.provider, resolved.route.model);
       }} />
     <RewindOverlay target={rewindTarget} onClose={() => setRewindTarget(null)} onConfirmRewind={messageCount => {
@@ -1262,10 +1269,10 @@ export function App(): JSX.Element {
       if (!target) return;
       if (!target.fork) { updateThread(target.threadId, previous => previous.slice(0, messageCount)); return; }
       const turnId = [...target.messages.slice(0, messageCount)].reverse().find(message => message.turnId)?.turnId;
-      if (!turnId) { setError("所选消息没有完整回合信息，请刷新原会话后再试。"); return; }
+      if (!turnId) { showError("所选消息没有完整回合信息，请刷新原会话后再试。"); return; }
       void forkThread(target.threadId, turnId).then(session => {
         insertSession(session); handleSelectSession(session);
-      }).catch(cause => setError(`创建分支失败：${harnessErrorText(cause)}`));
+      }).catch(cause => showError(`创建分支失败：${harnessErrorText(cause)}`));
     }} />
     <UnifiedDiffModal messages={messages} preview={preview} isOpen={isDiffModalOpen} onClose={() => setIsDiffModalOpen(false)} onRevertChanges={() => { setIsDiffModalOpen(false); setIsRevertModalOpen(true); }} />
     <RevertConfirmModal isOpen={isRevertModalOpen} onClose={() => setIsRevertModalOpen(false)} fileCount={[...messages].reverse().find(message => message.diffSummary)?.diffSummary?.fileCount ?? 0} onConfirm={() => {
