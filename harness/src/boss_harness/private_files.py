@@ -153,6 +153,22 @@ def _has_directory_allow_acl(descriptor: int, *, reject_file_inherit: bool = Fal
         acl_free(acl)
 
 
+def resolve_private_path(path: Path) -> Path:
+    """解析真实路径；无法解析（如符号链接环）时按目录规则错误报告。
+
+    不展开 `~`：调用方先按正常启动的规则解析为绝对路径，环境变量中的字面 `~` 保持原样。
+    """
+    try:
+        return Path(path).resolve()
+    except RuntimeError as error:
+        # pathlib 在解析路径时把 ELOOP 等失败包装成 RuntimeError。
+        raise ValueError("状态目录路径无法解析") from error
+    except OSError as error:
+        if error.errno != errno.ELOOP:
+            raise
+        raise ValueError("状态目录路径无法解析") from error
+
+
 def ensure_private_directory(path: Path, mode: int = 0o700) -> None:
     _walk_private_directory(path, mode, create=True)
 
@@ -164,7 +180,7 @@ def check_private_directory(path: Path) -> None:
 
 def _walk_private_directory(path: Path, mode: int, *, create: bool) -> None:
     uid = ensure_private_file_support()
-    directory = Path(path).expanduser().resolve()
+    directory = resolve_private_path(Path(path).expanduser())
     if not directory.parts[1:]:
         raise ValueError("状态目录不能是文件系统根目录")
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
