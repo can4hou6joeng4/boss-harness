@@ -10,6 +10,7 @@ ModelConfigErrorCode = Literal[
     "MODEL_CODEX_UNREADABLE",
     "MODEL_CODEX_INVALID_TOML",
     "MODEL_CODEX_NOT_FILE",
+    "MODEL_CODEX_WIRE_API_UNSUPPORTED",
 ]
 
 _DIAGNOSTICS: dict[ModelConfigErrorCode, tuple[str, str]] = {
@@ -32,6 +33,10 @@ _DIAGNOSTICS: dict[ModelConfigErrorCode, tuple[str, str]] = {
     "MODEL_CODEX_NOT_FILE": (
         "Codex 模型配置路径不是普通文件。",
         "将 BOSS_HARNESS_CODEX_CONFIG 指向配置文件，或核对 CODEX_HOME 下的 config.toml。",
+    ),
+    "MODEL_CODEX_WIRE_API_UNSUPPORTED": (
+        "Codex 模型配置的 wire_api 不受支持。",
+        "本内核仅支持 OpenAI Responses；选择支持 Responses 的端点并将 wire_api 设为 responses，或使用完整显式 OpenAI 配置跳过该文件。",
     ),
 }
 

@@ -121,13 +121,19 @@ def profile_from_mapping(data: dict[str, Any]) -> CodexModelProfile | None:
     if not model or not base_url:
         return None
 
+    wire_api = entry.get("wire_api", "responses")
+    if isinstance(wire_api, str):
+        wire_api = wire_api.strip().lower() or "responses"
+    if wire_api != "responses":
+        raise ModelConfigError("MODEL_CODEX_WIRE_API_UNSUPPORTED")
+
     token = entry.get("experimental_bearer_token")
     env_key = str(entry.get("env_key") or "").strip() or None
     effort = str(data.get("model_reasoning_effort") or "").strip() or None
     return CodexModelProfile(
         model=model,
         base_url=base_url,
-        wire_api=str(entry.get("wire_api") or "responses").strip() or "responses",
+        wire_api=wire_api,
         provider_id=provider_id or str(entry.get("name") or ""),
         effort=effort,
         bearer_token=Secret(str(token).strip()) if token else None,

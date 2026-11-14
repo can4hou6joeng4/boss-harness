@@ -34,7 +34,7 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 
 缺少任一项时才读取 `BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 或默认 `~/.codex/config.toml`，按此顺序选择文件，显式字段仍优先。读取 TOML 需要 Python 3.11+；已有文件不可读或语法损坏时明确报错，不退到其他 provider。文件不存在或缺少可用 profile 时继续检查端点与凭据，缺项会报错；未提供模型且没有可用文件模型时保留既有 `DEFAULT_MODEL`。
 
-当前文件适配要求文件自身同时提供 `model`、`model_provider` 及该 provider 的 `base_url` 才形成可用 profile；凭据支持 provider 的 `experimental_bearer_token`，或由 `env_key` 指定环境变量名并从该变量读取；显式 `BOSS_HARNESS_OPENAI_API_KEY` 优先于文件凭据，文件内 `experimental_bearer_token` 优先于 `env_key`。尚未适配 Codex 的 OAuth 或任意 `wire_api`。配置解析只读本地文件，不探测真实服务。
+当前文件适配要求文件自身同时提供 `model`、`model_provider` 及该 provider 的 `base_url` 才形成可用 profile；凭据支持 provider 的 `experimental_bearer_token`，或由 `env_key` 指定环境变量名并从该变量读取；显式 `BOSS_HARNESS_OPENAI_API_KEY` 优先于文件凭据，文件内 `experimental_bearer_token` 优先于 `env_key`。OpenAI 线路仅支持 Responses：profile 的 `wire_api` 缺省或为空白时使用 `responses`，显式值忽略首尾空白并按不区分大小写处理；其他值或非字符串会以 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝，不自动改用其他协议。应选择支持 Responses 的端点，不能仅修改标识来适配只支持 Chat Completions 的服务。尚未适配 Codex 的 OAuth。配置解析只读本地文件，不探测真实服务。
 
 ## 本地配置自检
 
@@ -58,8 +58,9 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 | `MODEL_CODEX_UNREADABLE` | 无法读取 Codex 配置文件；核对配置路径与读取权限。 |
 | `MODEL_CODEX_INVALID_TOML` | Codex 配置的 TOML 格式无效；检查语法与文件编码。 |
 | `MODEL_CODEX_NOT_FILE` | Codex 配置路径不是普通文件；将 `BOSS_HARNESS_CODEX_CONFIG` 指向文件，或核对 `CODEX_HOME` 下的 `config.toml`。 |
+| `MODEL_CODEX_WIRE_API_UNSUPPORTED` | Codex profile 声明了内核不支持的协议或值类型；选择支持 Responses 的端点并将 `wire_api` 设为 `responses`，或使用完整显式 OpenAI 配置跳过该文件。 |
 
-一次自检只报告解析时遇到的第一个模型配置错误，修复后应再次运行；业务 CLI、浏览器来源与状态目录仍独立检查。配置来源与覆盖顺序不变：完整显式模型、端点和凭据会跳过 Codex 文件；需要补全时，损坏或不可读的已有文件会明确失败，文件缺失则继续核对必需字段。未细分的错误（如 provider 无效、输出上限或请求期限非法）继续返回 `MODEL_CONFIG_INVALID`；Anthropic 缺少必需字段仍为 `MODEL_CONFIG_INCOMPLETE`。报告结构与 `schemaVersion: 1` 不变，按检查码处理的调用方应保留未知码的通用错误展示。
+一次自检只报告解析时遇到的第一个模型配置错误，修复后应再次运行；业务 CLI、浏览器来源与状态目录仍独立检查。配置来源与覆盖顺序不变：完整显式模型、端点和凭据会跳过 Codex 文件；需要补全时，损坏或不可读的已有文件以及可用 profile 中不支持的 `wire_api` 会明确失败，文件缺失则继续核对必需字段。正常启动对已登记的模型配置错误在 stderr 输出同一固定码与静态说明，退出码为 `2`。未细分的错误（如 provider 无效、输出上限或请求期限非法）继续返回 `MODEL_CONFIG_INVALID`；Anthropic 缺少必需字段仍为 `MODEL_CONFIG_INCOMPLETE`。报告结构与 `schemaVersion: 1` 不变，按检查码处理的调用方应保留未知码的通用错误展示。
 
 状态目录检查同属 rc.16 候选内容，尚未发布，使用正常启动实际选择的路径：`--state-dir` 优先于 `BOSS_HARNESS_DIR`，其次为旧变量 `BOSS_CLI_HARNESS_DIR`；均未设置时，新默认目录不存在而旧默认目录存在才沿用旧目录。相对路径按启动工作目录解析，环境变量中的 `~` 不额外展开，符号链接沿用正常启动的真实路径解析方式。
 
