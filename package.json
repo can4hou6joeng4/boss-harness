@@ -1,7 +1,7 @@
 {
   "name": "boss-harness",
   "private": true,
-  "version": "0.2.0-rc.17",
+  "version": "0.2.0-rc.18",
   "license": "MIT",
   "description": "BOSS Harness：面向招聘任务的 Agent Harness（桌面端）",
   "engines": {
