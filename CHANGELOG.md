@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1184](https://github.com/can4hou6joeng4/boss-harness/issues/1184)：桌面列表刷新不再把已删除聊天重新放回。会话通知与本地成功的新建、删除、重命名、归档 / 恢复及模型设置会使在途旧列表失效；旧成功结果不回写列表或当前会话，旧失败不覆盖提示，沿用现有单飞与尾随刷新补读最新列表。当前读取失败仍保留已有列表并说明原因，未知删除结果继续提示核对。真实 Electron 窗口、生产 preload / renderer / IPC 与 `none` 内核中核对八种场景，覆盖删除竞态、重命名、新建、归档 / 恢复、迟到失败与当前失败（列表失败为受控注入）；模型、招聘平台网络及 Python 外部进程 / SDK 导入尝试为零。类型检查与桌面构建通过，README、使用指南、技术参考与上游吸收记录同步，并按实际界面修正归档入口为侧栏菜单。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1182](https://github.com/can4hou6joeng4/boss-harness/issues/1182)：Codex profile 不再把不支持的 `wire_api` 判为配置有效。OpenAI 线路仅实现 Responses，读取可用 profile 时缺省或空白使用 `responses`，显式字符串忽略大小写与首尾空白，其他值及非字符串以固定 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝；正常启动与 `--check` 在构造客户端前退出 `2`，不输出配置值、不切换协议。正常启动对已登记的模型配置错误展示固定码与静态说明，桌面沿用既有自检桥接。完整显式配置仍跳过 Codex 文件，不完整 profile、凭据来源及既有解析顺序保持兼容。22 个隔离 CLI 场景与 17 项库级核对通过，独立 wheel 安装后同组核对通过，10 个既有自检输出与基线逐字节一致；桌面主进程自检及提示投影、类型检查、桌面构建与离线 wheel / sdist 构建通过。探针记录的网络、外部进程、SDK 导入及持久写入尝试均为零。README、使用指南、内核参考与上游吸收记录同步。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 - [Issue #1180](https://github.com/can4hou6joeng4/boss-harness/issues/1180)：Codex profile 支持 `env_key` 凭据。此前只识别 `experimental_bearer_token`，按 Codex 推荐把密钥放在环境变量中的合法 provider 配置会被判为缺少凭据，`--check` 报 `MODEL_CREDENTIAL_MISSING`。现在解析时只记录 `env_key` 的环境变量名，`resolve_config(environ=...)` 用调用方传入的环境映射取值；优先级为显式 `BOSS_HARNESS_OPENAI_API_KEY` > `experimental_bearer_token` > `env_key`，变量缺失或为空仍报同一固定码，提示补充 `env_key` 路径。`--check` 复用该解析，不构造客户端、不联网。使用指南、README、内核参考与上游吸收记录同步。不新增 RPC，协议与内核仍为 `0.2.0`。

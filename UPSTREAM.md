@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 会话列表旧读取不覆盖较新变更（Issue #1184）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（Control session storage / Continue or switch sessions）与 `packages/coding-agent/src/core/session-manager.ts`（`SessionManager.list`、`listAll`、`listSessionsFromDir`）：会话选择器提供查找、重命名与删除，列表异步读取会话文件并按活动时间排序。所读入口未定义 Electron 列表的异步回执失效规则；本轮只采用持久化事实与界面投影分开的职责边界，独立实现桌面保护，不推断上游存在同类问题，不复制源码、不引入依赖。
+
+适配约定：桌面在读取普通与归档列表前记录会话元数据版本；会话通知与本地成功的新建、删除、重命名、归档 / 恢复及模型设置推进版本。版本已变化时，丢弃旧列表的成功或失败结果，并沿用现有单飞的尾随刷新补读；删除通知也触发该刷新，防止已移除条目被旧快照放回。回合运行标记仍由独立的生命周期版本保护，未知删除结果仍保留并提示核对。只影响本次桌面列表与当前会话投影，不改变持久化、RPC、删除或招聘操作授权。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## Codex profile 的协议校验（Issue #1182）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Model 的 `api`、Provider Factories 与混合 API provider）及 `packages/coding-agent/src/core/model-registry.ts`：文档显式区分 `openai-responses` 与 `openai-completions`，按模型的 API 选择协议实现；注册表兼容层主要委托运行时，不能据此推断其对任意 API 字符串的拒绝规则。本项目采用显式区分线路协议的边界，独立校验已有 Codex 配置，不复制源码、不引入 Pi 依赖。

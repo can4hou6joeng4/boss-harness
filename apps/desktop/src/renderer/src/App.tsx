@@ -174,6 +174,8 @@ export function App(): JSX.Element {
   // 队列读取只允许最新一次写入面板；本地已提交的变更会让此前发出的读取失效。
   const queueReads = useRef(createQueueReadGuard());
   const lifecycleVersion = useRef(0);
+  // 会话元数据变更使在途列表失效；回合运行标记仍由 lifecycleVersion 单独保护。
+  const threadListVersion = useRef(0);
   const startingRef = useRef(false);
   const [startingSession, setStartingSession] = useState(false);
   const cache = useRef(new Map<string, MessageItem[]>());
@@ -275,6 +277,7 @@ export function App(): JSX.Element {
     updateModelRetry(id, previous => previous && keep?.(previous) ? previous : undefined);
   }, [updateModelRetry]);
   const insertSession = useCallback((session: SessionItem) => {
+    threadListVersion.current += 1;
     setFolders(previous => {
       const exists = previous.some(folder => folder.id === session.projectId);
       if (!exists) return [{ id: session.projectId, name: session.projectId === HARNESS_PROJECT_ID ? HARNESS_PROJECT_NAME : "招聘项目", sessions: [session] }, ...previous];
@@ -339,10 +342,12 @@ export function App(): JSX.Element {
       if (event.method === "thread/deleted") {
         const deleted = (params as { deletedThreadId?: unknown }).deletedThreadId;
         if (typeof deleted === "string") {
+          threadListVersion.current += 1;
           cache.current.delete(deleted);
           queueCache.current.delete(deleted);
           sessionErrors.current.delete(deleted);
           setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== deleted) })));
+          void refresh();
         }
         return;
       }
@@ -360,7 +365,10 @@ export function App(): JSX.Element {
           if (read.isCurrent() && activeRef.current?.id === id) setError(`队列更新读取失败：${harnessErrorText(cause)}。队列面板保留上一次内容，可能已过期。`);
         });
       }
-      if (["thread/created", "thread/archived", "thread/unarchived", "thread/renamed", "thread/model/updated"].includes(event.method)) { void refresh(); return; }
+      if (["thread/created", "thread/archived", "thread/unarchived", "thread/renamed", "thread/model/updated"].includes(event.method)) {
+        threadListVersion.current += 1;
+        void refresh(); return;
+      }
       if (event.method === "turn/started") {
         lifecycleVersion.current += 1;
         clearModelRetry(id);
@@ -506,6 +514,7 @@ export function App(): JSX.Element {
           }
         }
         const version = lifecycleVersion.current;
+        const listVersion = threadListVersion.current;
         let sessions: Awaited<ReturnType<typeof listThreads>>;
         let archived: Awaited<ReturnType<typeof listThreads>>;
         try {
@@ -513,11 +522,14 @@ export function App(): JSX.Element {
           [sessions, archived] = await Promise.all([listThreads(), listThreads(true)]);
         } catch (cause) {
           if (cancelled) return;
+          if (listVersion !== threadListVersion.current) { refreshAgain = true; return; }
           // 读取失败时保留当前列表，避免把一次 RPC 失败显示成「没有会话」。
           setError(`会话列表读取失败：${harnessErrorText(cause)}。会话列表未更新，请稍后重试或重新连接。`);
           return;
         }
         if (cancelled) return;
+        // 较早的完整快照也可能包含已删除会话或旧名称，不能回写；沿用单飞的尾随刷新补读。
+        if (listVersion !== threadListVersion.current) { refreshAgain = true; return; }
         const allSessions = [...sessions, ...archived];
         if (version === lifecycleVersion.current) {
           const next = new Set(allSessions.filter(session => session.status === "running").map(session => session.id));
@@ -671,6 +683,7 @@ export function App(): JSX.Element {
       if (failure.status !== "incomplete") { setError(failure.message); return false; }
       warning = failure.message;
     }
+    threadListVersion.current += 1;
     cache.current.delete(session.id);
     queueCache.current.delete(session.id);
     setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== session.id) })));
@@ -684,6 +697,7 @@ export function App(): JSX.Element {
     try {
       if (archived) await archiveThread(session.id);
       else await unarchiveThread(session.id);
+      threadListVersion.current += 1;
       return true;
     } catch (cause) {
       setError(`${archived ? "归档" : "恢复"}聊天失败：${harnessErrorText(cause)}。${archived ? "聊天未归档" : "聊天仍未恢复"}，列表保持不变。`);
@@ -706,6 +720,7 @@ export function App(): JSX.Element {
       if (!options?.silent) setError(`重命名失败：${harnessErrorText(cause)}。聊天名称保持不变。`);
       return false;
     }
+    threadListVersion.current += 1;
     setFolders(previous => previous.map(folder => ({
       ...folder,
       sessions: folder.sessions.map(item => item.id === session.id ? { ...item, title } : item),
@@ -750,6 +765,7 @@ export function App(): JSX.Element {
         return message;
       }
       const updated = { ...session, provider, model, reasoningEffort: null };
+      threadListVersion.current += 1;
       setFolders(previous => previous.map(folder => ({
         ...folder,
         sessions: folder.sessions.map(item => item.id === updated.id ? { ...item, provider, model, reasoningEffort: null } : item),
