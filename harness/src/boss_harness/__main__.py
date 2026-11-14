@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"[harness] listening on stdio, state={args.state_dir}, "
         f"boss binary={bridge.binary} (source={bridge.source}, available={bridge.available()}), "
-        f"model provider={config.provider} model={config.model} driven={harness.provider is not None}",
+        f"model provider={harness.config.provider} model={harness.config.model} driven={harness.provider is not None}",
         file=sys.stderr,
     )
     harness.serve_forever()

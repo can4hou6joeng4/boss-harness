@@ -66,6 +66,8 @@ OpenAI Responses 的 `response.completed` / `response.incomplete` 与 Anthropic 
 
 ## 模型容量与请求预算
 
+进程的生效默认线路取自模型目录：`none` provider 在目录中规范为 `model=none`、无推理档位，`initialize.modelBridge`、`config/read`、`model/list` 与 `thread/start` 使用同一份配置，新建会话不再因握手模型名与可选目录不一致被 `MODEL_ROUTE_UNAVAILABLE` 拒绝。显式 none、自动回退及残留的模型 / 档位变量都落到该目录项，不发起模型请求；`anthropic` / `openai` 等真实线路仍使用解析出的原配置，不迁移或改写既有会话。显式覆盖其他线路模型时，解析与校验规则不变。
+
 内核在每次模型请求前估算完整输入，包括 system/技能、用户材料、消息与思考、工具调用及结果、工具 schema 和请求选项。输出预留受模型声明的上限约束，输入增长不会静默缩小输出；保留 4096 token 安全余量。接近或超过预算时可先自动摘要更早的完整回合；仍无法容纳时以 `blocked / CONTEXT_BUDGET_EXCEEDED` 或明确的压缩错误暂停，不请求业务模型、不自动启动后续队列，已有工具结果继续保留。steering 只有在下一请求通过预算检查后才标记已投递；预算失败时保留为暂停项。
 
 通过启动环境变量 `BOSS_HARNESS_MODEL_LIMITS` 配置精确的 `provider/model` 容量，例如：
