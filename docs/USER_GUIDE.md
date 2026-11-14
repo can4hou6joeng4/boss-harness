@@ -34,7 +34,7 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 
 缺少任一项时才读取 `BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 或默认 `~/.codex/config.toml`，按此顺序选择文件，显式字段仍优先。读取 TOML 需要 Python 3.11+；已有文件不可读或语法损坏时明确报错，不退到其他 provider。文件不存在或缺少可用 profile 时继续检查端点与凭据，缺项会报错；未提供模型且没有可用文件模型时保留既有 `DEFAULT_MODEL`。
 
-当前文件适配要求文件自身同时提供 `model`、`model_provider` 及该 provider 的 `base_url` 才形成可用 profile；认证仅识别 `experimental_bearer_token`，尚未适配 Codex 的 `env_key`、OAuth 或任意 `wire_api`。配置解析只读本地文件，不探测真实服务。
+当前文件适配要求文件自身同时提供 `model`、`model_provider` 及该 provider 的 `base_url` 才形成可用 profile；凭据支持 provider 的 `experimental_bearer_token`，或由 `env_key` 指定环境变量名并从该变量读取；显式 `BOSS_HARNESS_OPENAI_API_KEY` 优先于文件凭据，文件内 `experimental_bearer_token` 优先于 `env_key`。尚未适配 Codex 的 OAuth 或任意 `wire_api`。配置解析只读本地文件，不探测真实服务。
 
 ## 本地配置自检
 
@@ -54,7 +54,7 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 | 固定检查码 | 含义与处理 |
 | --- | --- |
 | `MODEL_ENDPOINT_MISSING` | OpenAI 线路缺少端点；设置 `BOSS_HARNESS_OPENAI_BASE_URL`，或在有效 Codex profile 的 provider 中配置 `base_url`。 |
-| `MODEL_CREDENTIAL_MISSING` | OpenAI 线路缺少凭据；设置 `BOSS_HARNESS_OPENAI_API_KEY`，或在有效 Codex profile 的 provider 中配置 `experimental_bearer_token`。 |
+| `MODEL_CREDENTIAL_MISSING` | OpenAI 线路缺少凭据；设置 `BOSS_HARNESS_OPENAI_API_KEY`，或在有效 Codex profile 的 provider 中配置 `experimental_bearer_token` 或 `env_key` 指向的环境变量。 |
 | `MODEL_CODEX_UNREADABLE` | 无法读取 Codex 配置文件；核对配置路径与读取权限。 |
 | `MODEL_CODEX_INVALID_TOML` | Codex 配置的 TOML 格式无效；检查语法与文件编码。 |
 | `MODEL_CODEX_NOT_FILE` | Codex 配置路径不是普通文件；将 `BOSS_HARNESS_CODEX_CONFIG` 指向文件，或核对 `CODEX_HOME` 下的 `config.toml`。 |
