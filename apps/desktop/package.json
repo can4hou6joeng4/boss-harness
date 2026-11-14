@@ -1,7 +1,7 @@
 {
   "name": "boss-harness-desktop",
   "productName": "BOSS Harness",
-  "version": "0.2.0-rc.19",
+  "version": "0.2.0-rc.20",
   "private": true,
   "license": "MIT",
   "description": "BOSS Harness 桌面端外壳（Electron + React）",
