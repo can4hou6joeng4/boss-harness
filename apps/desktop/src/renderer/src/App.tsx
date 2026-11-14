@@ -38,7 +38,7 @@ import { patchQueuePage, queueItemsOf, queueSubmissionLookup, type QueuePage } f
 import { patchQueueBadge, queueBadgeOf } from "./data/queueBadge";
 import { queueItemRetryable } from "./data/queueRetry";
 import { createQueueReadGuard } from "./data/queueReadGuard";
-import { queueRetryLocalItems, queueRetryRejection, type QueueActionOutcome } from "./data/queueAction";
+import { queueRetryLocalItems, queueRetryRejection, type QueueActionOutcome, type QueueRetryOutcome } from "./data/queueAction";
 import type { QueueRefreshResult } from "./data/queueRefresh";
 import { reduceModelRetry, settleModelRetryOnTurnEnd, type ModelRetryStatus } from "./data/modelRetry";
 import { toMessage } from "./data/harnessBridge";
@@ -952,7 +952,7 @@ export function App(): JSX.Element {
     // 有界投影未命中不能证明消息不在队列；截断时交给界面按「无法确认」处理。
     return queueSubmissionLookup(page, clientUserMessageId);
   }, [applyQueuePage, harnessUp]);
-  const handleRetryQueueItem = useCallback(async (item: QueueItem): Promise<QueueActionOutcome> => {
+  const handleRetryQueueItem = useCallback(async (item: QueueItem): Promise<QueueRetryOutcome> => {
     const session = activeRef.current;
     if (!session || session.projectId !== HARNESS_PROJECT_ID) return { status: "skipped", reason: "当前会话不连接本机内核" };
     if (!harnessUp) return { status: "skipped", reason: "本机内核未连接" };
@@ -985,7 +985,7 @@ export function App(): JSX.Element {
     try {
       await removeQueuedItem(session.id, item.id);
     } catch {
-      // 新请求已受理；旧项保持暂停，本地列表必须继续展示它并提示手动撤回。
+      // 新请求已受理；旧项撤回可能被拒绝，也可能已生效但回执丢失，必须交给用户核对。
       removed = false;
     }
     let page: QueuePage | null = null;
@@ -1008,15 +1008,13 @@ export function App(): JSX.Element {
           applyQueuePage({ items, totalItems: Math.max(previousPage?.totalItems ?? items.length, items.length), activeItems, truncated: previousPage?.truncated }, session.id);
         });
       }
-      const notices: string[] = [];
       if (refreshFailure) {
         // 新请求已受理；刷新失败时按本地结果更新并说明其余条目可能过期，不回滚这次重新排队。
-        notices.push(`重新排队已受理，但队列刷新失败：${harnessErrorText(refreshFailure)}。界面按本地结果更新，其余条目可能已过期。`);
+        setError(`重新排队已受理，但队列刷新失败：${harnessErrorText(refreshFailure)}。界面按本地结果更新，其余条目可能已过期。`);
       }
-      if (!removed) notices.push("重新排队已受理，但旧队列项未能撤回；它仍保留在会话中，请刷新队列后手动撤回。");
-      if (notices.length) setError(notices.join(""));
     }
-    return { status: "done" };
+    // 面板按会话保存部分完成回执；批量须停止，但不能漏计已经受理的新项。
+    return removed ? { status: "done" } : { status: "partial" };
   }, [applyQueuePage, harnessUp, queueItems]);
   const handleRemoveQueueItem = useCallback(async (queueId: string): Promise<QueueActionOutcome> => {
     const session = activeRef.current;

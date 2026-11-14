@@ -13,8 +13,12 @@ export type QueueActionOutcome =
   | { status: "skipped"; reason: string }
   | { status: "uncertain" };
 
-/** 面板内提示；`done` 不需要提示，`uncertain` 的核对说明由调用方给出。 */
-export function queueActionNotice(action: "撤回" | "重新排队", outcome: QueueActionOutcome): string | null {
+/** 重新排队分两步：`partial` 表示新项已受理，但旧项撤回尚未确认。 */
+export type QueueRetryOutcome = QueueActionOutcome | { status: "partial" };
+
+/** 面板内提示；部分完成仍须停止后续操作，避免重复创建已经受理的新项。 */
+export function queueActionNotice(action: "撤回" | "重新排队", outcome: QueueRetryOutcome): string | null {
+  if (outcome.status === "partial") return "重新排队已受理，但旧队列项撤回结果尚未确认；请先刷新队列，核对并撤回仍保留的旧项，不要重复重新排队。";
   if (outcome.status === "skipped") return `${action}没有发出：${outcome.reason}。`;
   if (outcome.status === "uncertain") return `${action}结果尚未确认；请先核对队列状态，再决定是否重试。`;
   return null;
@@ -29,8 +33,8 @@ export function queueRetryRejection(error: unknown): QueueActionOutcome | null {
 }
 
 /**
- * 重新排队后的本地列表。旧项只有在确认撤回后才移出界面：撤回失败时它仍是内核里
- * 真实的暂停项（仍可撤回），不能因为一次本地更新就把它隐藏。
+ * 重新排队后的本地列表。旧项只有在确认撤回后才移出界面：撤回回执不可读时，
+ * 它可能仍是内核里的暂停项，不能因为一次本地更新就把它隐藏。
  */
 export function queueRetryLocalItems(previous: QueueItem[], oldId: string, created: QueueItem,
   removed: boolean): QueueItem[] {

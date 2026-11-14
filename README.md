@@ -69,7 +69,9 @@
 - **会话管理更可靠**：删除、重命名、归档或恢复会话后，较早发出的列表读取不会再把这些变化覆盖回去。
 - **Codex 配置更贴合实际**：支持把密钥放在 `env_key` 指定的环境变量中；`wire_api` 不是 Responses 的 profile 会在启动前以固定错误码拒绝。
 
-这些改进已进入 rc.18 候选准备，尚未发布；最新实际发布仍为 [rc.15 候选预发布](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。每项变更的来源、验证与限制记录在 [CHANGELOG](CHANGELOG.md)；本地离线 Electron 验证不代表真实模型、招聘平台或独立安装包已经验收。
+rc.18 候选之后的主干还修正了暂停队列的部分完成回执：重新排队的新消息已受理、旧项撤回未确认时，计入已受理数量并停止后续批量处理；先刷新核对旧项，不要重复重新排队。单条操作也显示相同核对提示，切回发起会话仍能查看。详见[暂停队列批量处理](docs/USER_GUIDE.md#暂停队列批量处理)，本项尚未发布。
+
+上述候选改进已进入 rc.18 准备，尚未发布；最新实际发布仍为 [rc.15 候选预发布](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。每项变更的来源、验证与限制记录在 [CHANGELOG](CHANGELOG.md)；本地离线 Electron 验证不代表真实模型、招聘平台或独立安装包已经验收。
 
 ## 快速开始
 

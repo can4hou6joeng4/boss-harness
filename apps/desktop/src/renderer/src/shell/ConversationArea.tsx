@@ -20,7 +20,7 @@ import { approvalDecisionText } from "../data/approvalCopy";
 import { recallablePrompts } from "../data/composerHistory";
 import type { SessionReasoningControl } from "../data/useSessionReasoning";
 import type { QueueRefreshResult } from "../data/queueRefresh";
-import type { QueueActionOutcome } from "../data/queueAction";
+import type { QueueActionOutcome, QueueRetryOutcome } from "../data/queueAction";
 import { appendQuote, createComposerDraft, withDraftText, type ComposerDraft, type UpdateComposerDraft, type ComposerSend, type ComposerQueue, type CheckQueueSubmission } from "../data/composerDraft";
 import { isCommandChord } from "../data/shortcuts";
 import { currentScrollBehavior } from "../data/scrollMotion";
@@ -49,7 +49,7 @@ export interface SessionBranchesView {
 export interface ConversationAreaProps {
   messages: MessageItem[]; currentMode: ConversationMode; onModeChange: (mode: ConversationMode) => void;
   onSendMessage: ComposerSend;
-  onQueueMessage?: ComposerQueue; onCheckQueueSubmission?: CheckQueueSubmission; queueItems?: QueueItem[]; queueTotalItems?: number; queueActiveItems?: number; queueTruncated?: boolean; onRemoveQueueItem?: (id: string) => Promise<QueueActionOutcome>; onRetryQueueItem?: (item: QueueItem) => Promise<QueueActionOutcome>; onReadQueueItem?: (item: QueueItem) => Promise<QueueItem>; onUpdateQueueItem?: (item: QueueItem, input: string) => Promise<QueueItem>; onRefreshQueue?: () => Promise<QueueRefreshResult>;
+  onQueueMessage?: ComposerQueue; onCheckQueueSubmission?: CheckQueueSubmission; queueItems?: QueueItem[]; queueTotalItems?: number; queueActiveItems?: number; queueTruncated?: boolean; onRemoveQueueItem?: (id: string) => Promise<QueueActionOutcome>; onRetryQueueItem?: (item: QueueItem) => Promise<QueueRetryOutcome>; onReadQueueItem?: (item: QueueItem) => Promise<QueueItem>; onUpdateQueueItem?: (item: QueueItem, input: string) => Promise<QueueItem>; onRefreshQueue?: () => Promise<QueueRefreshResult>;
   draft?: ComposerDraft; onDraftChange?: UpdateComposerDraft; simulateLocal?: boolean; harnessUp?: boolean; running?: boolean; taskBlocked?: boolean;
   models?: ModelDescriptor[]; activeModelProvider?: string; activeModelId?: string;
   onSelectModel?: (provider: string, id: string) => void | boolean | string | Promise<void | boolean | string>; onOpenSettings?: () => void; onInterrupt?: () => void;
