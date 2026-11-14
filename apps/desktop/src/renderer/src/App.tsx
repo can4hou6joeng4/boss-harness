@@ -812,9 +812,13 @@ export function App(): JSX.Element {
       // 明确拒绝说明回合没有启动：撤回乐观插入的消息，调用方据返回的 false 保留草稿。
       if (rejected) updateThread(id, previous => previous.filter(item => item.id !== clientId));
       // 两种失败都重新读取会话收敛；明确拒绝也可能已经留下失败回合记录。
-      await replicaRef.current?.resume(id).catch(verify => {
-        reportSessionError(id, sendFailureRecheckNotice(cause, verify));
-      });
+      const replica = replicaRef.current;
+      const snapshot = await replica?.resume(id);
+      // resume 以 null 表示读取失败，原始发送原因须与其失败记录一并保留。
+      const verificationFailure = replica?.lastFailure(id);
+      if (!snapshot && verificationFailure) {
+        reportSessionError(id, sendFailureRecheckNotice(cause, verificationFailure));
+      }
       // 非明确拒绝无法证明消息没有进入会话：快照可能覆盖乐观消息，交回草稿，不能当作已送达。
       return rejected ? false : "uncertain";
     }
