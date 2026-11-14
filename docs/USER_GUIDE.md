@@ -32,6 +32,8 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 
 三项齐备时不访问 Codex 配置文件，Python 3.10 也可使用这一路线；可选推理强度只取 `BOSS_HARNESS_EFFORT`，未指定则由模型服务决定，不再继承文件中的值。`BOSS_HARNESS_MODEL` 覆盖进程默认 provider 的模型；`BOSS_HARNESS_OPENAI_MODEL` 可为 OpenAI 线路提供模型，Anthropic 线路对应 `BOSS_HARNESS_ANTHROPIC_MODEL`。
 
+Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请求是否携带服务端回退参数（走对应的 beta 接口）：未设置时，`ANTHROPIC_BASE_URL` 未设置或指向官方主机则开启，指向其他网关则关闭；显式取值去除首尾空白并按不区分大小写解析，`1` / `true` / `yes` / `on` 为开启，`0` / `false` / `no` / `off` 与空值为关闭，其他取值以 `MODEL_SERVER_FALLBACK_INVALID` 明确失败，不会被当作开启。网关不支持该参数时应保持关闭。`BOSS_HARNESS_THINKING=summarized` 请求模型返回思考摘要，其他取值或未设置时不请求。这两项只作用于 Anthropic 线路，`none` 与 OpenAI 线路不因它们失败。
+
 选择 `none` 时（显式 `--provider none`、`BOSS_HARNESS_PROVIDER=none` 或没有可用凭据时自动回退），内核不读取模型名与推理档位：握手、`config/read`、`model/list` 与新建会话统一使用 `none · none`，设置 `BOSS_HARNESS_MODEL` 或 `BOSS_HARNESS_EFFORT` 不会改变该线路，也不会发起模型请求。`none` 仍可调用招聘 CLI 与上游只读工具。
 
 缺少任一项时才读取 `BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 或默认 `~/.codex/config.toml`，按此顺序选择文件，显式字段仍优先。读取 TOML 需要 Python 3.11+；已有文件不可读或语法损坏时明确报错，不退到其他 provider。文件不存在或缺少可用 profile 时继续检查端点与凭据，缺项会报错；未提供模型且没有可用文件模型时保留既有 `DEFAULT_MODEL`。
@@ -77,8 +79,9 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 | `MODEL_PROVIDER_UNKNOWN` | `BOSS_HARNESS_PROVIDER` 的取值无法识别；设为 `none`、`anthropic`、`openai` 或 `codex`，或取消设置以自动选择。 |
 | `MODEL_MAX_TOKENS_INVALID` | `BOSS_HARNESS_MAX_TOKENS` 不是正整数；设为正整数，或取消设置以使用默认值。 |
 | `MODEL_REQUEST_TIMEOUT_INVALID` | `BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS` 不是 1 到 3600 的整数；修正取值，或取消设置以使用默认值。 |
+| `MODEL_SERVER_FALLBACK_INVALID` | Anthropic 线路的 `BOSS_HARNESS_SERVER_FALLBACK` 不是可识别的开关写法；设为 `1` / `true` / `yes` / `on` 或 `0` / `false` / `no` / `off`，或取消设置以按端点取默认值。 |
 
-一次自检只报告解析时遇到的第一个模型配置错误，修复后应再次运行；业务 CLI、浏览器来源与状态目录仍独立检查。配置来源与覆盖顺序不变：完整显式模型、端点和凭据会跳过 Codex 文件；需要补全时，损坏或不可读的已有文件以及可用 profile 中不支持的 `wire_api` 会明确失败，文件缺失则继续核对必需字段。正常启动对已登记的模型配置错误在 stderr 输出同一固定码与静态说明，退出码为 `2`。供应商拼写、输出上限与请求期限错误使用上表的专用码（尚未发布，将随下一候选交付）；其余未细分的错误继续返回 `MODEL_CONFIG_INVALID`；Anthropic 缺少必需字段仍为 `MODEL_CONFIG_INCOMPLETE`。报告结构与 `schemaVersion: 1` 不变，按检查码处理的调用方应保留未知码的通用错误展示。
+一次自检只报告解析时遇到的第一个模型配置错误，修复后应再次运行；业务 CLI、浏览器来源与状态目录仍独立检查。配置来源与覆盖顺序不变：完整显式模型、端点和凭据会跳过 Codex 文件；需要补全时，损坏或不可读的已有文件以及可用 profile 中不支持的 `wire_api` 会明确失败，文件缺失则继续核对必需字段。正常启动对已登记的模型配置错误在 stderr 输出同一固定码与静态说明，退出码为 `2`。供应商拼写、输出上限、请求期限与服务端回退开关错误使用上表的专用码（尚未发布，将随下一候选交付）；其余未细分的错误继续返回 `MODEL_CONFIG_INVALID`；Anthropic 缺少必需字段仍为 `MODEL_CONFIG_INCOMPLETE`。报告结构与 `schemaVersion: 1` 不变，按检查码处理的调用方应保留未知码的通用错误展示。
 
 状态目录检查同属 rc.17 候选内容，尚未发布，使用正常启动实际选择的路径：`--state-dir` 优先于 `BOSS_HARNESS_DIR`，其次为旧变量 `BOSS_CLI_HARNESS_DIR`；均未设置时，新默认目录不存在而旧默认目录存在才沿用旧目录。相对路径按启动工作目录解析，环境变量中的 `~` 不额外展开，符号链接沿用正常启动的真实路径解析方式。
 
