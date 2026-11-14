@@ -191,6 +191,14 @@ export function App(): JSX.Element {
   const firstSessionRecord = useRef(true);
   // 失败原因按会话保存：切到失败的会话时恢复提示；重新发起回合或用户关闭提示后清除。
   const sessionErrors = useRef(new Map<string, string>());
+  // 异步失败归属发起时的会话；后台提示标明来源，切回时恢复原文。
+  const reportSessionError = useCallback((threadId: string, message: string) => {
+    sessionErrors.current.set(threadId, message);
+    const title = activeRef.current?.id !== threadId
+      ? foldersRef.current.flatMap(folder => folder.sessions).find(session => session.id === threadId)?.title
+      : undefined;
+    setError(title ? `会话「${title}」：${message}` : message);
+  }, []);
   const continuationReadGeneration = useRef(0);
   const continuationSubmitting = useRef<string | null>(null);
   const lastEsc = useRef(0);
@@ -416,13 +424,7 @@ export function App(): JSX.Element {
       }
       if (event.method === "thread/leafChanged") { void replica.reload(id); return; }
       if (event.method === "session/error") {
-        const message = params.message ?? "任务遇到错误，请检查后重试。";
-        // 失败原因与所属会话绑定：切到该会话时恢复原文，不必只剩侧栏的「上次异常」徽标。
-        sessionErrors.current.set(id, message);
-        // 失败提示要说明所属会话：后台会话的问题不能看起来像当前会话出错。
-        if (activeRef.current?.id === id) { setError(message); return; }
-        const title = foldersRef.current.flatMap(folder => folder.sessions).find(session => session.id === id)?.title;
-        setError(title ? `会话「${title}」：${message}` : message);
+        reportSessionError(id, params.message ?? "任务遇到错误，请检查后重试。");
         return;
       }
       if (event.method === "thread/updated") {
@@ -594,7 +596,7 @@ export function App(): JSX.Element {
     });
     void refresh();
     return () => { cancelled = true; replica.invalidate(); unsubscribe(); if (replicaRef.current === replica) replicaRef.current = null; };
-  }, [applyQueueBadge, applyQueuePage, clearModelRetry, markCompletedUnread, markRunning, readContinuationCheck, updateModelRetry, updateThread]);
+  }, [applyQueueBadge, applyQueuePage, clearModelRetry, markCompletedUnread, markRunning, readContinuationCheck, reportSessionError, updateModelRetry, updateThread]);
   useEffect(() => () => {
     for (const timer of timers.current.values()) clearTimeout(timer);
     for (const timer of retryTimers.current.values()) clearTimeout(timer);
@@ -806,18 +808,18 @@ export function App(): JSX.Element {
     } catch (cause) {
       markRunning(id, false);
       rejected = isHarnessRpcRejection(cause);
-      setError(sendFailureNotice(cause));
+      reportSessionError(id, sendFailureNotice(cause));
       // 明确拒绝说明回合没有启动：撤回乐观插入的消息，调用方据返回的 false 保留草稿。
       if (rejected) updateThread(id, previous => previous.filter(item => item.id !== clientId));
       // 两种失败都重新读取会话收敛；明确拒绝也可能已经留下失败回合记录。
       await replicaRef.current?.resume(id).catch(verify => {
-        setError(sendFailureRecheckNotice(cause, verify));
+        reportSessionError(id, sendFailureRecheckNotice(cause, verify));
       });
       // 非明确拒绝无法证明消息没有进入会话：快照可能覆盖乐观消息，交回草稿，不能当作已送达。
       return rejected ? false : "uncertain";
     }
     return true;
-  }, [harnessUp, updateThread, markRunning, simulate, autoCompaction.take]);
+  }, [harnessUp, updateThread, markRunning, reportSessionError, simulate, autoCompaction.take]);
   const handleStartSessionWithPrompt = useCallback((prompt: string, _domain: string, provider: string, modelId: string, skillIds: string[] = []): Promise<SessionStartOutcome> => {
     return (async (): Promise<SessionStartOutcome> => {
       if (window.boss && !harnessUp) { setError("本地内核未连接，请检查启动配置并重启应用。"); return { status: "failed" }; }
@@ -1098,29 +1100,19 @@ export function App(): JSX.Element {
       clearTimeout(timer); timers.current.delete(id); markRunning(id, false);
       updateThread(id, previous => [...previous, { id: "stopped-" + Date.now(), role: "agent", paragraphs: ["已停止界面演示。"] }]); return;
     }
-    // 停止回执属于发起时的会话：切走不显示到另一聊天，切回仍能核对；重新发起回合会清除。
-    const report = (message: string) => {
-      sessionErrors.current.set(id, message);
-      if (activeRef.current?.id !== id) {
-        const title = foldersRef.current.flatMap(folder => folder.sessions).find(session => session.id === id)?.title;
-        setError(title ? `会话「${title}」：${message}` : message);
-        return;
-      }
-      setError(message);
-    };
     // 携带界面正在展示的回合：该回合已被排队的后续回合替代时，内核拒绝而不是中断新回合。
     const expectedTurnId = turnIds.current.get(id);
     void interruptTurn(id, expectedTurnId).then(interrupted => {
       if (!interrupted && runningRef.current.has(id)) {
-        report("未找到可停止的任务，正在重新读取会话状态。");
+        reportSessionError(id, "未找到可停止的任务，正在重新读取会话状态。");
         void replicaRef.current?.resume(id);
       }
     }).catch(cause => {
       if (!runningRef.current.has(id)) return;
-      report(stopFailureNotice(cause));
+      reportSessionError(id, stopFailureNotice(cause));
       void replicaRef.current?.resume(id);
     });
-  }, [markRunning, updateThread]);
+  }, [markRunning, reportSessionError, updateThread]);
   const handleApproval = useCallback(async (approvalId: string, approved: boolean, toolName: string, remember: boolean, messageId?: string, threadId?: string) => {
     const session = activeRef.current;
     const targetThreadId = threadId ?? session?.id;
