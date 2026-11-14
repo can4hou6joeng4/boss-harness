@@ -170,6 +170,8 @@ export function App(): JSX.Element {
   /** 首页手动选择的模型线路：后台刷新只在它已不可用时回退默认线路。 */
   const homeModelChoiceRef = useRef<{ provider: string; model: string } | null>(null);
   const runningRef = useRef(new Set<string>());
+  // 停止请求在途的会话：重复点击通常会在第一个请求受理后拿到「没有可停止的回合」，不能报成失败。
+  const interruptInFlight = useRef(new Set<string>());
   const replicaRef = useRef<HarnessReplica | null>(null);
   const turnIds = useRef(new Map<string, string>());
   // 队列读取只允许最新一次写入面板；本地已提交的变更会让此前发出的读取失效。
@@ -1111,6 +1113,10 @@ export function App(): JSX.Element {
       clearTimeout(timer); timers.current.delete(id); markRunning(id, false);
       updateThread(id, previous => [...previous, { id: "stopped-" + Date.now(), role: "agent", paragraphs: ["已停止界面演示。"] }]); return;
     }
+    // 停止请求在途时忽略重复点击：点击是用户确认停止的常见动作，第二个请求会在首个受理后
+    // 返回「没有可停止的回合」，界面不能把它当成失败。请求结算后允许再次发起停止。
+    if (interruptInFlight.current.has(id)) return;
+    interruptInFlight.current.add(id);
     // 停止说明先写入；重新读取若失败，读取记录会覆盖它，必须在同一次读取结算后补回停止主因。
     const recheckAfterStopFailure = (notice: string, combine: (readFailure: string) => string) => {
       reportSessionError(id, notice);
@@ -1130,7 +1136,7 @@ export function App(): JSX.Element {
     }).catch(cause => {
       if (!runningRef.current.has(id)) return;
       recheckAfterStopFailure(stopFailureNotice(cause), readFailure => stopFailureRecheckNotice(cause, readFailure));
-    });
+    }).finally(() => { interruptInFlight.current.delete(id); });
   }, [markRunning, reportSessionError, updateThread]);
   const handleApproval = useCallback(async (approvalId: string, approved: boolean, toolName: string, remember: boolean, messageId?: string, threadId?: string) => {
     const session = activeRef.current;
