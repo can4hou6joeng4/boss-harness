@@ -12,3 +12,18 @@ export function stopFailureNotice(error: unknown): string {
     ? `停止请求未被内核受理：${harnessErrorText(error)}。本次没有中断任何回合，正在重新读取会话状态。`
     : `停止请求未确认：${harnessErrorText(error)}。正在重新读取会话状态；不会自动重复停止。`;
 }
+
+/** 没有可停止回合时的说明；与读取失败记录组合时去掉「正在重新读取」的过渡语。 */
+export const stopMissingNotice = "未找到可停止的任务，正在重新读取会话状态。";
+
+/** 读取失败记录已含原因与处理建议；保留停止主因，不重复包裹读取说明。 */
+export function stopFailureRecheckNotice(error: unknown, verificationFailure: string): string {
+  const primary = isHarnessRpcRejection(error)
+    ? `停止请求未被内核受理：${harnessErrorText(error)}。本次没有中断任何回合`
+    : `停止请求未确认：${harnessErrorText(error)}。不会自动重复停止`;
+  return `${primary}；${verificationFailure}`;
+}
+
+export function stopMissingRecheckNotice(verificationFailure: string): string {
+  return `未找到可停止的任务；${verificationFailure}`;
+}
