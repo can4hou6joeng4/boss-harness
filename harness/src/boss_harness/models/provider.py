@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Literal, Protocol
 from urllib.parse import urlparse
 
+from boss_harness.models.config_errors import ModelConfigError
 from boss_harness.models.secret import Secret
 from boss_harness.models.types import ModelRequest, StreamEvent
 
@@ -163,15 +164,9 @@ def _openai_config(env: Mapping[str, str]) -> ModelConfig:
     effort = (env.get("BOSS_HARNESS_EFFORT") or "").strip() or (profile.effort if profile else None)
 
     if not base_url:
-        raise ValueError(
-            "openai 线路缺少端点：请在 ~/.codex/config.toml 里配置 [model_providers.<id>] 的 base_url，"
-            "或设置 BOSS_HARNESS_OPENAI_BASE_URL"
-        )
+        raise ModelConfigError("MODEL_ENDPOINT_MISSING")
     if not raw_key:
-        raise ValueError(
-            "openai 线路缺少凭据：请在 ~/.codex/config.toml 的该 provider 下配置 experimental_bearer_token，"
-            "或设置 BOSS_HARNESS_OPENAI_API_KEY"
-        )
+        raise ModelConfigError("MODEL_CREDENTIAL_MISSING")
 
     return ModelConfig(
         provider="openai",

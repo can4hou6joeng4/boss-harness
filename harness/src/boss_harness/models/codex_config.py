@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from boss_harness.models.config_errors import ModelConfigError
 from boss_harness.models.secret import Secret
 
 try:  # tomllib 自 Python 3.11 起进入标准库
@@ -77,11 +78,11 @@ def load_profile(
     try:
         if not target.is_file():
             if strict and target.exists():
-                raise ValueError("Codex 配置路径必须是普通文件")
+                raise ModelConfigError("MODEL_CODEX_NOT_FILE")
             return None
     except OSError:
         if strict:
-            raise ValueError("无法访问 Codex 配置文件，请检查路径与权限") from None
+            raise ModelConfigError("MODEL_CODEX_UNREADABLE") from None
         return None
     if tomllib is None:  # pragma: no cover - 仅在 3.10 上触发
         raise RuntimeError("openai 线路需要 Python 3.11+ 才能解析 Codex 的 TOML 配置")
@@ -91,13 +92,13 @@ def load_profile(
             data = tomllib.load(handle)
     except OSError:
         if strict:
-            raise ValueError("无法读取 Codex 配置文件，请检查路径与权限") from None
+            raise ModelConfigError("MODEL_CODEX_UNREADABLE") from None
         return None
     except tomllib.TOMLDecodeError:
         if strict:
             # Parser diagnostics may quote configuration content. Keep secrets
             # out of startup errors, stderr and RPC diagnostics.
-            raise ValueError("Codex 配置 TOML 格式无效，请检查配置文件") from None
+            raise ModelConfigError("MODEL_CODEX_INVALID_TOML") from None
         return None
 
     return profile_from_mapping(data)
