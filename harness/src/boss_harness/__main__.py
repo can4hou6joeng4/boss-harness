@@ -105,6 +105,9 @@ def main(argv: list[str] | None = None) -> int:
         harness = Harness(server, Path(args.state_dir), config, provider, provider_factory=build_provider)
     except (OSError, ValueError) as exc:
         print(f"[harness] 启动失败（{type(exc).__name__}）：{exc}", file=sys.stderr)
+        # 固定文字，不带路径或取值：自检不联网、不写入，能把同一条件映射为检查码与处理建议。
+        print("[harness] 可用相同参数与环境运行 boss-harness --check，查看本地条件的检查码与处理建议。",
+              file=sys.stderr)
         return 2
     bridge = harness.tools
     print(
