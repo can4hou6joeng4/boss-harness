@@ -107,9 +107,7 @@ def resolve_config(
     if requested and requested not in _EXPLICIT_PROVIDERS:
         # 拼错的值必须响亮地失败。命令行侧用 argparse choices 拒绝未知值，环境变量侧若不校验，
         # 就会出现「以为切到了 openai，实际在跑 anthropic 甚至确定性回合」这种无声的错配。
-        raise ValueError(
-            f"未知的供应商 {requested!r}；可用值：none / anthropic / openai（别名 codex）"
-        )
+        raise ModelConfigError("MODEL_PROVIDER_UNKNOWN")
 
     if requested in _EXPLICIT_PROVIDERS:
         resolved: ProviderName = requested  # type: ignore[assignment]
@@ -135,7 +133,7 @@ def resolve_config(
         model=(env.get("BOSS_HARNESS_MODEL")
                or env.get("BOSS_HARNESS_ANTHROPIC_MODEL")
                or DEFAULT_MODEL).strip() or DEFAULT_MODEL,
-        max_tokens=int(env.get("BOSS_HARNESS_MAX_TOKENS") or DEFAULT_MAX_TOKENS),
+        max_tokens=_max_tokens(env),
         request_timeout_seconds=_request_timeout_seconds(env),
         effort=(env.get("BOSS_HARNESS_EFFORT") or "").strip() or None,
         thinking=thinking,
@@ -174,7 +172,7 @@ def _openai_config(env: Mapping[str, str]) -> ModelConfig:
     return ModelConfig(
         provider="openai",
         model=model,
-        max_tokens=int(env.get("BOSS_HARNESS_MAX_TOKENS") or DEFAULT_MAX_TOKENS),
+        max_tokens=_max_tokens(env),
         request_timeout_seconds=_request_timeout_seconds(env),
         effort=effort,
         base_url=base_url,
@@ -188,11 +186,25 @@ def _request_timeout_seconds(env: Mapping[str, str]) -> int:
         return DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS
     try:
         seconds = int(raw)
-    except ValueError as exc:
-        raise ValueError("模型请求总时限必须是 1 到 3600 的整数秒") from exc
+    except ValueError:
+        raise ModelConfigError("MODEL_REQUEST_TIMEOUT_INVALID") from None
     if not 1 <= seconds <= MAX_MODEL_REQUEST_TIMEOUT_SECONDS:
-        raise ValueError("模型请求总时限必须是 1 到 3600 的整数秒")
+        raise ModelConfigError("MODEL_REQUEST_TIMEOUT_INVALID")
     return seconds
+
+
+def _max_tokens(env: Mapping[str, str]) -> int:
+    """未设置或为空用默认值；其余须为正整数，错误不带原始取值。"""
+    raw = env.get("BOSS_HARNESS_MAX_TOKENS")
+    if not raw:
+        return DEFAULT_MAX_TOKENS
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ModelConfigError("MODEL_MAX_TOKENS_INVALID") from None
+    if value <= 0:
+        raise ModelConfigError("MODEL_MAX_TOKENS_INVALID")
+    return value
 
 
 def build_provider(config: ModelConfig) -> Provider | None:
