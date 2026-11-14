@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## Codex profile 的协议校验（Issue #1182）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Model 的 `api`、Provider Factories 与混合 API provider）及 `packages/coding-agent/src/core/model-registry.ts`：文档显式区分 `openai-responses` 与 `openai-completions`，按模型的 API 选择协议实现；注册表兼容层主要委托运行时，不能据此推断其对任意 API 字符串的拒绝规则。本项目采用显式区分线路协议的边界，独立校验已有 Codex 配置，不复制源码、不引入 Pi 依赖。
+
+适配约定：本内核的 OpenAI 线路仅有 Responses 实现。形成可用 Codex profile 后，`wire_api` 缺省或空白使用 `responses`，显式字符串先去除首尾空白并转为小写；其他值及非字符串抛固定 `ModelConfigError`，`--check` 返回 `MODEL_CODEX_WIRE_API_UNSUPPORTED`，正常启动对已登记的配置错误输出固定码和静态说明。无效值不进入诊断文本，也不自动切换协议。完整显式 OpenAI 配置仍绕过 Codex 文件；不完整 profile 仍按既有规则返回空值，缺少端点或凭据继续按原检查顺序处理。桌面复用通用自检桥接，不构造客户端或联网。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## Codex profile 的 env_key 凭据（Issue #1180）
 
 沿用本仓库 #1170 已核对的 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Provider Factories / Querying Models）与 `packages/coding-agent/src/core/model-registry.ts`：模型目录、认证解析与真实请求分开，缺少凭据时给出明确结论。本轮只扩展本地 Codex 配置适配，不复制 Pi 源码，不新增依赖。

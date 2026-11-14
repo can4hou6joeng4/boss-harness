@@ -224,7 +224,7 @@ schema 接受受限 JSON 子集：单一 `type`、`properties`、`required`、�
 
 Electron 运行时从官方源单独下载和校验，失败后需先恢复安装再启动。`none` 模式不调用模型；使用 `/tools` 或 `/search 关键词` 时仍会调用配置的上游 CLI。
 
-默认桌面模型为 OpenAI Responses，可由 `BOSS_HARNESS_PROVIDER` 选择 `openai`、`anthropic` 或 `none`。OpenAI 配置读取本地 Codex 配置或 `BOSS_HARNESS_OPENAI_*` 环境变量；Codex profile 的凭据支持 `experimental_bearer_token` 与 `env_key`（显式环境凭据优先于文件令牌，文件令牌优先于 `env_key`）。Anthropic 使用 `ANTHROPIC_*`。真实模型请求可能联网并产生费用。不要将凭据写入仓库或公开日志。
+默认桌面模型为 OpenAI Responses，可由 `BOSS_HARNESS_PROVIDER` 选择 `openai`、`anthropic` 或 `none`。OpenAI 配置读取本地 Codex 配置或 `BOSS_HARNESS_OPENAI_*` 环境变量；Codex profile 的凭据支持 `experimental_bearer_token` 与 `env_key`（显式环境凭据优先于文件令牌，文件令牌优先于 `env_key`）。可用 Codex profile 的 `wire_api` 仅接受 `responses`，忽略大小写与首尾空白，缺省或空白使用该默认值；其他协议或非字符串在配置解析时以 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝，正常启动与 `--check` 均在请求前退出 `2`，不尝试其他协议。完整显式 OpenAI 配置仍跳过该文件。Anthropic 使用 `ANTHROPIC_*`。真实模型请求可能联网并产生费用。不要将凭据写入仓库或公开日志。
 
 工具可执行文件按 `BOSS_CLI_BIN`、并排 `boss-agent-cli/.venv/bin/boss`、PATH 的顺序查找。`BOSS_CLI_DATA_DIR` 是上游登录及平台状态目录，`BOSS_HARNESS_DIR` 是本项目的会话目录（默认 `~/.boss-harness/harness`；旧 `BOSS_CLI_HARNESS_DIR` 与 `~/.boss-cli/harness` 仍兼容读取），两者分别管理。
 

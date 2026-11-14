@@ -10,6 +10,7 @@ from pathlib import Path
 from boss_harness import __version__
 from boss_harness.application import ApplicationService as Harness, _approval_timeout
 from boss_harness.models import DEFAULT_MODEL, ModelConfig, build_provider, resolve_config
+from boss_harness.models.config_errors import ModelConfigError
 from boss_harness.rpc import JsonRpcServer
 from boss_harness.tools.boss_cli import resolve_browser_source_override
 
@@ -82,6 +83,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = _build_config(args)
         provider = build_provider(config)
+    except ModelConfigError as exc:
+        print(f"[harness] 模型配置不可用（{exc.code}）：{exc}", file=sys.stderr)
+        return 2
     except Exception as exc:  # noqa: BLE001
         # 这里只包住「配置解析 + 构造 provider」两件事，所以宽捕获是安全的：任何失败都意味着
         # 模型线路起不来（缺凭据、缺端点、SDK 拒绝无凭据构造等），应当给出可读信息并以 2 退出。

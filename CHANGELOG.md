@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1182](https://github.com/can4hou6joeng4/boss-harness/issues/1182)：Codex profile 不再把不支持的 `wire_api` 判为配置有效。OpenAI 线路仅实现 Responses，读取可用 profile 时缺省或空白使用 `responses`，显式字符串忽略大小写与首尾空白，其他值及非字符串以固定 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝；正常启动与 `--check` 在构造客户端前退出 `2`，不输出配置值、不切换协议。正常启动对已登记的模型配置错误展示固定码与静态说明，桌面沿用既有自检桥接。完整显式配置仍跳过 Codex 文件，不完整 profile、凭据来源及既有解析顺序保持兼容。22 个隔离 CLI 场景与 17 项库级核对通过，独立 wheel 安装后同组核对通过，10 个既有自检输出与基线逐字节一致；桌面主进程自检及提示投影、类型检查、桌面构建与离线 wheel / sdist 构建通过。探针记录的网络、外部进程、SDK 导入及持久写入尝试均为零。README、使用指南、内核参考与上游吸收记录同步。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1180](https://github.com/can4hou6joeng4/boss-harness/issues/1180)：Codex profile 支持 `env_key` 凭据。此前只识别 `experimental_bearer_token`，按 Codex 推荐把密钥放在环境变量中的合法 provider 配置会被判为缺少凭据，`--check` 报 `MODEL_CREDENTIAL_MISSING`。现在解析时只记录 `env_key` 的环境变量名，`resolve_config(environ=...)` 用调用方传入的环境映射取值；优先级为显式 `BOSS_HARNESS_OPENAI_API_KEY` > `experimental_bearer_token` > `env_key`，变量缺失或为空仍报同一固定码，提示补充 `env_key` 路径。`--check` 复用该解析，不构造客户端、不联网。使用指南、README、内核参考与上游吸收记录同步。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 - [Issue #1178](https://github.com/can4hou6joeng4/boss-harness/issues/1178)：修正「内核与业务契约参考」中「桌面不提供删除按钮」的过期说明，并按当前实现补全桌面会话管理文档：删除入口、确认框会一并清除的本机未发送正文 / 附件 / 已选技能 / 正在读取的附件 / 消息反馈、`THREAD_BUSY` 拒绝，以及 `THREAD_DELETE_INCOMPLETE` / `THREAD_NOT_FOUND` 与未确认结果的处理；使用指南新增归档与删除会话说明，README 能力地图补充会话管理条目。纯文档改动，不新增 RPC，协议与内核仍为 `0.2.0`。

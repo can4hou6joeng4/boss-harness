@@ -102,7 +102,7 @@ BOSS_HARNESS_PROVIDER=none npm run dev
 
 自检复用启动时的模型配置解析，检查业务 CLI 的本地可执行文件、浏览器来源选项与状态目录的基本访问及安全条件；不创建状态目录、不读取会话、不构造模型客户端，不联网或执行业务 CLI。输出为脱敏 JSON，省略端点、凭据、模型自定义值、本机路径与异常原文；存在配置错误时退出码为 2，仅有警告时为 0。`none` 和业务 CLI 缺失会分别标注警告，通过本地检查不代表模型连通、平台已登录或工具已经验收。详细检查码见[使用指南](docs/USER_GUIDE.md#本地配置自检)。
 
-模型配置错误会进一步区分 OpenAI 缺少端点、缺少凭据，以及 Codex 文件不可读、TOML 格式无效、路径不是普通文件；命令行和桌面共用固定检查码与处理建议。每次先报告解析时遇到的一个模型配置错误，修正后可再次自检；其他解析错误继续使用通用提示，不输出异常原文。这些诊断同属 rc.16 候选内容，尚未发布。
+模型配置错误会进一步区分 OpenAI 缺少端点、缺少凭据，以及 Codex 文件不可读、TOML 格式无效、路径不是普通文件或 profile 声明的 `wire_api` 不受支持；命令行和桌面共用固定检查码与处理建议。每次先报告解析时遇到的一个模型配置错误，修正后可再次自检；其他解析错误继续使用通用提示，不输出异常原文。这些诊断同属 rc.16 候选内容，尚未发布。
 
 状态目录检查使用正常启动实际选中的路径，支持 `--state-dir` 及新旧环境变量；复用内核已有的目录类型、所有权、父目录和 ACL 安全规则。目录缺失时只核对已有父目录，不创建目录或试写文件，不修改权限、不读取会话。路径无法解析（如符号链接环）时自检报 `STATE_DIRECTORY_INVALID`，正常启动与 `--repair-state` 以同一静态说明和退出码 2 结束，不再输出 Python 回溯或本机路径。它不能证明实际写入、磁盘空间、占用锁或索引完整性；这项检查同属 rc.16 候选内容，尚未发布。
 
@@ -235,7 +235,7 @@ flowchart LR
 | steering 投递 | `BOSS_HARNESS_STEERING_MODE` 为 `all`（默认，每个投递点注入全部排队 steering）或 `one-at-a-time`（每次只注入最早一条）。 |
 | 持久附件存储 | 默认最多 512 MiB、4096 个对象；`BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_BYTES` 和 `BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_OBJECTS` 可分别设置正整数上限，实际生效值可由 `config/read` 查询。 |
 
-`BOSS_HARNESS_MODEL` 覆盖进程默认 provider 的模型；多 provider 目录中的其他线路使用对应的 `BOSS_HARNESS_OPENAI_MODEL` 或 `BOSS_HARNESS_ANTHROPIC_MODEL`。OpenAI 的端点、凭据和模型均显式配置齐全时不会读取 Codex profile；缺项时才按上表查找本地配置。
+`BOSS_HARNESS_MODEL` 覆盖进程默认 provider 的模型；多 provider 目录中的其他线路使用对应的 `BOSS_HARNESS_OPENAI_MODEL` 或 `BOSS_HARNESS_ANTHROPIC_MODEL`。OpenAI 的端点、凭据和模型均显式配置齐全时不会读取 Codex profile；缺项时才按上表查找本地配置。OpenAI 线路仅支持 Responses 协议；读取到可用 Codex profile 后，`wire_api` 缺省或为空白时使用 `responses`，显式值忽略大小写和首尾空白，其他值以 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝。请配置支持 Responses 的端点，不自动回退到 Chat Completions。
 
 `model/list` 只列出本机已配置且当前可用的 provider/model，不探测远程目录，也不返回端点或凭据。`thread/start` 可为新会话选择 provider/model；空闲会话可通过 `thread/model/set` 切换到目录中的精确组合，选择会写入会话元数据并由 fork 继承。旧会话未记录 provider 时，仅当其模型属于进程默认线路才沿用，否则以 `MODEL_ROUTE_SELECTION_REQUIRED` 拒绝回合，需先 `thread/model/set` 选择线路；切换模型会清除不再适用的推理档位。活动回合、压缩、分支摘要进行中或仍有排队消息（`MODEL_SWITCH_QUEUE_PENDING`）时不可切换；fork 继承会话当前线路，而非来源回合当时的线路；来源回合之后切换过线路的中断回合不再允许续接。能力字段为 `capabilities.sessionModelSelection`。`turn/start.model` 只能覆盖为会话线路本身的模型 ID，跨线路模型以 `MODEL_ROUTE_MISMATCH` 拒绝而不改写；provider 由会话选择决定，大小写与 `codex` 别名以内核规范化为准。
 
