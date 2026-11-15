@@ -4,8 +4,25 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-- [Issue #1422](https://github.com/can4hou6joeng4/boss-harness/issues/1422)：`skills/list` 的未加载项清单不再被有效技能数量截断。此前只要字典序靠前的有效技能凑满 100 个展示上限就立即返回，排在后面的坏目录（缺失 `SKILL.md`、符号链接、超过 64 KiB 或非 UTF-8）完全不出现在 `problems` 中，界面会把不完整清单当成「N 个技能未能加载」。现在两份清单各自独立封顶，扫描按需扩大候选窗口但单次最多检查 800 个目录项；未加载项超过上限时返回 `problemsTruncated`，仍有目录未检查时返回 `candidatesTruncated`，界面据此如实说明清单不完整。不新增 RPC 方法，协议与内核仍为 0.2.0。
-- [Issue #1424](https://github.com/can4hou6joeng4/boss-harness/issues/1424)：`skills/list` 不再在目录总数恰好等于候选窗口时误报截断。上一版本用「候选数小于窗口」推断目录已全部检查，当工作区恰好有 200 个目录（100 个有效技能 + 100 个坏目录）时，内核已检查全部目录却仍返回 `candidatesTruncated: true`，界面提示「可能还有目录未被检查」。现在候选枚举显式记录是否丢弃过目录，只有确有目录未检查时才标记截断；恰好顶到窗口时按清单完整处理。不新增 RPC 方法，协议与内核仍为 0.2.0。
+## 0.2.0-rc.42 - 2026-11-16
+
+本节汇总第四十二个候选版本的源码与交付内容；rc.16 至 rc.42 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.41，本次聚合 2 项使用者可见的 `skills/list` 报告修正：未加载项清单不再被有效技能数量截断（#1422），以及目录总数恰好等于候选窗口时不再误报截断（#1424）。两项都只影响清单完整性的如实报告，技能加载、注入与工具权限不变。按持续小版本迭代与版本、文档同步要求触发候选准备。
+
+升级注意：未加载项超过 100 条时返回 `problemsTruncated`，目录枚举确有未检查项时返回 `candidatesTruncated`；两者缺省即表示清单完整。旧内核不返回这两个字段，界面按清单完整处理。已保存的技能选择与队列消息不受影响，无需手动迁移。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
+
+### 变更
+
+- [Issue #1422](https://github.com/can4hou6joeng4/boss-harness/issues/1422)：`skills/list` 的未加载项清单不再被有效技能数量截断。此前只要字典序靠前的有效技能凑满 100 个展示上限就立即返回，排在后面的坏目录（缺失 `SKILL.md`、符号链接、超过 64 KiB 或非 UTF-8）完全不出现在 `problems` 中，界面会把不完整清单当成「N 个技能未能加载」。现在两份清单各自独立封顶，扫描按需扩大候选窗口但单次最多检查 800 个目录项；未加载项超过上限时返回 `problemsTruncated`，仍有目录未检查时返回 `candidatesTruncated`，界面据此如实说明清单不完整。
+
+- [Issue #1424](https://github.com/can4hou6joeng4/boss-harness/issues/1424)：`skills/list` 不再在目录总数恰好等于候选窗口时误报截断。此前用「候选数小于窗口」推断目录已全部检查，100 个有效技能 + 100 个坏目录（共 200 个）时内核已检查全部目录却仍返回 `candidatesTruncated: true`。现在候选枚举显式记录是否丢弃过目录，只有确有目录未检查时才标记截断；恰好顶到窗口时按清单完整处理。
+
+不新增 RPC 方法，协议与内核仍为 0.2.0。
 
 ## 0.2.0-rc.41 - 2026-11-16
 
