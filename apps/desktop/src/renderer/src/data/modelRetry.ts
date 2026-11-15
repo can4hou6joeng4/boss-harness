@@ -71,10 +71,12 @@ export function reduceModelRetry(previous: ModelRetryStatus | undefined, method:
 /**
  * 回合收尾时收敛仍在等待的重试。内核会在回合终态前补发 retryEnded（含停止时的 aborted），
  * 已有终态（恢复 / 失败 / 已停止）以通知为准保持不变；仅当仍处于等待（旧内核未补发）时兜底：
- * 中断回合转为“已停止”，其他终态直接移除。
+ * 中断回合转为“已停止”，其他明确终态直接移除。状态缺失表示事件或旧内核没有给出结论，
+ * 不能当作终态清除仍在等待的提示。
  */
 export function settleModelRetryOnTurnEnd(previous: ModelRetryStatus | undefined, turnStatus: string | undefined, now: number): ModelRetryStatus | undefined {
   if (previous?.phase !== "waiting") return previous;
+  if (turnStatus === undefined) return previous;
   if (turnStatus !== "interrupted") return undefined;
   return { ...previous, phase: "aborted", receivedAt: now, endedBeforeAttempt: true };
 }
