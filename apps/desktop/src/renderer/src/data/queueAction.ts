@@ -1,5 +1,6 @@
 import type { QueueItem } from "@boss-harness/protocol";
 import { harnessErrorText, isHarnessRpcRejection } from "./harnessBridge";
+import { isQueueActive, type QueuePage } from "./queueMapping";
 
 /**
  * 队列操作（撤回、重新排队）的结果。
@@ -40,4 +41,32 @@ export function queueRetryLocalItems(previous: QueueItem[], oldId: string, creat
   removed: boolean): QueueItem[] {
   const kept = previous.filter(item => item.id !== created.id && (!removed || item.id !== oldId));
   return [...kept, created];
+}
+
+/**
+ * 重新排队已受理但队列刷新失败时的本地投影。
+ *
+ * 待处理总数沿用与 `patchQueuePage` 相同的口径：已有内核持久总数时按旧项撤下与新项加入增减；
+ * 缺少总数且投影完整时才用已载入数；截断且缺省保持未知，不把可见计数写成内核总数。
+ */
+export function queueRetryPage(page: QueuePage | undefined, previousItems: QueueItem[], oldId: string,
+  created: QueueItem, removed: boolean): QueuePage {
+  const items = queueRetryLocalItems(previousItems, oldId, created, removed);
+  const previousOld = (page?.items ?? previousItems).find(entry => entry.id === oldId);
+  const droppedOld = removed && previousOld !== undefined && isQueueActive(previousOld.status);
+  const addedCreated = isQueueActive(created.status) ? 1 : 0;
+  let activeItems: number | undefined;
+  if (typeof page?.activeItems === "number") {
+    activeItems = Math.max(0, page.activeItems + addedCreated - (droppedOld ? 1 : 0));
+  } else if (page?.truncated !== true) {
+    activeItems = items.filter(entry => isQueueActive(entry.status)).length;
+  }
+  let totalItems: number | undefined;
+  if (typeof page?.totalItems === "number") {
+    // 旧项撤下与新项加入相互抵消；撤回未确认时旧项仍计入，总数只增加新项。
+    totalItems = Math.max(page.totalItems + (removed ? 0 : 1), items.length);
+  } else if (items.length > 0) {
+    totalItems = items.length;
+  }
+  return { items, totalItems, activeItems, truncated: page?.truncated };
 }
