@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1384](https://github.com/can4hou6joeng4/boss-harness/issues/1384)：`context/compact/start` 的显式 `model` 按既有模型 ID 规则校验，空串、空白、数字、布尔、数组、对象、null 与超长值在创建摘要任务和调用 provider factory 前返回 `-32602`，不再经真值回退静默使用默认模型；缺省继续继承摘要配置，合法覆盖与摘要记录保持不变。协议类型与技术契约同步该约束。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1382](https://github.com/can4hou6joeng4/boss-harness/issues/1382)：`turn/start` 显式提供 `provider` 时按 provider 格式校验，null 与其他非法类型在预留回合和保存输入前返回 `-32602`，不再静默沿用会话线路启动回合；缺省继续继承，匹配值成功，跨线路值仍返回 `-32013`。协议类型补充该可选参数。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 - [Issue #1380](https://github.com/can4hou6joeng4/boss-harness/issues/1380)：`thread/fork` 的自定义标题遵守新建与重命名已有的 500 字符上限，超长字符串在创建会话文件前以 `-32602` 拒绝；缺省和 null 继续继承原标题，空字符串及合法标题保持原有行为。不新增 RPC，协议与内核仍为 `0.2.0`。

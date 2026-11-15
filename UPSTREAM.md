@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 手动摘要的模型覆盖参数校验（Issue #1384）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/compaction.md`（Compaction、How It Works）与 `packages/coding-agent/src/core/compaction/compaction.ts`（`generateSummary`、`compact`）：手动 `/compact` 可带摘要指令，摘要调用接收调用方传入的模型对象；所读入口没有本项目跨进程 `context/compact/start.model` 参数及其模型 ID 校验。本轮独立补齐本仓库 `turn/start.model`、`thread/model/set.model` 已使用的格式规则，不推断上游存在同类缺陷，不复制代码、不引入依赖。
+
+适配约定：显式 `model` 须为最多 200 字符、不含空白的非空字符串，空串、空白、数字、布尔、数组、对象、null 与超长值在创建摘要任务前返回 `-32602`；只有缺省才继承 `BOSS_HARNESS_COMPACTION` 或当前会话的摘要模型，合法覆盖继续进入摘要请求并写入 `summaryModel`。摘要来源、计划校验、provider 隔离、并发限制与取消语义不变。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 回合启动的显式线路参数（Issue #1382）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/agent/README.md`（Control、Steering and Follow-up）与 `packages/agent/src/agent.ts`（`abort`、`followUp`、`PendingMessageQueue.enqueue`）：运行实例持有自己的模型线路，后续输入不携带跨进程 provider 参数；所读入口没有本项目 `turn/start.provider` 的会话线路核对约定。本轮独立补齐本仓库既有参数规则，不推断上游存在同类缺陷，不复制代码、不引入依赖。

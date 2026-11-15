@@ -2328,7 +2328,7 @@ class ApplicationService:
                 raise RpcError(-32013, "本机没有可用的摘要模型线路配置",
                                {"code": "COMPACTION_MODEL_UNAVAILABLE", "provider": provider}) from None
 
-        model = model_override or policy.model or route.model
+        model = model_override if model_override is not None else (policy.model or route.model)
         capabilities = self.model_catalog.resolve(provider, model)
         if policy.effort is not None:
             if policy.effort not in capabilities.reasoning_efforts:
@@ -2368,6 +2368,14 @@ class ApplicationService:
     def on_context_compact_start(self, params: dict | None) -> dict:
         params = params or {}
         thread_id = _text(params, "threadId")
+        # 只有缺省才继承摘要模型；显式值先按模型 ID 规则校验，不能让空值或错误类型
+        # 在真值回退中静默使用默认模型。
+        model_override = None
+        if "model" in params:
+            try:
+                model_override = self._validate_model_id(params["model"])
+            except ValueError as exc:
+                raise RpcError(-32602, str(exc)) from None
         source_digest = self._source_digest(params)
         with self.runtimes.lock:
             if self.runtimes.closed:
@@ -2380,7 +2388,7 @@ class ApplicationService:
             _, source = self.context.compaction_material(thread_id, through_turn_id, source_digest or plan["sourceDigest"])
             config = self._model_config(self.sessions.get_thread(thread_id), {})
             config = self._compaction_model_config(self.compaction_policy, config,
-                                                   model_override=params.get("model"))
+                                                   model_override=model_override)
             # Terminal status may precede worker/abort cleanup. Only the owner
             # index marks which jobs still consume execution capacity.
             active_manual = sum(1 for job_id in self._compaction_by_thread.values()
