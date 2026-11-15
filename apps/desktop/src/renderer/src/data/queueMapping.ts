@@ -120,11 +120,13 @@ export function patchQueuePage(page: QueuePage | undefined, item: QueueItem): Qu
   const nowActive = item.status === "queued" || item.status === "delivering" || item.status === "paused";
 
   const loadedActive = items.filter(entry => entry.status === "queued" || entry.status === "delivering" || entry.status === "paused").length;
-  let activeItems: number;
+  let activeItems: number | undefined;
   if (typeof page?.activeItems === "number") {
     const delta = (!wasActive && nowActive) ? 1 : (wasActive && !nowActive) ? -1 : 0;
     activeItems = Math.max(0, page.activeItems + delta);
-  } else {
+  } else if (page?.truncated !== true) {
+    // 只有完整投影的已载入数才等于内核全量；截断时保持缺省，
+    // 让面板与驾驶舱继续标注「按已载入项统计」而不是伪装成内核总数。
     activeItems = loadedActive;
   }
 
