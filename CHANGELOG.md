@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1308](https://github.com/can4hou6joeng4/boss-harness/issues/1308)：聊天回复中的 Markdown 链接保留地址中的完整圆括号。此前遇到成对、嵌套或转义圆括号时会在第一个右括号处截断 URL，来源样式与相邻链接同样受影响，未闭合输入也可能生成部分可点击地址。现在一次扫描配对未转义圆括号，并按完整目标生成链接；未闭合链接保留可见文本，转义圆括号按实际地址打开。普通链接、粗体、行内代码及代码围栏保持可用，外部协议允许清单不变；README 与使用指南同步。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.26 - 2026-11-15
 
 本节汇总第二十六个候选版本的源码与交付内容；rc.16 至 rc.26 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
