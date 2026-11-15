@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { IconHistory, IconFolder, IconSearch, IconPlus, IconSparkles, IconChevronRight, IconTerminal } from "../components/Icons";
 import { ModalSurface } from "../components/ModalSurface";
 import { STRATEGY_DOMAINS, type ProjectFolder, type SessionItem, type MessageItem } from "../data/mockData";
 import { sessionRows } from "../data/sessionRows";
 import { useLocalNow } from "../data/useLocalNow";
+import { useClipboardCopy } from "../data/clipboardCopy";
 import type { SkillDescriptor, SkillProblem, ToolDescriptor } from "@boss-harness/protocol";
 import type { SkillCatalogState, ToolCatalogState } from "../data/harnessBridge";
 import { WorkspaceSkills } from "../components/WorkspaceSkills";
@@ -17,19 +18,10 @@ export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, o
   const now = useLocalNow(page === "recents");
   const [query, setQuery] = useState(""), [file, setFile] = useState<string | null>(null);
   const [libraryQuery, setLibraryQuery] = useState("");
-  const [copyNote, setCopyNote] = useState<{ key: string; text: string } | null>(null);
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => { if (copyTimer.current !== undefined) clearTimeout(copyTimer.current); }, []);
-  /** 复制资料路径或来源编号；失败时如实提示，不假装已复制。 */
-  const copyLibraryText = async (key: string, text: string) => {
-    let copied = false;
-    try {
-      if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); copied = true; }
-    } catch { copied = false; }
-    if (copyTimer.current !== undefined) clearTimeout(copyTimer.current);
-    setCopyNote({ key, text: copied ? "已复制。" : "复制失败：当前环境不允许写入剪贴板。" });
-    copyTimer.current = setTimeout(() => { copyTimer.current = undefined; setCopyNote(null); }, 2600);
-  };
+  const { feedback: copyNote, copy: copyLibraryText, reset: resetCopy } = useClipboardCopy(2600);
+  // 页面或文件详情切换后，使旧回执失效，避免返回时重新出现过期提示。
+  useEffect(() => { resetCopy(); }, [page, file, resetCopy]);
+  const copyNoteText = copyNote ? (copyNote.ok ? "已复制。" : `复制失败：${copyNote.reason}`) : "";
   const recentRows = sessionRows(folders, query);
   if (page === "recents") return <div className="workspace-page" data-screen-label="最近聊天"><div className="page-heading"><div><h1>最近聊天</h1><p>从上次停下的地方继续。</p></div><button className="subtle-button" onClick={onNewTask}><IconPlus size={15} />新聊天</button></div><div className="page-search"><IconSearch size={16} /><input aria-label="筛选最近聊天" placeholder="搜索聊天…" value={query} onChange={event => setQuery(event.target.value)} /></div>
     <div className="recent-table">{recentRows.map(({ session, project }) => <button className="recent-row" key={session.id} onClick={() => onSelect(session)}><span className="recent-row-icon"><IconHistory size={18} /></span><span><strong>{session.title}</strong><small>{project}</small></span><time dateTime={session.updatedAt}>{session.updatedAt ? formatRelativeTime(session.updatedAt, now) : session.timeAgo}</time><IconChevronRight size={14} /></button>)}
@@ -59,8 +51,8 @@ export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, o
             {visibleSources.length ? <ul className="library-source-list">{visibleSources.map(source => <li key={source.ref}>
               <IconTerminal size={16} />
               <span><code>{source.ref}</code><small>{source.tool} · {formatSourceQueriedAt(source.queriedAt)}{source.turnId ? ` · 回合 ${shortLibraryId(source.turnId)}` : ""}</small></span>
-              <button type="button" className="subtle-button" onClick={() => { void copyLibraryText(`source:${source.ref}`, source.ref); }} aria-label={`复制来源 ${source.ref}`}>复制</button>
-              {copyNote?.key === `source:${source.ref}` && <em className="library-copy-note" role="status">{copyNote.text}</em>}
+              <button type="button" className="subtle-button" onClick={() => { void copyLibraryText(source.ref, `source:${source.ref}`); }} aria-label={`复制来源 ${source.ref}`}>复制</button>
+              {copyNote?.key === `source:${source.ref}` && <em className="library-copy-note" role="status">{copyNoteText}</em>}
             </li>)}</ul> : <p className="page-empty-note">没有匹配的来源。</p>}
           </>}
         </>}
@@ -71,10 +63,10 @@ export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, o
         {selected.turnId && <p>来自回合 {shortLibraryId(selected.turnId)}。</p>}
         <p>这是会话中的文件变更引用。内核尚未提供文件读取接口，无法在这里预览内容，但可以复制路径后在本地打开。</p>
         <div className="library-detail-actions">
-          <button className="subtle-button" onClick={() => { void copyLibraryText("file", selected.path); }}>复制路径</button>
+          <button className="subtle-button" onClick={() => { void copyLibraryText(selected.path, `file:${selected.path}`); }}>复制路径</button>
           <button className="subtle-button" onClick={() => setFile(null)}>返回资料库</button>
         </div>
-        {copyNote?.key === "file" && <span className="library-copy-note" role="status">{copyNote.text}</span>}
+        {copyNote?.key === `file:${selected.path}` && <span className="library-copy-note" role="status">{copyNoteText}</span>}
       </div></ModalSurface>}
     </div>;
   }
