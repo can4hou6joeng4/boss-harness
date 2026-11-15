@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 分支切换的连接归属（Issue #1410）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（Choose how to branch）与 `packages/coding-agent/src/core/session-manager.ts`（`branch`、`resetLeaf`、`branchWithSummary`）：这些原语同步操作当前 SessionManager 的 leaf 指针，没有本项目 Electron 队列预读、跨进程连接代次或重连回执的约定。本轮独立复用本仓库已有 `epoch` 机制，将连接归属保护扩展到桌面切换的每段异步边界，不推断上游存在同类缺陷，不复制源码、不引入依赖。
+
+适配约定：队列核对成功后确认连接仍有效，再提交 `thread/leaf/set`；切换回执与会话重读完成后同样核对。断连释放旧操作的 `switching` 并提示重新核对分支位置；旧调用不采纳任务、不刷新、不返回成功关闭新窗口，其 `finally` 也不清除新操作的状态。已提交的分支不回滚，重新切换仍由用户显式确认。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 上下文编辑的提交前响应校验（Issue #1404）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/compaction.md`（How It Works）与 `packages/coding-agent/src/core/compaction/compaction.ts`（`prepareCompaction`、`compact`）：所读实现按投影选择压缩来源并返回摘要、保留边界与用量，没有本项目 `context/edit` 的跨进程双份文本回执约定。本轮独立补齐本仓库既有单页响应预算与提交前校验，不推断上游存在同类缺陷，不复制代码、不引入依赖。

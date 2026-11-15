@@ -211,7 +211,9 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       if (event.method === "harness/disconnected" || (event.method === "harness/connectionStatus" && params.state !== "ready")) {
         epoch.current += 1;
         pollFailures.current.clear();
-        for (const id of Object.keys(stateRef.current)) update(id, state => ({ ...state, loading: false, cancelInFlight: false, summaryPollError: "" }));
+        for (const id of Object.keys(stateRef.current)) update(id, state => ({ ...state, loading: false, cancelInFlight: false, summaryPollError: "",
+          switching: false, switchError: state.switching
+            ? "内核连接已变化；请在恢复连接后重新核对分支位置，再决定是否切换。不会自动重试。" : state.switchError }));
         return;
       }
       const id = typeof params.threadId === "string" ? params.threadId : null;
@@ -271,23 +273,28 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
     const state = stateRef.current[id] ?? initial();
     if (state.switching) return false;
     const connectionEpoch = epoch.current;
+    const valid = () => alive.current && epoch.current === connectionEpoch;
     update(id, { switching: true, switchError: "" });
     let attempted = false;
     try {
       // 目标可能已不在前台，界面上的队列投影属于活动会话；切换前必须重新核对目标自己的队列。
       const queue = await listQueue(id);
+      // 预读回执只属于发出时的连接；重连后不能据旧队列状态继续提交切换。
+      if (!valid()) return false;
       if (queue.items.some(item => item.status === "queued" || item.status === "delivering")) {
         update(id, { switchError: "队列中仍有排队或投递中的消息，暂不能切换分支：请等待投递完成或先撤回（排队消息切换后会自动投递到新分支）。" });
         return false;
       }
       attempted = true;
       const result = await setThreadLeaf(summarize && supported.summary ? { threadId: id, turnId, summarize: true } : { threadId: id, turnId });
+      if (!valid()) return false;
       if (result.threadId !== id || result.leafTurnId !== turnId) throw new Error("切换回执与所选位置不一致");
       if (result.summaryJob && isBranchJob(result.summaryJob, id)) applyJob(id, result.summaryJob);
       await current.current.onSwitched(id);
-      return true;
+      // 会话重读也可能跨越重连；旧调用不能把新打开的分支窗口作为成功收起。
+      return valid();
     } catch (error) {
-      if (!alive.current || epoch.current !== connectionEpoch) return false;
+      if (!valid()) return false;
       const detail = rpcDetail(error);
       update(id, { switchError: attempted
         ? detail.rpc ? `内核拒绝切换，分支保持不变：${detail.text}` : `切换结果尚未确认：${detail.text}。已重新读取分支状态；不会自动重试。`
@@ -295,8 +302,11 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       if (attempted && !detail.rpc) await current.current.onSwitched(id);
       return false;
     } finally {
-      if (alive.current) update(id, { switching: false });
-      void refresh(id);
+      // 断连时已释放旧操作；旧 finally 不能清除新连接上另一次切换的忙碌状态。
+      if (valid()) {
+        update(id, { switching: false });
+        void refresh(id);
+      }
     }
   }, [applyJob, refresh, update]);
 
