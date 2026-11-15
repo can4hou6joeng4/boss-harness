@@ -508,7 +508,8 @@ class ContextService:
                 "canEdit": reason is None, "reason": reason}
 
     def context_edit(self, thread_id: str, item_id: str, replacement_text: str | None,
-                     source_digest: str) -> dict[str, Any]:
+                     source_digest: str, *,
+                     validate_response: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
         if replacement_text is not None and (not isinstance(replacement_text, str)
                 or not replacement_text.strip() or len(replacement_text) > _CONTEXT_EDIT_MAX_CHARS
                 or len(replacement_text.encode("utf-8")) > _CONTEXT_EDIT_MAX_BYTES):
@@ -526,9 +527,13 @@ class ContextService:
                 raise ValueError("会话消息或编辑状态已变化，请重新读取后再提交")
             entry = Entry(type="context_edit", parent_id=entries[-1]["id"] if entries else None,
                           payload={"targetItemId": item_id, "replacementText": replacement_text})
+            # 在同一写入锁内构造提交后的投影；响应预算拒绝不能发生在记录落盘之后。
+            result = self.context_edit_read(thread_id, item_id, entries=[*entries, entry.to_dict()])
+            if validate_response is not None:
+                validate_response(result)
             self.sessions._append_line(self.sessions.path_for(thread_id), entry.to_dict())
             self.sessions._index_thread(thread_id, connection)
-        return self.context_edit_read(thread_id, item_id)
+        return result
 
     def _validated_checkpoint(self, thread_id: str, entries: list[dict], *,
                               items: list[dict] | None = None,

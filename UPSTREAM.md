@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 上下文编辑的提交前响应校验（Issue #1404）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/compaction.md`（How It Works）与 `packages/coding-agent/src/core/compaction/compaction.ts`（`prepareCompaction`、`compact`）：所读实现按投影选择压缩来源并返回摘要、保留边界与用量，没有本项目 `context/edit` 的跨进程双份文本回执约定。本轮独立补齐本仓库既有单页响应预算与提交前校验，不推断上游存在同类缺陷，不复制代码、不引入依赖。
+
+适配约定：`context/edit/read` 校验编码后的完整投影；编辑在同一 SQLite writer 锁内完成来源校验、生成待追加条目、构造提交后的投影并执行调用方响应校验，通过后才落盘，返回同一投影。超过既有约 1 MiB 预算时返回 `RESPONSE_TOO_LARGE` 和快照分页恢复信息，不追加编辑记录、不发送编辑通知；普通编辑的完整文本与来源摘要语义不变。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 技能列表的响应边界（Issue #1396）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/skills.md`（加载、发现与 frontmatter 说明）：上游按单个技能文件声明元数据，没有本项目 `skills/list` 这种一次返回整个目录投影的 RPC，也没有对应的描述长度或列表预算约定。本轮独立补齐本仓库技能目录投影的既有有界约定，不推断上游存在同类缺陷，不复制代码、不引入依赖。

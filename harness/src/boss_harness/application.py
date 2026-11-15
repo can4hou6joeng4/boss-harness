@@ -2022,6 +2022,7 @@ class ApplicationService:
                 result.update(canEdit=False, reason="归档会话不可编辑。")
             elif thread_id in self.runtimes.active or thread_id in self._compaction_by_thread:
                 result.update(canEdit=False, reason="会话正在运行或整理摘要；请等待结束后再编辑。")
+            self._check_response_budget(result)
             return result
 
     def on_context_edit(self, params: dict | None) -> dict:
@@ -2039,7 +2040,8 @@ class ApplicationService:
             if thread_id in self.runtimes.active or thread_id in self._compaction_by_thread:
                 raise RpcError(-32004, "会话正在运行或整理摘要；请等待结束后再编辑")
             result = self.context.context_edit(thread_id, item_id, replacement,
-                                               params.get("sourceDigest"))
+                                               params.get("sourceDigest"),
+                                               validate_response=self._check_response_budget)
             self._emit_committed("context/edited", {"threadId": thread_id, "itemId": item_id,
                                                      "sourceDigest": result["sourceDigest"]})
             return result
