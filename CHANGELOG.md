@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1396](https://github.com/can4hou6joeng4/boss-harness/issues/1396)：`skills/list`、`skills/read`、`skills/create` 与 `skills/write` 的名称最多 200 字符、描述最多 500 字符，超长部分截断并分别标记 `nameTruncated` / `descriptionTruncated`，正文仍由 `skills/read` 的 `content` 完整返回；`skills/list` 增加响应预算检查，100 个各在 64 KiB 上限内的技能不再因描述总量或 JSON 转义超过协议帧上限而整体失败。协议类型同步两个可选字段，桌面列表对截断描述追加省略号。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.35 - 2026-11-16
 
 本节汇总第三十五个候选版本的源码与交付内容；rc.16 至 rc.35 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。

@@ -139,13 +139,13 @@ export function WorkspaceSkills(props: WorkspaceSkillsProps) {
       <div className="workspace-skill-list">
         {filteredSkills.map(skill => <button type="button" key={skill.id} aria-pressed={skill.id === selectedId} className={"workspace-skill-row" + (skill.id === selectedId ? " is-selected" : "")} onClick={() => { setSelectedId(skill.id); setReload(0); }}>
           <span className="skill-icon"><IconSparkles size={18} /></span>
-          <span><strong>{skill.name}</strong><small>{skill.id} · {byteText(skill.bytes)}</small><p>{skill.description || "无描述"}</p></span>
+          <span><strong>{skill.name}</strong><small>{skill.id} · {byteText(skill.bytes)}</small><p>{skill.description || "无描述"}{skill.descriptionTruncated ? "…" : ""}</p></span>
           <IconChevronRight size={14} />
         </button>)}
       </div>
       <div className="workspace-skill-detail" aria-live="polite">
         {!selected && <p className="page-empty-note">选择技能可查看它会向模型注入的正文。</p>}
-        {selected && !props.readable && <><strong>{selected.name}</strong><p className="workspace-skill-description">{selected.description || "无描述"}</p><p className="page-empty-note">当前内核未声明技能正文读取能力，无法在应用内查看内容；仍可在输入区选择该技能。</p></>}
+        {selected && !props.readable && <><strong>{selected.name}</strong><p className="workspace-skill-description">{selected.description || "无描述"}{selected.descriptionTruncated ? "…" : ""}</p><p className="page-empty-note">当前内核未声明技能正文读取能力，无法在应用内查看内容；仍可在输入区选择该技能。</p></>}
         {selected && props.readable && <>
           <div className="page-section-head"><strong>{shownDetail?.name ?? selected.name}</strong><span className="workspace-skill-tools"><button type="button" className="subtle-button" onClick={() => setReload(previous => previous + 1)} disabled={detailLoading}>{detailLoading ? "正在读取…" : "重新读取"}</button>{props.writable && shownDetail && !detailLoading && <button type="button" className="subtle-button" onClick={() => openDialog({ kind: "edit", root: props.root, skill: shownDetail })}>编辑技能…</button>}{props.deletable && shownDetail && !detailLoading && <button type="button" className="subtle-button danger-button" onClick={() => openDialog({ kind: "delete", root: props.root, skill: shownDetail })}>删除技能…</button>}</span></div>
           <small className="workspace-skill-meta">{selected.id} · {byteText(shownDetail?.bytes ?? selected.bytes)} · 摘要 {(shownDetail?.digest ?? selected.digest).slice(0, 12)}…</small>

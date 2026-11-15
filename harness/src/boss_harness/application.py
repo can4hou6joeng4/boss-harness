@@ -530,7 +530,7 @@ class ApplicationService:
             "platform/login/read": lambda p: self.connections.read_login(),
             "platform/login/complete": lambda p: self.connections.complete_login(p or {}),
             "platform/login/cancel": lambda p: self.connections.cancel_login(_text(p, "id")),
-            "skills/list": lambda p: {**self.skills.scan(), "root": self.skills_root},
+            "skills/list": self.on_skills_list,
             "skills/read": self.on_skills_read,
             "skills/create": self.on_skills_create,
             "skills/write": self.on_skills_write,
@@ -1953,6 +1953,12 @@ class ApplicationService:
         except OSError as exc:
             raise RpcError(-32004, f"工作区说明写入失败：{exc}",
                            {"code": "WORKSPACE_INSTRUCTIONS_WRITE_FAILED"}) from None
+
+    def on_skills_list(self, params: dict | None) -> dict:
+        """只读技能目录投影；名称与描述按展示上限截断，列表整体仍受响应预算约束。"""
+        result = {**self.skills.scan(), "root": self.skills_root}
+        self._check_response_budget(result)
+        return result
 
     def on_skills_read(self, params: dict | None) -> dict:
         """只读技能正文；id 必须来自当前目录，正文有界且不写入会话。"""

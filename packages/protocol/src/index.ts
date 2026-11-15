@@ -1178,7 +1178,19 @@ export interface PlatformLoginContext {
   visible?: boolean;
   bounds?: { x: number; y: number; width: number; height: number };
 }
-export interface SkillDescriptor { id: string; name: string; description: string; digest: string; bytes: number }
+/**
+ * 技能列表与写入结果共用的投影。名称最多 200 字符、描述最多 500 字符：超长部分
+ * 截断并分别置 `nameTruncated` / `descriptionTruncated`，正文仍由 `skills/read` 完整返回。
+ */
+export interface SkillDescriptor {
+  id: string;
+  name: string;
+  description: string;
+  digest: string;
+  bytes: number;
+  nameTruncated?: boolean;
+  descriptionTruncated?: boolean;
+}
 /** 未能加载的技能目录：只给 id 与可展示原因，不包含文件内容。 */
 export interface SkillProblem { id: string; reason: string }
 /**
