@@ -5,16 +5,26 @@ export type MessageSearchState = "idle" | "loading" | "ready" | "error";
  * 状态行的文字。
  *
  * 消息搜索失败时，只报标题命中数量会掩盖消息部分未完成；读屏用户依赖这个
- * `role="status"` 区域获知失败，因此失败信息必须进入状态行。
+ * `role="status"` 区域获知失败，因此失败信息必须进入状态行。截断同理：命中标题旁的
+ * 「仅显示部分结果」可能只以悬停提示说明原因，状态行必须自己给出结论，否则只听到
+ * 数量的用户会把部分结果当成完整结果。零命中且截断时，状态行与空态使用同一说法。
  */
 export function searchStatusText(
   query: string,
   chatCount: number,
   messageCount: number,
   messageState: MessageSearchState,
+  truncated = false,
 ): string {
   if (!query.trim()) return "最近聊天";
-  if (messageState === "ready") return `找到 ${chatCount} 个聊天、${messageCount} 条消息`;
+  if (messageState === "ready") {
+    if (truncated) {
+      return messageCount > 0
+        ? `找到 ${chatCount} 个聊天、${messageCount} 条消息（仅显示部分结果）`
+        : `找到 ${chatCount} 个聊天；消息搜索不完整`;
+    }
+    return `找到 ${chatCount} 个聊天、${messageCount} 条消息`;
+  }
   if (messageState === "error") return `找到 ${chatCount} 个聊天；消息搜索失败`;
   return `找到 ${chatCount} 个聊天`;
 }

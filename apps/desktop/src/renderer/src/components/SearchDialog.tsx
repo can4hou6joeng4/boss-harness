@@ -67,7 +67,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
   const sessionOptions = options.filter((option): option is Extract<SearchOption, { kind: "session" }> => option.kind === "session");
   // 状态行与空态必须与实际完成的搜索范围一致：消息搜索失败或未启用时不能宣称消息没有命中。
   const empty = searchEmptyCopy(query, shownMessageState, searchMessages);
-  const status = searchStatusText(query, rows.length, messageOptions.length, shownMessageState);
+  const status = searchStatusText(query, rows.length, messageOptions.length, shownMessageState, hitsTruncated);
   const inputRef = useRef<HTMLInputElement>(null), resultsRef = useRef<HTMLDivElement>(null);
   const listId = useId(), statusId = useId();
   const selected = Math.max(0, options.findIndex(option => option.key === selectedKey));
@@ -141,7 +141,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
         {query.trim().length >= 2 && searchMessages && <>
           <p className="search-message-heading" role="presentation">{shownMessageState === "loading" ? "正在搜索消息…"
             : shownMessageState === "error" ? "消息搜索失败，可继续按标题查找"
-            : messageOptions.length ? <>{`消息命中`}{hitsTruncated && <span className="search-truncated" title="搜索有界：最多 100 个会话、50 条消息，较早或过多的命中不会全部返回">仅显示部分结果</span>}</>
+            : messageOptions.length ? <>{`消息命中`}{hitsTruncated && <span className="search-truncated" title="搜索有界：最多 100 个会话、50 条消息，较早或过多的命中不会全部返回；也可能有会话未能读取">仅显示部分结果</span>}</>
             : <>{`没有匹配的消息`}{hitsTruncated && <span className="search-truncated" title="搜索有界：部分会话未能读取或未扫描，可能仍有消息命中">消息搜索不完整</span>}</>}</p>
           {messageOptions.map(option => {
             const { hit, row } = option;
