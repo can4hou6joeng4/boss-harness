@@ -4,6 +4,20 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+## 0.2.0-rc.36 - 2026-11-16
+
+本节汇总第三十六个候选版本的源码与交付内容；rc.16 至 rc.36 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.35，本次聚合 1 项使用者可见的技能目录边界修正：技能列表投影的名称与描述改为有界并标记截断，列表响应增加预算检查，使合法目录不再整体不可用。按持续小版本迭代与版本、文档同步要求触发候选准备。
+
+升级注意：`skills/list` 返回的名称最多 200 字符、描述最多 500 字符，超长部分截断并附 `nameTruncated` / `descriptionTruncated`；`skills/read` 的 `content` 仍是完整正文。自定义客户端若直接展示列表描述，应把截断标记视为「完整内容见 `skills/read`」。本候选未新增持久化迁移或工具权限。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1398](https://github.com/can4hou6joeng4/boss-harness/issues/1398)：同步根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本为 npm `0.2.0-rc.36` / Python `0.2.0rc36`；将 rc.35 之后 1 项技能目录边界修正归入本候选，同步 README 近期进展、使用指南的候选状态与技术契约，保留 rc.15 首次实际发布入口与历史版本记录。候选准备不代表实际 tag、Release、资产上传或包注册表发布。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1396](https://github.com/can4hou6joeng4/boss-harness/issues/1396)：`skills/list`、`skills/read`、`skills/create` 与 `skills/write` 的名称最多 200 字符、描述最多 500 字符，超长部分截断并分别标记 `nameTruncated` / `descriptionTruncated`，正文仍由 `skills/read` 的 `content` 完整返回；`skills/list` 增加响应预算检查，100 个各在 64 KiB 上限内的技能不再因描述总量或 JSON 转义超过协议帧上限而整体失败。协议类型同步两个可选字段，桌面列表对截断描述追加省略号。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.35 - 2026-11-16
