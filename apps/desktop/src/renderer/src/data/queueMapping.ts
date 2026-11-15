@@ -12,6 +12,11 @@ export interface QueuePage {
   truncated?: boolean;
 }
 
+/** 待处理状态：排队、投递中与暂停都占用待处理计数。面板、徽标与本地合入共用同一口径。 */
+export function isQueueActive(status: QueueItem["status"]): boolean {
+  return status === "queued" || status === "delivering" || status === "paused";
+}
+
 const QUEUE_KINDS: ReadonlySet<string> = new Set(["steering", "followUp"]);
 const QUEUE_STATUSES: ReadonlySet<string> = new Set(["queued", "delivering", "delivered", "paused", "cancelled"]);
 const QUEUE_PAUSE_REASONS: ReadonlySet<string> = new Set(["COMPACTION_FAILED", "THREAD_ARCHIVED", "TURN_NOT_COMPLETED"]);
@@ -114,12 +119,10 @@ export function patchQueuePage(page: QueuePage | undefined, item: QueueItem): Qu
     ? currentItems.map((existing, i) => i === index ? item : existing)
     : [...currentItems, item];
 
-  const wasActive = previousItem
-    ? previousItem.status === "queued" || previousItem.status === "delivering" || previousItem.status === "paused"
-    : false;
-  const nowActive = item.status === "queued" || item.status === "delivering" || item.status === "paused";
+  const wasActive = previousItem ? isQueueActive(previousItem.status) : false;
+  const nowActive = isQueueActive(item.status);
 
-  const loadedActive = items.filter(entry => entry.status === "queued" || entry.status === "delivering" || entry.status === "paused").length;
+  const loadedActive = items.filter(entry => isQueueActive(entry.status)).length;
   let activeItems: number | undefined;
   if (typeof page?.activeItems === "number") {
     const delta = (!wasActive && nowActive) ? 1 : (wasActive && !nowActive) ? -1 : 0;

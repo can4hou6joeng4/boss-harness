@@ -39,7 +39,7 @@ import { patchQueuePage, queueItemsOf, queueSubmissionLookup, type QueuePage } f
 import { patchQueueBadge, queueBadgeOf } from "./data/queueBadge";
 import { queueItemRetryable } from "./data/queueRetry";
 import { createQueueReadGuard } from "./data/queueReadGuard";
-import { queueRetryLocalItems, queueRetryRejection, type QueueActionOutcome, type QueueRetryOutcome } from "./data/queueAction";
+import { queueRetryPage, queueRetryRejection, type QueueActionOutcome, type QueueRetryOutcome } from "./data/queueAction";
 import type { QueueRefreshResult } from "./data/queueRefresh";
 import { reduceModelRetry, settleModelRetryOnTurnEnd, type ModelRetryStatus } from "./data/modelRetry";
 import { toMessage } from "./data/harnessBridge";
@@ -1050,9 +1050,7 @@ export function App(): JSX.Element {
         // 刷新失败时按本地结果收敛；若已有更新的读取在途，交给它写入，避免回退。
         read.commit(() => {
           const previousPage = queueCache.current.get(session.id);
-          const items = queueRetryLocalItems(previousPage?.items ?? queueItems, item.id, created, removed);
-          const activeItems = items.filter(entry => entry.status === "queued" || entry.status === "delivering" || entry.status === "paused").length;
-          applyQueuePage({ items, totalItems: Math.max(previousPage?.totalItems ?? items.length, items.length), activeItems, truncated: previousPage?.truncated }, session.id);
+          applyQueuePage(queueRetryPage(previousPage, queueItems, item.id, created, removed), session.id);
         });
       }
       if (refreshFailure) {
