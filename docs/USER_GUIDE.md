@@ -31,7 +31,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码候选为 npm `0.2.0-rc.39` / Python `0.2.0rc39`，尚未实际发布；最新发布仍为 [v0.2.0-rc.15](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。本轮聚合上下文编辑拒绝说明与分支切换连接归属两项桌面恢复修正，恢复步骤见下文；此前的客户端约束继续适用：
+当前源码候选为 npm `0.2.0-rc.39` / Python `0.2.0rc39`，尚未实际发布；最新发布仍为 [v0.2.0-rc.15](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。本轮聚合上下文编辑拒绝说明与分支切换连接归属两项桌面恢复修正，恢复步骤见下文；下一候选的附件正文分段读取一并说明如下，此前的客户端约束继续适用：
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -44,6 +44,7 @@
 - `context/edit/read` 与编辑成功回执受约 1 MiB 单页响应预算约束，按完整投影编码后的大小计算。超限返回 `-32010` 且本次编辑不写入、不发送编辑通知；传输中断后的提交仍须回读核对。分页可核对长助手原文，但不会绕过该预算，限制与替代做法见[消息的后续模型上下文](#消息的后续模型上下文)。
 - 桌面编辑后续上下文被内核明确拒绝时，显示「未受理、没有写入」与错误码；回执未确认仍保留待核对说明，不自动重试。
 - 分支切换途中断连后，旧队列核对回执不会继续提交，旧切换回执不会关闭重新打开的窗口或覆盖新操作状态。恢复连接后先核对当前位置，再按需确认；已生效的切换不回滚。
+- `attachment/read` 省略 `cursor`、`limit` 与 `sha256` 时整份返回附件正文；整份回执超过约 1 MiB 单页预算时返回 `RESPONSE_TOO_LARGE`，错误数据给出 `recoveryMethod=attachment/read`、总字符数与建议分段，客户端应改用分段读取。分段回执为 `text`、`offset`、`nextCursor` 与绑定附件摘要的 `contentRef`；续读时回传 `contentRef.sha256`，附件被替换后返回 `STALE_ATTACHMENT`。未知参数、非法游标与越界 `limit` 返回 `-32602`。
 
 协议与内核仍为 `0.2.0`，没有数据迁移或新增工具权限。完整字段与返回码见[内核与业务契约参考](TECHNICAL_REFERENCE.md)。
 

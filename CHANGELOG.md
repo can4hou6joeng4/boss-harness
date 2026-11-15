@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1414](https://github.com/can4hou6joeng4/boss-harness/issues/1414)：`attachment/read` 增加有界分段读取，合法附件不再因传输上限而完全无法读取。此前该方法一次性返回完整 `content`，既不做单页响应预算检查，也不接受 `cursor` / `limit`，未知参数还会被静默忽略：通过 `attachment/add` 准入的 1.5 MB 控制字符文本经 JSON 转义后撞上 8 MiB 帧上限，错误只提示「请使用分页或结果分块读取」，而该方法本身并无分页，客户端没有恢复路径；1.2 MB 普通文本则越过约 1 MiB 单页预算原样返回。现在省略新参数时保持既有整份回执，整份超过单页预算返回 `-32010` 并带 `recoveryMethod=attachment/read`、`totalCharacters` 与 `suggestedLimit`；显式给出 `cursor`、`limit` 或 `sha256` 时按默认 16384、最多 32768 个 Unicode 码点分段，回执含绑定附件摘要的 `contentRef`，续读摘要不符返回 `STALE_ATTACHMENT`。离线探针对照基线 `148dcfa` 确认 1.5 MB 控制字符文本由不可读变为 46 段逐字节读回、1.2 MB 文本由越预算原样返回变为可行动拒绝、小附件整份回执逐字节一致，非法游标、未知参数、错误摘要与越界 `limit` 均由静默接受变为明确拒绝；真实内核审计无网络、子进程或模型 SDK 尝试。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.39 - 2026-11-16
 
 本节汇总第三十九个候选版本的源码与交付内容；rc.16 至 rc.39 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。

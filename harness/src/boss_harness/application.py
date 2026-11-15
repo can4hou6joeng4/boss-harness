@@ -609,6 +609,7 @@ class ApplicationService:
                              "workspaceInstructionsEdit": True, "skillsRead": True,
                              "skillsCreate": True, "skillsWrite": True,
                              "skillsDelete": True, "queueUpdate": True,
+                           "attachmentReadPaging": True,
                              "autoCompactionConfig": self._auto_compaction_source in {"stored", "default"}},
             "toolBridge": {**bridge_description, "tools": self.runner.tool_names,
                            "bundleId": self.tool_bundle.id},
@@ -2719,7 +2720,31 @@ class ApplicationService:
         return {"attachment": attachment}
 
     def on_attachment_read(self, params: dict | None) -> dict:
-        return {"attachment": self.attachments.read(_text(params, "threadId"), _text(params, "attachmentId"))}
+        """附件正文读取：默认整份返回小附件，超预算须显式分段，不再撞传输帧上限。
+
+        显式给出 cursor、limit 或 sha256 时走与工具结果一致的分块口径；否则保持既有
+        `{"attachment": {..., "content": ...}}` 回执，只有整份响应超过单页预算时才拒绝，
+        并在错误数据里给出恢复方法与建议分段。
+        """
+        params = params or {}
+        if set(params) - {"threadId", "attachmentId", "cursor", "limit", "sha256"}:
+            raise ValueError("附件读取包含未知参数")
+        thread_id = _text(params, "threadId")
+        attachment_id = _text(params, "attachmentId", maximum=128)
+        if "cursor" in params or "limit" in params or "sha256" in params:
+            return self.attachments.read_chunk(
+                thread_id, attachment_id, cursor=params.get("cursor"),
+                limit=params.get("limit", AttachmentStore.DEFAULT_READ_CHARS),
+                sha256=params.get("sha256"))
+        attachment = self.attachments.read(thread_id, attachment_id)
+        result = {"attachment": attachment}
+        if wire_size(result) > MAX_PAGE_BYTES:
+            content = attachment["content"]
+            raise RpcError(-32010, "附件正文超过单页读取预算，请分段读取",
+                           {"code": "RESPONSE_TOO_LARGE", "recoveryMethod": "attachment/read",
+                            "attachmentId": attachment_id, "totalCharacters": len(content),
+                            "suggestedLimit": AttachmentStore.DEFAULT_READ_CHARS})
+        return result
 
     def _prepare_turn_request(self, turn: dict, request: ModelRequest) -> tuple[ModelRequest, dict]:
         config = turn["runner"].config

@@ -164,6 +164,19 @@ export function validateHarnessRequest(payload: unknown): { method: string; para
     }
     return { method: payload.method, params };
   }
+  if (payload.method === "attachment/read") {
+    const allowed = new Set(["threadId", "attachmentId", "cursor", "limit", "sha256"]);
+    if (!params || Object.keys(params).some(key => !allowed.has(key)) ||
+      typeof params.threadId !== "string" || !/^[A-Za-z0-9_-]{1,200}$/.test(params.threadId) ||
+      typeof params.attachmentId !== "string" || !/^[a-f0-9]{32}$/.test(params.attachmentId) ||
+      (params.cursor !== undefined && (typeof params.cursor !== "string" || !params.cursor.startsWith("at1_") || params.cursor.length > 2048)) ||
+      (params.sha256 !== undefined && (typeof params.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(params.sha256))) ||
+      (params.limit !== undefined && (typeof params.limit !== "number" ||
+        !Number.isSafeInteger(params.limit) || params.limit < 1 || params.limit > 32768))) {
+      throw new Error("invalid attachment read");
+    }
+    return { method: payload.method, params };
+  }
   if (payload.method === "thread/usage/read") {
     const allowed = new Set(["threadId", "view", "cursor", "limit"]);
     if (!params || Object.keys(params).some(key => !allowed.has(key)) ||
