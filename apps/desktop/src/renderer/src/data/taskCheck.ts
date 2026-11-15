@@ -50,8 +50,10 @@ const TASK_STATUS_LABELS: Record<string, string> = {
   delivering: "正在投递",
   delivered: "已投递",
   paused: "已暂停",
-  cancelled: "已撤回",
+  cancelled: "已取消",
   failed: "已失败",
+  /** 同一回合出现互相矛盾的持久记录；与归属「冲突」分开描述。 */
+  conflict: "记录冲突",
   unknown: "未知",
 };
 const PHASE_LABELS: Record<string, string> = {
@@ -62,12 +64,15 @@ const PHASE_LABELS: Record<string, string> = {
   finish: "收尾",
   compaction: "摘要",
 };
+/** 回合阶段状态；摘要 owner 的 phaseStatus 是摘要任务状态，因此同样包含 failed / cancelled。 */
 const PHASE_STATUS_LABELS: Record<string, string> = {
   running: "运行中",
   completed: "已完成",
   interrupted: "已中断",
   blocked: "已阻断",
   error: "已失败",
+  failed: "已失败",
+  cancelled: "已取消",
 };
 
 /** 已知取值给中文标签，未知取值原样放在「」里，读者能分辨哪部分是内部标识。 */
@@ -75,7 +80,9 @@ export function labeledValue(labels: Record<string, string>, value: string): str
   return labels[value] ?? `「${value}」`;
 }
 
-export function taskStatusLabel(status: string): string {
+/** 队列项的取消是撤回；回合与摘要任务的取消是取消，同一状态按任务类型分开口径。 */
+export function taskStatusLabel(status: string, kind?: TaskLocator["kind"]): string {
+  if (status === "cancelled" && kind === "queue") return "已撤回";
   return labeledValue(TASK_STATUS_LABELS, status);
 }
 
@@ -229,7 +236,7 @@ export function parseTaskRead(value: unknown, params: TaskReadParams): TaskReadT
 /** 核对结果的可展示行；只陈述内核返回的事实，不推断恢复动作。 */
 export function taskCheckLines(task: TaskReadTask): string[] {
   const lines = [
-    `持久状态：${taskStatusLabel(task.status)} · 归属：${OWNERSHIP_LABELS[task.ownership]}`,
+    `持久状态：${taskStatusLabel(task.status, task.locator.kind)} · 归属：${OWNERSHIP_LABELS[task.ownership]}`,
     `执行 owner：${task.runtimeOwned ? "当前进程持有" : "当前进程未持有"} · 恢复策略：${RECOVERY_LABELS[task.recoveryPolicy]}`,
   ];
   if (task.phase) {
