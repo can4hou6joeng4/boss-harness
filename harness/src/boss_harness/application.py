@@ -93,7 +93,7 @@ def _relative_workspace_path(path: Path, workspace: Path) -> str:
 def _branch_view(params: dict | None) -> bool:
     """Optional read view: "log" (default, full rollout) or "branch" (current leaf projection)."""
     view = (params or {}).get("view", "log")
-    if view not in {"log", "branch"}:
+    if not isinstance(view, str) or view not in {"log", "branch"}:
         raise ValueError("view 必须是 log 或 branch")
     return view == "branch"
 
@@ -908,7 +908,7 @@ class ApplicationService:
             raise ValueError("task/read 参数无效")
         thread_id = _text(params, "threadId")
         kind, task_id = params.get("kind"), _text(params, "id", maximum=128)
-        if kind not in {"turn", "queue", "compaction"}:
+        if not isinstance(kind, str) or kind not in {"turn", "queue", "compaction"}:
             raise ValueError("kind 必须是 turn、queue 或 compaction")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", task_id):
             raise ValueError("id 格式无效")
