@@ -43,6 +43,9 @@ class SkillCatalog:
     # 而该方法没有分页可用；正文仍由 skills/read 完整返回。
     MAX_SKILL_NAME_CHARS = 200
     MAX_SKILL_DESCRIPTION_CHARS = 500
+    # 单次 scan 最多检查的目录项：Bad directories cost a full read attempt each, so a
+    # workspace full of broken dirs must not turn one list into unbounded file I/O.
+    MAX_SKILL_SCAN_ENTRIES = 8 * MAX_SKILL_DESCRIPTORS
     SKILL_ID = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}\Z")
 
     def __init__(self, root: Path) -> None:
@@ -165,7 +168,18 @@ class SkillCatalog:
         return "SKILL.md 不可读取"
 
     def scan(self) -> dict:
-        """返回可加载技能与未能加载目录的原因；两者共享同一有界目录枚举。"""
+        """返回可加载技能与未能加载目录的原因；两者共享同一有界目录枚举。
+
+        两份清单各自独立封顶：有效技能不超过 ``MAX_SKILL_DESCRIPTORS``，未加载项也
+        不超过同一上限。这样可以避免「有效技能已凑满上限就停止枚举」把字典序更靠后
+        的坏目录静默漏掉——否则同一组坏目录是否出现在清单里，会取决于前面有效技能的
+        数量。
+
+        候选窗口按需扩大，但总检查目录数不超过 ``MAX_SKILL_SCAN_ENTRIES``：每次读取
+        都是真实文件 I/O，不能让一个塞满坏目录的工作区把读取次数放大到目录总量。
+        到达扫描上限时以 ``candidatesTruncated`` 如实说明仍有目录未检查，界面因此
+        不会把不完整清单当作总数。
+        """
         limit = self.MAX_SKILL_DESCRIPTORS
         while True:
             skills: list[dict] = []
@@ -187,11 +201,18 @@ class SkillCatalog:
                     continue
                 source, byte_length, digest = loaded
                 fields = self._fields(source)
-                skills.append(self._descriptor(skill_id, fields, digest, byte_length))
-            if len(skills) >= self.MAX_SKILL_DESCRIPTORS or len(candidates) < limit:
-                return {"skills": skills[:self.MAX_SKILL_DESCRIPTORS],
-                        "problems": problems[:self.MAX_SKILL_DESCRIPTORS]}
-            limit *= 2
+                if len(skills) < self.MAX_SKILL_DESCRIPTORS:
+                    skills.append(self._descriptor(skill_id, fields, digest, byte_length))
+            # 候选集未满 limit 说明目录已全部看到；两份清单都满时也没有继续扩大的理由。
+            exhausted = len(candidates) < limit
+            fulfilled = (len(skills) >= self.MAX_SKILL_DESCRIPTORS
+                         and len(problems) >= self.MAX_SKILL_DESCRIPTORS)
+            if exhausted or fulfilled or limit >= self.MAX_SKILL_SCAN_ENTRIES:
+                return {"skills": skills, "problems": problems[:self.MAX_SKILL_DESCRIPTORS],
+                        **({"problemsTruncated": True}
+                           if len(problems) > self.MAX_SKILL_DESCRIPTORS else {}),
+                        **({} if exhausted else {"candidatesTruncated": True})}
+            limit = min(limit * 2, self.MAX_SKILL_SCAN_ENTRIES)
 
     def list(self) -> list[dict]:
         return self.scan()["skills"]

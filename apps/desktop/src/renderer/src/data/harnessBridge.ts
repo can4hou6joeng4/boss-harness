@@ -574,7 +574,7 @@ export async function configuredModels(): Promise<ModelListResponse["models"]> {
 }
 
 /** 工作区技能目录与生效来源。读取失败不吞掉：调用方要区分「没有技能」与「读取失败」。 */
-export async function listSkills(): Promise<{ skills: SkillDescriptor[]; root: string | null; problems: SkillProblem[] }> {
+export async function listSkills(): Promise<{ skills: SkillDescriptor[]; root: string | null; problems: SkillProblem[]; problemsTruncated: boolean; candidatesTruncated: boolean }> {
   const api = bridge();
   if (!api) throw new Error("本地 Harness 未连接");
   const response = await api.request<SkillListResponse>(ClientMethods.skillsList);
@@ -584,7 +584,9 @@ export async function listSkills(): Promise<{ skills: SkillDescriptor[]; root: s
     ? response.problems.filter(item => item && typeof item.id === "string" && typeof item.reason === "string"
       && item.id.length > 0 && item.id.length <= 200 && item.reason.length > 0 && item.reason.length <= 300)
     : [];
-  return { skills: response.skills, root: typeof response.root === "string" && response.root ? response.root : null, problems };
+  // 截断标记只在内核明确返回 true 时生效；旧内核视为清单完整。
+  return { skills: response.skills, root: typeof response.root === "string" && response.root ? response.root : null, problems,
+    problemsTruncated: response.problemsTruncated === true, candidatesTruncated: response.candidatesTruncated === true };
 }
 
 /** 单个技能正文：仅在内核声明 skillsRead 后调用；只读，不写入会话。 */
