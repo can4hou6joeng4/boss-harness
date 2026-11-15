@@ -20,6 +20,22 @@ function externalTarget(url: string): string | null {
   }
 }
 
+/** 配对未转义的圆括号；一次扫描避免未闭合链接反复搜索整段后文。 */
+function linkDestinationEnds(text: string): Map<number, number> {
+  const openings: number[] = [];
+  const ends = new Map<number, number>();
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "\\") { index += 1; continue; }
+    if (character === "(") openings.push(index);
+    else if (character === ")") {
+      const opening = openings.pop();
+      if (opening !== undefined) ends.set(opening, index);
+    }
+  }
+  return ends;
+}
+
 export const RichMarkdown: React.FC<RichMarkdownProps> = ({ content }) => {
   const { feedback, copy } = useClipboardCopy();
 
@@ -35,10 +51,11 @@ export const RichMarkdown: React.FC<RichMarkdownProps> = ({ content }) => {
   // 行内解析器（解析链接、粗体、行内代码）
   const renderInline = (text: string) => {
     // 匹配:
-    // 1. [text](url) -> 链接或 Citation
+    // 1. [text]( -> 链接开头，目标终点由圆括号配对表确定
     // 2. `code` -> 行内代码
     // 3. **bold** -> 粗体
-    const tokenRegex = /(\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|\*\*([^*]+)\*\*)/g;
+    const tokenRegex = /(\[([^\]]+)\]\(|`([^`]+)`|\*\*([^*]+)\*\*)/g;
+    const linkEnds = linkDestinationEnds(text);
 
     const elements: React.ReactNode[] = [];
     let currentIdx = 0;
@@ -51,7 +68,16 @@ export const RichMarkdown: React.FC<RichMarkdownProps> = ({ content }) => {
 
       if (inlineMatch[1]?.startsWith("[")) {
         const linkText = inlineMatch[2] ?? "";
-        const linkUrl = inlineMatch[3] ?? "";
+        const opening = tokenRegex.lastIndex - 1;
+        const closing = linkEnds.get(opening);
+        if (closing === undefined || closing === opening + 1) {
+          // 流式输出尚未闭合时保留原文，不把地址的一部分变成可点击链接。
+          elements.push(inlineMatch[0]);
+          currentIdx = tokenRegex.lastIndex;
+          continue;
+        }
+        const linkUrl = text.slice(opening + 1, closing).replace(/\\([\\()])/g, "$1");
+        tokenRegex.lastIndex = closing + 1;
         const target = externalTarget(linkUrl);
         const isCitation = linkText.startsWith("来源") || /^\d+$/.test(linkText) || linkText.includes("↗") || linkText.includes("GitHub");
 
@@ -90,23 +116,23 @@ export const RichMarkdown: React.FC<RichMarkdownProps> = ({ content }) => {
             </a>
           );
         }
-      } else if (inlineMatch[4]) {
+      } else if (inlineMatch[3]) {
         // 行内代码 `code`
         elements.push(
           <code key={inlineMatch.index} className="chat-inline-code">
-            {inlineMatch[4]}
+            {inlineMatch[3]}
           </code>
         );
-      } else if (inlineMatch[5]) {
+      } else if (inlineMatch[4]) {
         // 粗体 **bold**
         elements.push(
           <strong key={inlineMatch.index} style={{ fontWeight: 600, color: "var(--text-main)" }}>
-            {inlineMatch[5]}
+            {inlineMatch[4]}
           </strong>
         );
       }
 
-      currentIdx = inlineMatch.index + inlineMatch[0].length;
+      currentIdx = tokenRegex.lastIndex;
     }
 
     if (currentIdx < text.length) {
