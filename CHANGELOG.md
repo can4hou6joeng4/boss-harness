@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1418](https://github.com/can4hou6joeng4/boss-harness/issues/1418)：分支摘要取消的成功、失败和收尾绑定发起时的连接与任务，旧回执不再替换新任务、写入旧错误或提前释放新取消的等待状态；新任务不继承旧取消锁。取消回执须与请求的任务编号一致，已确认终态后不再追加迟到失败提示。正常取消仍需等待任务终态，不回滚已生效的分支切换，也不自动重发。不新增 RPC，协议与内核仍为 0.2.0。
+
 ## 0.2.0-rc.40 - 2026-11-16
 
 本节汇总第四十个候选版本的源码与交付内容；rc.16 至 rc.40 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。

@@ -115,7 +115,7 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       // 终态优先于迟到的 running 读取。
       if (known && known.jobId === job.jobId && known.status !== "running") return state;
       return { ...state, summaryJob: { ...(known?.jobId === job.jobId ? known : {}), ...job },
-        summaryPollError: "", cancelInFlight: job.status === "running" ? state.cancelInFlight : false };
+        summaryPollError: "", cancelInFlight: job.status === "running" && known?.jobId === job.jobId ? state.cancelInFlight : false };
     });
   }, [update]);
   /** 内核明确表示任务不存在：缓存的 running 再也不可能变为终态，继续保留会一直阻断切换与新建回合。 */
@@ -312,14 +312,28 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
 
   const cancelSummaryFor = useCallback(async (id: string) => {
     const job = stateRef.current[id]?.summaryJob;
-    if (!job || job.status !== "running" || stateRef.current[id]?.cancelInFlight) return;
+    if (!current.current.connected || !job || job.status !== "running" || stateRef.current[id]?.cancelInFlight) return;
+    const connectionEpoch = epoch.current;
+    // 取消与收尾只属于发起时的连接和任务；旧回执不能替换新任务或释放其取消锁。
+    const valid = () => alive.current && epoch.current === connectionEpoch
+      && stateRef.current[id]?.summaryJob?.jobId === job.jobId;
     update(id, { cancelInFlight: true });
     try {
       const result = await abortContextCompaction(job.jobId);
-      if (isBranchJob(result, id)) applyJob(id, result);
+      if (!valid()) return;
+      if (!isBranchJob(result, id) || result.jobId !== job.jobId) throw new Error("取消摘要回执与当前任务不一致");
+      applyJob(id, result);
     } catch (error) {
-      update(id, { switchError: `取消摘要的回执未知：${rpcDetail(error).text}。请稍后刷新核对。` });
-    } finally { update(id, { cancelInFlight: false }); void refresh(id); }
+      // 已确认的终态优先于迟到取消失败，不再把完成任务描述为回执未知。
+      if (valid() && stateRef.current[id]?.summaryJob?.status === "running") {
+        update(id, { switchError: `取消摘要的回执未知：${rpcDetail(error).text}。请稍后刷新核对。` });
+      }
+    } finally {
+      if (valid()) {
+        update(id, { cancelInFlight: false });
+        void refresh(id);
+      }
+    }
   }, [applyJob, refresh, update]);
   const cancelSummary = useCallback(async () => {
     const id = current.current.threadId;

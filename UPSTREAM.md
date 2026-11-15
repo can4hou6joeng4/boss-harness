@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 分支摘要取消回执归属（Issue #1418）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/compaction.md`（Branch Summarization、`session_before_tree`）与 `packages/coding-agent/src/core/compaction/branch-summarization.ts`（`GenerateBranchSummaryOptions`、`generateBranchSummary`）：摘要调用接收 `AbortSignal`，经请求选项传给 `completeSummarization`，返回 `stopReason=aborted` 时报告中止；所读入口没有本项目 Electron 连接代次、`jobId` 或取消回执合并规则。本轮独立复用 #1268 轮询与 #1410 分支切换已有的连接、任务归属约定，将保护补到取消路径，不推断上游存在同类缺陷，不复制源码、不引入依赖。
+
+适配约定：取消成功、失败和收尾仅更新发起时连接中的同一任务，返回任务编号须与请求相同；断连、卸载或任务替换使旧回执失效。新任务不继承旧取消锁，旧调用不清除新取消的锁或提示；已有终态优先于迟到取消失败。正常取消仍只确认请求受理，不撤销分支切换，也不自动重发。不新增 RPC，协议与内核仍为 0.2.0。
+
 ## 分支切换的连接归属（Issue #1410）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（Choose how to branch）与 `packages/coding-agent/src/core/session-manager.ts`（`branch`、`resetLeaf`、`branchWithSummary`）：这些原语同步操作当前 SessionManager 的 leaf 指针，没有本项目 Electron 队列预读、跨进程连接代次或重连回执的约定。本轮独立复用本仓库已有 `epoch` 机制，将连接归属保护扩展到桌面切换的每段异步边界，不推断上游存在同类缺陷，不复制源码、不引入依赖。
