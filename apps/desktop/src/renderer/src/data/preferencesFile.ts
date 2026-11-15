@@ -41,7 +41,7 @@ function knownKey(name: string): string {
 /** 解析导出的 JSON 文本；只读取白名单键，未知键忽略。 */
 export function parsePreferencesFile(text: string): PreferencesFileResult {
   if (typeof text !== "string" || !text.trim()) return { ok: false, reason: "文件为空" };
-  if (text.length > PREFERENCE_FILE_MAX_BYTES) return { ok: false, reason: "文件超过 64 KiB" };
+  if (new TextEncoder().encode(text).byteLength > PREFERENCE_FILE_MAX_BYTES) return { ok: false, reason: "文件超过 64 KiB" };
 
   let parsed: unknown;
   try {
