@@ -877,7 +877,13 @@ export function App(): JSX.Element {
           return outcome;
         }
         // 明确拒绝说明消息没有进入会话；会话已经存在，不能再让调用方以为创建失败。
-        if (!transferred) return { status: "unsent", session: started };
+        if (!transferred) {
+          const outcome: SessionStartOutcome = { status: "unsent", session: started };
+          // 与「结果未确认」一致：覆盖发送提示，说明会话已创建与草稿去向，
+          // 避免用户在首页重发而多建一个空会话；具体拒绝原因仍保存在该会话的错误记录里。
+          showError(sessionStartNotice(outcome) ?? "");
+          return outcome;
+        }
         if (selectionVersion.current === requestVersion) {
           ++selectionVersion.current; activeRef.current = started; setActiveSession(started); setIsHomeView(false);
           setMessages(cache.current.get(started.id) ?? []);
