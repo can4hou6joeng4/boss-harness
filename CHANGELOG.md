@@ -4,6 +4,20 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+## 0.2.0-rc.33 - 2026-11-15
+
+本节汇总第三十三个候选版本的源码与交付内容；rc.16 至 rc.33 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.32，本次聚合 3 项使用者可见的参数契约修正：分支自定义标题遵守既有长度上限；回合启动拒绝显式空 provider；手动摘要的模型覆盖按模型 ID 规则校验。按持续小版本迭代与版本、README 文档同步要求触发候选准备。
+
+升级注意：`thread/fork.title` 显式非 null 值须为最多 500 字符的字符串；`turn/start.provider` 显式提供时须通过 provider 格式校验并与会话线路一致；`context/compact/start.model` 只有省略才继承摘要配置，显式值须为最多 200 字符、不含空白的非空模型 ID。非法值均返回 `-32602`，缺省行为与合法值保持原样；本候选未新增持久化迁移或工具权限。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1386](https://github.com/can4hou6joeng4/boss-harness/issues/1386)：同步根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本为 npm `0.2.0-rc.33` / Python `0.2.0rc33`；将 rc.32 之后 3 项参数契约修正归入本候选，同步 README 近期进展、使用指南的候选状态与技术契约，保留 rc.15 首次实际发布入口与历史版本记录。候选准备不代表实际 tag、Release、资产上传或包注册表发布。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1384](https://github.com/can4hou6joeng4/boss-harness/issues/1384)：`context/compact/start` 的显式 `model` 按既有模型 ID 规则校验，空串、空白、数字、布尔、数组、对象、null 与超长值在创建摘要任务和调用 provider factory 前返回 `-32602`，不再经真值回退静默使用默认模型；缺省继续继承摘要配置，合法覆盖与摘要记录保持不变。协议类型与技术契约同步该约束。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 - [Issue #1382](https://github.com/can4hou6joeng4/boss-harness/issues/1382)：`turn/start` 显式提供 `provider` 时按 provider 格式校验，null 与其他非法类型在预留回合和保存输入前返回 `-32602`，不再静默沿用会话线路启动回合；缺省继续继承，匹配值成功，跨线路值仍返回 `-32013`。协议类型补充该可选参数。不新增 RPC，协议与内核仍为 `0.2.0`。
