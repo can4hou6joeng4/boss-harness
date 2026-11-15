@@ -10,6 +10,8 @@
 
 - [Issue #1374](https://github.com/can4hou6joeng4/boss-harness/issues/1374)：`turn/interrupt` 的显式 `turnId` 在设置取消信号前校验，须为非空、非纯空白、最多 128 字符的字符串；空值和其他类型返回 `-32602`，不再绕过目标保护而取消当前回合。只有缺省仍取消当前回合，匹配目标与旧目标的既有行为不变；闲置状态也执行同一校验。不新增 RPC，协议与内核仍为 `0.2.0`。
 
+- [Issue #1376](https://github.com/can4hou6joeng4/boss-harness/issues/1376)：`queue/add` 按字段是否出现校验 `autoCompaction`；显式 null 与其他非法覆盖在入队前返回 `-32602`，不再静默持久化成无覆盖的新队列项，已有请求的非法重试同样拒绝。缺省、合法部分覆盖、幂等与冲突判定保持原有行为。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.31 - 2026-11-15
 
 本节汇总第三十一个候选版本的源码与交付内容；rc.16 至 rc.31 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
