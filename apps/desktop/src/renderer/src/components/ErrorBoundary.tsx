@@ -32,6 +32,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   state: ErrorBoundaryState = { report: null, componentStack: "", attempt: 0, copyNote: "", occurredAt: "" };
   /** 复制详情是异步的；卸载后不再写状态。 */
   private mounted = false;
+  /** 复制详情与错误状态共用的版本号；旧版本的回执不得更新界面。 */
+  private copyVersion = 0;
 
   static getDerivedStateFromError(error: unknown): Partial<ErrorBoundaryState> {
     return { report: describeThrown(error), componentStack: "", copyNote: "", occurredAt: new Date().toISOString() };
@@ -46,12 +48,16 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: unknown, info: React.ErrorInfo): void {
+    // 新错误与上一份详情上的在途复制无关，旧回执不得出现在这张卡片上。
+    this.copyVersion += 1;
     // 控制台保留原始对象，便于开发期排查；界面只显示收敛后的摘要。
     console.error(`[${this.props.scope}] 渲染异常`, error);
     if (info.componentStack) this.setState({ componentStack: info.componentStack });
   }
 
   private retry = (): void => {
+    // 重试会丢弃当前错误卡片，此前发起的复制回执随之失效。
+    this.copyVersion += 1;
     this.setState(state => ({
       report: null, componentStack: "", copyNote: "", occurredAt: "", attempt: state.attempt + 1,
     }));
@@ -64,13 +70,16 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   private copyDetail = async (): Promise<void> => {
     const { report, componentStack, occurredAt } = this.state;
     if (!report) return;
+    // 只有最近一次复制可以写回执；开始新复制时先撤下旧提示。
+    const version = ++this.copyVersion;
     const text = errorDetailText(report, { scope: this.props.scope, occurredAt, componentStack });
+    this.setState({ copyNote: "" });
     try {
       if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
       await navigator.clipboard.writeText(text);
-      if (this.mounted) this.setState({ copyNote: "已复制错误详情。" });
+      if (this.mounted && version === this.copyVersion) this.setState({ copyNote: "已复制错误详情。" });
     } catch {
-      if (this.mounted) this.setState({ copyNote: "复制失败：当前环境不允许写入剪贴板。" });
+      if (this.mounted && version === this.copyVersion) this.setState({ copyNote: "复制失败：当前环境不允许写入剪贴板。" });
     }
   };
 
