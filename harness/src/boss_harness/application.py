@@ -650,10 +650,10 @@ class ApplicationService:
                 "autoCompaction": self.compaction_policy.describe(),
                 "autoCompactionSource": self._auto_compaction_source,
                 "approvalPolicy": "each-consequential-call", "approvalTimeoutSeconds": self.approval_timeout}
-        if unreadable:
-            # 只暴露有上限的 id 快照；数量完整，避免大量损坏文件把配置响应撑大。
-            response["unreadableThreadCount"] = len(unreadable)
-            response["unreadableThreadIds"] = unreadable[:MAX_UNREADABLE_THREAD_IDS]
+        # 没有损坏文件时同样返回 0 与空列表：客户端据此区分「已检查且正常」与旧内核的「未报告」。
+        # 只暴露有上限的 id 快照；数量完整，避免大量损坏文件把配置响应撑大。
+        response["unreadableThreadCount"] = len(unreadable)
+        response["unreadableThreadIds"] = unreadable[:MAX_UNREADABLE_THREAD_IDS]
         return response
 
     def on_config_auto_compaction_set(self, params: dict | None) -> dict:
