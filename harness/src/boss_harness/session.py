@@ -2387,7 +2387,12 @@ class SessionStore:
         return "\n".join(parts)[:_SEARCH_TOOL_TEXT]
 
     def search_messages(self, query: str, *, limit: int = 30, include_archived: bool = False) -> dict:
-        """在会话的用户 / 助手消息与工具调用中做有界全文搜索；默认不含已归档，跳过损坏或过大的会话。"""
+        """在会话的用户 / 助手消息与工具调用中做有界全文搜索；默认不含已归档，跳过损坏或过大的会话。
+
+        达到展示上限后仍继续扫描（不再收集结果），确认真有下一条命中才报告截断；恰好
+        等于 ``limit`` 或单会话上限的完整结果保持 ``truncated = False``。会话数 / 文本
+        预算耗尽、跳过超大会话等结构性截断仍为真。
+        """
         if not isinstance(query, str) or not query.strip() or len(query) > 200:
             raise ValueError("query 必须是非空字符串（最多 200 字符）")
         if type(limit) is not int or not 1 <= limit <= 50:
@@ -2399,6 +2404,7 @@ class SessionStore:
             return {"query": query.strip(), "matches": [], "truncated": False}
         matches: list[dict] = []
         truncated = False
+        more_matches = False
         scanned_threads = scanned_chars = 0
         for thread in self.list_threads(include_archived=include_archived):
             if scanned_threads >= _SEARCH_THREADS or scanned_chars >= _SEARCH_TEXT_BUDGET:
@@ -2437,6 +2443,11 @@ class SessionStore:
                 index = normalized.find(needle)
                 if index < 0:
                     continue
+                if len(matches) >= limit or per_thread >= _SEARCH_PER_THREAD:
+                    # 已到展示上限：继续扫描只为确认是否还有未返回的命中，找到一条即停。
+                    truncated = True
+                    more_matches = True
+                    break
                 if starts is None:
                     start, end = index, index + len(needle)
                 else:
@@ -2451,10 +2462,7 @@ class SessionStore:
                     "snippet": self._search_snippet(text, start, end),
                 })
                 per_thread += 1
-                if len(matches) >= limit or per_thread >= _SEARCH_PER_THREAD:
-                    truncated = True
-                    break
-            if len(matches) >= limit or scanned_chars >= _SEARCH_TEXT_BUDGET:
+            if more_matches or scanned_chars >= _SEARCH_TEXT_BUDGET:
                 truncated = True
                 break
         return {"query": query.strip(), "matches": matches[:_SEARCH_MATCHES], "truncated": truncated}
