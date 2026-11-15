@@ -89,11 +89,13 @@ def messages_from_items(items: list[dict]) -> tuple[ChatMessage, ...]:
         if kind != "toolCall" or (pending and item.get("toolBatchId") != batch):
             flush()
         if kind == "userMessage":
-            messages.append(UserMessage(text=wire_text(str(item.get("text", "")))))
+            # 持久记录不可信：非字符串正文不能被 str() 变成「None」或 Python repr 送进模型。
+            if isinstance(item.get("text"), str):
+                messages.append(UserMessage(text=wire_text(item["text"])))
         elif (kind == "agentMessage" and not _is_one_of(item.get("status"), {"running", "failed"})
-              and item.get("text")
+              and isinstance(item.get("text"), str) and item["text"]
               and not _is_one_of(item.get("id"), continuation_agent_ids)):
-            messages.append(AssistantMessage(blocks=(TextBlock(text=wire_text(str(item["text"]))),)))
+            messages.append(AssistantMessage(blocks=(TextBlock(text=wire_text(item["text"])),)))
         elif kind == "toolCall" and item.get("status") != "running":
             batch = item.get("toolBatchId")
             pending.append(item)
