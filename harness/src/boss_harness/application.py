@@ -870,8 +870,13 @@ class ApplicationService:
         exclude = params.get("excludeTurns", False)
         if type(exclude) is not bool:
             raise ValueError("excludeTurns 必须是布尔值")
-        return self._snapshot(_text(params, "threadId"), exclude=exclude,
-                              paged=params.get("snapshot") is True, branch=_branch_view(params))
+        # snapshot 决定是否返回可续读的冻结快照；显式错误类型不能静默降级成普通读取，
+        # 否则长会话会收到「请用 snapshot=true」而客户端以为已经请求过。
+        paged = params.get("snapshot", False)
+        if type(paged) is not bool:
+            raise ValueError("snapshot 必须是布尔值")
+        return self._snapshot(_text(params, "threadId"), exclude=exclude, paged=paged,
+                              branch=_branch_view(params))
 
     def on_thread_resume(self, params: dict | None) -> dict:
         return self.on_thread_read(params)
