@@ -710,6 +710,13 @@ class ContextService:
         source_ids = [item["id"] for item in selected]
         if turn_index < previous_index:
             raise ValueError("压缩范围不得早于已有摘要的完整回合")
+        # 检查点之后可能只有没有条目的已结束回合：保留尾部仍会把边界推回检查点，
+        # 选中项于是全部已被摘要覆盖。计划阶段就按与材料生成相同的口径拒绝，
+        # 避免界面拿到一个看似可用、一开始就必然失败的计划。
+        if checkpoint is not None:
+            covered = set(self._checkpoint_source_item_ids(checkpoint["payload"], items))
+            if all(item_id in covered for item_id in source_ids):
+                raise NoCompactionSource("没有新增可压缩内容")
         retained = items[end:]
         retained_turn_ids = [turn["turnId"] for turn in turns[turn_index + 1:]]
         retained_turn_set = set(retained_turn_ids)
