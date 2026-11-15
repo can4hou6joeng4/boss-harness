@@ -65,7 +65,7 @@
 
 rc.23 仍为尚未发布的源码候选；最新实际发布仍为 [rc.15 候选预发布](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。每项变更的来源、验证与限制记录在 [CHANGELOG](CHANGELOG.md)；本地离线 Electron 验证不代表真实模型、招聘平台或独立安装包已经验收。协议与内核仍为 `0.2.0`。
 
-rc.23 之后合入、尚未进入候选的修正：无模型模式下 `/search` 不带关键词时改为提示补全，不再默认检索 Python，也不发起业务 CLI 调用（[Issue #1272](https://github.com/can4hou6joeng4/boss-harness/issues/1272)）；文档补充桌面新建会话固定为只读策略、逐次审批只出现在审批策略会话中的说明（[Issue #1274](https://github.com/can4hou6joeng4/boss-harness/issues/1274)）；`thread/search` 结果恰好等于展示上限且无更多命中时不再误标「仅显示部分结果」（[Issue #1276](https://github.com/can4hou6joeng4/boss-harness/issues/1276)）；`thread/search` 跳过无法读取的会话时标注结果不完整（[Issue #1278](https://github.com/can4hou6joeng4/boss-harness/issues/1278)）。
+rc.23 之后合入、尚未进入候选的修正：无模型模式下 `/search` 不带关键词时改为提示补全，不再默认检索 Python，也不发起业务 CLI 调用（[Issue #1272](https://github.com/can4hou6joeng4/boss-harness/issues/1272)）；文档补充桌面新建会话固定为只读策略、逐次审批只出现在审批策略会话中的说明（[Issue #1274](https://github.com/can4hou6joeng4/boss-harness/issues/1274)）；`thread/search` 结果恰好等于展示上限且无更多命中时不再误标「仅显示部分结果」（[Issue #1276](https://github.com/can4hou6joeng4/boss-harness/issues/1276)）；`thread/search` 跳过无法读取的会话时标注结果不完整（[Issue #1278](https://github.com/can4hou6joeng4/boss-harness/issues/1278)）；会话 Markdown 导出中队列项的技能 ID 与失败码按行内代码呈现（[Issue #1280](https://github.com/can4hou6joeng4/boss-harness/issues/1280)）。
 
 ## 快速开始
 
