@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 技能列表的响应边界（Issue #1396）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/skills.md`（加载、发现与 frontmatter 说明）：上游按单个技能文件声明元数据，没有本项目 `skills/list` 这种一次返回整个目录投影的 RPC，也没有对应的描述长度或列表预算约定。本轮独立补齐本仓库技能目录投影的既有有界约定，不推断上游存在同类缺陷，不复制代码、不引入依赖。
+
+适配约定：`skills/list`、`skills/read`、`skills/create` 与 `skills/write` 共用的技能投影中，名称最多 200 字符、描述最多 500 字符，超长部分截断并分别标记 `nameTruncated` / `descriptionTruncated`；`skills/read.content` 仍返回完整正文，技能注入内容不变。`skills/list` 增加单页响应预算检查，超预算时返回既有 `RESPONSE_TOO_LARGE`，不再依赖协议帧上限拒绝。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 会话标题的长度边界（Issue #1392）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（Continue or switch sessions、Session Format）与 `packages/coding-agent/src/core/session-manager.ts`（会话头字段、`SessionInfoEntry.name`）：所读会话头只有 `type`、`version`、`id`、`timestamp`、`cwd` 与可选 `parentSession`；标题类字段没有与本项目相同的 500 字符上限约定。本轮独立补齐本仓库由新建、重命名与分支标题共用的既有上限，不推断上游存在同类缺陷，不复制代码、不引入依赖。

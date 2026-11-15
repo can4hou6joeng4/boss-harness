@@ -35,6 +35,11 @@ class SkillCatalog:
     MAX_SKILL_BYTES = 64 * 1024
     MAX_SKILL_DESCRIPTORS = 100
     MAX_EXISTING_SKILL_ID = 200
+    # 列表投影只用于菜单与检索：名称、描述来自单行 frontmatter，长度只受文件总量
+    # 约束。100 个技能各自接近 64 KiB 时，原样返回会让 skills/list 超过协议帧上限，
+    # 而该方法没有分页可用；正文仍由 skills/read 完整返回。
+    MAX_SKILL_NAME_CHARS = 200
+    MAX_SKILL_DESCRIPTION_CHARS = 500
     SKILL_ID = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}\Z")
 
     def __init__(self, root: Path) -> None:
@@ -113,6 +118,24 @@ class SkillCatalog:
         return fields
 
     @classmethod
+    def _descriptor(cls, skill_id: str, fields: dict[str, str], digest: str, byte_length: int) -> dict:
+        """构造列表与写入共用的技能描述；名称、描述按展示上限截断并标记。
+
+        正文仍由 `skills/read` 完整返回，截断只作用于菜单与检索使用的投影。
+        """
+        name = fields.get("name", skill_id)
+        description = fields.get("description", "")
+        descriptor: dict[str, Any] = {"id": skill_id, "name": name, "description": description,
+                                      "digest": digest, "bytes": byte_length}
+        if len(name) > cls.MAX_SKILL_NAME_CHARS:
+            descriptor["name"] = name[:cls.MAX_SKILL_NAME_CHARS]
+            descriptor["nameTruncated"] = True
+        if len(description) > cls.MAX_SKILL_DESCRIPTION_CHARS:
+            descriptor["description"] = description[:cls.MAX_SKILL_DESCRIPTION_CHARS]
+            descriptor["descriptionTruncated"] = True
+        return descriptor
+
+    @classmethod
     def _problem_reason(cls, path: Path) -> str:
         """归类未能加载的技能文件；只返回可展示的原因，不读取正文。"""
         try:
@@ -161,9 +184,7 @@ class SkillCatalog:
                     continue
                 source, byte_length, digest = loaded
                 fields = self._fields(source)
-                skills.append({"id": skill_id, "name": fields.get("name", skill_id),
-                               "description": fields.get("description", ""),
-                               "digest": digest, "bytes": byte_length})
+                skills.append(self._descriptor(skill_id, fields, digest, byte_length))
             if len(skills) >= self.MAX_SKILL_DESCRIPTORS or len(candidates) < limit:
                 return {"skills": skills[:self.MAX_SKILL_DESCRIPTORS],
                         "problems": problems[:self.MAX_SKILL_DESCRIPTORS]}
@@ -186,9 +207,8 @@ class SkillCatalog:
         source, byte_length, digest = loaded
         if digest != skill["digest"]:
             raise ValueError("技能文件已变化，请刷新技能目录")
-        return {"id": skill_id, "name": skill["name"], "description": skill["description"],
-                "digest": digest, "bytes": byte_length, "content": source,
-                "limitBytes": self.MAX_SKILL_BYTES}
+        # 保持列表投影的截断标记，使客户端在同一次读取里看到同样的名称与描述。
+        return {**skill, "content": source, "limitBytes": self.MAX_SKILL_BYTES, "bytes": byte_length}
 
     @staticmethod
     def _ensure_directory(path: Path) -> None:
@@ -272,9 +292,7 @@ class SkillCatalog:
         except OSError as exc:
             raise OSError(exc.strerror or str(exc) or "技能创建失败") from None
         fields = self._fields(content)
-        return {"id": skill_id, "name": fields.get("name", skill_id),
-                "description": fields.get("description", ""),
-                "digest": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
+        return self._descriptor(skill_id, fields, hashlib.sha256(data).hexdigest(), len(data))
 
     def replace(self, skill_id: Any, content: Any, expected_digest: Any) -> dict:
         """按读取时的摘要修改已存在技能；摘要不一致即拒绝，避免覆盖外部修改。"""
@@ -307,9 +325,7 @@ class SkillCatalog:
         except OSError as exc:
             raise OSError(exc.strerror or str(exc) or "技能写入失败") from None
         fields = self._fields(content)
-        return {"id": skill_id, "name": fields.get("name", skill_id),
-                "description": fields.get("description", ""),
-                "digest": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
+        return self._descriptor(skill_id, fields, hashlib.sha256(data).hexdigest(), len(data))
 
     def delete(self, skill_id: Any, expected_digest: Any) -> dict:
         """按读取摘要删除技能；只删仅含普通 SKILL.md 的目录，避免连带删用户文件。"""
