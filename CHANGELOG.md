@@ -4,6 +4,32 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+## 0.2.0-rc.31 - 2026-11-15
+
+本节汇总第三十一个候选版本的源码与交付内容；rc.16 至 rc.31 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.30，本次聚合 6 项队列、任务读取与参数校验修正：重新排队刷新失败时保留持久待处理总数；队列任务未知状态使用字符串并保留人工核对；会话列表计数跳过损坏队列记录；显式非法模型不静默回退；读取开关只接受布尔；非法枚举类型统一返回参数错误。
+
+升级注意：本候选未新增 RPC、持久化迁移或工具权限。自定义客户端应省略未指定的 `model`，不能用 null、空字符串或其他类型表示默认值；`excludeTurns` 只接受布尔值，`view` 与任务 `kind` 只接受协议枚举字符串，非法值返回 `-32602`。已有未变化日志的缓存索引不会强制重建；历史队列错计数可在退出应用后按使用指南运行 `boss-harness --repair-state`，从原始日志重建索引，不改写日志。前序候选的配置检查码与开关取值变化继续适用，详见对应历史版本。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1368](https://github.com/can4hou6joeng4/boss-harness/issues/1368)：同步根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本为 npm `0.2.0-rc.31` / Python `0.2.0rc31`；将 rc.30 之后 6 项已合并修正归入本候选，同步 README、使用指南与技术契约中的候选状态及参数兼容说明，保留 rc.15 首次安装入口与历史版本记录。候选准备不代表实际 tag、Release、资产上传或包注册表发布。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1356](https://github.com/can4hou6joeng4/boss-harness/issues/1356)：重新排队已受理但刷新失败时，沿用持久待处理总数按旧项撤下与新项加入增减，不再用本地已载入数覆盖全量；截断投影缺少总数时继续保留未知。仅影响刷新失败后的本地展示，不重复提交队列操作。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1358](https://github.com/can4hou6joeng4/boss-harness/issues/1358)：`task/read` 读取状态缺失或非法的队列任务时，返回字符串 `unknown`，恢复策略仍为 `manual_review`，避免 null 状态使桌面拒绝整份核对响应；合法状态与策略不变。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1360](https://github.com/can4hou6joeng4/boss-harness/issues/1360)：会话列表索引与队列列表共用 `queue_record` 的结构校验；缺少类型、正文或状态非法的记录不再覆盖同 id 的有效状态，避免产生虚假或漏掉的待处理计数。修正适用于追加与索引重建，已有缓存索引可按升级说明核对。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1362](https://github.com/can4hou6joeng4/boss-harness/issues/1362)：`turn/start` 与 `context/read` 只有缺省 `model` 才继承会话模型；显式 null、空字符串、布尔、数字、数组或对象经既有格式校验拒绝，不再静默回退。合法模型与线路不匹配错误码不变。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1364](https://github.com/can4hou6joeng4/boss-harness/issues/1364)：`thread/read` 与 `thread/resume` 的 `excludeTurns` 只接受布尔值，缺省仍为 false；字符串 `"false"` 不再被当作 true 意外省略回合，其他非布尔值统一返回 `-32602`。普通、冻结快照及分支读取的合法行为不变。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1366](https://github.com/can4hou6joeng4/boss-harness/issues/1366)：读取视图 `view` 与 `task/read.kind` 在集合判断前检查字符串类型；JSON 数组或对象统一返回 `-32602` 参数错误，不再透出不可哈希异常并误报 `-32603`，合法枚举与领域错误不变。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.30 - 2026-11-15
 
 本节汇总第三十个候选版本的源码与交付内容；rc.16 至 rc.30 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
