@@ -95,7 +95,9 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   const queueIntent = draftQueueIntent(composerDraft);
   const attachments = composerDraft.attachments;
   const selectedSkillIds = composerDraft.skillIds ?? [];
-  const selectedSkillChips = skillChips(selectedSkillIds, skills);
+  // 只有成功读取的目录才能证明某个技能已被删除；加载中、断连与读取失败时目录为空，不能据此标失效。
+  const skillCatalogKnown = skillCatalogState === "ready" || skillCatalogState === "empty";
+  const selectedSkillChips = skillChips(selectedSkillIds, skills, skillCatalogKnown);
   const staleSkillIds = selectedSkillIds.filter(id => !skills.some(skill => skill.id === id));
   // 筛选只影响菜单展示，不改变已选技能；被筛掉但已选中的技能仍会随消息应用。
   const filteredSkills = filterSkills(skills, skillQuery);
@@ -541,9 +543,9 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
             {skillCatalogState === "ready" && skills.length > 0 && filteredSkills.length === 0 && <div className="composer-menu-empty">没有匹配的技能。</div>}
             {skillCatalogState === "ready" && selectedSkillIds.length >= 10 && <div className="composer-menu-footer">每回合最多选择 10 项技能。</div>}
             {hiddenSelectedSkills > 0 && <div className="composer-menu-footer">已选技能中有 {hiddenSelectedSkills} 项不在当前筛选结果中，仍会随消息应用。</div>}
-            {staleSkillIds.length > 0 && skillCatalogState === "ready" && <div className="composer-menu-empty">{staleSkillIds.length} 项已选技能已不在当前目录中。</div>}
-            {staleSkillIds.length > 0 && skillCatalogState === "ready" && <button type="button" disabled={submitting} onClick={() => updateDraft(previous => ({ ...previous, skillIds: previous.skillIds.filter(id => !staleSkillIds.includes(id)) }))}>清除不可用技能</button>}
-            {selectedSkillIds.length > 0 && skillCatalogState !== "ready" && <button type="button" disabled={submitting} onClick={() => updateDraft(previous => ({ ...previous, skillIds: [] }))}>清除已选技能</button>}
+            {staleSkillIds.length > 0 && skillCatalogKnown && <div className="composer-menu-empty">{staleSkillIds.length} 项已选技能已不在当前目录中。</div>}
+            {staleSkillIds.length > 0 && skillCatalogKnown && <button type="button" disabled={submitting} onClick={() => updateDraft(previous => ({ ...previous, skillIds: previous.skillIds.filter(id => !staleSkillIds.includes(id)) }))}>清除不可用技能</button>}
+            {selectedSkillIds.length > 0 && !skillCatalogKnown && <button type="button" disabled={submitting} onClick={() => updateDraft(previous => ({ ...previous, skillIds: [] }))}>清除已选技能</button>}
             {skillProblems.length > 0 && <div className="composer-menu-footer" role="status">{skillProblems.length} 个技能未能加载；到「技能与工具」页查看原因。</div>}
             {skillCatalogState !== "unavailable" && onRefreshSkills && <button type="button" disabled={submitting || skillCatalogState === "loading"} onClick={onRefreshSkills}>{skillCatalogState === "error" ? "重试加载技能" : "刷新技能目录"}</button>}
             <div className="composer-menu-footer">所选技能应用于本次发送或排到后续回合的消息；转交成功后清空。</div>
