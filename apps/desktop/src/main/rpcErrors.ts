@@ -9,6 +9,8 @@ const PRESERVED: ReadonlySet<string> = new Set([
   "approval/respond",
   "context/compact/read",
   "context/compact/start",
+  "context/edit",
+  "context/edit/read",
   "queue/add",
   "queue/remove",
   "task/read",
