@@ -2391,7 +2391,7 @@ class SessionStore:
 
         达到展示上限后仍继续扫描（不再收集结果），确认真有下一条命中才报告截断；恰好
         等于 ``limit`` 或单会话上限的完整结果保持 ``truncated = False``。会话数 / 文本
-        预算耗尽、跳过超大会话等结构性截断仍为真。
+        预算耗尽、跳过超大会话、会话已列出但无法读取等结构性截断仍为真。
         """
         if not isinstance(query, str) or not query.strip() or len(query) > 200:
             raise ValueError("query 必须是非空字符串（最多 200 字符）")
@@ -2416,6 +2416,8 @@ class SessionStore:
                     continue
                 items = self.read_items(thread["id"])
             except (OSError, ValueError):
+                # 会话已被列出但无法读取：其中可能包含命中，结果必须标注不完整。
+                truncated = True
                 continue
             scanned_threads += 1
             per_thread = 0

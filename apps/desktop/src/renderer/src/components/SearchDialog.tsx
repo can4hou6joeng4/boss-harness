@@ -142,7 +142,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
           <p className="search-message-heading" role="presentation">{shownMessageState === "loading" ? "正在搜索消息…"
             : shownMessageState === "error" ? "消息搜索失败，可继续按标题查找"
             : messageOptions.length ? <>{`消息命中`}{hitsTruncated && <span className="search-truncated" title="搜索有界：最多 100 个会话、50 条消息，较早或过多的命中不会全部返回">仅显示部分结果</span>}</>
-            : "没有匹配的消息"}</p>
+            : <>{`没有匹配的消息`}{hitsTruncated && <span className="search-truncated" title="搜索有界：部分会话未能读取或未扫描，可能仍有消息命中">消息搜索不完整</span>}</>}</p>
           {messageOptions.map(option => {
             const { hit, row } = option;
             return <button type="button" key={option.key} title={hit.snippet} {...optionProps(option)}>
@@ -155,7 +155,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
           return <button type="button" key={option.key} {...optionProps(option)}><IconChat size={17} /><span><strong><Highlighted text={row.session.title} query={query} /></strong><small>{row.session.archived === true ? "已归档 · " : ""}<Highlighted text={row.project} query={query} /> · {row.session.updatedAt ? formatRelativeTime(row.session.updatedAt, now) : row.session.timeAgo}</small></span><IconChevronRight size={13} /></button>;
         })}
       </div>
-      {!sessionOptions.length && !messageOptions.length && shownMessageState !== "loading" && <div className="search-empty"><IconSearch size={28} /><strong>{empty.title}</strong><span>{empty.hint}</span></div>}
+      {!sessionOptions.length && !messageOptions.length && shownMessageState !== "loading" && <div className="search-empty"><IconSearch size={28} /><strong>{hitsTruncated && shownMessageState === "ready" ? "消息搜索不完整" : empty.title}</strong><span>{hitsTruncated && shownMessageState === "ready" ? "部分会话未能读取或未扫描，可能仍有消息命中；可按标题查找或稍后重试。" : empty.hint}</span></div>}
     </div><div className="search-footer">{searchArchived && <label className="search-archived-toggle" title="同时搜索已归档会话；归档不会删除消息"><input type="checkbox" checked={includeArchived} onChange={event => { setIncludeArchived(event.target.checked); setSelectedKey(null); }} />含已归档</label>}<span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>↵</kbd> 打开</span><span><kbd>esc</kbd> 关闭</span></div>
   </ModalSurface>;
 }
