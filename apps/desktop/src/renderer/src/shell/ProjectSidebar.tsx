@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { approvalBadgeLabel, approvalBadgeText } from "../data/pendingApprovals";
 import { IconNewChat, IconSearch, IconFolder, IconChevronDown, IconChevronRight, IconMore, IconNotification, IconPlus, IconSettings, IconHistory, IconCopy, IconEdit, IconPin, IconCheck, IconSliders, IconClose, IconLock, IconTrash, IconArchive } from "../components/Icons";
 import { Popover } from "../components/Popover";
@@ -59,9 +59,16 @@ export function ProjectSidebar(props: Props) {
     setView("main"); setContext({ key, point: { x: event.clientX, y: event.clientY } });
   };
   const close = () => setContext(null);
+  // 只让最近一次点击的回执更新提示；较早请求的迟到结果不覆盖新操作。
+  const copyVersion = useRef(0);
   const copy = async (value: string) => {
-    try { await navigator.clipboard.writeText(value); setNotice(previous => nextSidebarNotice(previous, "已复制")); }
-    catch { setNotice(previous => nextSidebarNotice(previous, "复制失败，请检查系统剪贴板权限")); }
+    const mine = ++copyVersion.current;
+    try {
+      await navigator.clipboard.writeText(value);
+      if (copyVersion.current === mine) setNotice(previous => nextSidebarNotice(previous, "已复制"));
+    } catch {
+      if (copyVersion.current === mine) setNotice(previous => nextSidebarNotice(previous, "复制失败，请检查系统剪贴板权限"));
+    }
     close();
   };
   useEffect(() => { try { localStorage.setItem(UI_STORAGE_PREFIX + "collapsedProjects", JSON.stringify(collapsed)); } catch {} }, [collapsed]);
