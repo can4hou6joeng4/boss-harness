@@ -30,7 +30,7 @@ from typing import Any, TypeVar
 
 from boss_harness.persistence import PersistenceIndex, SCHEMA_VERSION
 from boss_harness.private_files import ensure_private_directory, open_private_file, restrict_private_file
-from boss_harness.queue_view import ACTIVE_QUEUE_STATUSES
+from boss_harness.queue_view import ACTIVE_QUEUE_STATUSES, queue_record
 from boss_harness.models.capabilities import REASONING_EFFORTS
 
 _T = TypeVar("_T")
@@ -1622,17 +1622,19 @@ class SessionStore:
     @staticmethod
     def _queue_status_counts(entries: list[dict]) -> dict[str, int]:
         """按队列项 id 归并最新状态，分别统计尚未形成回合的待处理项。"""
-        statuses: dict[str, object] = {}
+        statuses: dict[str, str] = {}
         for entry in entries:
             if entry.get("type") != "queue":
                 continue
-            payload = entry.get("payload")
-            item_id = payload.get("id") if isinstance(payload, dict) else None
-            if isinstance(item_id, str) and item_id:
-                statuses[item_id] = payload.get("status")
+            # 与 TurnQueue.list 共用同一结构契约：缺 kind、input 或状态枚举之外的
+            # 损坏记录必须跳过，不能覆盖同一 id 先前记录的有效状态，否则会话列表
+            # 的待处理数会与 queue/list 的实际条目对不上。
+            record = queue_record(entry.get("payload"))
+            if record is not None:
+                statuses[record["id"]] = record["status"]
         counts = {"queued": 0, "delivering": 0, "paused": 0}
         for status in statuses.values():
-            if isinstance(status, str) and status in ACTIVE_QUEUE_STATUSES:
+            if status in ACTIVE_QUEUE_STATUSES:
                 counts[status] += 1
         return counts
 
