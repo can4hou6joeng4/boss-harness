@@ -924,11 +924,12 @@ def _compaction_facts(policy: dict) -> list[str]:
 
 
 def _queue_facts(item: dict, *, code: bool = False) -> list[str]:
+    """队列项事实。``code`` 为真时供 Markdown 使用：标识符为行内代码，其余文本逐项中和，可直接拼接。"""
     facts = []
     if item["inputPersisted"] is not None:
         facts.append("输入是否已写入会话：" + ("是" if item["inputPersisted"] else "否"))
     if item["status"] == "paused" and item["failureCode"]:
-        facts.append(f"失败码：{item['failureCode']}")
+        facts.append("失败码：" + (_inline_code(item["failureCode"]) if code else str(item["failureCode"])))
     pause_label = _QUEUE_PAUSE_REASON_LABELS.get(item["pausedReason"] or "")
     if item["status"] == "paused" and pause_label:
         facts.append(f"暂停原因：{pause_label}")
@@ -940,7 +941,8 @@ def _queue_facts(item: dict, *, code: bool = False) -> list[str]:
     elif item["skillCount"]:
         facts.append(f"技能：{item['skillCount']} 项")
     if item["autoCompaction"]:
-        facts.extend(_compaction_facts(item["autoCompaction"]))
+        facts.extend(_inline_text(fact) if code else fact
+                     for fact in _compaction_facts(item["autoCompaction"]))
     return facts
 
 
@@ -961,7 +963,8 @@ def _render_queue_markdown(queue: dict) -> str:
         parts += [f"### {_queue_heading(item)}", ""]
         facts = _queue_facts(item, code=True)
         if facts:
-            parts += ["- " + _inline_text("；".join(facts)), ""]
+            # 各项已在 _queue_facts 中中和；整行再中和会把行内代码的反引号替换掉。
+            parts += ["- " + "；".join(facts), ""]
         parts += [_fence(item["input"] or "（空）"), ""]
     return "\n".join(parts).rstrip()
 
