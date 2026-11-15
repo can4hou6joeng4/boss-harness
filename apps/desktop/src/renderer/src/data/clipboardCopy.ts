@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { safeSlice } from "@boss-harness/shared";
 
 /**
@@ -28,24 +28,31 @@ export interface CopyFeedback {
   reason?: string;
 }
 
-/** 复制反馈：同一时刻只展示最近一次结果，到时自动复位，避免残留旧提示。 */
+/** 复制反馈只描述最近一次点击；重置或卸载后，迟到回执不能恢复旧提示。 */
 export function useClipboardCopy(resetMs = 2000) {
   const [feedback, setFeedback] = useState<CopyFeedback | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const version = useRef(0);
   const clear = useCallback(() => {
     if (timer.current !== undefined) clearTimeout(timer.current);
     timer.current = undefined;
   }, []);
+  useEffect(() => () => { version.current += 1; clear(); }, [clear]);
   const copy = useCallback(async (text: string, key: string): Promise<CopyResult> => {
-    const result = await copyText(text);
-    setFeedback(result.ok ? { key, ok: true } : { key, ok: false, reason: result.reason });
+    const mine = ++version.current;
     clear();
+    setFeedback(null);
+    const result = await copyText(text);
+    // 只使界面反馈失效，不取消已发起的系统写入；调用方仍拿到该次复制的实际结果。
+    if (version.current !== mine) return result;
+    setFeedback(result.ok ? { key, ok: true } : { key, ok: false, reason: result.reason });
     timer.current = setTimeout(() => {
+      if (version.current !== mine) return;
       timer.current = undefined;
-      setFeedback(current => current?.key === key ? null : current);
+      setFeedback(null);
     }, resetMs);
     return result;
   }, [clear, resetMs]);
-  const reset = useCallback(() => { clear(); setFeedback(null); }, [clear]);
+  const reset = useCallback(() => { version.current += 1; clear(); setFeedback(null); }, [clear]);
   return { feedback, copy, reset };
 }
