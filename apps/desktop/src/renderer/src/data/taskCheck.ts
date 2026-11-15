@@ -39,6 +39,59 @@ const OWNERSHIP_LABELS: Record<TaskOwnership, string> = {
   conflict: "冲突",
   independent: "独立",
 };
+/** 回合、队列与摘要任务共用的持久状态文案；未知取值原样标注，不吞掉新内核的值。 */
+const TASK_STATUS_LABELS: Record<string, string> = {
+  running: "运行中",
+  completed: "已完成",
+  interrupted: "已中断",
+  blocked: "已阻断",
+  error: "已失败",
+  queued: "排队中",
+  delivering: "正在投递",
+  delivered: "已投递",
+  paused: "已暂停",
+  cancelled: "已撤回",
+  failed: "已失败",
+  unknown: "未知",
+};
+const PHASE_LABELS: Record<string, string> = {
+  admission: "准入",
+  prepare: "准备",
+  model_request: "模型请求",
+  tool_execution: "工具执行",
+  finish: "收尾",
+  compaction: "摘要",
+};
+const PHASE_STATUS_LABELS: Record<string, string> = {
+  running: "运行中",
+  completed: "已完成",
+  interrupted: "已中断",
+  blocked: "已阻断",
+  error: "已失败",
+};
+
+/** 已知取值给中文标签，未知取值原样放在「」里，读者能分辨哪部分是内部标识。 */
+export function labeledValue(labels: Record<string, string>, value: string): string {
+  return labels[value] ?? `「${value}」`;
+}
+
+export function taskStatusLabel(status: string): string {
+  return labeledValue(TASK_STATUS_LABELS, status);
+}
+
+export function taskPhaseLabel(phase: string): string {
+  return labeledValue(PHASE_LABELS, phase);
+}
+
+export function taskPhaseStatusLabel(status: string): string {
+  return labeledValue(PHASE_STATUS_LABELS, status);
+}
+
+/** 阶段尝试次数与自动重启上限：内核目前恒为 0 次重启，不排成「1/0」这种零分母分数。 */
+export function taskAttemptText(attempt: number, restartLimit: number): string {
+  const restarts = restartLimit === 0 ? "不自动重启" : `自动重启上限 ${restartLimit} 次`;
+  return `第 ${attempt} 次尝试 · ${restarts}`;
+}
 const RECOVERY_LABELS: Record<TaskRecoveryPolicy, string> = {
   process_owned: "当前进程持有；退出后不自动重放",
   manual_review: "人工复核；不自动恢复",
@@ -176,12 +229,12 @@ export function parseTaskRead(value: unknown, params: TaskReadParams): TaskReadT
 /** 核对结果的可展示行；只陈述内核返回的事实，不推断恢复动作。 */
 export function taskCheckLines(task: TaskReadTask): string[] {
   const lines = [
-    `持久状态：${task.status} · 归属：${OWNERSHIP_LABELS[task.ownership]}`,
+    `持久状态：${taskStatusLabel(task.status)} · 归属：${OWNERSHIP_LABELS[task.ownership]}`,
     `执行 owner：${task.runtimeOwned ? "当前进程持有" : "当前进程未持有"} · 恢复策略：${RECOVERY_LABELS[task.recoveryPolicy]}`,
   ];
   if (task.phase) {
     const reason = task.phase.recoveryReason ? ` · 恢复原因 ${task.phase.recoveryReason}` : "";
-    lines.push(`任务阶段：${task.phase.name} · ${task.phase.status} · 尝试 ${task.phase.attempt}/${task.phase.restartLimit}${reason}`);
+    lines.push(`任务阶段：${taskPhaseLabel(task.phase.name)} · ${taskPhaseStatusLabel(task.phase.status)} · ${taskAttemptText(task.phase.attempt, task.phase.restartLimit)}${reason}`);
   }
   if (task.relations.length === 0) lines.push("已验证关联：无");
   else {

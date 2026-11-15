@@ -2,12 +2,14 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { PendingApproval, RuntimeResourceOwner, RuntimeResourcesReadResponse } from "@boss-harness/protocol";
 import { ModalSurface } from "./ModalSurface";
 import { configuredModels, harnessErrorText, listPendingApprovals, listQueue, listTools, readConfig, readRuntimeResources, readTaskStatus } from "../data/harnessBridge";
-import { parseTaskRead, taskCheckErrorText, taskCheckLines, taskLocatorForOwner, type TaskCheckState } from "../data/taskCheck";
+import { parseTaskRead, taskCheckErrorText, taskCheckLines, taskLocatorForOwner, taskPhaseLabel, taskPhaseStatusLabel, type TaskCheckState } from "../data/taskCheck";
 import { approvalRemainingText, approvalUrgency } from "../data/pendingApprovals";
 import { compactionSourceLabel } from "../data/compactionSettings";
 import { cockpitTabId, cockpitTabIndexForKey, cockpitTabPanelId, type CockpitTab } from "../data/cockpitTabs";
 import { formatLocalClock } from "../data/timeFormat";
 import {
+  approvalPolicyLabel,
+  capabilitySourceLabel,
   compactionSummary,
   durationText,
   ownerKindLabel,
@@ -20,6 +22,7 @@ import {
   readCockpitTools,
   shortId,
   shouldRefreshCockpit,
+  steeringModeLabel,
   type CockpitConfig,
   type CockpitModel,
   type CockpitQueue,
@@ -80,7 +83,11 @@ function OwnerRow({ owner, elapsedSeconds, check, onCheck }: {
   onCheck: () => void;
 }) {
   const flags = [owner.cancelRequested ? "已请求取消" : "", owner.abortPending ? "中止待完成" : ""].filter(Boolean).join(" · ");
-  const phase = [owner.phase, owner.phaseStatus].filter(Boolean).join(" · ");
+  // 阶段与状态用核对结果同一套中文文案；未知取值原样标注，不吞掉新内核的值。
+  const phase = [
+    owner.phase ? taskPhaseLabel(owner.phase) : "",
+    owner.phaseStatus ? taskPhaseStatusLabel(owner.phaseStatus) : "",
+  ].filter(Boolean).join(" · ");
   const key = `${owner.kind}:${owner.id}`;
   const checkable = taskLocatorForOwner(owner) !== null;
   const lines = check?.task ? taskCheckLines(check.task) : [];
@@ -304,7 +311,7 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
                   <Fact label="最大输出" value={config.modelMaxOutputTokens === undefined ? "未提供"
                     : `${NUMBER.format(config.modelMaxOutputTokens)} token`} />
                   <Fact label="推理档位" value={config.reasoningEfforts?.length ? config.reasoningEfforts.join(" / ") : "未提供"} />
-                  <Fact label="能力来源" value={config.capabilitySource ?? "未提供"} />
+                  <Fact label="能力来源" value={config.capabilitySource === undefined ? "未提供" : capabilitySourceLabel(config.capabilitySource)} />
                 </div>
               ) : <p className="cockpit-empty">尚未读取配置。</p>}
             </section>
@@ -340,9 +347,9 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
               <h3>调度与策略</h3>
               {errors.config ? <p className="cockpit-error">配置读取失败：{errors.config}</p> : config ? (
                 <div className="cockpit-facts">
-                  <Fact label="审批策略" value={config.approvalPolicy ?? "未提供"} />
+                  <Fact label="审批策略" value={config.approvalPolicy === undefined ? "未提供" : approvalPolicyLabel(config.approvalPolicy)} />
                   <Fact label="审批期限" value={config.approvalTimeoutSeconds === undefined ? "未提供" : `${durationText(config.approvalTimeoutSeconds)}`} />
-                  <Fact label="转向投递" value={config.steeringMode ?? "未提供"} />
+                  <Fact label="转向投递" value={config.steeringMode === undefined ? "未提供" : steeringModeLabel(config.steeringMode)} />
                   <Fact label="并行线程" value={numberText(config.parallelThreads)} />
                   <Fact label="单回合模型请求上限" value={numberText(config.maxModelRequests)} />
                   <Fact label="自动压缩" value={compactionSummary(config)} />
