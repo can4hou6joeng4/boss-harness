@@ -69,6 +69,7 @@ rc.26 之后主干继续合入以下修正，尚未进入具名候选或实际 R
 - **查找计数排除默认折叠内容**（[Issue #1310](https://github.com/can4hou6joeng4/boss-harness/issues/1310)）：未勾选详情时不把收起块内的文字算作命中，见[聊天内查找](docs/USER_GUIDE.md#聊天内查找)。
 - **复制反馈按最近一次点击结算**（[Issue #1312](https://github.com/can4hou6joeng4/boss-harness/issues/1312)）：连续复制同一回复中的代码块时，旧回执不再覆盖新操作的成功或失败提示；重置反馈后旧提示也不会重新出现，见[聊天链接与代码](docs/USER_GUIDE.md#聊天链接与代码)。
 - **资料库复制提示保护**（[Issue #1314](https://github.com/can4hou6joeng4/boss-harness/issues/1314)）：来源编号与文件路径复制接入同一顺序保护，切换页面或文件详情后旧提示不再恢复，失败时显示原因，见[资料库复制](docs/USER_GUIDE.md#资料库复制)。
+- **侧栏复制回执按最新操作结算**（[Issue #1316](https://github.com/can4hou6joeng4/boss-harness/issues/1316)）：复制聊天标题或会话 ID 时，旧请求的迟到结果不再覆盖最近一次点击的提示，见[会话与阅读状态](docs/USER_GUIDE.md#会话与阅读状态)。
 
 rc.26 仍为尚未发布的源码候选；最新实际发布仍为 [rc.15 候选预发布](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。每项变更的来源、验证与限制记录在 [CHANGELOG](CHANGELOG.md)；本地离线 Electron 验证不代表真实模型、招聘平台或独立安装包已经验收。协议与内核仍为 `0.2.0`。
 
