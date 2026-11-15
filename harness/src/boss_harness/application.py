@@ -859,8 +859,12 @@ class ApplicationService:
                            {"code": "RESPONSE_TOO_LARGE", "recoveryMethod": "thread/resume", "snapshot": True})
 
     def on_thread_read(self, params: dict | None) -> dict:
-        return self._snapshot(_text(params, "threadId"), exclude=bool((params or {}).get("excludeTurns", False)),
-                              paged=(params or {}).get("snapshot") is True, branch=_branch_view(params))
+        params = params or {}
+        exclude = params.get("excludeTurns", False)
+        if type(exclude) is not bool:
+            raise ValueError("excludeTurns 必须是布尔值")
+        return self._snapshot(_text(params, "threadId"), exclude=exclude,
+                              paged=params.get("snapshot") is True, branch=_branch_view(params))
 
     def on_thread_resume(self, params: dict | None) -> dict:
         return self.on_thread_read(params)
