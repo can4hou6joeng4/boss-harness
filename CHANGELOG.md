@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1392](https://github.com/can4hou6joeng4/boss-harness/issues/1392)：会话创建、重命名与分支自定义标题共用最多 500 字符的上限，超长值在写入会话文件前返回 `-32602`；旧版本遗留的超长标题在元数据投影中截断为前 500 字符并标记 `titleTruncated: true`，使 `thread/read`、`thread/resume`（含 `snapshot=true`）与 `thread/list` 重新可用，原始会话头不改写。协议类型同步该可选字段。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.34 - 2026-11-15
 
 本节汇总第三十四个候选版本的源码与交付内容；rc.16 至 rc.34 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。

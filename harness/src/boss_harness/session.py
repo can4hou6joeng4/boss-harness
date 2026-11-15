@@ -124,6 +124,9 @@ MAX_BRANCH_PREVIEW_CHARS = 120
 # 项目标识只用于会话分组，属于客户端可写的会话头元数据。给它一个与其它
 # 会话字段同类的上限，避免超大值挤占会话读取与列表的响应预算。
 MAX_PROJECT_ID_CHARS = 200
+# 标题同时用于会话列表与重命名；旧版本的 fork 记录没有长度上限，读取层
+# 采用同一上限，避免历史超长标题让会话无法打开或撑大列表响应。
+MAX_THREAD_TITLE_CHARS = 500
 _TASK_PHASES = frozenset({"admission", "prepare", "model_request", "tool_execution", "finish"})
 _EVENT_READ_CHUNK_BYTES = 64 * 1024
 # Event records are persisted from the same bounded JSON-RPC payloads as the
@@ -792,8 +795,8 @@ class SessionStore:
         return self.get_thread(header["id"])
 
     def create(self, title: str = "新会话", **metadata: Any) -> dict:
-        if not isinstance(title, str):
-            raise ValueError("title 必须是字符串")
+        if not isinstance(title, str) or len(title) > MAX_THREAD_TITLE_CHARS:
+            raise ValueError(f"title 必须是最多 {MAX_THREAD_TITLE_CHARS} 字符的字符串")
         changes = self._validate_changes(metadata)
         header = {"type": "session", "version": 2, "id": uuid.uuid4().hex[:12],
                   "sessionId": uuid.uuid4().hex, "title": title, "createdAt": _now(),
@@ -1734,12 +1737,16 @@ class SessionStore:
             raise _IndexedMetadataError(row["id"]) from None
         if not isinstance(metadata, dict):
             raise _IndexedMetadataError(row["id"])
-        # 旧版本没有长度上限，历史会话头可能留着超长标识。原始记录不改写，
+        # 旧版本没有长度上限，历史会话头可能留着超长标识或标题。原始记录不改写，
         # 投影固定截断到同一上限并标记，使这类会话重新可读。
         project_id = metadata.get("projectId")
         if isinstance(project_id, str) and len(project_id) > MAX_PROJECT_ID_CHARS:
             metadata["projectId"] = project_id[:MAX_PROJECT_ID_CHARS]
             metadata["projectIdTruncated"] = True
+        title = metadata.get("title")
+        if isinstance(title, str) and len(title) > MAX_THREAD_TITLE_CHARS:
+            metadata["title"] = title[:MAX_THREAD_TITLE_CHARS]
+            metadata["titleTruncated"] = True
         return metadata
 
     @staticmethod
@@ -1825,8 +1832,8 @@ class SessionStore:
                 raise ValueError("toolPolicy 必须是 readOnly 或 approval")
             if key == "reasoningEffort" and value is not None and value not in REASONING_EFFORTS:
                 raise ValueError("reasoningEffort 档位无效")
-            if key == "title" and not isinstance(value, str):
-                raise ValueError("title 必须是字符串")
+            if key == "title" and (not isinstance(value, str) or len(value) > MAX_THREAD_TITLE_CHARS):
+                raise ValueError(f"title 必须是最多 {MAX_THREAD_TITLE_CHARS} 字符的字符串")
             if key == "provider" and (not isinstance(value, str) or not value
                     or len(value) > 64 or any(char.isspace() for char in value)):
                 raise ValueError("provider 必须是非空 provider id")
@@ -3093,8 +3100,8 @@ class SessionStore:
                           sessionId=uuid.uuid4().hex, createdAt=_now(), archived=False,
                           forkedFromId=thread_id, forkedFromTurnId=selected["turnId"])
             if title is not None:
-                if not isinstance(title, str) or len(title) > 500:
-                    raise ValueError("title 必须是最多 500 字符的字符串")
+                if not isinstance(title, str) or len(title) > MAX_THREAD_TITLE_CHARS:
+                    raise ValueError(f"title 必须是最多 {MAX_THREAD_TITLE_CHARS} 字符的字符串")
                 header["title"] = title
             request_offset = selected.get("continuationRequestOffset", 0)
             if type(request_offset) is not int or request_offset < 0:

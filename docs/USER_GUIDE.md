@@ -39,6 +39,7 @@
 - `queue/add` 的 `autoCompaction` 应省略或使用合法部分覆盖对象，空对象 `{}` 可用，null 不可用。已有请求重试也先校验，非法值不改动原队列项；同一请求编号的不同合法覆盖仍返回冲突。
 - `context/compact/start` 的 `model` 只有省略才继承摘要配置；显式值须为最多 200 字符的非空模型 ID，不含空白。空串、空白、数字、布尔、数组、对象、null 与超长值在创建任务前返回 `-32602`，不会静默改用默认模型。
 - `thread/start` 的 `projectId` 与 `thread/list` 的 `projectId` 筛选须为最多 200 字符的字符串；超长值返回 `-32602`，会话文件不会写入。旧版本留下的超长标识在读取投影中截断为前 200 字符并带 `projectIdTruncated: true`，原始会话头不改写，这类会话可重新读取。
+- 会话标题（`thread/start.title`、`thread/name/set.name` 与 `thread/fork.title`）须为最多 500 字符的字符串；超长值返回 `-32602`，不会写入会话文件。旧版本通过 `thread/fork` 留下的超长标题在读取投影中截断为前 500 字符并带 `titleTruncated: true`，原始会话头不改写，这类会话可重新读取。
 
 协议与内核仍为 `0.2.0`，没有数据迁移或新增工具权限。完整字段与返回码见[内核与业务契约参考](TECHNICAL_REFERENCE.md)。
 

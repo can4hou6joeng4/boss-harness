@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 会话标题的长度边界（Issue #1392）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（Continue or switch sessions、Session Format）与 `packages/coding-agent/src/core/session-manager.ts`（会话头字段、`SessionInfoEntry.name`）：所读会话头只有 `type`、`version`、`id`、`timestamp`、`cwd` 与可选 `parentSession`；标题类字段没有与本项目相同的 500 字符上限约定。本轮独立补齐本仓库由新建、重命名与分支标题共用的既有上限，不推断上游存在同类缺陷，不复制代码、不引入依赖。
+
+适配约定：`thread/start.title`、`thread/name/set.name` 与 `thread/fork.title` 须为最多 500 字符的字符串，超长值在写入会话文件前返回 `-32602`；旧记录中的超长标题在读取投影中截断为前 500 字符并标记 `titleTruncated: true`，原始会话头不改写。会话创建、重命名、分支、普通读取、续接与冻结快照的合法行为不变。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 会话项目标识的长度边界（Issue #1388）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（Continue or switch sessions、Session Format）与 `packages/coding-agent/src/core/session-manager.ts`（会话头字段、`SessionInfoEntry.name`）：所读会话头只有 `type`、`version`、`id`、`timestamp`、`cwd` 与可选 `parentSession`，没有本项目用于桌面分组的 `projectId` 字段，也没有对应的长度约束。本轮独立补齐本仓库会话元数据字段的既有有界约定，不推断上游存在同类缺陷，不复制代码、不引入依赖。
