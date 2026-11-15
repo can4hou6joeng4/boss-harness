@@ -3080,8 +3080,8 @@ class SessionStore:
                           sessionId=uuid.uuid4().hex, createdAt=_now(), archived=False,
                           forkedFromId=thread_id, forkedFromTurnId=selected["turnId"])
             if title is not None:
-                if not isinstance(title, str):
-                    raise ValueError("title 必须是字符串")
+                if not isinstance(title, str) or len(title) > 500:
+                    raise ValueError("title 必须是最多 500 字符的字符串")
                 header["title"] = title
             request_offset = selected.get("continuationRequestOffset", 0)
             if type(request_offset) is not int or request_offset < 0:

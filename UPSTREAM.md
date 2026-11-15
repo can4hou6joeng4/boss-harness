@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 分支自定义标题长度（Issue #1380）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（Continue or switch sessions、Choose how to branch）与 `packages/coding-agent/src/core/session-manager.ts`（`appendSessionInfo`、`createBranchedSession`）：会话名称与分支复制分别处理，名称写入会替换换行并去除首尾空白；所读分支入口没有本项目 `thread/fork.title` 的覆盖参数，也未声明 500 字符上限。本轮独立补齐本仓库新建与重命名已有的标题长度约束，不推断上游存在同类缺陷，不复制代码、不引入依赖。
+
+适配约定：显式非 null 分支标题须为最多 500 字符的字符串，超限在写入前返回 `-32602`；缺省和 null 继承原标题，空字符串保持可用。不追溯修改已有会话，来源历史、回合边界和工具策略继承不变。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 队列自动压缩覆盖的显式空值校验（Issue #1376）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/agent/README.md`（Steering and Follow-up）与 `packages/agent/src/agent.ts`（`followUp` 与 `PendingMessageQueue.enqueue`）：排队输入与后续消费分开；所读入口没有本项目持久化队列的 `autoCompaction` 覆盖参数。本轮独立补齐既有「入队与直接启动共用 `CompactionPolicy.override`」契约，按字段是否出现执行校验；只有缺省不指定覆盖，显式 null 在持久化前拒绝。合法覆盖、请求幂等及派发规则保持原样，不复制源码、不引入依赖。不新增 RPC，协议与内核仍为 `0.2.0`。

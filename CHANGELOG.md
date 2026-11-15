@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1380](https://github.com/can4hou6joeng4/boss-harness/issues/1380)：`thread/fork` 的自定义标题遵守新建与重命名已有的 500 字符上限，超长字符串在创建会话文件前以 `-32602` 拒绝；缺省和 null 继续继承原标题，空字符串及合法标题保持原有行为。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.32 - 2026-11-15
 
 本节汇总第三十二个候选版本的源码与交付内容；rc.16 至 rc.32 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
