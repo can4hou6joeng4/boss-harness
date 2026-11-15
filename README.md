@@ -65,6 +65,8 @@
 
 rc.23 仍为尚未发布的源码候选；最新实际发布仍为 [rc.15 候选预发布](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。每项变更的来源、验证与限制记录在 [CHANGELOG](CHANGELOG.md)；本地离线 Electron 验证不代表真实模型、招聘平台或独立安装包已经验收。协议与内核仍为 `0.2.0`。
 
+rc.23 之后合入、尚未进入候选的修正：无模型模式下 `/search` 不带关键词时改为提示补全，不再默认检索 Python，也不发起业务 CLI 调用（[Issue #1272](https://github.com/can4hou6joeng4/boss-harness/issues/1272)）。
+
 ## 快速开始
 
 ### 环境要求
