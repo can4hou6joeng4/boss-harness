@@ -1,5 +1,9 @@
 # 上游吸收记录
 
+## 队列自动压缩覆盖的显式空值校验（Issue #1376）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/agent/README.md`（Steering and Follow-up）与 `packages/agent/src/agent.ts`（`followUp` 与 `PendingMessageQueue.enqueue`）：排队输入与后续消费分开；所读入口没有本项目持久化队列的 `autoCompaction` 覆盖参数。本轮独立补齐既有「入队与直接启动共用 `CompactionPolicy.override`」契约，按字段是否出现执行校验；只有缺省不指定覆盖，显式 null 在持久化前拒绝。合法覆盖、请求幂等及派发规则保持原样，不复制源码、不引入依赖。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 停止请求显式目标参数校验（Issue #1374）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/agent/README.md`（Control）与 [`packages/agent/src/agent.ts`](https://github.com/earendil-works/pi/blob/b4899f59ef0fba6507c2e619fd804dcde51920ba/packages/agent/src/agent.ts)（`abort`、`signal` 与 `waitForIdle`）：取消作用于持有的活动运行实例，取消请求与等待收尾分别提供；所读入口没有本项目跨进程 `turnId` 参数。本轮独立补齐本仓库已有目标回合约束的输入校验，不推断上游存在同类问题，不复制源码、不引入依赖。

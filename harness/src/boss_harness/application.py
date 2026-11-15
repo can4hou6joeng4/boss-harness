@@ -4099,11 +4099,11 @@ class ApplicationService:
                 raise RpcError(-32003, "内核正在关闭")
             self.sessions.require_thread(thread_id)
             skill_ids = [skill["id"] for skill in self.skills.load(params.get("skillIds"))[1]]
-            auto_compaction = params.get("autoCompaction") if "autoCompaction" in params else None
-            if auto_compaction is not None:
-                # 与 turn/start 使用同一套范围、类型和未知字段校验；校验后保存独立副本。
-                self.compaction_policy.override(auto_compaction)
-                auto_compaction = dict(auto_compaction)
+            auto_compaction = None
+            if "autoCompaction" in params:
+                # 与 turn/start 使用同一套范围、类型和未知字段校验；显式 null 也须拒绝。
+                self.compaction_policy.override(params["autoCompaction"])
+                auto_compaction = dict(params["autoCompaction"])
             identity = resolve_request(self.sessions, thread_id, params.get("clientUserMessageId"), text)
             # 归档会话没有派发路径（_dispatch_follow_up 直接返回 idle），
             # 新请求入队只会长期停在 queued。与 turn/start 一致，要求先恢复；
