@@ -98,13 +98,18 @@ class SkillCatalog:
     @staticmethod
     def _fields(source: str) -> dict[str, str]:
         fields: dict[str, str] = {}
-        if source.startswith("---\n"):
-            front = source.split("---", 2)
-            if len(front) == 3:
-                for line in front[1].splitlines():
-                    match = re.match(r"^(name|description):\s*(.+)$", line)
-                    if match:
-                        fields[match[1]] = match[2].strip("\"'")
+        # 起始分隔线允许 BOM 与 CRLF；结束线必须是独立的 `---` 行，
+        # 值里的三连字符（例如「使用 --- 分隔阶段」）不能提前结束 frontmatter。
+        lines = source.removeprefix("﻿").splitlines()
+        if not lines or lines[0].strip() != "---":
+            return fields
+        closing = next((index for index, line in enumerate(lines[1:], start=1) if line.strip() == "---"), None)
+        if closing is None:
+            return fields
+        for line in lines[1:closing]:
+            match = re.match(r"^(name|description):\s*(.+)$", line)
+            if match:
+                fields[match[1]] = match[2].strip("\"'")
         return fields
 
     @classmethod
