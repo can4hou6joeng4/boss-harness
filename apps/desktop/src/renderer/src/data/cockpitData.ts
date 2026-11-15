@@ -301,10 +301,12 @@ export function readCockpitQueue(page: QueuePage | null): CockpitQueue | null {
 /** 秒数转可读运行时长；只用于展示，不参与任何超时判断。 */
 export function durationText(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "未知";
-  if (seconds < 1) return "不足 1 秒";
-  if (seconds < 60) return `${Math.floor(seconds)} 秒`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return seconds % 60 === 0 ? `${minutes} 分` : `${minutes} 分 ${Math.floor(seconds % 60)} 秒`;
+  // 先取整秒再分支：浮点尾数不能让「2 分」抖动成「2 分 0 秒」。
+  const whole = Math.floor(seconds);
+  if (whole < 1) return "不足 1 秒";
+  if (whole < 60) return `${whole} 秒`;
+  const minutes = Math.floor(whole / 60);
+  if (minutes < 60) return whole % 60 === 0 ? `${minutes} 分` : `${minutes} 分 ${whole % 60} 秒`;
   const hours = Math.floor(minutes / 60);
   return minutes % 60 === 0 ? `${hours} 小时` : `${hours} 小时 ${minutes % 60} 分`;
 }
