@@ -3095,7 +3095,13 @@ class SessionStore:
                 raise ValueError("分支边界会拆开工具批次")
             header = {key: value for key, value in source.items()
                       if key not in {"id", "sessionId", "createdAt", "updatedAt", "lastTurn",
-                                     "queueActiveItems", "queueCounts"}}
+                                     "queueActiveItems", "queueCounts",
+                                     # 读取投影的派生标记不是会话头字段，写进新会话会变成
+                                     # 永久状态，重命名也无法清除。
+                                     "projectIdTruncated", "titleTruncated"}}
+            # 来源标识已被投影截断：不把截断值当成完整标识继承，也不猜测原值。
+            if source.get("projectIdTruncated"):
+                header.pop("projectId", None)
             header.update(type="session", version=2, id=uuid.uuid4().hex[:12],
                           sessionId=uuid.uuid4().hex, createdAt=_now(), archived=False,
                           forkedFromId=thread_id, forkedFromTurnId=selected["turnId"])
