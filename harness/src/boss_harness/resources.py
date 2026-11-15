@@ -80,15 +80,21 @@ class SkillCatalog:
             if descriptor >= 0:
                 os.close(descriptor)
 
-    def _candidate_paths(self, limit: int = MAX_SKILL_DESCRIPTORS) -> list[tuple[str, Path]]:
-        """Keep only the lexicographically first candidates, without glob materialization."""
+    def _candidate_paths(self, limit: int = MAX_SKILL_DESCRIPTORS) -> tuple[list[tuple[str, Path]], bool]:
+        """Keep only the lexicographically first candidates, without glob materialization.
+
+        第二项返回值报告是否丢弃过目录候选。目录总数恰好等于 ``limit`` 时，候选集长度
+        与窗口相同，调用方无法据此区分「全部看到」和「还有未保留」；只有显式记录是否
+        发生过替换，才能把「恰好顶到窗口」与「确有目录未检查」分开。
+        """
         if not self.root.is_dir():
-            return []
+            return [], False
         candidates: list[tuple[str, Path]] = []
+        dropped = False
         try:
             entries = os.scandir(self.root)
         except OSError:
-            return []
+            return [], False
         with entries:
             for entry in entries:
                 try:
@@ -101,10 +107,11 @@ class SkillCatalog:
                 if len(candidates) < limit:
                     candidates.append(candidate)
                     continue
+                dropped = True
                 largest = max(range(len(candidates)), key=lambda index: candidates[index][0])
                 if entry.name < candidates[largest][0]:
                     candidates[largest] = candidate
-        return sorted(candidates, key=lambda candidate: candidate[0])
+        return sorted(candidates, key=lambda candidate: candidate[0]), dropped
 
     @staticmethod
     def _fields(source: str) -> dict[str, str]:
@@ -184,7 +191,7 @@ class SkillCatalog:
         while True:
             skills: list[dict] = []
             problems: list[dict] = []
-            candidates = self._candidate_paths(limit)
+            candidates, dropped = self._candidate_paths(limit)
             for skill_id, path in candidates:
                 # Linux 上非 UTF-8 文件名经 surrogateescape 解码后带孤立代理项，这种 id
                 # 无法写成 JSON 响应帧；若进入 skills/problems，整个 skills/list 会变成
@@ -203,8 +210,9 @@ class SkillCatalog:
                 fields = self._fields(source)
                 if len(skills) < self.MAX_SKILL_DESCRIPTORS:
                     skills.append(self._descriptor(skill_id, fields, digest, byte_length))
-            # 候选集未满 limit 说明目录已全部看到；两份清单都满时也没有继续扩大的理由。
-            exhausted = len(candidates) < limit
+            # 没有候选被丢弃才说明目录已全部看到；仅比较长度会把「目录恰好等于窗口」
+            # 误判成还有目录未检查，界面随之误报截断。
+            exhausted = not dropped
             fulfilled = (len(skills) >= self.MAX_SKILL_DESCRIPTORS
                          and len(problems) >= self.MAX_SKILL_DESCRIPTORS)
             if exhausted or fulfilled or limit >= self.MAX_SKILL_SCAN_ENTRIES:

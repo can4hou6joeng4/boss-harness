@@ -1199,7 +1199,7 @@ export interface SkillProblem { id: string; reason: string }
  * 当前生效的技能目录相对工作区路径，如 `.boss-harness/skills`；旧内核不返回。
  * `problems` 列出目录里无法安全读取的 SKILL.md；旧内核不返回时不显示警示。
  * `problemsTruncated` 表示未加载项超过展示上限、清单只含前若干条；
- * `candidatesTruncated` 表示目录本身超过有界枚举上限、仍有目录未被检查。
+ * `candidatesTruncated` 表示目录本身超过有界枚举上限、确有目录未被检查；目录数恰好等于窗口不算截断。
  */
 export interface SkillListResponse {
   skills: SkillDescriptor[]; root?: string; problems?: SkillProblem[];
