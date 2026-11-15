@@ -120,7 +120,8 @@ export function WorkspaceInstructionsEditor(props: WorkspaceInstructionsEditorPr
       setInfo(previous => previous ? { ...previous, content: payload, bytes: payloadBytes, status: payload.trim() ? "loaded" : "empty" } : previous);
       setBaselineContent(payload);
       setConfirmDiscard(false);
-      setNotice(`已保存 ${payloadBytes} 字节，下一回合生效。`);
+      // 文件确实已写入，但空正文不会注入下一回合：回执按实际生效情况区分，不笼统说「下一回合生效」。
+      setNotice(payload.trim() ? `已保存 ${payloadBytes} 字节，下一回合生效。` : "文件已保存为空；空正文不会注入下一回合。");
       props.onSaved();
     } catch (cause) {
       if (!mountedRef.current || !openRef.current || saveAttempt.current !== attempt) return;
