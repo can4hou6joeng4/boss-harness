@@ -41,6 +41,12 @@ export function BranchDialog({ isOpen, onClose, state, support, owner, messages,
     label: `分支端点「${clip(endpoint.inputPreview, "无文本输入")}」`, abandons: !endpoint.containsLeaf });
   const summaryBlocked = !support.summary ? "当前内核不支持生成被放弃分支摘要。"
     : summaryUnavailable ?? (target && !target.abandons ? "切换到此处不会放弃任何回合，无需摘要。" : null);
+  // 失效摘要只列出前 5 条；总数可能大于内核返回条数，也可能只是返回条数超过展示上限。
+  // 省略说明必须按实际渲染行数判断，否则 6–20 条会被静默隐藏，20 条以上还会报出比屏幕更多的条数。
+  const shownSummaryIssues = state.summaryIssues.slice(0, 5);
+  const summaryIssuesNote = state.summaryIssueCount > shownSummaryIssues.length
+    ? shownSummaryIssues.length > 0 ? `仅列出前 ${shownSummaryIssues.length} 条；` : "具体条目未能列出；"
+    : "";
   const confirm = async () => {
     if (!target || block) return;
     const ok = await onSwitch(target.turnId, summarize && !summaryBlocked);
@@ -57,9 +63,9 @@ export function BranchDialog({ isOpen, onClose, state, support, owner, messages,
       {state.summaryError && <p className="branch-block" role="status">{state.summaryError}</p>}
       {state.summaryIssueCount > 0 && <div className="branch-block branch-summary-issues" role="status" data-branch-summary-issues>
         <strong>{state.summaryIssueCount} 条被放弃分支摘要未生效</strong>
-        <ul>{state.summaryIssues.slice(0, 5).map(issue => <li key={`${issue.entryId}:${issue.reason}`}>
+        <ul>{shownSummaryIssues.map(issue => <li key={`${issue.entryId}:${issue.reason}`}>
           <code>{issue.entryId || "缺少条目 id"}</code>：{issue.reason}</li>)}</ul>
-        <span>{state.summaryIssueCount > state.summaryIssues.length ? `仅列出前 ${state.summaryIssues.length} 条；` : ""}这些摘要不会进入模型上下文；被放弃分支的原始记录仍保留在本机，但不会注入当前分支。可在分支切换时重新生成摘要。</span>
+        <span>{summaryIssuesNote}这些摘要不会进入模型上下文；被放弃分支的原始记录仍保留在本机，但不会注入当前分支。可在分支切换时重新生成摘要。</span>
       </div>}
       {state.summaryPollError && <p className="branch-block" role="status">{state.summaryPollError}</p>}
       <section className="branch-section" aria-label="分支端点">
