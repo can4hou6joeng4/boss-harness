@@ -574,6 +574,8 @@ export interface TurnStartParams {
   clientUserMessageId?: string;
   /** Per-turn model override on the session's persisted provider; does not change session metadata. */
   model?: string;
+  /** 可选线路核对：显式值须与会话已选 provider 一致；缺省不核对，null 不是合法缺省。 */
+  provider?: string;
   attachmentIds?: string[];
   skillIds?: string[];
   autoCompaction?: Partial<TurnAutoCompactionOverride>;
