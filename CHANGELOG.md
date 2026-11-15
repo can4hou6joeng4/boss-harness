@@ -4,6 +4,20 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+## 0.2.0-rc.40 - 2026-11-16
+
+本节汇总第四十个候选版本的源码与交付内容；rc.16 至 rc.40 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.39，本次聚合 1 项使用者可见的附件读取修正：`attachment/read` 由整份返回改为「默认整份、超预算明确拒绝、按需分段读取」，合法附件不再因传输上限而完全无法读取。按持续小版本迭代与版本、文档同步要求触发候选准备。
+
+升级注意：省略新参数的整份回执保持原形状；整份超过约 1 MiB 单页预算时返回 `RESPONSE_TOO_LARGE`，客户端应按错误中的 `recoveryMethod=attachment/read` 与 `suggestedLimit` 改用分段。续读须回传 `contentRef.sha256`，附件被替换后返回 `STALE_ATTACHMENT`。本候选未新增持久化迁移或工具权限。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
+
+- [Issue #1416](https://github.com/can4hou6joeng4/boss-harness/issues/1416)：同步根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本为 npm `0.2.0-rc.40` / Python `0.2.0rc40`；将 rc.39 之后 1 项附件读取修正归入本候选，同步 README 近期进展与版本表、使用指南的候选状态与分段读取约束、技术契约，保留 rc.15 首次实际发布入口与历史版本记录。候选准备不代表实际 tag、Release、资产上传或包注册表发布。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
+
 - [Issue #1414](https://github.com/can4hou6joeng4/boss-harness/issues/1414)：`attachment/read` 增加有界分段读取，合法附件不再因传输上限而完全无法读取。此前该方法一次性返回完整 `content`，既不做单页响应预算检查，也不接受 `cursor` / `limit`，未知参数还会被静默忽略：通过 `attachment/add` 准入的 1.5 MB 控制字符文本经 JSON 转义后撞上 8 MiB 帧上限，错误只提示「请使用分页或结果分块读取」，而该方法本身并无分页，客户端没有恢复路径；1.2 MB 普通文本则越过约 1 MiB 单页预算原样返回。现在省略新参数时保持既有整份回执，整份超过单页预算返回 `-32010` 并带 `recoveryMethod=attachment/read`、`totalCharacters` 与 `suggestedLimit`；显式给出 `cursor`、`limit` 或 `sha256` 时按默认 16384、最多 32768 个 Unicode 码点分段，回执含绑定附件摘要的 `contentRef`，续读摘要不符返回 `STALE_ATTACHMENT`。离线探针对照基线 `148dcfa` 确认 1.5 MB 控制字符文本由不可读变为 46 段逐字节读回、1.2 MB 文本由越预算原样返回变为可行动拒绝、小附件整份回执逐字节一致，非法游标、未知参数、错误摘要与越界 `limit` 均由静默接受变为明确拒绝；真实内核审计无网络、子进程或模型 SDK 尝试。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.39 - 2026-11-16
