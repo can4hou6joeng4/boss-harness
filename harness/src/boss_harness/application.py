@@ -3960,9 +3960,12 @@ class ApplicationService:
             runner._cancel = None
 
     def on_turn_interrupt(self, params: dict | None) -> dict:
+        params = params or {}
         thread_id = _text(params, "threadId")
+        # 只有缺省才允许取消当前回合；显式空值不能绕过目标保护。
+        turn_id = _text(params, "turnId", maximum=128) if "turnId" in params else None
         with self.runtimes.lock:
-            turn = self.runtimes.prepare_interrupt(thread_id, (params or {}).get("turnId"), interrupt=False)
+            turn = self.runtimes.prepare_interrupt(thread_id, turn_id, interrupt=False)
             if turn is None:
                 return {"interrupted": False}
             aborts = [turn["_shutdown_abort"]]
