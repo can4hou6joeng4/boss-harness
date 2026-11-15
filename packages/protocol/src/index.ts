@@ -96,6 +96,8 @@ export interface InitializeResponse {
     skillsDelete?: boolean;
     /** 可用 `queue/update` 在投递前改写仍在排队的队列项正文。 */
     queueUpdate?: boolean;
+    /** `attachment/read` 接受 `cursor` / `limit` / `sha256`，按有界分段读取附件正文。 */
+    attachmentReadPaging?: boolean;
     /** 可用 `config/autoCompaction/set` 持久化自动压缩默认策略。 */
     autoCompactionConfig?: boolean };
   eventCursor?: string;
@@ -1226,6 +1228,40 @@ export interface SkillDeleteParams { id: string; expectedDigest: string }
 /** `skills/delete` 结果：被删除的技能 id 与生效目录。 */
 export interface SkillDeleteResponse { id: string; root?: string }
 export interface AttachmentDescriptor { id: string; name: string; digest: string; bytes: number; mediaType: string }
+
+/** 附件正文引用：绑定会话、附件 id 与内容摘要，分段读取不回退到其他版本。 */
+export interface AttachmentContentReference {
+  threadId: string;
+  attachmentId: string;
+  name: string;
+  sha256: string;
+  byteLength: number;
+  /** Unicode code points, not UTF-16 code units. */
+  characterLength: number;
+}
+
+/**
+ * `attachment/read` 参数。省略 `cursor`、`limit` 与 `sha256` 时整份返回附件正文，
+ * 超过约 1 MiB 单页预算则返回 `RESPONSE_TOO_LARGE`（`recoveryMethod=attachment/read`）；
+ * 显式给出三者任一即按 `limit`（默认 16384、最多 32768 个 Unicode 码点）分段读取。
+ */
+export interface AttachmentReadParams {
+  threadId: string;
+  attachmentId: string;
+  cursor?: string;
+  /** Default 16384, maximum 32768 Unicode code points. */
+  limit?: number;
+  /** 续读时回传 `contentRef.sha256`；附件被替换后内核返回 `STALE_ATTACHMENT`。 */
+  sha256?: string;
+}
+
+/** 分段读取回执；`nextCursor` 为 null 表示已读到正文末尾。 */
+export interface AttachmentReadChunkResponse {
+  text: string;
+  offset: number;
+  nextCursor: string | null;
+  contentRef: AttachmentContentReference;
+}
 
 /**
  * `thread/export` 参数；仅在 `capabilities.threadExport` 为真时可用。只读，不写会话。

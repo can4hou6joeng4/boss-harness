@@ -5,6 +5,8 @@ loading a skill cannot grant tool permissions or execute a script by itself.
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -16,6 +18,7 @@ import tempfile
 import uuid
 from typing import Any, Callable
 
+from boss_harness.item_content import wire_text
 from boss_harness.private_files import ensure_private_directory, open_private_file, restrict_private_file
 from boss_harness.session import Entry, SessionStore
 from boss_harness.tool_bundle import ToolDefinition, ToolRegistry as _ToolRegistry
@@ -414,11 +417,39 @@ class AttachmentQuotaExceeded(ValueError):
         super().__init__("附件存储空间或对象数量已达到上限；请清理状态目录或调整内核配置")
 
 
+def _stale_attachment() -> Exception:
+    from boss_harness.rpc import RpcError
+
+    return RpcError(-32011, "附件内容已变化，请重新读取附件并确认新的内容引用",
+                    {"code": "STALE_ATTACHMENT"})
+
+
+def _attachment_cursor_offset(cursor: Any, reference: dict, length: int) -> int:
+    """Cursor payload binds thread, attachment and digest; malformed input is a client error."""
+    try:
+        if not isinstance(cursor, str) or not cursor.startswith("at1_") or len(cursor) > 2048:
+            raise ValueError()
+        encoded = cursor[4:]
+        value = json.loads(base64.b64decode(encoded + "=" * (-len(encoded) % 4),
+                                            altchars=b"-_", validate=True))
+        if (not isinstance(value, list) or len(value) != 4
+                or value[:3] != [reference["threadId"], reference["attachmentId"], reference["sha256"]]
+                or type(value[3]) is not int or not 0 <= value[3] < length):
+            raise ValueError()
+        return value[3]
+    except (ValueError, TypeError, UnicodeDecodeError, binascii.Error, RecursionError):
+        raise ValueError("附件分页游标无效、归属不匹配或内容已变化") from None
+
+
 class AttachmentStore:
     MAX_BYTES = 2 * 1024 * 1024
     EXTENSIONS = frozenset({".txt", ".md", ".json", ".csv", ".tsv", ".log"})
     MAX_STORAGE_BYTES_ENV = "BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_BYTES"
     MAX_STORAGE_OBJECTS_ENV = "BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_OBJECTS"
+    # 正文读取单页预算与分块口径与工具结果、条目正文一致：2 MiB 附件经 JSON 转义
+    # 后可能超过 8 MiB 帧，整份返回既绕过了单页预算，也没有可行动的恢复路径。
+    DEFAULT_READ_CHARS = 16_384
+    MAX_READ_CHARS = 32_768
 
     @staticmethod
     def _read_limit(name: str, default: int) -> int:
@@ -580,8 +611,46 @@ class AttachmentStore:
         return self._read_from_entries(thread_id, attachment_id, self.sessions.read_entries(thread_id),
                                        include_content=include_content)
 
-    def _read_from_entries(self, thread_id: str, attachment_id: str, entries: list[dict], *,
-                           include_content: bool = True) -> dict:
+    def read_chunk(self, thread_id: str, attachment_id: str, *, cursor: str | None = None,
+                   limit: int = DEFAULT_READ_CHARS, sha256: str | None = None) -> dict:
+        """Bounded body read; cursors bind the attachment digest so versions never mix.
+
+        ``sha256`` is only supplied when continuing from a cursor (the client cannot
+        know it before the first read). The returned ``contentRef`` carries the full
+        length so clients can page deterministically and detect a replaced attachment.
+        """
+        if type(limit) is not int or not 1 <= limit <= self.MAX_READ_CHARS:
+            raise ValueError(f"limit 必须是 1 到 {self.MAX_READ_CHARS} 的整数")
+        item = self._attachment_entry(thread_id, attachment_id)
+        data = self._read_object(item["digest"], item["bytes"])
+        if data is None:
+            raise ValueError("附件内容已损坏；请重新添加")
+        text = data.decode("utf-8")
+        reference = {"threadId": thread_id, "attachmentId": item["id"], "name": item["name"],
+                     "sha256": item["digest"], "byteLength": item["bytes"],
+                     "characterLength": len(text)}
+        offset = 0
+        if sha256 is not None:
+            if not isinstance(sha256, str) or re.fullmatch(r"[a-f0-9]{64}", sha256) is None:
+                raise ValueError("sha256 必须是附件内容引用中的 64 位小写十六进制摘要")
+            if sha256 != item["digest"]:
+                raise _stale_attachment()
+        if cursor is not None:
+            offset = _attachment_cursor_offset(cursor, reference, len(text))
+        end = min(offset + limit, len(text))
+        next_cursor = None
+        if end < len(text):
+            raw = json.dumps([thread_id, item["id"], item["digest"], end],
+                             ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            next_cursor = "at1_" + base64.urlsafe_b64encode(raw).decode().rstrip("=")
+        return {"text": wire_text(text[offset:end]), "offset": offset, "nextCursor": next_cursor,
+                "contentRef": reference}
+
+    def _attachment_entry(self, thread_id: str, attachment_id: str) -> dict:
+        entries = self.sessions.read_entries(thread_id)
+        return self._attachment_from_entries(thread_id, attachment_id, entries)
+
+    def _attachment_from_entries(self, thread_id: str, attachment_id: str, entries: list[dict]) -> dict:
         item = next((entry["payload"] for entry in entries
                      if entry["type"] == "attachment" and entry["payload"].get("id") == attachment_id), None)
         if item is None or not re.fullmatch(r"[a-f0-9]{64}", str(item.get("digest", ""))):
@@ -592,9 +661,14 @@ class AttachmentStore:
         if (not isinstance(name, str) or not name or len(name) > 1024
                 or type(size) is not int or not 0 <= size <= self.MAX_BYTES):
             raise ValueError("附件记录已损坏；请重新添加")
+        return item
+
+    def _read_from_entries(self, thread_id: str, attachment_id: str, entries: list[dict], *,
+                           include_content: bool = True) -> dict:
+        item = self._attachment_from_entries(thread_id, attachment_id, entries)
         result = dict(item)
         if include_content:
-            data = self._read_object(item["digest"], size)
+            data = self._read_object(item["digest"], item["bytes"])
             if data is None:
                 raise ValueError("附件内容已损坏；请重新添加")
             result["content"] = data.decode("utf-8")
