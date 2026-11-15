@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextEditReadResponse } from "@boss-harness/protocol";
-import { harnessErrorText, readContextEdit, writeContextEdit } from "../data/harnessBridge";
+import { harnessErrorText, isHarnessRpcRejection, readContextEdit, writeContextEdit } from "../data/harnessBridge";
 import { CONTEXT_EDIT_STALE_NOTICE, contextEditSubmitBlocked } from "../data/contextEditState";
 import { clearContextEditDraft, readContextEditDraft, writeContextEditDraft } from "../data/contextEditDrafts";
 import { ModalSurface } from "./ModalSurface";
@@ -127,8 +127,14 @@ export function ContextEditDialog({ threadId, itemId, title, threadTitle, onClos
         // 关闭前仍需确认，重试也仍使用这份正文；不自动重放写入。
         setBaseline(current);
         if (writeError) {
-          setError("提交结果未确认。已重新读取当前上下文；请核对下方内容后再决定下一步。没有自动重试。");
-          setUncertain(true);
+          if (isHarnessRpcRejection(writeError)) {
+            // 内核明确拒绝说明记录没有追加；回执失败不能把它改写成「可能已生效」。
+            setError(`内核未受理这次编辑，没有写入：${harnessErrorText(writeError)}。来源可能已变化；请核对当前内容后再决定是否重新提交。`);
+            setUncertain(false);
+          } else {
+            setError("提交结果未确认。已重新读取当前上下文；请核对下方内容后再决定下一步。没有自动重试。");
+            setUncertain(true);
+          }
         } else {
           setError("会话来源已变化，编辑没有按预期生效。请核对当前内容后重新操作。");
         }
@@ -137,10 +143,16 @@ export function ContextEditDialog({ threadId, itemId, title, threadTitle, onClos
     } catch (cause) {
       // 回读失败时界面仍保留提交前的 record；标记过期，禁止基于旧快照继续提交。
       setStale(true);
-      setError(writeError
-        ? "提交结果和当前状态都无法确认。请先刷新并核对，不要重复提交。"
-        : `提交后无法读取最新上下文（${harnessErrorText(cause)}），请稍后核对。`);
-      setUncertain(true);
+      if (!writeError) {
+        setError(`提交后无法读取最新上下文（${harnessErrorText(cause)}），请稍后核对。`);
+      } else if (isHarnessRpcRejection(writeError)) {
+        // 明确拒绝与「可能已写入」必须分开：前者不需要重新核对日志，后者需要。
+        setError(`内核未受理这次编辑，没有写入：${harnessErrorText(writeError)}。当前上下文暂时无法读取；重新读取成功前不会提交新的编辑。`);
+        setUncertain(false);
+      } else {
+        setError("提交结果和当前状态都无法确认。请先刷新并核对，不要重复提交。");
+        setUncertain(true);
+      }
     } finally {
       setSaving(false);
     }

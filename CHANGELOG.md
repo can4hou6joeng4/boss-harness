@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1408](https://github.com/can4hou6joeng4/boss-harness/issues/1408)：桌面编辑后续上下文失败时区分「内核明确拒绝」与「回执未确认」。主进程此前不保留 `context/edit` 与 `context/edit/read` 的内核错误对象，渲染层拿不到错误码：来源冲突、归档或运行中、回执预算超限等明确拒绝一律显示「提交结果未确认」，无法判断编辑是否已经生效。现在两项方法保留内核错误形状；明确拒绝显示「内核未受理、没有写入」与错误码，不再进入待核对状态，也不提示重复提交；回读失败与传输中断仍按未确认处理。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.38 - 2026-11-16
 
 本节汇总第三十八个候选版本的源码与交付内容；rc.16 至 rc.38 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
