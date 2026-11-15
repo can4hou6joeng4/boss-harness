@@ -775,7 +775,7 @@ export interface ThreadSearchParams {
 export interface ThreadSearchResponse {
   query: string;
   matches: ThreadSearchMatch[];
-  /** 达到会话数、文本预算、单会话命中数或总命中上限时为真。 */
+  /** 会话数或文本预算耗尽、超大会话跳过或单条文本被截断，或确有未返回的命中时为真；恰好等于展示上限的完整结果为假。 */
   truncated: boolean;
 }
 
