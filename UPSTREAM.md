@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 分支摘要轮询归属（Issue #1268）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 [`packages/coding-agent/docs/compaction.md`](https://github.com/earendil-works/pi/blob/b4899f59ef0fba6507c2e619fd804dcde51920ba/packages/coding-agent/docs/compaction.md)（Branch Summarization、`session_before_tree`）与 [`packages/coding-agent/src/core/compaction/branch-summarization.ts`](https://github.com/earendil-works/pi/blob/b4899f59ef0fba6507c2e619fd804dcde51920ba/packages/coding-agent/src/core/compaction/branch-summarization.ts)（`generateBranchSummary`）：分支导航、摘要输入与结果有明确归属，摘要请求接收 `AbortSignal`；所读入口没有本项目 Electron 摘要任务编号、连接代次或轮询失效规则。本轮独立复用本仓库已有的 `epoch` 与 `summaryJob.jobId`，补齐轮询回执校验，不推断上游存在同类问题，不复制源码、不引入依赖。
+
+适配约定：轮询成功与失败仅可更新发起时连接中、仍为运行状态的同一个任务；新任务替换、终态、断连及卸载都会作废旧回执，返回任务编号也须与请求相同。有效任务的轮询、取消和不存在任务的恢复处理保持原有契约，不改变摘要执行、分支切换及授权边界。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 停止与会话核对均失败时保留原因（Issue #1234）
 
 沿用 Issue #1232 对同一固定 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md` 与 `packages/coding-agent/src/core/session-manager.ts`（`setSessionFile`、`_loadEntries`）的核对结论：所读入口描述会话身份与读取处理，没有本项目发送或停止失败后再读会话的提示合并规则。本轮沿用同一 `HarnessReplica.resume()` 返回 `null` 的既有契约，补上停止路径的调用方式，不推断上游存在同类问题，不复制源码、不引入依赖。
