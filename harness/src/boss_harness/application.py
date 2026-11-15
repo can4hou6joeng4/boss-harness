@@ -1106,7 +1106,11 @@ class ApplicationService:
                                     "task": {"kind": "turn", "id": relation["turnId"]}})
                 elif relation["ownership"] in {"conflict", "unresolved"}:
                     related.append({"relation": "turn_candidate", "ownership": relation["ownership"]})
-                status = queue_item.get("status", "unknown")
+                # queue_snapshot 会把缺省或非法的状态投影为 None；task/read 的状态是
+                # 字符串契约，不能把 None 原样返回。归一化为 unknown 后恢复策略仍按
+                # 人工核对处理，与「未知状态不当作确定结论」保持一致。
+                raw_status = queue_item.get("status")
+                status = raw_status if isinstance(raw_status, str) and raw_status else "unknown"
                 result = {"task": {
                     "locator": {"kind": "queue", "id": task_id}, "threadId": thread_id,
                     "status": status, "ownership": relation["ownership"],

@@ -384,7 +384,9 @@ def resolve_compaction_relation(job: dict, thread_id: str, turns: list[dict], *,
 
 def recovery_policy(kind: str, status: str, *, runtime_owned: bool,
                     persisted_policy: str | None = None) -> str:
-    if not isinstance(status, str):
+    # task/read 把缺省或损坏的状态归一化为 unknown；它和缺失状态一样不能按
+    # 各分支的默认终态处理，必须保留人工核对。
+    if not isinstance(status, str) or status == "unknown":
         return "manual_review"
     if runtime_owned:
         return "process_owned"
