@@ -198,7 +198,13 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   const aboutCopy = aboutClipboard.feedback?.key === "about-diagnostics" ? aboutClipboard.feedback : null;
 
   useLayoutEffect(() => {
-    if (isOpen && initialSection) { setSection(initialSection); setStatus(""); setDraftGuard(null); }
+    if (isOpen) {
+      if (initialSection) setSection(initialSection);
+      // 重新打开是一轮新的设置操作：上一轮的保存、导出与复制回执不再适用。
+      setStatus("");
+      setDraftGuard(null);
+      aboutClipboard.reset();
+    }
     if (!isOpen) {
       // 关闭即视为已确认或没有修改：清掉设置页草稿，重新打开时从内核值重新读取。
       setDraftGuard(null);
@@ -210,7 +216,7 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
       setCompactionNotice("");
       setCompactionSaved(false);
     }
-  }, [isOpen, initialSection]);
+  }, [isOpen, initialSection, aboutClipboard.reset]);
 
   useEffect(() => {
     applyPreferences(preferences);
