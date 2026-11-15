@@ -290,6 +290,8 @@ export function AppShell(props: AppShellProps) {
     setSkillMutationRevision(previous => previous + 1);
     setSkillRefresh(previous => previous + 1);
   };
+  // 技能操作确认只描述本次停留；离开技能页后不再作为刚发生的回执展示。
+  useEffect(() => { if (page !== "skills") setSkillMutationNotice(""); }, [page]);
   const [history, setHistory] = useState<Route[]>([{ page: "home" }]), [cursor, setCursor] = useState(0);
   const cursorRef = useRef(cursor); cursorRef.current = cursor;
   const historyRef = useRef(history); historyRef.current = history;
