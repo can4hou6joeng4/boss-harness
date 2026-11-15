@@ -1198,8 +1198,13 @@ export interface SkillProblem { id: string; reason: string }
 /**
  * 当前生效的技能目录相对工作区路径，如 `.boss-harness/skills`；旧内核不返回。
  * `problems` 列出目录里无法安全读取的 SKILL.md；旧内核不返回时不显示警示。
+ * `problemsTruncated` 表示未加载项超过展示上限、清单只含前若干条；
+ * `candidatesTruncated` 表示目录本身超过有界枚举上限、仍有目录未被检查。
  */
-export interface SkillListResponse { skills: SkillDescriptor[]; root?: string; problems?: SkillProblem[] }
+export interface SkillListResponse {
+  skills: SkillDescriptor[]; root?: string; problems?: SkillProblem[];
+  problemsTruncated?: boolean; candidatesTruncated?: boolean;
+}
 /** `skills/read` 参数；仅在 `capabilities.skillsRead` 为真时可用，只读且不写入会话。 */
 export interface SkillReadParams { id: string }
 /** `skills/read` 结果：正文来自普通 UTF-8 文件，最多 `limitBytes` 字节。 */

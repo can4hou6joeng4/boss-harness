@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1422](https://github.com/can4hou6joeng4/boss-harness/issues/1422)：`skills/list` 的未加载项清单不再被有效技能数量截断。此前只要字典序靠前的有效技能凑满 100 个展示上限就立即返回，排在后面的坏目录（缺失 `SKILL.md`、符号链接、超过 64 KiB 或非 UTF-8）完全不出现在 `problems` 中，界面会把不完整清单当成「N 个技能未能加载」。现在两份清单各自独立封顶，扫描按需扩大候选窗口但单次最多检查 800 个目录项；未加载项超过上限时返回 `problemsTruncated`，仍有目录未检查时返回 `candidatesTruncated`，界面据此如实说明清单不完整。不新增 RPC 方法，协议与内核仍为 0.2.0。
+
 ## 0.2.0-rc.41 - 2026-11-16
 
 本节汇总第四十一个候选版本的源码与交付内容；rc.16 至 rc.41 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。

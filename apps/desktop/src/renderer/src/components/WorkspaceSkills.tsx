@@ -23,6 +23,10 @@ export interface WorkspaceSkillsProps {
   deletable: boolean;
   /** 目录里无法安全读取的 SKILL.md；旧内核不返回时为空。 */
   problems: SkillProblem[];
+  /** 未加载项超过展示上限，清单只含前若干条；旧内核视为完整。 */
+  problemsTruncated?: boolean;
+  /** 目录数量超过有界枚举上限，仍有目录未被检查；旧内核视为完整。 */
+  candidatesTruncated?: boolean;
   /** 把技能预选进新会话草稿；不会自动发送。 */
   onUseSkill: (skillId: string) => void;
   preview: boolean;
@@ -132,6 +136,8 @@ export function WorkspaceSkills(props: WorkspaceSkillsProps) {
       <strong>{filtering ? `${filteredProblems.length} 个未加载项匹配筛选` : `${props.problems.length} 个技能未能加载`}</strong>
       <ul>{filteredProblems.slice(0, 5).map(problem => <li key={problem.id}><code>{problem.id}</code>：{problem.reason}</li>)}</ul>
       {filteredProblems.length > 5 && <p>另有 {filteredProblems.length - 5} 个未列出；修复后刷新目录即可。</p>}
+      {props.problemsTruncated && <p>未能加载的目录超过展示上限，以上只是前 {props.problems.length} 项。</p>}
+      {props.candidatesTruncated && <p>工作区技能目录数量超过内核枚举上限，可能还有目录未被检查；整理目录后可刷新重试。</p>}
       <p>这些技能不会出现在列表，也不会被注入。常见原因：文件缺失、改为符号链接、超过 64 KiB 或不是 UTF-8。</p>
     </div>}
     {filtering && filteredSkills.length === 0 && (props.state === "ready" || props.state === "empty") && <div className="page-tool-empty">没有匹配的可加载技能{filteredProblems.length > 0 ? "；匹配的未加载项见上方。" : "。"}</div>}
