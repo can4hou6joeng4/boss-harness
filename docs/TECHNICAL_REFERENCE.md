@@ -154,7 +154,7 @@ RPC 客户端可通过 `thread/item/result/read`，传入 `threadId`、`itemId`�
 
 附件准入、对象发布及会话引用追加共用 SQLite 写事务，与会话删除的引用扫描和清理串行。发布前流式校验目标会话的完整日志；发现既有损坏时保留原日志和对象目录，不追加附件引用。写入失败后会在同一写锁下检查所有会话引用，再清理新发布且未引用的对象。对象目录中出现符号链接、非普通文件、非当前用户文件、额外硬链接或目标摘要与内容不符时，相关操作会 fail closed。容量拒绝通过 `attachment/add` 返回 JSON-RPC `-32005`，错误数据包含 `code=ATTACHMENT_STORAGE_LIMIT`、当前用量、限制和本次请求量；容量拒绝不会写入会话引用或部分附件。
 
-正文读取按与工具结果相同的口径收敛：省略 `cursor`、`limit` 与 `sha256` 时整份返回 `{"attachment": {..., "content": ...}}`，整份回执超过约 1 MiB 单页预算返回 `-32010 / RESPONSE_TOO_LARGE`，数据含 `recoveryMethod=attachment/read`、`attachmentId`、`totalCharacters` 与 `suggestedLimit`，不再靠 8 MiB 帧上限兜底。显式给出三者任一即走分段：`limit` 默认 16384、最多 32768 个 Unicode 码点，回执为 `text`、`offset`、`nextCursor` 与 `contentRef`（绑定 `threadId`、`attachmentId`、名称、摘要、字节数与码点数）；游标前缀 `at1_` 绑定会话、附件与摘要，续读时传 `sha256` 与附件不符会返回 `STALE_ATTACHMENT`。未知参数、非法游标与越界 `limit` 返回 `-32602`，附件不存在或不属于会话仍按原错误文本拒绝。读取不触发招聘工具，也不改写附件记录。
+正文读取按与工具结果相同的口径收敛：省略 `cursor`、`limit` 与 `sha256` 时整份返回 `{"attachment": {..., "content": ...}}`，整份回执超过约 1 MiB 单页预算返回 `-32010 / RESPONSE_TOO_LARGE`，数据含 `recoveryMethod=attachment/read`、`attachmentId`、`totalCharacters` 与 `suggestedLimit`，不再靠 8 MiB 帧上限兜底。显式给出三者任一即走分段：`limit` 默认 16384、最多 32768 个 Unicode 码点，回执为 `text`、`offset`、`nextCursor` 与 `contentRef`（绑定 `threadId`、`attachmentId`、名称、摘要、字节数与码点数）；游标前缀 `at1_` 绑定会话、附件与摘要，续读时传 `sha256` 与附件不符会返回 `STALE_ATTACHMENT`。未知参数、非法游标与越界 `limit` 返回 `-32602`，附件不存在或不属于会话仍按原错误文本拒绝。读取不触发招聘工具，也不改写附件记录。握手能力 `capabilities.attachmentReadPaging` 为真表示内核支持这组分页参数；旧客户端省略新参数时行为与之前一致。
 
 ## 模块边界
 
