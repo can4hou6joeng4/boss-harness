@@ -267,7 +267,8 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
         if (id === currentFindId) currentRange = null;
         continue;
       }
-      const ranges = collectTextRanges(root, findQuery, room + 1);
+      // 未勾选详情时折叠块内的文字不参与匹配，计数与高亮也必须一致，否则当前命中会落在看不见的文字上。
+      const ranges = collectTextRanges(root, findQuery, room + 1, findDetails);
       if (ranges.length > room) { capped = true; ranges.length = room; }
       all.push(...ranges);
       counts.push(ranges.length);

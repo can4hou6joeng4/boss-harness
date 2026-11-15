@@ -113,13 +113,32 @@ export function splitKernelQueryHighlight(text: string, query: string, limit = 5
 }
 
 /**
+ * 文本节点是否位于没有展开的折叠块内。
+ *
+ * 关闭的 `<details>` 只渲染 `summary`：其余内容既不显示，也不参与默认查找匹配。
+ * 计数与高亮若仍把它们算进去，状态行会大于可见命中数，当前命中也可能落在看不见的
+ * 文字上，用户按 `Enter` 看不出变化。嵌套的折叠内容同样按最近一层判断。
+ */
+function foldedAway(node: Text, root: Node): boolean {
+  for (let element = node.parentElement; element && element !== root; element = element.parentElement) {
+    if (element instanceof HTMLDetailsElement && !element.open) {
+      const summary = element.querySelector(":scope > summary");
+      if (!summary || !summary.contains(node)) return true;
+    }
+  }
+  return false;
+}
+
+/**
  * 收集元素内的文本节点并映射到原文偏移量，供 CSS Custom Highlight 使用。
  * `scan` 决定归一化方式：会话内查找用整串 NFKC 小写，跨会话搜索用内核的逐码点 casefold。
+ * `includeFolded` 为假时只收集可见正文，与默认查找的匹配范围一致；未传时保留原有全量扫描。
  */
 function collectRanges(
   root: Node,
   scan: (text: string, limit: number) => TextRange[],
   limit: number,
+  includeFolded = true,
 ): Range[] {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
@@ -128,7 +147,7 @@ function collectRanges(
   const ownerOffset: number[] = [];
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const text = node as Text;
-    if (!text.data) continue;
+    if (!text.data || (!includeFolded && foldedAway(text, root))) continue;
     const index = nodes.length;
     nodes.push(text);
     parts.push(text.data);
@@ -161,9 +180,17 @@ function collectRanges(
   return result;
 }
 
-/** 会话内查找的命中区间：与消息匹配共用整串 NFKC 小写归一化。 */
-export function collectTextRanges(root: Node, query: string, limit = FIND_HIGHLIGHT_LIMIT): Range[] {
-  return collectRanges(root, (text, count) => findTextRanges(text, query, count), limit);
+/**
+ * 会话内查找的命中区间：与消息匹配共用整串 NFKC 小写归一化。
+ * `includeFolded` 与「含工具、审批与思考」开关一致：关闭时折叠块内文字不参与统计与高亮。
+ */
+export function collectTextRanges(
+  root: Node,
+  query: string,
+  limit = FIND_HIGHLIGHT_LIMIT,
+  includeFolded = true,
+): Range[] {
+  return collectRanges(root, (text, count) => findTextRanges(text, query, count), limit, includeFolded);
 }
 
 /** 跨会话搜索的命中区间：与内核搜索共用逐码点 NFKC + casefold 归一化。 */
