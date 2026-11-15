@@ -63,7 +63,7 @@
 
 本候选还包含前序候选准备的技能目录未就绪时的已选技能保护、首页首条消息被拒提示、快速提问的输入保留与输入法 Esc 保护、分支摘要轮询保护、停止按钮在途反馈、受理后保持到回合结束、多会话停止状态隔离、运行状态面板中文文案、本地配置自检、固定检查码、启动排查入口、队列部分完成、审批回执核对与结论保护、停止目标回合绑定与来源会话提示、直接发送来源会话提示、失败提示按来源会话保存、发送与停止双重失败保留原因、独立摘要提交预算、模型线路一致性和会话列表可靠性改进；配置和使用方式见下方说明与[使用指南](docs/USER_GUIDE.md)。
 
-rc.24 之后合入、尚未进入候选的修正：跨会话搜索的截断结论进入状态行，消息命中被截断时状态行报「仅显示部分结果」、零命中报「消息搜索不完整」，悬停提示补充可能无法读取的会话（[Issue #1284](https://github.com/can4hou6joeng4/boss-harness/issues/1284)）；使用指南新增跨会话搜索的范围、上限与截断含义说明（[Issue #1288](https://github.com/can4hou6joeng4/boss-harness/issues/1288)）。
+rc.24 之后合入、尚未进入候选的修正：跨会话搜索的截断结论进入状态行，消息命中被截断时状态行报「仅显示部分结果」、零命中报「消息搜索不完整」，悬停提示补充可能无法读取的会话（[Issue #1284](https://github.com/can4hou6joeng4/boss-harness/issues/1284)）；CHANGELOG 恢复「未发布」分区并把 #1284 移出 rc.24（[Issue #1286](https://github.com/can4hou6joeng4/boss-harness/issues/1286)）；使用指南新增跨会话搜索的范围、上限与截断含义说明（[Issue #1288](https://github.com/can4hou6joeng4/boss-harness/issues/1288)），并更正标题与项目名从第 1 个字符起过滤、消息搜索需要 2 个字符（[Issue #1290](https://github.com/can4hou6joeng4/boss-harness/issues/1290)）。
 
 rc.24 仍为尚未发布的源码候选；最新实际发布仍为 [rc.15 候选预发布](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。每项变更的来源、验证与限制记录在 [CHANGELOG](CHANGELOG.md)；本地离线 Electron 验证不代表真实模型、招聘平台或独立安装包已经验收。协议与内核仍为 `0.2.0`。
 
