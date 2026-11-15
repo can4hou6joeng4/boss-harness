@@ -532,7 +532,11 @@ class AttachmentStore:
             data = handle.read(self.MAX_BYTES + 1)
         if len(data) > self.MAX_BYTES:
             raise ValueError("文本附件不得超过 2 MiB")
-        data.decode("utf-8")
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            # 编解码器原文带字节位置，随 Python 版本变化；附件要求是稳定的产品条件。
+            raise ValueError("文本附件必须是 UTF-8 文本") from None
         digest = hashlib.sha256(data).hexdigest()
         attachment = {"id": uuid.uuid4().hex, "name": source.name, "digest": digest,
                       "bytes": len(data), "mediaType": "text/plain; charset=utf-8"}
