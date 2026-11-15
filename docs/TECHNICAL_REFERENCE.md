@@ -20,7 +20,7 @@
 
 handler 可能已经产生外部或持久副作用，响应编码失败时不能重跑。若结果包含非有限浮点、孤立代理项或不可编码的递归结构，内核返回有界 `-32603` / `RESPONSE_INVALID`；如果响应请求 ID 本身无法安全编码，则省略该 ID。响应过大继续使用 `RESPONSE_TOO_LARGE`，原 handler 同样不会重放。
 
-rc.31 候选收紧已有参数类型校验，尚未实际发布：`turn/start` 与 `context/read` 只有缺省 `model` 才继承会话模型，显式 null、空字符串、布尔、数字、数组或对象均返回 `-32602`；合法字符串仍按会话模型线路检查，不匹配继续返回 `-32013`。`thread/read` 与 `thread/resume` 的 `excludeTurns` 只接受布尔 true / false，缺省为 false；不能传字符串 `"false"`。同两个接口的 `snapshot` 也只接受布尔值，字符串、数字、数组、对象或 null 返回 `-32602`，不会静默降级成普通读取。读取 `view` 只接受 `log` / `branch`，`task/read.kind` 只接受 `turn` / `queue` / `compaction`，数组、对象等非法类型统一返回 `-32602`，不再误报内部错误。
+rc.32 候选收紧已有参数类型校验，尚未实际发布：`turn/start` 与 `context/read` 只有缺省 `model` 才继承会话模型，显式 null、空字符串、布尔、数字、数组或对象均返回 `-32602`；合法字符串仍按会话模型线路检查，不匹配继续返回 `-32013`。`thread/read` 与 `thread/resume` 的 `excludeTurns` 只接受布尔 true / false，缺省为 false；不能传字符串 `"false"`。同两个接口的 `snapshot` 也只接受布尔值，字符串、数字、数组、对象或 null 返回 `-32602`，不会静默降级成普通读取。读取 `view` 只接受 `log` / `branch`，`task/read.kind` 只接受 `turn` / `queue` / `compaction`，数组、对象等非法类型统一返回 `-32602`，不再误报内部错误。
 
 队列任务的持久状态缺失或非法时，`task/read` 返回字符串 `unknown` 与 `recoveryPolicy: "manual_review"`，合法状态与恢复策略不变。会话索引的 `queueActiveItems` / `queueCounts` 与队列列表共用 `queue_record` 校验，损坏记录不覆盖同 id 先前的有效状态。此计数修正用于后续追加与索引重建；未变化日志的既有缓存索引不强制更新，历史错计数可退出应用后运行 `boss-harness --repair-state` 从日志重建。上述修正不新增 RPC，协议与内核仍为 `0.2.0`。
 

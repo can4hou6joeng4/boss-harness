@@ -4,6 +4,20 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+## 0.2.0-rc.32 - 2026-11-15
+
+本节汇总第三十二个候选版本的源码与交付内容；rc.16 至 rc.32 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.31，本次聚合 4 项 RPC 参数契约修正：握手拒绝非法协议版本和能力类型；快照开关只接受布尔值；停止请求显式目标在取消前校验，避免空值取消当前回合；队列入队与直接启动统一拒绝显式空自动压缩覆盖。按自定义客户端兼容变化触发候选准备。
+
+升级注意：握手 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null；`snapshot` 使用布尔 true / false。停止请求只有缺省 `turnId` 才取消当前回合，显式值须为非空、非纯空白、最多 128 字符的字符串，不能用 null 或其他类型表示未指定。`queue/add.autoCompaction` 应省略或使用合法部分覆盖对象，不能传 null，已有请求重试同样校验。非法值返回 `-32602`；不兼容协议与旧目标回合的领域错误码保持原样，拒绝握手后同一连接可重试。本候选未新增持久化迁移或工具权限。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1378](https://github.com/can4hou6joeng4/boss-harness/issues/1378)：同步根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本为 npm `0.2.0-rc.32` / Python `0.2.0rc32`；将 rc.31 之后 4 项参数契约修正归入本候选，同步 README 近期进展、使用指南的客户端升级说明及技术契约，保留首次实际发布入口与历史版本记录。候选准备不代表实际 tag、Release、资产上传或包注册表发布。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1370](https://github.com/can4hou6joeng4/boss-harness/issues/1370)：`initialize` 的 `protocolVersion` 只接受字符串，`capabilities` 只接受对象或 null；其他类型统一返回 `-32602`，拒绝不改变握手状态，同一连接可用正确参数重试。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 - [Issue #1372](https://github.com/can4hou6joeng4/boss-harness/issues/1372)：`thread/read` 与 `thread/resume` 的显式 `snapshot` 只接受布尔值；其他类型返回 `-32602`，不再静默退回普通读取。缺省与 false 保持普通读取，true 保持冻结快照。不新增 RPC，协议与内核仍为 `0.2.0`。
