@@ -36,6 +36,8 @@ export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, c
   const [notice, setNotice] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
+  // 等待回执时仍可编辑；即使编辑后改回原文，也不能清掉用户重新接手的草稿。
+  const inputVersion = useRef(0);
   // 关闭期间在途提交的结果必须丢弃，否则会写进重新打开后的界面。
   const attempts = useRef(createAttemptToken());
   useEffect(() => {
@@ -71,6 +73,7 @@ export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, c
       return;
     }
     const token = startAttempt(attempts.current);
+    const submittedInputVersion = inputVersion.current;
     setSubmitting(true);
     setNotice("");
     try {
@@ -78,8 +81,12 @@ export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, c
       // 等待期间弹窗被关闭（或已发起新提交）：这次结果不再属于当前界面。
       if (!attemptCurrent(attempts.current, token)) return;
       if (outcome?.status === "started") {
-        setInputText("");
-        onClose();
+        if (inputVersion.current !== submittedInputVersion) {
+          setNotice(`问题已提交到会话「${outcome.session.title}」；新编辑的输入已保留，回复请在该会话查看。`);
+        } else {
+          setInputText("");
+          onClose();
+        }
         return;
       }
       // 会话已建立但问题没送达时，提示必须指向已经存在的会话；只有 failed 才是没建成。
@@ -141,7 +148,7 @@ export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, c
           ref={inputRef} aria-label="快速提问输入"
           placeholder={live ? "输入问题，发送后在新会话查看回复…" : "试试临时提问…"}
           value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
+          onChange={(e) => { inputVersion.current += 1; setInputText(e.target.value); }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) {
               e.preventDefault();
