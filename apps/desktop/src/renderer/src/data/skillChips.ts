@@ -21,8 +21,13 @@ function compact(value: unknown, limit: number): string {
   return safeSlice(value.replace(/\s+/g, " ").trim(), limit);
 }
 
-/** 把草稿里的技能 id 映射为输入区标签；未知 id 保留、重复 id 只显示一次、最多 10 项。 */
-export function skillChips(ids: readonly string[], skills: readonly SkillDescriptor[]): SkillChip[] {
+/**
+ * 把草稿里的技能 id 映射为输入区标签；未知 id 保留、重复 id 只显示一次、最多 10 项。
+ *
+ * `catalogKnown` 表示目录已经成功读取（有内容或确实为空）。加载中、断连与读取失败时
+ * 调用方会传入空目录，此时不能把缺失的 id 标成失效，否则会误报技能已被删除。
+ */
+export function skillChips(ids: readonly string[], skills: readonly SkillDescriptor[], catalogKnown = true): SkillChip[] {
   const byId = new Map(skills.map(skill => [skill.id, skill]));
   const seen = new Set<string>();
   const chips: SkillChip[] = [];
@@ -33,7 +38,7 @@ export function skillChips(ids: readonly string[], skills: readonly SkillDescrip
     const skill = byId.get(raw);
     const displayId = compact(raw, NAME_LIMIT) || raw;
     if (!skill) {
-      chips.push({ id: raw, name: displayId, stale: true });
+      chips.push({ id: raw, name: displayId, stale: catalogKnown });
       continue;
     }
     const description = compact(skill.description, DESCRIPTION_LIMIT);
