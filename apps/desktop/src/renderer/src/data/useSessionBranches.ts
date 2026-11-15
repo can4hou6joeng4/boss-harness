@@ -229,11 +229,19 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       if (!current.current.connected) return;
       for (const [id, state] of Object.entries(stateRef.current)) {
         const job = state.summaryJob;
+        const connectionEpoch = epoch.current;
+        // 轮询只属于发出时的连接与运行任务：旧任务的迟到 running 不能覆盖新任务，
+        // 旧失败也不能累加到新任务或清掉它的提示；终态和断连同样使读取作废。
+        const valid = () => alive.current && epoch.current === connectionEpoch
+          && stateRef.current[id]?.summaryJob?.jobId === job?.jobId && stateRef.current[id]?.summaryJob?.status === "running";
         if (job?.status === "running") void readContextCompaction(job.jobId).then(next => {
-          if (isBranchJob(next, id)) { applyJob(id, next); if (next.status !== "running") void refresh(id); }
+          if (!valid() || !isBranchJob(next, id) || next.jobId !== job.jobId) return;
+          applyJob(id, next);
+          if (next.status !== "running") void refresh(id);
           pollFailures.current.delete(id);
           if (stateRef.current[id]?.summaryPollError) update(id, { summaryPollError: "" });
         }).catch(error => {
+          if (!valid()) return;
           const detail = rpcDetail(error);
           // 内核明确表示任务不存在时，轮询永远等不到终态；不清理就会永久阻断切换与新建回合。
           if (detail.code === JOB_NOT_FOUND) {
