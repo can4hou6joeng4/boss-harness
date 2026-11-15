@@ -4,6 +4,7 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1427](https://github.com/can4hou6joeng4/boss-harness/issues/1427)：技术契约中工作区技能目录发现仍保留旧版上限描述「最多保留字典序前 100 个可读取的普通技能文件」，与同段后来补充的两份清单独立封顶、单次扫描最多 800 个目录项相互矛盾。现已改写为「按字典序保留候选，可加载技能最多 100 个」，与实现及 `problemsTruncated` / `candidatesTruncated` 语义一致。仅文档修正，不新增 RPC 方法，协议与内核仍为 0.2.0。
 ## 0.2.0-rc.42 - 2026-11-16
 
 本节汇总第四十二个候选版本的源码与交付内容；rc.16 至 rc.42 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
