@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 回合启动的显式线路参数（Issue #1382）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/agent/README.md`（Control、Steering and Follow-up）与 `packages/agent/src/agent.ts`（`abort`、`followUp`、`PendingMessageQueue.enqueue`）：运行实例持有自己的模型线路，后续输入不携带跨进程 provider 参数；所读入口没有本项目 `turn/start.provider` 的会话线路核对约定。本轮独立补齐本仓库既有参数规则，不推断上游存在同类缺陷，不复制代码、不引入依赖。
+
+适配约定：显式提供 `provider` 时必须通过既有格式校验，null、空串、空白、布尔、数字、数组与对象在预留回合和保存输入前返回 `-32602`；缺省不核对，匹配会话线路的值继续成功，跨线路值继续返回 `-32013 / MODEL_PROVIDER_MISMATCH`，大小写与 `codex` 别名照旧规范化。不改变会话元数据、工具授权或队列行为。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 分支自定义标题长度（Issue #1380）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（Continue or switch sessions、Choose how to branch）与 `packages/coding-agent/src/core/session-manager.ts`（`appendSessionInfo`、`createBranchedSession`）：会话名称与分支复制分别处理，名称写入会替换换行并去除首尾空白；所读分支入口没有本项目 `thread/fork.title` 的覆盖参数，也未声明 500 字符上限。本轮独立补齐本仓库新建与重命名已有的标题长度约束，不推断上游存在同类缺陷，不复制代码、不引入依赖。

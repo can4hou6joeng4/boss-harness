@@ -1482,8 +1482,9 @@ class ApplicationService:
 
     def _model_config(self, thread: dict, params: dict) -> ModelConfig:
         provider, base, allowed = self._thread_route(thread)
-        requested_provider = params.get("provider")
-        if requested_provider is not None and self._canonical_provider(requested_provider) != provider:
+        # 只有缺省才不核对 provider；显式 null 与其他非法类型都须按格式校验，
+        # 不能借真值判断静默沿用会话线路。
+        if "provider" in params and self._canonical_provider(params["provider"]) != provider:
             raise RpcError(-32013, "provider 由会话模型选择决定，不能按回合切换",
                            {"code": "MODEL_PROVIDER_MISMATCH", "provider": provider})
         stored = thread.get("model")
