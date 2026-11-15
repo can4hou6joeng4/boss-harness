@@ -7,6 +7,7 @@ import type {
 } from "@boss-harness/protocol";
 import { safeSlice } from "@boss-harness/shared";
 import type { QueuePage } from "./queueMapping";
+import { labeledValue } from "./taskCheck";
 
 /** 驾驶舱只展示内核已声明或有持久记录的事实；字段缺失时保留为 undefined，由界面显示「未提供」。 */
 export interface CockpitConfig {
@@ -318,6 +319,31 @@ export function ownerKindLabel(kind: RuntimeResourceOwner["kind"]): string {
 
 export function ownerStateLabel(state: RuntimeResourceOwner["state"]): string {
   return state === "active" ? "运行中" : "收尾中";
+}
+
+/** 内核 config/read 的固定策略取值；未知取值原样标注，新内核新增策略时不会显示错标签。 */
+const APPROVAL_POLICY_LABELS: Record<string, string> = {
+  "each-consequential-call": "每次对外操作逐次批准",
+};
+const STEERING_MODE_LABELS: Record<string, string> = {
+  all: "全部转向消息一次投递",
+  "one-at-a-time": "转向消息逐条投递",
+};
+const CAPABILITY_SOURCE_LABELS: Record<string, string> = {
+  configured: "显式容量配置",
+  "legacy-default": "旧版默认容量",
+};
+
+export function approvalPolicyLabel(policy: string): string {
+  return labeledValue(APPROVAL_POLICY_LABELS, policy);
+}
+
+export function steeringModeLabel(mode: string): string {
+  return labeledValue(STEERING_MODE_LABELS, mode);
+}
+
+export function capabilitySourceLabel(source: string): string {
+  return labeledValue(CAPABILITY_SOURCE_LABELS, source);
 }
 
 /** 短标识：保留前 8 位，避免在窄卡片里撑破布局。 */
