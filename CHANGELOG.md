@@ -4,6 +4,20 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+## 0.2.0-rc.34 - 2026-11-15
+
+本节汇总第三十四个候选版本的源码与交付内容；rc.16 至 rc.34 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.33，本次聚合 1 项使用者可见的会话元数据边界修正：项目标识改由客户端有界提供，旧版本遗留的超长值在读取投影中截断并标记，使这类会话重新可读。按持续小版本迭代与版本、文档同步要求触发候选准备。
+
+升级注意：`thread/start.projectId` 与 `thread/list.projectId` 筛选须为最多 200 字符的字符串，超长值返回 `-32602`，不会写入会话文件；缺省、null 与合法短值保持原样。旧版本写入的超长标识不追溯改写，读取投影为前 200 字符并附 `projectIdTruncated: true`。本候选未新增持久化迁移或工具权限。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1390](https://github.com/can4hou6joeng4/boss-harness/issues/1390)：同步根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本为 npm `0.2.0-rc.34` / Python `0.2.0rc34`；将 rc.33 之后 1 项会话元数据边界修正归入本候选，同步 README 近期进展、使用指南的候选状态与技术契约，保留 rc.15 首次实际发布入口与历史版本记录。候选准备不代表实际 tag、Release、资产上传或包注册表发布。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 - [Issue #1388](https://github.com/can4hou6joeng4/boss-harness/issues/1388)：`thread/start.projectId` 与 `thread/list.projectId` 筛选限制为最多 200 字符的字符串，超长值在写入会话文件或执行索引查询前返回 `-32602`；旧版本遗留的超长标识在元数据投影中截断为前 200 字符并标记 `projectIdTruncated: true`，使 `thread/read`、`thread/resume` 与冻结快照重新可读，原始会话头不改写。协议类型同步该可选字段。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.33 - 2026-11-15
