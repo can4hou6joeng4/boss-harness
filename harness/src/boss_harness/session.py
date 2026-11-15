@@ -121,6 +121,9 @@ def branch_summary_issue(payload: dict, positions: Mapping[str, int]) -> str | N
 
 MAX_LEAF_ACTIVE_TURN_IDS = 200
 MAX_BRANCH_PREVIEW_CHARS = 120
+# 项目标识只用于会话分组，属于客户端可写的会话头元数据。给它一个与其它
+# 会话字段同类的上限，避免超大值挤占会话读取与列表的响应预算。
+MAX_PROJECT_ID_CHARS = 200
 _TASK_PHASES = frozenset({"admission", "prepare", "model_request", "tool_execution", "finish"})
 _EVENT_READ_CHUNK_BYTES = 64 * 1024
 # Event records are persisted from the same bounded JSON-RPC payloads as the
@@ -1731,6 +1734,12 @@ class SessionStore:
             raise _IndexedMetadataError(row["id"]) from None
         if not isinstance(metadata, dict):
             raise _IndexedMetadataError(row["id"])
+        # 旧版本没有长度上限，历史会话头可能留着超长标识。原始记录不改写，
+        # 投影固定截断到同一上限并标记，使这类会话重新可读。
+        project_id = metadata.get("projectId")
+        if isinstance(project_id, str) and len(project_id) > MAX_PROJECT_ID_CHARS:
+            metadata["projectId"] = project_id[:MAX_PROJECT_ID_CHARS]
+            metadata["projectIdTruncated"] = True
         return metadata
 
     @staticmethod
@@ -1823,6 +1832,8 @@ class SessionStore:
                 raise ValueError("provider 必须是非空 provider id")
             if key in {"projectId", "cwd"} and value is not None and not isinstance(value, str):
                 raise ValueError(f"{key} 必须是字符串或 null")
+            if key == "projectId" and isinstance(value, str) and len(value) > MAX_PROJECT_ID_CHARS:
+                raise ValueError(f"projectId 必须是最多 {MAX_PROJECT_ID_CHARS} 字符的字符串")
             if key == "model" and value is not None and not isinstance(value, (str, dict)):
                 raise ValueError("model 必须是字符串、对象或 null")
         _json(changes)
@@ -2277,6 +2288,8 @@ class SessionStore:
         _limit(limit)
         if type(archived) is not bool or (project_id is not None and not isinstance(project_id, str)):
             raise ValueError("会话筛选参数无效")
+        if project_id is not None and len(project_id) > MAX_PROJECT_ID_CHARS:
+            raise ValueError(f"projectId 必须是最多 {MAX_PROJECT_ID_CHARS} 字符的字符串")
         scope = {"archived": archived, "projectId": project_id}
         key = _read_page_cursor(cursor, "threads", scope)
         parameters: list[Any] = [int(archived)]

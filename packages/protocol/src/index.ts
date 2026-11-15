@@ -299,6 +299,8 @@ export interface ThreadSummary {
   lastTurn?: Pick<TurnSummary, "turnId" | "status" | "taskPhase" | "taskPhaseStatus" | "taskAttempt" | "taskRestartLimit" | "taskRecoveryReason" | "taskResumePolicy" | "failureCode"> | null;
   sessionId?: string;
   projectId?: string | null;
+  /** 历史会话写入超长 projectId 时，投影只保留前 200 字符并置为 true；原始会话头未改写。 */
+  projectIdTruncated?: boolean;
   provider?: string;
   model?: string;
   reasoningEffort?: string | null;

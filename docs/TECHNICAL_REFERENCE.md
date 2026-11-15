@@ -144,6 +144,8 @@ RPC 客户端可通过 `thread/item/result/read`，传入 `threadId`、`itemId`�
 
 会话条目和事件回放还按约 1 MiB 响应预算分页，游标只推进到实际返回的数据。非分页读取或单条记录无法传输时会返回明确的 `RESPONSE_TOO_LARGE` 错误，连接继续可用；支持快照的客户端应通过 `thread/resume` 的冻结分页恢复。原始记录不被裁剪，读取不触发招聘工具。
 
+`thread/start.projectId` 与 `thread/list.projectId` 筛选须为最多 200 字符的字符串，超长值在写入会话文件或执行索引查询前返回 `-32602`。旧版本可能已把超长标识写入会话头；元数据投影固定截断为前 200 字符并附 `projectIdTruncated: true`，原始会话头不改写，使这类会话的普通读取、`thread/resume` 与冻结快照重新可读。
+
 ### 持久附件存储
 
 文本附件单文件最多 2 MiB，每回合注入上下文的附件正文合计最多 2 MiB（名称标签与分隔符不计入该额度）；会话状态目录中的持久附件另有默认 512 MiB 和 4096 个文件对象上限，可分别用 `BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_BYTES` 与 `BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_OBJECTS` 设置为 1 至 `2^63-1` 的十进制整数；`config/read` 返回实际生效的 `maxAttachmentStorageBytes` 与 `maxAttachmentStorageObjects`。字节按文件逻辑长度计量；容量扫描包含已引用附件和孤儿对象。进程中断留下的临时文件会在下次启动时按私有文件规则清理；未引用的内容寻址对象保留并计入容量。降低上限不会阻止读取已有附件，但会拒绝新增的唯一内容；相同 SHA-256 内容复用现有可信对象，不增加容量。
