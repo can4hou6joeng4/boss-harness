@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1404](https://github.com/can4hou6joeng4/boss-harness/issues/1404)：`context/edit/read` 按既有约 1 MiB 单页响应预算检查完整投影；`context/edit` 在同一写入锁内先构造并校验提交后的完整回执，再追加编辑记录，避免长消息已经被排除或替换、客户端却因回执过大收到失败。预算拒绝不追加记录、不发送 `context/edited`，原始日志与上下文状态保留；普通编辑继续返回完整文本与新的来源摘要。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.37 - 2026-11-16
 
 本节汇总第三十七个候选版本的源码与交付内容；rc.16 至 rc.37 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
