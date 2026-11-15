@@ -41,6 +41,14 @@ class WorkspaceInstruction:
                 f"{self.text}")
 
 
+def _decoded_text(data: bytes) -> str:
+    """与读取路径同一解码口径；写入已校验可编码，保留兜底以免回执本身失败。"""
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return ""
+
+
 def _read_regular(path: Path) -> bytes | None:
     """读取普通文件；拒绝符号链接、目录与读取期间被替换的文件。"""
     descriptor = -1
@@ -149,7 +157,10 @@ class WorkspaceInstructions:
         """
         if not isinstance(text, str):
             raise ValueError("工作区说明必须是字符串")
-        data = text.encode("utf-8")
+        try:
+            data = text.encode("utf-8")
+        except UnicodeEncodeError:
+            raise ValueError("工作区说明必须是可编码为 UTF-8 的文本") from None
         if len(data) > MAX_INSTRUCTIONS_BYTES:
             raise ValueError(f"工作区说明超过 {MAX_INSTRUCTIONS_BYTES} 字节上限")
         target = self.workspace / _PREFERRED
@@ -187,5 +198,7 @@ class WorkspaceInstructions:
         except OSError as exc:
             raise OSError(exc.strerror or "写入失败") from None
         return {"path": _PREFERRED.as_posix(), "bytes": len(data),
-                "status": "loaded" if data.strip() else "empty",
+                # 与 load()、describe() 同一口径：先按 UTF-8（容忍 BOM）解码再判定，
+                # 只含广义空白或仅含 BOM 的正文读取时为空，回执不能报成已加载。
+                "status": "loaded" if _decoded_text(data).strip() else "empty",
                 "limitBytes": MAX_INSTRUCTIONS_BYTES}
