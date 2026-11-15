@@ -910,9 +910,9 @@ export interface ConfigReadResponse {
   autoCompactionSource?: AutoCompactionSource;
   approvalPolicy?: string;
   approvalTimeoutSeconds?: number;
-  /** 无法建立索引的会话文件数量；仅在存在时返回。 */
+  /** 无法建立索引的会话文件数量，没有时为 0；较早的内核只在存在时返回，缺失表示未报告。 */
   unreadableThreadCount?: number;
-  /** 无法建立索引的会话 id，最多 20 个；仅在存在时返回。 */
+  /** 无法建立索引的会话 id，最多 20 个，没有时为空列表；较早的内核只在存在时返回。 */
   unreadableThreadIds?: string[];
 }
 

@@ -30,7 +30,7 @@ import {
   type PreferencesFileValues,
 } from "../data/preferencesFile";
 import { compactionDraft, compactionFields, compactionSourceLabel, sameCompactionDraft, type CompactionSettingDraft } from "../data/compactionSettings";
-import { readSessionIndexHealth, type SessionIndexHealth } from "../data/sessionIndexHealth";
+import { readSessionIndexHealth, sessionIndexHealthLabel, type SessionIndexHealth } from "../data/sessionIndexHealth";
 import { currentCommandPlatform } from "../data/shortcuts";
 import { shortcutKeyLabel } from "../data/shortcutLabels";
 import type { ThemePreference } from "../data/themePreference";
@@ -637,13 +637,16 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
                 <SettingRow title="导出界面偏好" description="将当前设备的显示偏好下载为 JSON 文件"><button type="button" className="settings-button" onClick={exportPreferences}>导出 JSON</button></SettingRow>
                 <SettingRow title="会话索引" description="检查本机无法解析、已跳过索引的会话文件；原始日志不会被修改">
                   <span className="settings-static-value">
-                    {!harnessUp ? "未连接" : indexHealthError ? "读取失败" : !indexHealthLoaded ? "读取中…" : indexHealth ? `${indexHealth.count} 个无法读取` : "正常"}
+                    {!harnessUp ? "未连接" : indexHealthError ? "读取失败" : !indexHealthLoaded ? "读取中…" : sessionIndexHealthLabel(indexHealth)}
                   </span>
                 </SettingRow>
                 {indexHealthError && (
                   <div className="settings-note"><IconFolder size={17} /><div><h3>无法读取会话索引状态</h3><p>{indexHealthError}</p></div></div>
                 )}
-                {indexHealth && (
+                {harnessUp && indexHealthLoaded && !indexHealthError && !indexHealth && (
+                  <div className="settings-note"><IconFolder size={17} /><div><h3>内核未报告会话索引状态</h3><p>当前内核没有返回这项检查结果，无法确认是否存在无法解析的会话文件；升级内核后可在这里查看。</p></div></div>
+                )}
+                {indexHealth && indexHealth.count > 0 && (
                   <div className="settings-note"><IconFolder size={17} /><div>
                     <h3>有会话文件无法建立索引</h3>
                     <p>这些会话文件无法解析，已被跳过索引；原始日志没有被修改或删除，其余会话不受影响。</p>

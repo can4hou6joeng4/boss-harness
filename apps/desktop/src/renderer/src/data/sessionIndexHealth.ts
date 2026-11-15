@@ -2,11 +2,11 @@
  * `config/read` 中的会话索引健康度。
  *
  * 内核会跳过无法解析的会话日志，避免单个坏文件拖垮其余会话恢复；
- * 这些文件只在这里暴露。旧内核不返回字段，或字段形状不可信时返回 null，
- * 界面按「未报告」处理，不把坏数据渲染成告警或正常。
+ * 这些文件只在这里暴露。内核明确报告 0 才表示已检查且正常；旧内核不返回字段，
+ * 或字段形状不可信时返回 null，界面按「未报告」处理，不把缺失渲染成告警或正常。
  */
 export interface SessionIndexHealth {
-  /** 无法建立索引的文件总数，可能大于 ids.length。 */
+  /** 无法建立索引的文件总数，可能大于 ids.length；0 表示内核已检查且没有这类文件。 */
   count: number;
   /** 内核返回的会话 id 快照，按字典序排列；形状非法的值被忽略。 */
   ids: string[];
@@ -23,8 +23,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function readSessionIndexHealth(config: unknown): SessionIndexHealth | null {
   if (!isRecord(config)) return null;
   const count = config.unreadableThreadCount;
-  if (typeof count !== "number" || !Number.isInteger(count) || count <= 0) return null;
+  if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) return null;
   const ids: string[] = [];
+  if (count === 0) return { count, ids };
   const raw = config.unreadableThreadIds;
   if (Array.isArray(raw)) {
     for (const value of raw) {
@@ -34,4 +35,10 @@ export function readSessionIndexHealth(config: unknown): SessionIndexHealth | nu
     }
   }
   return { count, ids };
+}
+
+/** 设置页「会话索引」一行的状态文字；未报告不能写成正常。 */
+export function sessionIndexHealthLabel(health: SessionIndexHealth | null): string {
+  if (!health) return "未报告";
+  return health.count > 0 ? `${health.count} 个无法读取` : "正常";
 }
