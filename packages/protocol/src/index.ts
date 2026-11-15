@@ -987,6 +987,7 @@ export interface ContextCompactStartParams {
   throughTurnId?: string;
   keepRecentTokens?: number;
   sourceDigest?: string;
+  /** 显式值须为最多 200 字符的非空模型 ID，不含空白；缺省继承启动时的摘要模型。 */
   model?: string;
 }
 export interface ContextCompactJob {
