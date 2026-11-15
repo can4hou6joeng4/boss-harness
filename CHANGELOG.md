@@ -10,6 +10,8 @@
 
 - [Issue #1290](https://github.com/can4hou6joeng4/boss-harness/issues/1290)：使用指南更正跨会话搜索的字符门槛。标题与项目名从第 1 个字符起就参与过滤，2 个字符只是消息内容搜索的门槛；此前该节写成不足 2 个字符就不检索，与搜索窗口的空态提示不一致。仅文档，不新增 RPC，协议与内核仍为 `0.2.0`。
 
+- [Issue #1292](https://github.com/can4hou6joeng4/boss-harness/issues/1292)：README 的「rc.24 之后合入」说明补齐 #1286 与 #1290。此前该句只列出 #1284 与 #1288，与 CHANGELOG「未发布」列表不一致，按 README 核对候选之后的主干内容会漏项。现在四项修正全部列出。仅文档，不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.24 - 2026-11-15
 
 本节汇总第二十四个候选版本的源码与交付内容；rc.16 至 rc.24 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
