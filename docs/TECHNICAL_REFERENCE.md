@@ -16,6 +16,8 @@
 
 输入帧在派发前使用严格 JSON 解码：对象键必须唯一，浮点数必须有限，嵌套最多 64 层，字符串不得包含孤立 Unicode 代理项。无效 JSON、坏 UTF-8、重复键、非有限数值或超深结构返回 `-32700` 协议错误，并继续读取后续完整帧；超过 `MAX_FRAME_BYTES` 或缺少 LF 的 framing 错误仍按传输边界终止连接。该解析规则也适用于服务端等待的响应帧，因此审批响应的重复字段不会被最后值静默覆盖。
 
+`initialize` 握手按协议声明校验参数类型：`protocolVersion` 只接受字符串（缺省按 `0.1.0`），`capabilities` 只接受对象或 `null`，其他类型返回 `-32602`；被拒绝的握手不改变连接状态，可在同一连接按正确参数重试。
+
 handler 可能已经产生外部或持久副作用，响应编码失败时不能重跑。若结果包含非有限浮点、孤立代理项或不可编码的递归结构，内核返回有界 `-32603` / `RESPONSE_INVALID`；如果响应请求 ID 本身无法安全编码，则省略该 ID。响应过大继续使用 `RESPONSE_TOO_LARGE`，原 handler 同样不会重放。
 
 rc.31 候选收紧已有参数类型校验，尚未实际发布：`turn/start` 与 `context/read` 只有缺省 `model` 才继承会话模型，显式 null、空字符串、布尔、数字、数组或对象均返回 `-32602`；合法字符串仍按会话模型线路检查，不匹配继续返回 `-32013`。`thread/read` 与 `thread/resume` 的 `excludeTurns` 只接受布尔 true / false，缺省为 false；不能传字符串 `"false"`。读取 `view` 只接受 `log` / `branch`，`task/read.kind` 只接受 `turn` / `queue` / `compaction`，数组、对象等非法类型统一返回 `-32602`，不再误报内部错误。

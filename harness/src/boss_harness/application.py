@@ -575,9 +575,16 @@ class ApplicationService:
         _text(info, "name", maximum=200)
         _text(info, "version", maximum=100)
         protocol = params.get("protocolVersion", "0.1.0")
+        # 协议声明版本为字符串、能力为对象或 null。非字符串版本不能进入集合判断
+        # （数组或对象会抛 TypeError 并误报内部错误），也不能把显式空值当成不兼容；
+        # 能力同样不能用真值回退把 false、0 或空容器当成「未提供」。
+        if not isinstance(protocol, str):
+            raise ValueError("protocolVersion 必须是字符串")
         if protocol not in {"0.1.0", PROTOCOL_VERSION}:
             raise RpcError(-32000, "协议版本不兼容", {"supported": ["0.1.0", PROTOCOL_VERSION]})
-        capabilities = params.get("capabilities") or {}
+        capabilities = params.get("capabilities")
+        if capabilities is None:
+            capabilities = {}
         if not isinstance(capabilities, dict):
             raise ValueError("capabilities 必须是对象或 null")
         bidirectional = capabilities.get("bidirectionalRequests", False)
