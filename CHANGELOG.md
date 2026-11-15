@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1400](https://github.com/can4hou6joeng4/boss-harness/issues/1400)：`thread/fork` 不再把读取投影的派生标记（`projectIdTruncated`、`titleTruncated`）复制到新分支会话头，避免分支永久显示「已截断」且重命名无法清除；来源会话的项目标识已被投影截断时，分支改为不继承该字段，而不是把截断值当作完整分组键。普通会话的分支仍完整继承标题与项目标识。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.36 - 2026-11-16
 
 本节汇总第三十六个候选版本的源码与交付内容；rc.16 至 rc.36 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
