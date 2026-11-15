@@ -24,9 +24,12 @@ def _parse_command(stripped: str) -> tuple[str, str]:
 def offline_reply(runner: Any, thread_id: str, text: str) -> str:
     command, argument = _parse_command(text.strip())
     if command == "/search":
-        keyword = argument or "Python"
-        result = runner.execute_tool(thread_id, "boss_search", {"keyword": keyword})
-        return f"检索「{keyword}」：\n{result.content}"
+        # 不带关键词时不替用户选定检索词：默认值会发起一次用户没有要求的
+        # 平台检索，并把无关结果写进会话。只提示补全，不调用业务 CLI。
+        if not argument:
+            return "请提供检索关键词，例如 `/search Python`。未发出检索，也不会使用默认关键词。"
+        result = runner.execute_tool(thread_id, "boss_search", {"keyword": argument})
+        return f"检索「{argument}」：\n{result.content}"
     entry = _READ_ONLY_COMMANDS.get(command)
     if entry is not None:
         tool_name, title = entry

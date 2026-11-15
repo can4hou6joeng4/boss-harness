@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1272](https://github.com/can4hou6joeng4/boss-harness/issues/1272)：无模型模式下 `/search` 不带关键词时不再默认检索 Python。此前 `/search`（含只带空白符）会把硬编码的 `Python` 当作关键词调用业务 CLI，用户没有给出检索词却实际发起一次只读平台查询，并把无关结果写进会话历史与上下文；README 与使用指南只描述 `/search 关键词`，没有声明该默认值。现在不带关键词时只返回「请提供检索关键词」的补全提示，不调用业务 CLI；`/search 关键词` 与含空格的多词关键词仍按整段剩余文本检索，其他离线只读指令不变。使用指南同步。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.23 - 2026-11-15
 
 本节汇总第二十三个候选版本的源码与交付内容；rc.16 至 rc.23 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
