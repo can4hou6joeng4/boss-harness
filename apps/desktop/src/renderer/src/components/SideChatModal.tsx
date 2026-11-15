@@ -108,7 +108,11 @@ export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, c
 
   return (
     <div className="sidechat-floating-window" role="dialog" aria-label={live ? "快速提问" : "快速提问 · 示例"}
-      onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
+      onKeyDown={event => {
+        // 取消输入法候选词的 Esc 不能关闭浮窗，也不能作废正在等待的提交回执。
+        if (event.defaultPrevented || event.nativeEvent.isComposing || event.keyCode === 229) return;
+        if (event.key === "Escape") { event.stopPropagation(); onClose(); }
+      }}>
       <div className="sidechat-header">
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <IconChat size={14} style={{ color: "var(--accent-color)" }} />
