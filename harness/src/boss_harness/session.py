@@ -1674,8 +1674,12 @@ class SessionStore:
         metadata["lastTurn"] = self._public_turn(turns[-1]) if turns else None
         queue_counts = self._queue_status_counts(entries)
         metadata["queueActiveItems"] = sum(queue_counts.values())
+        # 队列派生字段只由本会话条目决定：头部可能带着来源会话或上一轮索引的旧值，
+        # 计数为零时必须清掉，否则空队列的分支会被列表当成「待你处理」。
         if metadata["queueActiveItems"]:
             metadata["queueCounts"] = queue_counts
+        else:
+            metadata.pop("queueCounts", None)
         try:
             connection.execute("""INSERT INTO threads
                 (id,session_id,rollout_path,title,project_id,archived,created_at,updated_at,
@@ -3068,7 +3072,8 @@ class SessionStore:
                    for item in self._project_items(thread_id, entries)):
                 raise ValueError("分支边界会拆开工具批次")
             header = {key: value for key, value in source.items()
-                      if key not in {"id", "sessionId", "createdAt", "updatedAt", "lastTurn"}}
+                      if key not in {"id", "sessionId", "createdAt", "updatedAt", "lastTurn",
+                                     "queueActiveItems", "queueCounts"}}
             header.update(type="session", version=2, id=uuid.uuid4().hex[:12],
                           sessionId=uuid.uuid4().hex, createdAt=_now(), archived=False,
                           forkedFromId=thread_id, forkedFromTurnId=selected["turnId"])
