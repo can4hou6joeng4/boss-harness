@@ -4,6 +4,12 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1370](https://github.com/can4hou6joeng4/boss-harness/issues/1370)：`initialize` 的 `protocolVersion` 只接受字符串，`capabilities` 只接受对象或 null；其他类型统一返回 `-32602`，拒绝不改变握手状态，同一连接可用正确参数重试。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1372](https://github.com/can4hou6joeng4/boss-harness/issues/1372)：`thread/read` 与 `thread/resume` 的显式 `snapshot` 只接受布尔值；其他类型返回 `-32602`，不再静默退回普通读取。缺省与 false 保持普通读取，true 保持冻结快照。不新增 RPC，协议与内核仍为 `0.2.0`。
+
+- [Issue #1374](https://github.com/can4hou6joeng4/boss-harness/issues/1374)：`turn/interrupt` 的显式 `turnId` 在设置取消信号前校验，须为非空、非纯空白、最多 128 字符的字符串；空值和其他类型返回 `-32602`，不再绕过目标保护而取消当前回合。只有缺省仍取消当前回合，匹配目标与旧目标的既有行为不变；闲置状态也执行同一校验。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 0.2.0-rc.31 - 2026-11-15
 
 本节汇总第三十一个候选版本的源码与交付内容；rc.16 至 rc.31 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。

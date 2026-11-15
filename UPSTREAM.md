@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 停止请求显式目标参数校验（Issue #1374）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/agent/README.md`（Control）与 [`packages/agent/src/agent.ts`](https://github.com/earendil-works/pi/blob/b4899f59ef0fba6507c2e619fd804dcde51920ba/packages/agent/src/agent.ts)（`abort`、`signal` 与 `waitForIdle`）：取消作用于持有的活动运行实例，取消请求与等待收尾分别提供；所读入口没有本项目跨进程 `turnId` 参数。本轮独立补齐本仓库已有目标回合约束的输入校验，不推断上游存在同类问题，不复制源码、不引入依赖。
+
+适配约定：只有缺省 `turnId` 才沿用取消当前回合的旧客户端行为；显式值须为非空、非纯空白、最多 128 字符的字符串，非法值在设置取消信号前返回 `-32602`，闲置或活动回合的校验一致。匹配目标继续取消，旧目标继续返回 `-32004`，异步中止与最终收尾沿用原机制。不新增 RPC，协议与内核仍为 `0.2.0`。
+
 ## 分支摘要轮询归属（Issue #1268）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 [`packages/coding-agent/docs/compaction.md`](https://github.com/earendil-works/pi/blob/b4899f59ef0fba6507c2e619fd804dcde51920ba/packages/coding-agent/docs/compaction.md)（Branch Summarization、`session_before_tree`）与 [`packages/coding-agent/src/core/compaction/branch-summarization.ts`](https://github.com/earendil-works/pi/blob/b4899f59ef0fba6507c2e619fd804dcde51920ba/packages/coding-agent/src/core/compaction/branch-summarization.ts)（`generateBranchSummary`）：分支导航、摘要输入与结果有明确归属，摘要请求接收 `AbortSignal`；所读入口没有本项目 Electron 摘要任务编号、连接代次或轮询失效规则。本轮独立复用本仓库已有的 `epoch` 与 `summaryJob.jobId`，补齐轮询回执校验，不推断上游存在同类问题，不复制源码、不引入依赖。
