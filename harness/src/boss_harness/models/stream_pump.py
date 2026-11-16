@@ -242,7 +242,13 @@ class AsyncStreamPump(Generic[T], Iterator[T]):
             if cancel_task:
                 self._task_cancel_sent = True
         if loop is not None and task is not None and cancel_task and not self._done.is_set():
-            loop.call_soon_threadsafe(task.cancel)
+            try:
+                loop.call_soon_threadsafe(task.cancel)
+            except RuntimeError:
+                # `_run` 的 finally 先 `loop.close()`、最后才置 `_done`；取消检查在锁外，
+                # 可能落在这一窗口。此时 task 已不会再运行，终止事件也已入队，
+                # 无需（也无法）再发送取消；不能让内部 RuntimeError 覆盖取消/超时结论。
+                pass
 
     def close(self) -> None:
         self.cancel()
