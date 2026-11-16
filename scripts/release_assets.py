@@ -124,7 +124,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="生成内核发布资产清单 build-info.json 与 SHA256SUMS.txt"
     )
-    parser.add_argument("--version", required=True, help="Python 包版本，如 0.2.0rc46")
+    parser.add_argument("--version", required=True, help="Python 包版本，如 0.2.0rc47")
     parser.add_argument("--commit", required=True, help="40 位十六进制源码提交")
     parser.add_argument("--out-dir", required=True, help="已存在且用于写入清单的目录")
     parser.add_argument("--built-at", help="固定构建时间（UTC），用于复核")
@@ -132,7 +132,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if not VERSION_PATTERN.fullmatch(args.version):
-        fail("--version 不是有效版本，如 0.2.0rc46")
+        fail("--version 不是有效版本，如 0.2.0rc47")
     if not COMMIT_PATTERN.fullmatch(args.commit):
         fail("--commit 必须是 40 位十六进制提交")
     commit = args.commit.lower()
