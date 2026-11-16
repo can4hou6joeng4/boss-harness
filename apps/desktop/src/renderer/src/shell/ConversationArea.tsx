@@ -54,6 +54,8 @@ export interface ConversationAreaProps {
   models?: ModelDescriptor[]; activeModelProvider?: string; activeModelId?: string;
   onSelectModel?: (provider: string, id: string) => void | boolean | string | Promise<void | boolean | string>; onOpenSettings?: () => void; onInterrupt?: () => void; stopping?: boolean;
   skills?: SkillDescriptor[]; skillCatalogState?: SkillCatalogState; skillCatalogError?: string; onRefreshSkills?: () => void; skillProblems?: SkillProblem[];
+  /** 可加载技能超过展示上限；旧内核视为完整。 */
+  skillSkillsTruncated?: boolean;
   /** turnId → 该回合实际注入的技能 id；用于在用户消息下方回显本回合用到的技能。 */
   turnSkillIds?: Record<string, string[]>;
   /** 点击回合技能标签时打开「技能与工具」并选中该技能；缺省时标签只读。 */
@@ -106,6 +108,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   running = false, taskBlocked = false, draft, onDraftChange, models, activeModelProvider, activeModelId, configuredModelLabel, onSelectModel, onOpenSettings, sessionReasoning,
   onInterrupt, stopping, onApprovalDecision, onReviewDiff, onRevertDiff, onOpenRewind, onOpenContextEdit, loginGuide, onLogin,
   skills = [], skillCatalogState = "unavailable", skillCatalogError, onRefreshSkills, skillProblems = [],
+  skillSkillsTruncated = false,
   turnSkillIds = {}, onInspectSkill,
   focusMessageId, focusRevealTool = false, onFocusMessage,
   searchHighlight, onDismissSearchHighlight,
@@ -1113,7 +1116,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
             <button type="button" onClick={() => resolveMessageEdit(false)}>取消</button>
             {messageEditBusy && <span>正在读取附件或转交消息，请稍候。</span>}
           </div>}
-          <div className="thread-composer-input"><Composer ref={textareaRef} threadId={threadId} value={inputText} onChange={setInputText} onSend={onSendMessage} onQueue={simulateLocal ? undefined : onQueueMessage} onCheckQueueSubmission={simulateLocal ? undefined : onCheckQueueSubmission} draft={composerDraft} onDraftChange={updateDraft} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={onRefreshSkills} skillProblems={skillProblems} history={recallHistory}
+          <div className="thread-composer-input"><Composer ref={textareaRef} threadId={threadId} value={inputText} onChange={setInputText} onSend={onSendMessage} onQueue={simulateLocal ? undefined : onQueueMessage} onCheckQueueSubmission={simulateLocal ? undefined : onCheckQueueSubmission} draft={composerDraft} onDraftChange={updateDraft} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={onRefreshSkills} skillProblems={skillProblems} skillsTruncated={skillSkillsTruncated} history={recallHistory}
             readOnly={readOnly} archived={archived} isRunning={running} blocked={taskBlocked} onInterrupt={onInterrupt} stopping={stopping} preview={simulateLocal}
             currentMode={currentMode} onModeChange={onModeChange} models={models} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel}
             onSelectModel={onSelectModel} sessionReasoning={sessionReasoning} onOpenSettings={onOpenSettings} onLogin={onLogin} /></div>
