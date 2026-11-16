@@ -4,7 +4,23 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前未归入具名候选版本的变更：
+当前没有未归入具名候选版本的变更。
+
+## 0.2.0-rc.45 - 2026-11-16
+
+本节汇总第四十五个候选版本的源码与交付内容；rc.16 至 rc.45 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.44，本次聚合 3 项 Unicode 码点计数修正：主进程对会话标题、搜索查询、上下文替换文本与技能目录名的长度校验（#1483），搜索与查找的 2 / 120 字符阈值及最近搜索上下限（#1485），以及发送、排队、首页首条消息、快速提问与草稿持久化的 100000 字符上限（#1487）。桌面现在按 Unicode 码点计数，与内核 `len()` 一致，emoji 等补充平面字符不再被当成两个字符而误拒。
+
+升级注意：本候选只修正长度计数口径，不改变协议、RPC、持久化格式、存储键或工具权限；已安装的 rc.44 源码无需迁移。rc.44 已准备的 9 项搜索与代码围栏修正、rc.43 的安全报告政策、发布资产清单、非法日期校验与只读查表修正继续适用。最新实际发布仍为 rc.15。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
+
+### 变更
+
+- [Issue #1489](https://github.com/can4hou6joeng4/boss-harness/issues/1489)：同步根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本为 npm `0.2.0-rc.45` / Python `0.2.0rc45`；将 rc.44 之后 3 项修正归入本候选，同步 README 近期进展与版本表、使用指南的候选状态与技术要求中的候选引用。候选准备不代表实际 tag、Release、资产上传或包注册表发布。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
 
 - [Issue #1483](https://github.com/can4hou6joeng4/boss-harness/issues/1483)：桌面主进程对 `thread/start.title`、`thread/search.query`、`context/edit.replacementText` 与技能目录名（`skills/read`、`skills/write`、`skills/delete`）的长度上限改用 Unicode 码点计数，与内核 `len()` 及上下文编辑对话框的保存条件一致；101 个 emoji 的搜索查询与 16001 个 emoji 的替换文本不再在到达内核前被拒绝，最近搜索的 200 字符上限同样按码点判定。按码点超限的输入仍被拒绝，UTF-8 字节上限、路径安全规则、协议、RPC、持久化格式与工具权限不变。
 
