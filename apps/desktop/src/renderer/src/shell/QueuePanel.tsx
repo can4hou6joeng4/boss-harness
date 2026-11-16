@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { safeSlice } from "@boss-harness/shared";
+import { codePointLength, safeSlice } from "@boss-harness/shared";
 import type { QueueItem, SkillDescriptor } from "@boss-harness/protocol";
 import { IconClose } from "../components/Icons";
 import { ModalSurface } from "../components/ModalSurface";
 import { useClipboardCopy } from "../data/clipboardCopy";
 import { harnessErrorText } from "../data/harnessBridge";
+import { MAX_MESSAGE_TEXT_LENGTH } from "../data/composerDraft";
 import { queueRefreshErrorText, type QueueRefreshResult } from "../data/queueRefresh";
 import { queueActionNotice, type QueueActionOutcome, type QueueRetryOutcome } from "../data/queueAction";
 import { useQueueActions } from "../data/queueActionState";
@@ -149,6 +150,10 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
       return;
     }
     if (!editing.draft.trim()) { setEditError("正文不能为空。"); return; }
+    if (codePointLength(editing.draft) > MAX_MESSAGE_TEXT_LENGTH) {
+      setEditError(`正文超过 ${MAX_MESSAGE_TEXT_LENGTH} 字符上限，修改未保存。`);
+      return;
+    }
     if (!editChanged) { setEditing(null); setEditError(""); return; }
     setConfirmEditClose(false);
     await saveEditing(submitted => updateInput(submitted.item, submitted.draft));
@@ -316,6 +321,10 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   // 编辑只对当前列表中仍在排队的条目开放；保留草稿的旧快照不能授予保存权限。
   const editingLiveItem = editing ? items.find(item => item.id === editing.item.id) : undefined;
   const editingQueued = editingLiveItem?.status === "queued";
+  // 与内核 `queue/update` 的 `len()` 一致按码点计数；HTML `maxLength` 按 UTF-16 码元，
+  // 100000 个码点最多占 200000 个码元，用它作输入安全网不会拦住合法正文。
+  const editingDraftLength = editing ? codePointLength(editing.draft) : 0;
+  const editingDraftTooLong = editingDraftLength > MAX_MESSAGE_TEXT_LENGTH;
   const viewingSkillIds = viewing?.item.skillIds ?? [];
   const viewingSkillLabels = queueSkillLabels(viewingSkillIds, skills);
   const copyFeedback = viewing && clipboard.feedback?.key === viewing.item.id ? clipboard.feedback : null;
@@ -391,16 +400,17 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
           ? "只修改正文；技能与自动压缩覆盖保持不变，保存后仍需等待投递。"
           : editingLiveItem ? `这条消息${queueStatusLabel(editingLiveItem)}，修改无法保存；可复制正文后关闭。`
             : "当前列表已不包含这条消息，修改无法保存；草稿仍保留，可选中并复制正文后关闭。"}</p>
-        <textarea className="queue-input-editor" aria-label="排队消息正文" rows={10} maxLength={100000} disabled={saving}
+        <textarea className="queue-input-editor" aria-label="排队消息正文" rows={10} maxLength={MAX_MESSAGE_TEXT_LENGTH * 2} disabled={saving}
           value={editing.draft} onChange={event => { setEditing(current => current ? { ...current, draft: event.target.value } : current); setConfirmEditClose(false); }} />
-        <div className="queue-input-editor-meta"><span>{editing.draft.length} / 100000 字符</span>
-          <span className={!editingQueued || !editing.draft.trim() ? "is-warning" : ""}>{!editingQueued ? "修改无法保存"
+        <div className="queue-input-editor-meta"><span>{editingDraftLength} / {MAX_MESSAGE_TEXT_LENGTH} 字符</span>
+          <span className={!editingQueued || !editing.draft.trim() || editingDraftTooLong ? "is-warning" : ""}>{!editingQueued ? "修改无法保存"
+            : editingDraftTooLong ? <>正文超过 {MAX_MESSAGE_TEXT_LENGTH} 字符上限</>
             : editing.draft.trim() ? "保存后投递的是这段正文" : "正文不能为空"}</span></div>
         {confirmEditClose && editChanged && <p className="queue-input-edit-error" role="alert">有未保存的修改；再次关闭将丢弃。</p>}
         {editError && <p className="queue-input-edit-error" role="alert">{editError}</p>}
         <div className="dialog-actions">
           <button className="secondary-button" disabled={saving} onClick={closeEdit}>取消</button>
-          <button className="solid-button" disabled={saving || !editingQueued || !editing.draft.trim() || !editChanged}
+          <button className="solid-button" disabled={saving || !editingQueued || !editing.draft.trim() || !editChanged || editingDraftTooLong}
             onClick={() => { void saveEdit(); }}>{saving ? "保存中…" : "保存"}</button>
         </div>
       </div>
