@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ThreadUsageBucket, ThreadUsageCacheWaste, ThreadUsageReadResponse, ThreadUsageSummaryJob, ThreadUsageTurn } from "@boss-harness/protocol";
 import { harnessErrorText, readThreadUsage } from "./harnessBridge";
 import { readPagedItems } from "./pagedRead";
-import { bucketOf, cacheWasteOf, isCount as count, summaryJobOf, turnOf } from "./usageMapping";
+import { bucketOf, cacheWasteOf, isCount as count, summaryJobsOf, turnOf } from "./usageMapping";
 
 /**
  * 会话用量（只在内核声明 capabilities.threadUsage 时启用）。
@@ -23,20 +23,6 @@ export interface ThreadUsageState {
 }
 
 const MAX_PAGES = 10;
-
-/** 摘要任务明细在每页重复返回；任一页形状不符即报错，展示时只取第一份。 */
-function summaryJobsOf(page: ThreadUsageReadResponse): Pick<NonNullable<ThreadUsageState["data"]>,
-  "summaryJobs" | "summaryJobCount" | "summaryJobsTruncated"> {
-  if (page.summaryJobs === undefined) return {};
-  if (!Array.isArray(page.summaryJobs) || (page.summaryJobCount !== undefined && !count(page.summaryJobCount))
-    || (page.summaryJobsTruncated !== undefined && typeof page.summaryJobsTruncated !== "boolean")) {
-    throw new Error("内核返回的摘要任务用量格式无法识别");
-  }
-  const jobs = page.summaryJobs.slice(0, 50).map(summaryJobOf);
-  if (jobs.some(job => !job)) throw new Error("内核返回的摘要任务用量格式无法识别");
-  return { summaryJobs: jobs as ThreadUsageSummaryJob[], summaryJobCount: page.summaryJobCount,
-    summaryJobsTruncated: page.summaryJobsTruncated };
-}
 
 /** 按页读取（每页 200 个回合，最多 10 页），任一页形状不符即整体报错，不展示部分可疑数据。 */
 async function readAll(threadId: string, view: UsageView, valid: () => boolean): Promise<ThreadUsageState["data"]> {
