@@ -18,6 +18,8 @@
 
 - [Issue #1472](https://github.com/can4hou6joeng4/boss-harness/issues/1472)：会话搜索把半角浊音 / 半浊音符号（U+FF9E / U+FF9F）作为组合簇扩展记号处理，不再限定基字必须是半角假名；`カﾞ` / `はﾞ` / `ウﾞ` 与兼容假名 `㋕ﾞ` 分别与 `ガ` / `ば` / `ヴ` / `ガ` 归一化为同一文本并可互相命中。`ｶﾞ` 等 #1470 用例、孤立符号、`aﾞ` / `中ﾞ`、谚文 jamo、组合重音与 casefold 行为不变。不改变协议、RPC、持久化格式或工具权限。
 
+- [Issue #1474](https://github.com/can4hou6joeng4/boss-harness/issues/1474)：会话搜索把预组合谚文音节后的 jamo 并入同一组合簇，`간`（U+AC00 U+11AB）与 `간` 归一化为同一文本并可互相命中；完全分解的 L V T jamo 仍归一化为 `간`，`각ᆫ`、`가ᅡ` 的 NFKC 结果、假名浊音、组合重音与 casefold 行为不变。不改变协议、RPC、持久化格式或工具权限。
+
 ## 0.2.0-rc.43 - 2026-11-16
 
 本节汇总第四十三个候选版本的源码与交付内容；rc.16 至 rc.43 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
