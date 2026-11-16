@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextCompactJob, ContextReadResponse } from "@boss-harness/protocol";
-import { compactionReferenceOf, isContextJob, manualCompactionJob } from "./contextJob";
+import { compactionReferenceOf, contextJobOf, manualCompactionJob } from "./contextJob";
 import { contextPlanOf, type ContextPlan } from "./contextPlan";
 import { contextReadOf } from "./contextRead";
 import { disconnectPatch, settleReadFlight } from "./contextPanelState";
@@ -117,9 +117,9 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
         const jobId = reference?.jobId ?? knownJob?.jobId;
         if (!jobId) return;
         try {
-          const job = await readContextCompaction(jobId);
+          const job = contextJobOf(await readContextCompaction(jobId));
           if (!valid()) return;
-          if (!isContextJob(job) || job.jobId !== jobId || job.threadId !== id) throw new Error("摘要任务响应归属不一致");
+          if (!job || job.jobId !== jobId || job.threadId !== id) throw new Error("摘要任务响应归属不一致");
           if ((revisions.current.get(id) ?? 0) !== lifecycleRevision) {
             refreshAgain.current.add(id);
             return;
@@ -175,10 +175,15 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
       }
       const id = typeof params.threadId === "string" ? params.threadId : null;
       if (!id) return;
-      if (event.method.startsWith("context/compaction") && isContextJob(params)) {
+      // 任务通知载荷同样先收敛展示字段；畸形载荷按不适用丢弃，不能让通知回调抛错。
+      let incoming: ContextCompactJob | null = null;
+      if (event.method.startsWith("context/compaction")) {
+        try { incoming = contextJobOf(params); } catch { incoming = null; }
+      }
+      if (incoming) {
         revisions.current.set(id, (revisions.current.get(id) ?? 0) + 1);
         update(id, state => ({ ...state, plan: undefined, planning: false, discoveryStopped: false }));
-        const manual = manualCompactionJob(params);
+        const manual = manualCompactionJob(incoming);
         if (!manual) {
           // 分支摘要只占用线程；面板打开时刷新占用状态，但不采纳为当前手动摘要任务。
           if (current.current.isOpen && current.current.threadId === id) void refresh(id);
@@ -251,9 +256,10 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
     update(id, { starting: true, unknownStart: attempt, discoveryStopped: false, plan: undefined, cancelRequested: false, error: "", startRejection: undefined });
     try {
       const result = await startContextCompaction({ threadId: id, throughTurnId: selected.throughTurnId, sourceDigest: selected.sourceDigest });
+      const started = contextJobOf(result);
       if (!alive.current || epoch.current !== connectionEpoch) return;
-      if (!isContextJob(result) || !manualCompactionJob(result) || result.threadId !== id || result.sourceDigest !== attempt.sourceDigest || result.throughTurnId !== attempt.throughTurnId || result.jobId === attempt.priorJobId) throw new Error("开始压缩的任务响应归属不一致");
-      applyJob(id, result, !get(id).job || get(id).job?.jobId === result.jobId);
+      if (!started || !manualCompactionJob(started) || started.threadId !== id || started.sourceDigest !== attempt.sourceDigest || started.throughTurnId !== attempt.throughTurnId || started.jobId === attempt.priorJobId) throw new Error("开始压缩的任务响应归属不一致");
+      applyJob(id, started, !get(id).job || get(id).job?.jobId === started.jobId);
       update(id, { starting: false, discoveryStopped: false });
       void refresh(id);
     } catch (error) {
@@ -283,9 +289,10 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
     update(id, { cancelRequested: true, cancelInFlight: true, error: "" });
     try {
       const result = await abortContextCompaction(job.jobId);
+      const cancelled = contextJobOf(result);
       if (!alive.current || epoch.current !== connectionEpoch) return;
-      if (!isContextJob(result) || !manualCompactionJob(result) || result.reason || result.jobId !== job.jobId || result.threadId !== id || result.sourceDigest !== job.sourceDigest) throw new Error("取消回执不属于手动摘要任务");
-      applyJob(id, result);
+      if (!cancelled || !manualCompactionJob(cancelled) || cancelled.reason || cancelled.jobId !== job.jobId || cancelled.threadId !== id || cancelled.sourceDigest !== job.sourceDigest) throw new Error("取消回执不属于手动摘要任务");
+      applyJob(id, cancelled);
       void refresh(id);
     } catch (error) { if (alive.current && epoch.current === connectionEpoch) update(id, { cancelRequested: false, error: `取消回执未知：${harnessErrorText(error)}。请核对原任务，尚未确认收尾。` }); }
     finally {
