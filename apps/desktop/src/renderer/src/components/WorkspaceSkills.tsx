@@ -5,6 +5,7 @@ import type { WorkspaceSkillDialog } from "./WorkspaceSkillDialogs";
 import { IconChevronRight, IconClose, IconSearch, IconSparkles } from "./Icons";
 import { filterSkillProblems, filterSkills } from "../data/skillFilter";
 import { resolveSkillFocus } from "../data/skillFocus";
+import { skillReadOf } from "../data/skillCatalog";
 import { skillSelectionSurvives, visibleSkillDetail } from "../data/skillDetail";
 
 export interface WorkspaceSkillsProps {
@@ -107,13 +108,14 @@ export function WorkspaceSkills(props: WorkspaceSkillsProps) {
     setDetailLoading(true);
     readSkill(selectedId).then(value => {
       if (!active) return;
-      // 内核返回的正文是展示的唯一依据；形状不符时明确失败，不静默显示半截内容。
-      if (!value || typeof value.content !== "string" || typeof value.id !== "string" || typeof value.bytes !== "number"
-        || typeof value.digest !== "string") {
+      // 内核返回的正文是展示的唯一依据；基础字段、归属与上限必须同时成立，
+      // 否则 NaN 字节数、非法上限或错配正文会静默进入详情区。
+      const parsed = skillReadOf(value, selectedId);
+      if (!parsed) {
         setDetailError("内核返回的技能正文无法识别。");
         return;
       }
-      setDetail(value);
+      setDetail(parsed);
     }).catch(cause => { if (active) setDetailError(`读取技能正文失败：${harnessErrorText(cause)}`); })
       .finally(() => { if (active) setDetailLoading(false); });
     return () => { active = false; };
