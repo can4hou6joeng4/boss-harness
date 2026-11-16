@@ -5,6 +5,7 @@
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
 - [Issue #1523](https://github.com/can4hou6joeng4/boss-harness/issues/1523)：README 增加「English overview」段，用英文概括项目定位、进程边界、执行与队列、安全边界、模型线路与桌面能力，并明确 `0.2.0-rc.50` 仍为源码候选、最新实际发布为 `v0.2.0-rc.15`、当前没有独立安装包；同时链接现有中文 README、使用指南、技术要求与上游核对记录。不改变代码、RPC、协议或版本号。
+- [Issue #1525](https://github.com/can4hou6joeng4/boss-harness/issues/1525)：队列读取投影此前先保留最近的排队 / 投递中项，暂停项只使用剩余名额；在 128 条排队消息加 100 条暂停消息的会话里，28 条较早的暂停项不会出现在 `queue/list` / `thread/resume` 投影中，而暂停项不会自动投递、只能由用户重新排队或撤回。现在投影优先保留暂停项，再保留最近的排队 / 投递中项，待处理项仍单次最多 200 项、计数与截断标记不变；同步修正 README、使用指南与技术参考中的投影说明。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.50 - 2026-11-16
 
