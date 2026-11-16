@@ -23,6 +23,8 @@ export interface WorkspaceSkillsProps {
   deletable: boolean;
   /** 目录里无法安全读取的 SKILL.md；旧内核不返回时为空。 */
   problems: SkillProblem[];
+  /** 可加载技能超过展示上限，清单只含字典序前若干项；旧内核视为完整。 */
+  skillsTruncated?: boolean;
   /** 未加载项超过展示上限，清单只含前若干条；旧内核视为完整。 */
   problemsTruncated?: boolean;
   /** 目录数量超过有界枚举上限，仍有目录未被检查；旧内核视为完整。 */
@@ -118,7 +120,7 @@ export function WorkspaceSkills(props: WorkspaceSkillsProps) {
   }, [selectedId, props.readable, reload, selectedDigest, props.mutationRevision]);
   return <section aria-labelledby="workspace-skills-heading">
     <div className="page-section-head">
-      <h2 className="page-section-title" id="workspace-skills-heading">工作区技能 <span>{props.skills.length || (props.state === "ready" || props.state === "empty" ? 0 : "—")}</span></h2>
+      <h2 className="page-section-title" id="workspace-skills-heading">工作区技能 <span>{props.skills.length || (props.state === "ready" || props.state === "empty" ? 0 : "—")}{props.skillsTruncated ? "+" : ""}</span></h2>
       <span className="workspace-skill-tools">
         {props.creatable && <button type="button" className="subtle-button" onClick={() => openDialog({ kind: "create", root: props.root })} disabled={props.state === "unavailable"}>新建技能…</button>}
         <button type="button" className="subtle-button" onClick={props.onRefresh} disabled={props.state === "loading" || props.state === "unavailable"}>{props.state === "loading" ? "正在读取…" : "刷新技能目录"}</button>
@@ -131,6 +133,7 @@ export function WorkspaceSkills(props: WorkspaceSkillsProps) {
     {props.state === "empty" && props.problems.length === 0 && <div className="page-tool-empty">当前工作区没有技能。可在 <code>.boss-harness/skills/&lt;id&gt;/SKILL.md</code> 添加。</div>}
     {props.root && (props.state === "ready" || props.state === "empty") && <p className="workspace-skill-source">技能目录：<code>{props.root}</code>{props.root === ".boss-cli/skills" ? "（旧目录；新建 .boss-harness/skills 后将改用新目录）" : ""}</p>}
     {(props.state === "ready" || props.state === "empty") && (props.skills.length > 0 || props.problems.length > 0) && <div className="page-search workspace-skill-search"><IconSearch size={16} /><input aria-label="筛选工作区技能" placeholder="搜索技能名称、描述或未加载原因…" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" className="search-clear" aria-label="清除技能筛选" onClick={() => setQuery("")}><IconClose size={14} /></button>}</div>}
+    {props.skillsTruncated && <p className="workspace-skill-source" role="status">可加载技能超过展示上限，以上只是字典序前 {props.skills.length} 个；其余技能不会出现在列表，也无法按 id 读取或选择。整理或移走部分技能后可刷新重试。</p>}
     {filtering && (props.state === "ready" || props.state === "empty") && <p className="workspace-skill-source" role="status">匹配 {filteredSkills.length} / {props.skills.length} 个可加载技能{props.problems.length > 0 ? `，${filteredProblems.length} / ${props.problems.length} 个未加载项` : ""}。</p>}
     {filteredProblems.length > 0 && (props.state === "ready" || props.state === "empty") && <div className="workspace-skill-problems" role="status">
       <strong>{filtering ? `${filteredProblems.length} 个未加载项匹配筛选` : `${props.problems.length} 个技能未能加载`}</strong>

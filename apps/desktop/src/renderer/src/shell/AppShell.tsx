@@ -279,6 +279,7 @@ export function AppShell(props: AppShellProps) {
   const [skillRoot, setSkillRoot] = useState<string | null>(null);
   const [skillProblems, setSkillProblems] = useState<SkillProblem[]>([]);
   // 内核如实报告清单是否被截断：界面不能用不完整清单断言总数。
+  const [skillSkillsTruncated, setSkillSkillsTruncated] = useState(false);
   const [skillProblemsTruncated, setSkillProblemsTruncated] = useState(false);
   const [skillCandidatesTruncated, setSkillCandidatesTruncated] = useState(false);
   const [skillRefresh, setSkillRefresh] = useState(0);
@@ -663,6 +664,7 @@ export function AppShell(props: AppShellProps) {
       setSkills([]);
       setSkillRoot(null);
       setSkillProblems([]);
+      setSkillSkillsTruncated(false);
       setSkillProblemsTruncated(false);
       setSkillCandidatesTruncated(false);
       setSkillCatalogState("unavailable");
@@ -675,6 +677,7 @@ export function AppShell(props: AppShellProps) {
       setSkills(result.skills);
       setSkillRoot(result.root);
       setSkillProblems(result.problems);
+      setSkillSkillsTruncated(result.skillsTruncated);
       setSkillProblemsTruncated(result.problemsTruncated);
       setSkillCandidatesTruncated(result.candidatesTruncated);
       // 全部文件都未能加载时仍按 empty 处理，但问题清单会说明原因。
@@ -685,6 +688,7 @@ export function AppShell(props: AppShellProps) {
       setSkills([]);
       setSkillRoot(null);
       setSkillProblems([]);
+      setSkillSkillsTruncated(false);
       setSkillProblemsTruncated(false);
       setSkillCandidatesTruncated(false);
       setSkillCatalogError(harnessErrorText(cause));
@@ -736,7 +740,7 @@ export function AppShell(props: AppShellProps) {
                 <button type="button" onClick={() => resolveWorkspaceLeave(false)}>继续编辑</button>
               </>}
             </div>}
-            {page !== "home" ? <WorkspacePages page={page} folders={allFolders} messages={props.messages} onSelect={select} onNewTask={newTask} onDraft={useTemplate} tools={tools} toolCatalogState={toolCatalogState} toolCatalogError={toolCatalogError} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} onOpenSkillDialog={openSkillDialog} skillMutationNotice={skillMutationNotice} skillMutationRevision={skillMutationRevision} skillsReadable={props.skillsReadable === true} skillsCreatable={props.skillsCreatable === true} skillsWritable={props.skillsWritable === true} skillsDeletable={props.skillsDeletable === true} skillRoot={skillRoot} skillProblems={skillProblems} skillProblemsTruncated={skillProblemsTruncated} skillCandidatesTruncated={skillCandidatesTruncated} onUseSkill={useSkillInNewChat} workspaceInstructionsEditable={props.workspaceInstructionsEditable === true} harnessUp={props.harnessUp === true} preview={props.simulateLocal ?? true} focusSkillId={skillFocus} onFocusSkill={() => setSkillFocus(null)} onInstructionsDirty={reportWorkspaceInstructionsDirty} onInstructionsSaving={reportWorkspaceInstructionsSaving} /> : props.isHomeView ? <HomeView key={draft.id} folders={allFolders} draft={draft} onDraftChange={updateHomeDraft} pendingTemplate={pendingTemplate} onResolveTemplate={resolveTemplate} pendingNewTaskProject={pendingNewTask?.projectId ?? null} onResolveNewTask={resolveNewTask} selectedProjectId={draftProjectId} onSelectProject={setDraftProjectId} onNewProject={() => setNewProject(true)} preview={!window.boss} harnessUp={props.harnessUp ?? false} blocked={props.taskBlocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId ?? "deepseek-v4"} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} currentMode={props.currentMode} onModeChange={props.onModeChange} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillProblems={skillProblems} onStartSessionWithPrompt={startInProject} onOpenSettings={() => openSettings("connections")} /> : <>
+            {page !== "home" ? <WorkspacePages page={page} folders={allFolders} messages={props.messages} onSelect={select} onNewTask={newTask} onDraft={useTemplate} tools={tools} toolCatalogState={toolCatalogState} toolCatalogError={toolCatalogError} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} onOpenSkillDialog={openSkillDialog} skillMutationNotice={skillMutationNotice} skillMutationRevision={skillMutationRevision} skillsReadable={props.skillsReadable === true} skillsCreatable={props.skillsCreatable === true} skillsWritable={props.skillsWritable === true} skillsDeletable={props.skillsDeletable === true} skillRoot={skillRoot} skillProblems={skillProblems} skillSkillsTruncated={skillSkillsTruncated} skillProblemsTruncated={skillProblemsTruncated} skillCandidatesTruncated={skillCandidatesTruncated} onUseSkill={useSkillInNewChat} workspaceInstructionsEditable={props.workspaceInstructionsEditable === true} harnessUp={props.harnessUp === true} preview={props.simulateLocal ?? true} focusSkillId={skillFocus} onFocusSkill={() => setSkillFocus(null)} onInstructionsDirty={reportWorkspaceInstructionsDirty} onInstructionsSaving={reportWorkspaceInstructionsSaving} /> : props.isHomeView ? <HomeView key={draft.id} folders={allFolders} draft={draft} onDraftChange={updateHomeDraft} pendingTemplate={pendingTemplate} onResolveTemplate={resolveTemplate} pendingNewTaskProject={pendingNewTask?.projectId ?? null} onResolveNewTask={resolveNewTask} selectedProjectId={draftProjectId} onSelectProject={setDraftProjectId} onNewProject={() => setNewProject(true)} preview={!window.boss} harnessUp={props.harnessUp ?? false} blocked={props.taskBlocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId ?? "deepseek-v4"} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} currentMode={props.currentMode} onModeChange={props.onModeChange} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={() => setSkillRefresh(previous => previous + 1)} skillProblems={skillProblems} onStartSessionWithPrompt={startInProject} onOpenSettings={() => openSettings("connections")} /> : <>
               <div className="conversation-pane">
                 {props.simulateLocal && <div className="conversation-preview-badge">示例会话 · 交互预览</div>}
                 <ErrorBoundary key={props.activeSession?.id ?? "conversation"} scope="会话区" compact hint="侧边栏、导航和其他会话仍可使用；切换会话或重试即可恢复。">
