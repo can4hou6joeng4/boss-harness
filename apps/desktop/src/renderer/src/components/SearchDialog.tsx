@@ -5,7 +5,7 @@ import type { ProjectFolder, SessionItem } from "../data/mockData";
 import { sessionRows } from "../data/sessionRows";
 import { useLocalNow } from "../data/useLocalNow";
 import { buildSearchOptions, searchHitFocus, searchRoleLabel, type SearchOption } from "../data/searchOptions";
-import { searchEmptyCopy, searchStatusText, MESSAGE_SEARCH_MIN_LENGTH, type MessageSearchState } from "../data/searchStatus";
+import { searchEmptyCopy, searchStatusText, MESSAGE_SEARCH_MIN_LENGTH, MESSAGE_SEARCH_MAX_LENGTH, type MessageSearchState } from "../data/searchStatus";
 import { splitKernelQueryHighlight, splitQueryHighlight } from "../data/findHighlight";
 import { visibleThreadSearchHits, liveMessageSearchState, type MessageSearchSettlement, type ThreadSearchBatch } from "../data/messageSearch";
 import { searchThreadMessages } from "../data/harnessBridge";
@@ -80,6 +80,11 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
       setHitBatch(null); setMessageState("idle"); setSettled(null);
       return;
     }
+    // 超过内核与主进程校验的上限时不发必然失败的请求；标题搜索仍按当前输入工作。
+    if (codePointLength(needle) > MESSAGE_SEARCH_MAX_LENGTH) {
+      setHitBatch(null); setSettled(null); setMessageState("tooLong");
+      return;
+    }
     let cancelled = false;
     setMessageState("loading");
     const timer = window.setTimeout(() => {
@@ -140,6 +145,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
       <div id={listId} role="listbox" aria-label="聊天与消息搜索结果">
         {codePointLength(query.trim()) >= MESSAGE_SEARCH_MIN_LENGTH && searchMessages && <>
           <p className="search-message-heading" role="presentation">{shownMessageState === "loading" ? "正在搜索消息…"
+            : shownMessageState === "tooLong" ? `搜索词超过 ${MESSAGE_SEARCH_MAX_LENGTH} 字符，未搜索消息`
             : shownMessageState === "error" ? "消息搜索失败，可继续按标题查找"
             : messageOptions.length ? <>{`消息命中`}{hitsTruncated && <span className="search-truncated" title="搜索有界：最多 100 个会话、50 条消息，较早或过多的命中不会全部返回；也可能有会话未能读取">仅显示部分结果</span>}</>
             : <>{`没有匹配的消息`}{hitsTruncated && <span className="search-truncated" title="搜索有界：部分会话未能读取或未扫描，可能仍有消息命中">消息搜索不完整</span>}</>}</p>
