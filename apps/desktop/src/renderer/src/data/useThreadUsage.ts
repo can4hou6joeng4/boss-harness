@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ThreadUsageBucket, ThreadUsageCacheWaste, ThreadUsageReadResponse, ThreadUsageSummaryJob, ThreadUsageTurn } from "@boss-harness/protocol";
 import { harnessErrorText, readThreadUsage } from "./harnessBridge";
 import { readPagedItems } from "./pagedRead";
-import { bucketOf, cacheWasteOf, isCount as count, summaryJobsOf, turnOf } from "./usageMapping";
+import { bucketOf, cacheWasteOf, isCount as count, summaryJobsOf, turnOf, verifyUsageTurns } from "./usageMapping";
 
 /**
  * 会话用量（只在内核声明 capabilities.threadUsage 时启用）。
@@ -30,6 +30,7 @@ async function readAll(threadId: string, view: UsageView, valid: () => boolean):
   let summaryTasks: ThreadUsageBucket | null = null, totals: ThreadUsageBucket | null = null;
   let summaryMeta: ReturnType<typeof summaryJobsOf> | null = null;
   let cacheWaste: ThreadUsageCacheWaste | undefined;
+  let lastTurnCount: number | undefined;
   const reads = await readPagedItems<ThreadUsageTurn>("回合用量", async cursor => {
     const page: ThreadUsageReadResponse = await readThreadUsage(threadId, view, cursor);
     if (!valid()) throw new Error("回合用量读取已过期");
@@ -37,6 +38,7 @@ async function readAll(threadId: string, view: UsageView, valid: () => boolean):
       || !Array.isArray(page.turns) || !count(page.turnCount) || (page.nextCursor !== null && typeof page.nextCursor !== "string")) {
       throw new Error("内核返回的用量不属于当前会话或格式无法识别");
     }
+    lastTurnCount = page.turnCount;
     head ??= page;
     summaryTasks ??= bucketOf(page.summaryTasks);
     totals ??= bucketOf(page.totals);
@@ -54,7 +56,9 @@ async function readAll(threadId: string, view: UsageView, valid: () => boolean):
     }
     return { items: turns, nextCursor: page.nextCursor ?? null };
   }, MAX_PAGES);
-  return { threadId, view, turnCount: head!.turnCount, turns: reads.items, truncated: reads.truncated,
+  // 截断时无法知道后面还有多少条目，只校验已读部分不重复；完整读完时以最后一页的总数为准。
+  verifyUsageTurns(reads.items, reads.truncated ? undefined : lastTurnCount);
+  return { threadId, view, turnCount: lastTurnCount ?? head!.turnCount, turns: reads.items, truncated: reads.truncated,
     summaryTasks: summaryTasks!, totals: totals!, ...(summaryMeta ?? {}),
     ...(cacheWaste ? { cacheWaste } : {}) };
 }
