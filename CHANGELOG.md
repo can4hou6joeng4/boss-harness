@@ -5,6 +5,7 @@
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
 - [Issue #1553](https://github.com/can4hou6joeng4/boss-harness/issues/1553)：重新排队已受理但队列刷新失败时，`queueRetryPage` 对成功撤回的旧项按 0 增量计算持久总数；内核 `queue/remove` 只把旧项标记为 `cancelled`，记录仍计入 `totalItems`，新项又新增一条，截断队列因此少显示 1 项（5 而非 6），多次重试持续漂移。现在只要内核总数已知，重新排队统一按新项加 1，成功撤回不再扣减；本地条目、待处理数与分类计数不变。只改渲染层兜底投影，不改变 RPC、协议或版本号。
+- [Issue #1555](https://github.com/can4hou6joeng4/boss-harness/issues/1555)：内核审批校验只要求 `toolName` 是字符串，桌面却按去空白后非空、不超过 200 字符展示；损坏的待审批会进入索引、`pending_approvals` 与 `pending_approval_counts`，却被渲染层丢弃。两条待审批中一条工具名为空时，铃铛显示 2 项而通知面板只有 1 条可处理。现在 `_valid_approval_item` 使用与桌面展示一致的约束，索引、列表与持久计数都不再包含无法展示的条目；既有缓存索引在会话变化或运行 `--repair-state` 重建后收敛。不新增 RPC 方法，不改变持久化格式或权限，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.52 - 2026-11-16
 
