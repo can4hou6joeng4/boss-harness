@@ -57,6 +57,11 @@ def _is_hangul_jamo(char: str) -> bool:
     return 0x1100 <= code <= 0x11FF or 0xA960 <= code <= 0xA97C or 0xD7B0 <= code <= 0xD7FB
 
 
+def _is_hangul_syllable(char: str) -> bool:
+    """预组合谚文音节（U+AC00–U+D7A3）：NFKC 会与紧随的尾音 jamo 合成一个音节。"""
+    return 0xAC00 <= ord(char) <= 0xD7A3
+
+
 #: 半角假名的浊音 / 半浊音符号。组合类为 0，但 NFKC 会与前面的假名（含全角与
 #: 兼容假名）合成预组合假名；按扩展记号并入前一个字素，孤立符号不受影响。
 _HALFWIDTH_VOICED_MARKS = frozenset({"ﾞ", "ﾟ"})
@@ -65,21 +70,22 @@ _HALFWIDTH_VOICED_MARKS = frozenset({"ﾞ", "ﾟ"})
 def _search_clusters(value: str) -> Iterator[tuple[int, int, str]]:
     """逐个组合簇产出 (原文起点, 原文终点, NFKC + casefold 后的片段)。
 
-    NFKC 会把基字符与后续组合记号、分解状态的谚文 jamo 组合成一个字符；逐码点
-    归一化做不到跨码点组合，NFC / NFD 正文互相查询会漏命中。半角假名的浊音 /
-    半浊音符号组合类为 0，需按扩展记号并入前一个字素，否则 ``ｶﾞ`` / ``カﾞ``
-    会被拆开而无法与 ``ガ`` 互相命中。casefold 逐码点进行，与旧实现的语义一致
-    （上下文无关，不改变词尾 sigma 等结果）。
+    NFKC 会把基字符与后续组合记号、分解状态的谚文 jamo、预组合音节后的尾音
+    jamo 组合成一个字符；逐码点归一化做不到跨码点组合，NFC / NFD 正文互相
+    查询会漏命中。谚文 jamo 只要跟随在音节或另一个 jamo 之后就并入同一簇：
+    这比字素规则略宽，只影响原文区间粒度，不改变整簇 NFKC 的结果。半角假名的
+    浊音 / 半浊音符号组合类为 0，需按扩展记号并入前一个字素，否则 ``ｶﾞ`` /
+    ``カﾞ`` 会被拆开而无法与 ``ガ`` 互相命中。casefold 逐码点进行，与旧实现的
+    语义一致（上下文无关，不改变词尾 sigma 等结果）。
     """
     index = 0
     length = len(value)
     while index < length:
         end = index + 1
-        if _is_hangul_jamo(value[index]):
-            while end < length and _is_hangul_jamo(value[end]):
-                end += 1
+        hangul = _is_hangul_jamo(value[index]) or _is_hangul_syllable(value[index])
         while end < length and (
             unicodedata.combining(value[end])
+            or (hangul and _is_hangul_jamo(value[end]))
             or value[end] in _HALFWIDTH_VOICED_MARKS
         ):
             end += 1
