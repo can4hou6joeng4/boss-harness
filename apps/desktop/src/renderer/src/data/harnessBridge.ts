@@ -75,6 +75,7 @@ import { TURN_SKILL_PAGE_LIMIT, turnSkillPageOf } from "./turnSkills";
 import { approvalDeadlineMs, mapPendingApprovals, type PendingApprovalList } from "./pendingApprovals";
 import { readPagedItems } from "./pagedRead";
 import { trackCursor } from "./cursorChain";
+import { threadSummaryOf, uniqueThreadIds } from "./threadList";
 import { toolDurationMs } from "./toolTiming";
 import {
   approvalDecision, itemContextEdit, itemResultRef, itemSource, itemText, itemToolName,
@@ -238,11 +239,15 @@ export async function listThreads(archived = false): Promise<SessionItem[]> {
         { archived, cursor, limit: 200 },
       );
       if (!response || !Array.isArray(response.threads)) throw new Error("会话列表响应格式无法识别");
-      return { items: response.threads, nextCursor: response.nextCursor ?? null };
+      // 侧栏直接使用 id / title / updatedAt 与 lastTurn；损坏条目会让去重、key 与操作目标失真。
+      const threads = response.threads.map(threadSummaryOf);
+      if (threads.some(thread => thread === null)) throw new Error("会话列表包含无法识别的条目");
+      return { items: threads as ThreadSummary[], nextCursor: response.nextCursor ?? null };
     },
     100,
   );
   if (truncated) throw new Error("会话列表分页过多，未能完整读取");
+  if (!uniqueThreadIds(threads)) throw new Error("会话列表包含重复会话");
   return threads.map((thread) => {
     const queue = threadQueueCountsOf(thread.queueActiveItems, thread.queueCounts);
     return {
