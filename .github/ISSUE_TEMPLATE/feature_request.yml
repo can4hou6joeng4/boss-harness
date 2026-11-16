@@ -1,0 +1,53 @@
+name: 功能建议
+description: 描述招聘场景、现有阻碍与期望边界
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢建议。标题建议写成 `feat(scope): 中文描述`。
+        请侧重可验证的使用场景与边界，而不是只给出实现方案；不需要粘贴真实候选人、职位数据或任何凭据。
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景
+      description: 在什么招聘任务中出现、当前如何绕过、为什么现有能力不够。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望行为与边界
+      description: 说明期望的交互或接口、不能自动执行的动作，以及对审批、停止与恢复的要求。
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响范围
+      options:
+        - 桌面界面
+        - 会话与持久化
+        - 队列与后续回合
+        - 审批与停止
+        - 模型线路
+        - 上游 CLI 与浏览器来源
+        - 文档与发布产物
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 已考虑的其他方案
+      description: 可选；说明为什么现有工作流或外部工具不能替代。
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 内容不包含凭据、Cookie、真实会话、个人资料或本机私有路径。
+          required: true
+        - label: 已核对 README 与使用指南，并确认不是重复 Issue。
+          required: true
