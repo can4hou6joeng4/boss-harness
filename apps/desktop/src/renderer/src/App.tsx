@@ -134,7 +134,7 @@ export function App(): JSX.Element {
     uncertain?: boolean; response?: TurnContinuationReadResponse; error?: string;
   } | null>(null);
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
-  // 内核只返回有界投影；保留总数 / 截断标记，避免界面上无痕丢掉更早的队列记录。
+  // 内核只返回有界投影；保留总数 / 截断标记，避免界面上无痕丢掉未载入的队列记录。
   const [queueMeta, setQueueMeta] = useState<Pick<QueuePage, "totalItems" | "activeItems" | "truncated">>({});
   // 侧栏徽标来自会话列表投影，不会随 queue/updated 自动更新：用同一次队列投影同步该会话。
   // 与面板分开，事件来自非当前会话时也能更新对应行的徽标。
