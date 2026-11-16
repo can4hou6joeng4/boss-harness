@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { SkillDescriptor, SkillReadResponse } from "@boss-harness/protocol";
 import { harnessErrorText, writeSkill } from "../data/harnessBridge";
+import { skillDescriptorOf } from "../data/skillCatalog";
 import { skillDialogCloseIntent } from "../data/skillEditorClose";
 import { ModalSurface } from "./ModalSurface";
 import "../styles/skill-editor.css";
@@ -45,8 +46,9 @@ export function EditSkillDialog(props: Props) {
     setSaving(true); setError(""); setConfirmClose(false);
     try {
       const result = await writeSkill(props.skill.id, content, props.skill.digest);
-      const skill = result?.skill;
-      if (!skill || typeof skill.id !== "string" || typeof skill.name !== "string" || typeof skill.bytes !== "number") {
+      // 回执来自进程边界：形状与归属都必须成立，错配 id 不能写成「已保存技能 X」。
+      const skill = skillDescriptorOf(result?.skill);
+      if (!skill || skill.id !== props.skill.id) {
         setError("内核返回的修改结果无法识别；请关闭后重新读取技能确认。");
         return;
       }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { SkillDescriptor } from "@boss-harness/protocol";
 import { createSkill, harnessErrorText } from "../data/harnessBridge";
+import { skillDescriptorOf } from "../data/skillCatalog";
 import { skillDialogCloseIntent } from "../data/skillEditorClose";
 import { ModalSurface } from "./ModalSurface";
 import "../styles/skill-editor.css";
@@ -61,8 +62,9 @@ export function CreateSkillDialog(props: Props) {
     setSaving(true); setError(""); setConfirmClose(false);
     try {
       const result = await createSkill(id.trim(), content);
-      const skill = result?.skill;
-      if (!skill || typeof skill.id !== "string" || typeof skill.name !== "string" || typeof skill.bytes !== "number") {
+      // 回执来自进程边界：形状与归属都必须成立，错配 id 不能写成「已创建技能 X」。
+      const skill = skillDescriptorOf(result?.skill);
+      if (!skill || skill.id !== id.trim()) {
         setError("内核返回的新建结果无法识别；请刷新技能目录确认是否已创建。");
         return;
       }
