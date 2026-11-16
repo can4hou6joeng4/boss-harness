@@ -2,6 +2,7 @@ import type { EventListResponse, ItemContentReference, ItemContentReadResponse, 
 import { safeSlice, stripIpcErrorWrapper } from "@boss-harness/shared";
 import type { HarnessEvent } from "./harnessEvents";
 import { trackCursor } from "./cursorChain";
+import { threadSnapshotOf } from "./snapshotShape";
 
 interface Api { request<T>(method: string, params?: unknown): Promise<T> }
 /** 单次恢复允许的分页上限：只兜住异常内核造成的无尽翻页，正常会话远达不到。 */
@@ -182,7 +183,10 @@ export class HarnessReplica {
     const flight = Promise.resolve().then(async () => {
       current();
       const branched = await this.branchSnapshot(threadId, current);
-      const snapshot = branched ?? await this.api.request<ThreadReadResponse>("thread/resume", { threadId, excludeTurns: true, snapshot: true });
+      // 普通路径没有分支投影的 view/branch 字段可核对；回执必须属于请求的会话，
+      // 否则消息与线路会被写到另一个会话。
+      const snapshot = branched ?? threadSnapshotOf(
+        await this.api.request<ThreadReadResponse>("thread/resume", { threadId, excludeTurns: true, snapshot: true }), threadId);
       current();
       if (branched) {
         // Items were read together with the branch projection above.
@@ -196,7 +200,7 @@ export class HarnessReplica {
         snapshot.items = hydrated;
       } else {
         // Compatibility with 0.1 servers that do not expose stable snapshot pages.
-        const full = await this.api.request<ThreadReadResponse>("thread/read", { threadId });
+        const full = threadSnapshotOf(await this.api.request<ThreadReadResponse>("thread/read", { threadId }), threadId);
         current();
         const hydrated: ThreadItem[] = [];
         for (const item of full.items) { current(); hydrated.push(await this.resolveItemContent(item, threadId, undefined, current)); }
