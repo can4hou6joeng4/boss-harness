@@ -68,63 +68,13 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 
 ## 近期进展
 
-`v0.2.0-rc.56` 候选相对 rc.55 新增 49 项修复与 1 项界面改进，并继续包含 rc.55 的 5 项修复：
+`v0.2.0-rc.56` 候选相对 rc.55 新增 49 项修复与 1 项界面改进，并继续包含 rc.55 的 5 项修复。完整清单与每项验证记录见 [CHANGELOG](CHANGELOG.md)，以下按主题归并代表项：
 
-- **技能标签查询不再命中原型链**（[Issue #1585](https://github.com/can4hou6joeng4/boss-harness/issues/1585)）：会话区与重试路径只读取技能映射自己的条目，缺失或形状不符返回空数组，损坏会话中的特殊 `turnId` 不再让整段消息落入错误边界。
-- **队列元数据不得少于可见明细**（[Issue #1587](https://github.com/can4hou6joeng4/boss-harness/issues/1587)）：待处理数或分类计数小于已载入条目时按缺失处理，面板与侧栏徽标回退到可见计数，不再出现「1 项待处理」上方列出 3 条记录或「排队 0」旁列出排队消息。
-- **审批按会话计数覆盖可见条目**（[Issue #1591](https://github.com/can4hou6joeng4/boss-harness/issues/1591)）：可见会话缺失计数或计数偏小时丢弃整组持久计数，侧栏徽标与「待你处理」分组回退到通知面板实际列出的审批，不再同一会话一处显示 1、一处列出 3 条。
-- **用量请求计数与验证分类必须一致**（[Issue #1595](https://github.com/can4hou6joeng4/boss-harness/issues/1595)）：已验证与未验证请求之和必须等于请求总数，未计入原因合计必须等于未验证请求数；任一矛盾即整体拒绝该用量，回合明细、摘要任务与 CSV 不再展示无法解释的差额。
-- **冻结快照必须完整读取**（[Issue #1599](https://github.com/can4hou6joeng4/boss-harness/issues/1599)）：会话恢复核对快照声明的条目总数，少读或多读都整体失败且不展示部分历史；普通与分支快照一致，旧内核缺少计数时保持兼容。
-- **会话条目必须有唯一标识**（[Issue #1603](https://github.com/can4hou6joeng4/boss-harness/issues/1603)）：缺少 `id` 或跨页重复的条目整体拒绝，不再静默丢消息或让同一审批卡、工具卡出现两次。
-- **用量回合必须唯一且完整**（[Issue #1607](https://github.com/can4hou6joeng4/boss-harness/issues/1607)）：分页读完后同一回合重复或累计少于内核声明总数时整体拒绝，不再把同一回合展示两次，也不再显示「N 个回合有记录」却缺少行而没有提示；面板计数改用最后一页，兼容分页期间并发新增回合。
-- **导出统计必须自洽**（[Issue #1611](https://github.com/can4hou6joeng4/boss-harness/issues/1611)）：已导出回合数大于视图声明总数时主进程与渲染层都拒绝该回执，不再显示「10 / 5 个回合」；合法完整、截断与取消结果不受影响。
-- **未截断审批计数不得大于可见条目**（[Issue #1615](https://github.com/can4hou6joeng4/boss-harness/issues/1615)）：列表未截断而持久计数多于实际列出的审批时，丢弃整组计数并改为「至少 N 项待审批」，不再显示面板里找不到的第 3 条。
-- **运行资源计数不得超过容量**（[Issue #1619](https://github.com/can4hou6joeng4/boss-harness/issues/1619)）：并发、保留与 owner 计数违反容量或覆盖关系时整体拒绝，驾驶舱不再显示「5 / 2」「10 / 2」这类不可能的分式。
-- **会话索引健康必须与明细一致**（[Issue #1623](https://github.com/can4hou6joeng4/boss-harness/issues/1623)）：计数为零却列出不可读会话 id 时显示「未报告」而不是「正常」，损坏的会话文件不会被静默忽略。
-- **摘要任务引用必须校验形状**（[Issue #1627](https://github.com/can4hou6joeng4/boss-harness/issues/1627)）：缺 `jobId`、未知状态或非布尔 `active` 的引用整体拒绝，上下文面板不再把占用状态写死并持续轮询，计划与开始按钮不会被无任务的引用永久阻断。
-- **分支摘要标记必须逐项校验**（[Issue #1631](https://github.com/can4hou6joeng4/boss-harness/issues/1631)）：缺字段或重复 `entryId` 的摘要条目被丢弃并提示数量，合法标记继续展示，损坏条目不再让整段会话区落入错误边界。
-- **分支端点与回合分页必须校验条目**（[Issue #1635](https://github.com/can4hou6joeng4/boss-harness/issues/1635)）：缺字段、其他会话或重复 `turnId` 的条目整体拒绝并显示读取失败，分支弹窗不再被损坏端点带入应用级错误边界，也不再静默少行列。
-- **会话列表条目必须逐项校验**（[Issue #1639](https://github.com/can4hou6joeng4/boss-harness/issues/1639)）：缺 `id`、重复 `id` 或畸形 `lastTurn` 的会话条目整体拒绝，侧栏不再静默吞掉会话或把操作落到同一目标，损坏条目也不再让列表读取抛 `TypeError`。
-- **技能目录条目必须逐项校验**（[Issue #1643](https://github.com/can4hou6joeng4/boss-harness/issues/1643)）：缺字段、重复 `id` 或摘要非法的技能条目整体拒绝，技能页不再在筛选时报错，选中、编辑与删除也不会作用到错误的技能上。
-- **模型列表条目必须逐项校验**（[Issue #1647](https://github.com/can4hou6joeng4/boss-harness/issues/1647)）：缺 `id`、重复 `provider:id` 或畸形能力信息的模型条目整体拒绝，输入区菜单不再在过滤时抛错，也不会把未配置或不可用的线路当成可选。
-- **工具清单条目必须逐项校验**（[Issue #1651](https://github.com/can4hou6joeng4/boss-harness/issues/1651)）：缺字段、重复 `name` 或畸形权限标记的工具条目整体拒绝，「技能与工具」页不再在渲染期抛错，也不会把非布尔标记显示成错误权限。
-- **连接检查回执必须校验形状**（[Issue #1655](https://github.com/can4hou6joeng4/boss-harness/issues/1655)）：缺 `cli` / `model` / `platform` 卡片、未知状态或非法可选字段的回执整体拒绝，设置页不再在渲染诊断结果时抛错，也不会显示空白状态与来源。
-- **恢复快照必须属于请求的会话**（[Issue #1659](https://github.com/can4hou6joeng4/boss-harness/issues/1659)）：`thread.id` 不匹配、缺少 `thread` 或 `snapshotId` 格式非法的快照整体拒绝，另一个会话的消息与模型线路不会再写入当前会话。
-- **会话写操作回执必须逐项校验**（[Issue #1663](https://github.com/can4hou6joeng4/boss-harness/issues/1663)）：新建、分叉与推理设置的回执复用会话条目校验，缺字段、未知 `toolPolicy` 或畸形 `lastTurn` 整体拒绝，损坏元数据不会插入侧栏或当前会话。
-- **工具清单展示执行模式**（[Issue #1667](https://github.com/can4hou6joeng4/boss-harness/issues/1667)）：「技能与工具」页在 `executionMode` 存在时标注 `· 串行` / `· 并行`，与驾驶舱的「串行」徽标一致，字段缺省时保持原有文案。
-- **登录状态回执必须校验形状**（[Issue #1671](https://github.com/can4hou6joeng4/boss-harness/issues/1671)）：广播与 `open` / `cancel` 回执逐项校验 `state`、`summary`、可选字段与 `browser` 四字段，无法识别时保留上一次有效状态并给出原因；未知状态不再让登录引导常驻且无取消入口，非字符串 `code` / `summary` 不再让引导卡片渲染抛错。
-- **设置页登录状态同样校验形状**（[Issue #1675](https://github.com/can4hou6joeng4/boss-harness/issues/1675)）：设置对话框独立订阅的登录状态与初始读取复用同一校验，非法回执保留上一次有效状态并显示原因；终态判断抽为 `loginSettled()`，未知状态不再让账号行误显示「正在登录」却又允许重新登录。
-- **主进程登录回执同样校验形状**（[Issue #1679](https://github.com/can4hou6joeng4/boss-harness/issues/1679)）：`platform/login/start`、`complete`、`read` 的回执先经 `loginAttemptOf()` 校验再写入状态机，无法识别时按各自失败路径结束并只对合法 `id` 补发取消；缺 `state` / `summary` 或未知状态不再让占用与取消判定失效，主进程与渲染层不会对同一值作出相反判断。
-- **跨会话搜索命中必须校验形状**（[Issue #1683](https://github.com/can4hou6joeng4/boss-harness/issues/1683)）：命中条目逐项校验标识、角色与片段并限制条目数，非字符串 `snippet` 不再让搜索弹窗渲染抛错，损坏标识不再让「打开并定位消息」失效，未知角色不再把工具命中显示成助手。
-- **会话错误通知正文必须校验形状**（[Issue #1687](https://github.com/can4hou6joeng4/boss-harness/issues/1687)）：`session/error` 的 `threadId` 与 `message` 先经 `sessionErrorNoticeOf()` 收敛，非字符串正文整条通知丢弃并保留上一次有效提示，对象不再作为 React 子节点让整屏落入错误边界；超长正文折叠空白并按上限截断。
-- **上下文预算回执必须校验形状**（[Issue #1691](https://github.com/can4hou6joeng4/boss-harness/issues/1691)）：`context/read` 的必填字段先经 `contextReadOf()` 校验，畸形系统提示分段、分支摘要问题清单或工作区说明按缺失收敛，不再让上下文面板渲染期抛错；归属不符或核心字段类型错误按读取失败处理并保留上一次成功状态。
-- **工作区说明状态与字节数必须可识别**（[Issue #1695](https://github.com/can4hou6joeng4/boss-harness/issues/1695)）：两个读取入口只接受四个已知状态与合法的 `bytes` / `limitBytes`，未知状态不再显示成空白状态行，坏计数不再渲染成 `NaN` 或 `[object Object]`。
-- **上下文整理计划回执必须校验形状**（[Issue #1699](https://github.com/can4hou6joeng4/boss-harness/issues/1699)）：`sourceItemCount`、`retainedTurnIds`、`firstKeptItemId` 等计划字段逐项收敛，缺字段或对象字段不再让面板渲染期抛错；保留回合必须唯一，首保留条目与保留条目数一致，面板不渲染的协议字段缺失时保持旧内核兼容。
-- **上下文编辑的不可编辑原因必须校验形状**（[Issue #1702](https://github.com/can4hou6joeng4/boss-harness/issues/1702)）：读取与提交后的回读共用 `contextEditOf()`，`reason` 只接受字符串并去掉首尾空白、按上限截断，对象、数组、数字与布尔整体拒绝，弹窗不再因原因字段畸形落入错误边界或显示错乱文本。
-- **摘要任务展示字段必须校验形状**（[Issue #1705](https://github.com/can4hou6joeng4/boss-harness/issues/1705)）：`contextJobOf()` 逐项收敛触发原因、进度计数、模型信息与失败说明，`null` 计数不再让 `toLocaleString` 抛错，对象字段不再让面板落入错误边界；未知原因不再把手动摘要显示成自动摘要。
-- **畸形队列标识不再中断任务读取**（[Issue #1708](https://github.com/can4hou6joeng4/boss-harness/issues/1708)）：`turn_snapshot()` 的队列归属筛选先要求标识是字符串，数组或对象标识不再触发 `unhashable type` 的内部错误，任务详情可以正常打开；合法标识的筛选与重复标记保持不变。
-- **冻结快照的非对象条目按损坏处理**（[Issue #1711](https://github.com/can4hou6joeng4/boss-harness/issues/1711)）：`_decode_item()` 统一要求快照条目是字符串载荷解码出的对象，数组、字符串或 `null` 条目不再让分页与正文读取抛 `AttributeError`，而是给出「会话快照已损坏」的可读提示。
-- **非 UTF-8 附件按内容损坏处理**（[Issue #1714](https://github.com/can4hou6joeng4/boss-harness/issues/1714)）：读取路径统一经 `_decode_attachment_text()` 解码，非 UTF-8 对象不再让附件读取与上下文注入抛 `UnicodeDecodeError` 的内部错误，而是提示重新添加。
-- **续接预检回执必须校验展示字段**（[Issue #1717](https://github.com/can4hou6joeng4/boss-harness/issues/1717)）：`continuationReadOf()` 校验身份、可续接标记、检查点边界与原因文本，对象 `warning` 不再让会话区落入错误边界，非布尔 `eligible` 不再显示续接按钮，未知检查点不再显示成「已完成的工具批次」。
-- **分支边界序号不再受持久载荷影响**（[Issue #1720](https://github.com/can4hou6joeng4/boss-harness/issues/1720)）：回合归并跳过载荷里的 `firstOrdinal` / `lastOrdinal` / `boundaryOrdinal`，损坏记录不再让创建分支返回内部错误，也不再静默截断分支边界。
-- **批量队列操作在 StrictMode 下正常收尾**（[Issue #1723](https://github.com/can4hou6joeng4/boss-harness/issues/1723)）：存活标记在 effect setup 中恢复，开发构建重跑副作用后进度与按钮不再永久停在 `0/N`，真实卸载仍停止后续批量请求。
-- **损坏的投影路径不再阻断启动**（[Issue #1726](https://github.com/can4hou6joeng4/boss-harness/issues/1726)）：陈旧索引行的 `rollout_path` 不是字符串时按损坏投影清理，一条被外部改写的记录不再让内核启动失败或让会话列表返回内部错误。
-- **分页快照的损坏回合投影会重建索引**（[Issue #1729](https://github.com/can4hou6joeng4/boss-harness/issues/1729)）：`snapshot_projection()` 读取投影列先校验类型，BLOB 或整数元数据交给既有索引重建路径，`thread/resume snapshot=true` 不再返回 `-32603` 内部错误。
-- **压缩任务恢复不再解析持久游标**（[Issue #1732](https://github.com/can4hou6joeng4/boss-harness/issues/1732)）：恢复只依赖事件记录顺序，事件投影被改写成对象游标不再让 `ApplicationService` 构造失败、内核启动即退出。
-- **断连时读取态立即复位**（[Issue #1735](https://github.com/can4hou6joeng4/boss-harness/issues/1735)）：工作区说明编辑器、技能页状态与自动压缩面板在断连后不再长期显示「正在读取…」，重连后照常重新读取。
-- **附件摘要必须是字符串**（[Issue #1738](https://github.com/can4hou6joeng4/boss-harness/issues/1738)）：非字符串摘要按损坏记录提示，附件读取、分块与上下文注入不再返回 `-32603`。
-- **附件添加路径必须是普通文件**（[Issue #1740](https://github.com/can4hou6joeng4/boss-harness/issues/1740)）：目录、FIFO 与缺失路径按可读错误拒绝，FIFO 不再阻塞内核请求处理。
-- **超长技能目录不再击穿整份列表**（[Issue #1743](https://github.com/can4hou6joeng4/boss-harness/issues/1743)）：超过 200 字符的技能目录按未加载项上报，其他技能仍可选择与读取。
-- **技能目录不可读不再显示成空工作区**（[Issue #1746](https://github.com/can4hou6joeng4/boss-harness/issues/1746)）：权限不足或同名文件占位按读取失败提示，缺失目录仍按没有技能处理。
-- **工作区说明候选文件不可读时如实上报**（[Issue #1749](https://github.com/can4hou6joeng4/boss-harness/issues/1749)）：首选路径是符号链接、目录或父路径被占位时提示不可读，不再静默回落旧路径或显示为空。
-- **用量弹窗拒绝重复的摘要任务标识**（[Issue #1752](https://github.com/can4hou6joeng4/boss-harness/issues/1752)）：页内重复 `jobId` 按格式错误提示，表格行不再错置。
-- **技能正文回执校验形状与归属**（[Issue #1755](https://github.com/can4hou6joeng4/boss-harness/issues/1755)）：`NaN` 字节数、非法上限与错配 id 按读取失败提示，不再显示异常字节数。
-- **技能新建与修改回执校验归属**（[Issue #1758](https://github.com/can4hou6joeng4/boss-harness/issues/1758)）：错配 id 与非法字段按「无法识别」提示，不再写成「已创建技能 X」。
-- **运行资源计数与截断推导**（[Issue #1571](https://github.com/can4hou6joeng4/boss-harness/issues/1571)）：运行资源明细的计数与截断标记和已返回条目不一致时，界面不再把部分明细当成全部；计数小于明细视为矛盾响应整体报错。
-- **驾驶舱队列摘要采用持久分类计数**（[Issue #1575](https://github.com/can4hou6joeng4/boss-harness/issues/1575)）：队列摘要优先使用与持久待处理总数对齐的分类计数，旧内核缺省分类或合计不一致时才退回可见项并标注口径。
-- **摘要任务明细截断与计数一致性**（[Issue #1577](https://github.com/can4hou6joeng4/boss-harness/issues/1577)）：会话用量面板与 CSV 在计数大于已返回明细时强制标记截断，计数小于明细整体拒绝，不再静默执行 50 条本地上限而不提示。
-- **重连后的尾随刷新归属**（[Issue #1579](https://github.com/can4hou6joeng4/boss-harness/issues/1579)）：上下文面板只有仍持有读取槽位的航班才能消费尾随刷新标记，旧连接迟到的读取不会吞掉重连后新读取登记的刷新。
-- **拒绝成环的分页游标**（[Issue #1581](https://github.com/can4hou6joeng4/boss-harness/issues/1581)）：会话列表、分支、用量与恢复分页登记已使用的游标，`A → B → A` 的环状游标整体失败，不再重复拼接条目或反复请求同一批页。
+- **回执与投影校验**：会话、队列、审批、用量、技能、工具、模型、分支与搜索的回执逐项校验形状；计数与可见明细矛盾时回退到可见计数或整体拒绝，不再静默丢条目、重复行或错置操作目标（[#1587](https://github.com/can4hou6joeng4/boss-harness/issues/1587)、[#1595](https://github.com/can4hou6joeng4/boss-harness/issues/1595)、[#1663](https://github.com/can4hou6joeng4/boss-harness/issues/1663)、[#1683](https://github.com/can4hou6joeng4/boss-harness/issues/1683)）。
+- **内核持久路径加固**：损坏的投影索引、事件游标、回合元数据与快照条目按可读错误或既有重建路径处理，一条被外部改写的记录不再让内核启动失败或让读取返回内部错误（[#1726](https://github.com/can4hou6joeng4/boss-harness/issues/1726)、[#1729](https://github.com/can4hou6joeng4/boss-harness/issues/1729)、[#1732](https://github.com/can4hou6joeng4/boss-harness/issues/1732)）。
+- **附件与技能边界**：非字符串摘要、目录 / FIFO 等非普通文件、超长或不可读的技能目录按可读错误处理，FIFO 不再阻塞内核请求处理（[#1738](https://github.com/can4hou6joeng4/boss-harness/issues/1738)、[#1740](https://github.com/can4hou6joeng4/boss-harness/issues/1740)、[#1743](https://github.com/can4hou6joeng4/boss-harness/issues/1743)、[#1746](https://github.com/can4hou6joeng4/boss-harness/issues/1746)）。
+- **工作区说明**：首选路径是符号链接、目录或父路径被占位时按不可读上报，不再静默回落旧路径或显示为空（[#1749](https://github.com/can4hou6joeng4/boss-harness/issues/1749)）。
+- **界面**：技能与工具页展示工具执行模式；断连后读取态立即复位；用量弹窗拒绝重复的摘要任务标识；技能正文与写操作回执校验形状与归属（[#1667](https://github.com/can4hou6joeng4/boss-harness/issues/1667)、[#1735](https://github.com/can4hou6joeng4/boss-harness/issues/1735)、[#1752](https://github.com/can4hou6joeng4/boss-harness/issues/1752)、[#1755](https://github.com/can4hou6joeng4/boss-harness/issues/1755)）。
 
 本候选同时包含 rc.54 已准备的 5 项交付（恢复快照队列元数据校验、截断投影不误判未载入项、缺标识审批不可提交、会话队列分类计数统一校验、队列与审批边界文档），rc.53 已准备的 5 项交付（Source build 产物隔离验证、重新排队持久总数修正、审批字段展示约束对齐、构建与队列说明同步、Issue 表单），rc.52 已准备的 5 项修复（截断队列徽标保留暂停分类、队列投影返回持久分类计数、审批列表按会话计数、驾驶舱待审批总数）、rc.51 已准备的 5 项变更（README 英文概览、队列投影优先保留暂停项、队列与审批截断提示对齐）、rc.50 已准备的 1 项项目分组文档（新建、重命名与移除本地分组的入口和影响，项目名称最多 60 码点，分组只保存在本机）、rc.49 已准备的 1 项标题截断修正（顶栏、分支标签与新建标题按码点判断与截断）、rc.48 已准备的 1 项项目名称修正（新建与重命名按码点计数、超限提示并禁用提交）、rc.47 已准备的 2 项输入与文档修正（上下文替换文本上限提示、搜索查询上限文档）、rc.46 已准备的 3 项桌面输入与搜索边界修正（排队消息编辑、会话名称与搜索词超限提示）、rc.45 已准备的 3 项 Unicode 码点计数修正（主进程长度校验、搜索与查找阈值、输入与草稿长度）、rc.44 已准备的 9 项搜索与代码围栏修正、rc.43 的安全报告政策、候选基线修正、发布资产清单、非法日期校验与用量 / 任务标签查表修正，以及 rc.42 及更早准备的桌面恢复、附件分段读取、握手、快照、停止目标与队列压缩覆盖校验等改进。完整变化保留在 [CHANGELOG](CHANGELOG.md)，自定义客户端的升级约束见[使用指南](docs/USER_GUIDE.md#当前候选与客户端升级)。
 
