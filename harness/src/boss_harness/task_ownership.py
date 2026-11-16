@@ -38,8 +38,11 @@ def turn_snapshot(entries: Iterable[dict], *, turn_ids: set[str] | None = None,
                     or not isinstance(status, str)
                     or status not in _TERMINAL_TURNS | {"running"}):
                 continue
-            if (turn_ids is not None and turn_id not in turn_ids
-                    and (queue_ids is None or payload.get("queueId") not in queue_ids)):
+            # 队列标识可能来自损坏的持久记录：非字符串按「不在查询集合内」处理，
+            # 不能直接用于集合成员测试，否则 unhashable 值会中断整个任务读取。
+            queue_id = payload.get("queueId")
+            in_queue = isinstance(queue_id, str) and queue_ids is not None and queue_id in queue_ids
+            if turn_ids is not None and turn_id not in turn_ids and not in_queue:
                 continue
             if turn_id not in turns and len(turns) >= limit:
                 overflow = True
@@ -52,7 +55,6 @@ def turn_snapshot(entries: Iterable[dict], *, turn_ids: set[str] | None = None,
                 duplicates.add(turn_id)
             turn["status"] = status
             if "queueId" in payload:
-                queue_id = payload["queueId"]
                 if isinstance(queue_id, str) and _IDENTIFIER.fullmatch(queue_id):
                     turn["queueId"] = queue_id
                 else:
