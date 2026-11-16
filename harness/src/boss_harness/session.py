@@ -879,7 +879,8 @@ class SessionStore:
     def append_attachment(self, thread_id: str, entry: Entry, publish: Callable[[], None]) -> Entry:
         """Publish an attachment and its durable reference under the shared writer lock."""
         payload = entry.payload or {}
-        if entry.type != "attachment" or not _ATTACHMENT_DIGEST.fullmatch(str(payload.get("digest", ""))):
+        digest = payload.get("digest")
+        if entry.type != "attachment" or not isinstance(digest, str) or not _ATTACHMENT_DIGEST.fullmatch(digest):
             raise ValueError("附件记录格式无效")
         if not callable(publish):
             raise ValueError("附件发布器无效")
