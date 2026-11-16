@@ -50,7 +50,8 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
 
   // 打开面板时读取最新内核默认值；只在没有未应用草稿且读取期间未编辑时才同步表单。
   useEffect(() => {
-    if (!open || !connected || !threadId) return;
+    // 面板关闭、断连或未选中会话时没有在途读取，复位读取态后再返回。
+    if (!open || !connected || !threadId) { setReading(false); return; }
     let cancelled = false;
     const versionAtStart = editVersion.current;
     setReading(true);
