@@ -69,7 +69,11 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   const batchHalt = useRef(false);
   const [batchStopping, setBatchStopping] = useState(false);
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; batchCancel.current = true; }, []);
+  // StrictMode 会在开发环境重跑副作用：重新挂载时恢复存活标记，卸载时才置为 false。
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; batchCancel.current = true; };
+  }, []);
   const clipboard = useClipboardCopy();
   // 目标消失时关闭只读与无修改窗口；有修改的编辑器继续显示，供复制或明确丢弃。
   // 条目仍在时同步最新快照，保存权限始终以当前列表为准。
