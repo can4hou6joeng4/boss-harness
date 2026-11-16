@@ -1,4 +1,4 @@
-import type { SkillDescriptor } from "@boss-harness/protocol";
+import type { SkillDescriptor, SkillReadResponse } from "@boss-harness/protocol";
 
 const ID_LIMIT = 200;
 const NAME_LIMIT = 200;
@@ -37,4 +37,21 @@ export function skillDescriptorOf(value: unknown): SkillDescriptor | null {
 /** 同一目录内的重复 id 会让选中项与摘要校验指向第一个条目。 */
 export function uniqueSkillIds(items: { id: string }[]): boolean {
   return new Set(items.map(item => item.id)).size === items.length;
+}
+
+/**
+ * `skills/read` 回执：基础字段与目录条目同一口径，正文、上限与归属也必须成立。
+ *
+ * `NaN` 字节数会被 `toLocaleString` 显示成「NaN」；非法 `limitBytes` 显示成
+ * `[object Object]`；错配 `id` 的快照只能靠展示层按 id 隐藏，用户看不到读取失败。
+ */
+export function skillReadOf(value: unknown, expectedId: string): SkillReadResponse | null {
+  const descriptor = skillDescriptorOf(value);
+  if (!descriptor || descriptor.id !== expectedId) return null;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.content !== "string") return null;
+  if (!Number.isSafeInteger(raw.limitBytes) || (raw.limitBytes as number) <= 0) return null;
+  const root = typeof raw.root === "string" ? raw.root : undefined;
+  return { ...descriptor, content: raw.content, limitBytes: raw.limitBytes as number,
+    ...(root !== undefined ? { root } : {}) };
 }
