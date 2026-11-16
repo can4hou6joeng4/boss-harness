@@ -1384,7 +1384,7 @@ class SessionStore:
 
     def pending_approvals(self, thread_id: str | None = None, *,
                           limit: int = 100) -> tuple[list[dict], bool]:
-        """Return the bounded pending page and whether older approvals were omitted."""
+        """Return the bounded pending page and whether more pending approvals were omitted."""
         _limit(limit, maximum=200)
         if thread_id is not None:
             self.path_for(thread_id)

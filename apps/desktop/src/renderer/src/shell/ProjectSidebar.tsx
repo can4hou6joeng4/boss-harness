@@ -19,7 +19,7 @@ interface Props {
   preferences: SidebarPreferences; onPreferencesChange: (value: SidebarPreferences) => void; localGroupIds: string[];
   onSelectSession: (session: SessionItem) => void; onNewTask: () => void; onSearch: () => void;
   onNewTaskInProject: (folder: ProjectFolder) => void;
-  onOpenSettings: () => void; onRecents: () => void; onNewProject: () => void; onNotifications: () => void; /** 跨会话待审批数量，0 或未知时不显示徽标。 */ pendingApprovals?: number; /** 数量只是已返回条数、内核还有更早项未返回。 */ pendingApprovalsTruncated?: boolean; /** 每个会话的待审批数量；缺失或 0 时不显示会话行徽标。 */ approvalCounts?: Record<string, number>; /** 后台完成回合后尚未查看的会话；切到该会话后由外层清除。 */ completedUnread?: ReadonlySet<string>;
+  onOpenSettings: () => void; onRecents: () => void; onNewProject: () => void; onNotifications: () => void; /** 跨会话待审批数量，0 或未知时不显示徽标。 */ pendingApprovals?: number; /** 数量只是已返回条数、内核还有未返回项。 */ pendingApprovalsTruncated?: boolean; /** 每个会话的待审批数量；缺失或 0 时不显示会话行徽标。 */ approvalCounts?: Record<string, number>; /** 后台完成回合后尚未查看的会话；切到该会话后由外层清除。 */ completedUnread?: ReadonlySet<string>;
   onRename: (session: SessionItem) => void; onPin: (id: string) => void; onHide: (id: string) => void;
   /** 打开删除确认；真正的删除与结果提示由外层负责。 */
   onDelete: (session: SessionItem) => void;

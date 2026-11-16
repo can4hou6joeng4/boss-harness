@@ -106,8 +106,8 @@ export function NotificationsDialog({ folders, preview = false, refreshToken, on
       </div>}
       {!preview && state.status === "ready" && state.approvals.length > 0 && <div onKeyDown={onListKeyDown}>
         <div className="notification-toolbar">
-          <span title={state.truncated ? "内核还有更早的待审批未放入本次列表；处理当前项后刷新查看。" : undefined}>
-            {state.approvals.length} 项等待你确认{state.truncated ? "（仍有更早项未显示）" : ""} · ↑ ↓ 选择
+          <span title={state.truncated ? "内核还有待审批项未放入本次列表；处理当前项后刷新查看。" : undefined}>
+            {state.approvals.length} 项等待你确认{state.truncated ? "（仍有其他项未显示）" : ""} · ↑ ↓ 选择
           </span>
           <button className="secondary-button" onClick={retry}>刷新</button>
         </div>

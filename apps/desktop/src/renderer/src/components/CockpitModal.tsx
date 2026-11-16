@@ -54,7 +54,7 @@ interface CockpitSnapshot {
   config?: CockpitConfig;
   resources?: RuntimeResourcesReadResponse;
   approvals?: PendingApproval[];
-  /** 内核是否还有更早的待审批未返回；旧内核缺省。 */
+  /** 内核是否还有待审批未返回；旧内核缺省。 */
   approvalsTruncated?: boolean;
   tools?: CockpitTool[];
   models?: CockpitModel[];
@@ -334,7 +334,7 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
                 <Fact label="当前会话" value={threadId === null ? "未选择会话"
                   : threadTitle ? `${threadTitle}（${shortId(threadId)}）` : shortId(threadId)} />
                 <Fact label="待审批" value={errors.approvals ? "读取失败" : approvals
-                  ? `${NUMBER.format(approvals.length)}${approvalsTruncated ? "（仍有更早项未显示）" : ""}`
+                  ? `${NUMBER.format(approvals.length)}${approvalsTruncated ? "（仍有其他项未显示）" : ""}`
                   : "未提供"} />
                 <Fact label="工具" value={errors.tools ? "读取失败" : tools ? `${NUMBER.format(tools.length)}（需审批 ${numberText(approvalRequiredCount)}）` : "未提供"} />
                 <Fact label="模型线路" value={errors.models ? "读取失败" : models ? `${NUMBER.format(models.length)}（当前配置 ${numberText(configuredModelCount)}）` : "未提供"} />
@@ -398,7 +398,7 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
                 : <>
                   <div className="cockpit-list">{approvals.map(approval => <ApprovalRow key={approval.approvalId} approval={approval} now={now} />)}</div>
                   {approvalsTruncated
-                    ? <p className="cockpit-empty">审批清单最多显示 {APPROVAL_LIMIT} 条，仍有更早的待审批未返回；其余请求仍以内核待审批状态为准。</p>
+                    ? <p className="cockpit-empty">审批清单最多显示 {APPROVAL_LIMIT} 条，仍有其他待审批未返回；其余请求仍以内核待审批状态为准。</p>
                     : null}
                 </>
             ) : !errors.approvals ? <p className="cockpit-empty">尚未读取审批列表。</p> : null}
