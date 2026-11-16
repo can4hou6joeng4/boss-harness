@@ -628,8 +628,21 @@ class AttachmentStore:
                 or any(p in {".git", "node_modules", ".venv", ".boss-cli", ".boss-harness"} or p.startswith(".env")
                        for p in source.relative_to(self.allowed_root).parts)):
             raise ValueError("附件必须是工作区内支持的文本文件")
-        with source.open("rb") as handle:
-            data = handle.read(self.MAX_BYTES + 1)
+        # 工作区文件可能来自外部仓库：目录、FIFO 与设备文件同样能匹配扩展名。
+        # 非阻塞打开避免 FIFO 卡住单线程派发，再按描述符确认是普通文件。
+        try:
+            descriptor = os.open(source, os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0))
+        except OSError:
+            raise ValueError("附件必须是工作区内可读取的普通文本文件") from None
+        try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise ValueError("附件必须是工作区内的普通文本文件")
+            with os.fdopen(descriptor, "rb") as handle:
+                descriptor = -1
+                data = handle.read(self.MAX_BYTES + 1)
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
         if len(data) > self.MAX_BYTES:
             raise ValueError("文本附件不得超过 2 MiB")
         try:
