@@ -79,13 +79,18 @@ class WorkspaceInstructions:
         self.workspace = workspace.resolve()
 
     def _candidate(self) -> tuple[str, Path] | None:
+        # lstat 成功就固定该候选：首选路径存在但不是普通文件（符号链接、目录），
+        # 或存在性未知（父目录不可访问、父路径被文件占位）时必须如实报不可读，
+        # 静默回落到旧路径会让用户看不出首选文件被忽略。
         for relative in (_PREFERRED, _LEGACY):
             path = self.workspace / relative
             try:
-                if stat.S_ISREG(os.lstat(path).st_mode):
-                    return relative.as_posix(), path
-            except OSError:
+                os.lstat(path)
+            except FileNotFoundError:
                 continue
+            except OSError:
+                pass
+            return relative.as_posix(), path
         return None
 
     def load(self) -> WorkspaceInstruction | None:
