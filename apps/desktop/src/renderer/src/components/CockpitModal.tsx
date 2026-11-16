@@ -56,6 +56,8 @@ interface CockpitSnapshot {
   approvals?: PendingApproval[];
   /** 内核是否还有待审批未返回；旧内核缺省。 */
   approvalsTruncated?: boolean;
+  /** 内核按全部待审批统计的总数；旧内核缺省。 */
+  approvalsTotal?: number;
   tools?: CockpitTool[];
   models?: CockpitModel[];
   queue?: CockpitQueue;
@@ -205,6 +207,7 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
     if (approvalsResult.status === "fulfilled") {
       next.approvals = approvalsResult.value.approvals;
       next.approvalsTruncated = approvalsResult.value.truncated;
+      next.approvalsTotal = approvalsResult.value.total;
     } else failures.approvals = harnessErrorText(approvalsResult.reason);
     if (toolsResult.status === "fulfilled") next.tools = toolsResult.value;
     else failures.tools = harnessErrorText(toolsResult.reason);
@@ -253,7 +256,7 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
 
   if (!isOpen) return null;
 
-  const { config, resources, approvals, approvalsTruncated: approvalsTruncatedRaw, tools, models, queue } = snapshot;
+  const { config, resources, approvals, approvalsTruncated: approvalsTruncatedRaw, approvalsTotal, tools, models, queue } = snapshot;
   const configKnown = !errors.config && config !== undefined;
   const approvalsKnown = !errors.approvals && approvals !== undefined;
   // 旧内核不返回截断字段，映射层按未截断处理；不再用条数猜测，恰好达到上限也不会误报。
@@ -334,7 +337,7 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
                 <Fact label="当前会话" value={threadId === null ? "未选择会话"
                   : threadTitle ? `${threadTitle}（${shortId(threadId)}）` : shortId(threadId)} />
                 <Fact label="待审批" value={errors.approvals ? "读取失败" : approvals
-                  ? `${NUMBER.format(approvals.length)}${approvalsTruncated ? "（仍有其他项未显示）" : ""}`
+                  ? `${NUMBER.format(approvalsTotal ?? approvals.length)}${approvalsTruncated ? "（仍有其他项未显示）" : ""}`
                   : "未提供"} />
                 <Fact label="工具" value={errors.tools ? "读取失败" : tools ? `${NUMBER.format(tools.length)}（需审批 ${numberText(approvalRequiredCount)}）` : "未提供"} />
                 <Fact label="模型线路" value={errors.models ? "读取失败" : models ? `${NUMBER.format(models.length)}（当前配置 ${numberText(configuredModelCount)}）` : "未提供"} />
