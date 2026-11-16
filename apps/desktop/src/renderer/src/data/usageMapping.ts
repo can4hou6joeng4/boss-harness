@@ -142,6 +142,21 @@ export function turnOf(value: unknown): ThreadUsageTurn | null {
 const idOrNull = (value: unknown): string | null | undefined => value === null ? null
   : typeof value === "string" && value.length > 0 && value.length <= 128 ? value : undefined;
 
+/**
+ * 分页结束后的整组校验：同一回合只能出现一次；未截断时必须覆盖内核声明的全部回合。
+ * 分页期间并发完成的回合会让最后一页总数变大，因此 `declaredTotal` 取最后一页的计数。
+ */
+export function verifyUsageTurns(turns: ThreadUsageTurn[], declaredTotal: number | undefined): void {
+  const seen = new Set<string>();
+  for (const turn of turns) {
+    if (seen.has(turn.turnId)) throw new Error(`回合用量条目标识重复：${safeSlice(turn.turnId, 40)}`);
+    seen.add(turn.turnId);
+  }
+  if (declaredTotal !== undefined && turns.length !== declaredTotal) {
+    throw new Error(`回合用量条目数不一致：声明 ${declaredTotal} 个，实际读取 ${turns.length} 个`);
+  }
+}
+
 export function summaryJobOf(value: unknown): ThreadUsageSummaryJob | null {
   const bucket = bucketOf(value);
   if (!bucket) return null;
