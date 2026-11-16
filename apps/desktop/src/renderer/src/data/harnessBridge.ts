@@ -78,6 +78,7 @@ import { trackCursor } from "./cursorChain";
 import { threadSummaryOf, uniqueThreadIds } from "./threadList";
 import { skillDescriptorOf, uniqueSkillIds } from "./skillCatalog";
 import { modelDescriptorOf, uniqueModelKeys } from "./modelCatalog";
+import { toolDescriptorOf, uniqueToolNames } from "./toolCatalog";
 import { toolDurationMs } from "./toolTiming";
 import {
   approvalDecision, itemContextEdit, itemResultRef, itemSource, itemText, itemToolName,
@@ -613,7 +614,11 @@ export async function listTools(): Promise<ToolDescriptor[]> {
   if (!api) throw new Error("本地 Harness 未连接");
   const response = await api.request<ToolListResponse>(ClientMethods.toolList);
   if (!response || !Array.isArray(response.tools)) throw new Error("工具清单响应无法识别");
-  return response.tools;
+  const tools = response.tools.map(toolDescriptorOf);
+  if (tools.some(tool => tool === null)) throw new Error("工具清单包含无法识别的条目");
+  const known = tools as ToolDescriptor[];
+  if (!uniqueToolNames(known)) throw new Error("工具清单包含重复工具");
+  return known;
 }
 
 export async function connectionReport(target?: ConnectionTarget): Promise<ConnectionReport> {
