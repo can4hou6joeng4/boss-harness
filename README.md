@@ -68,7 +68,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 
 ## 近期进展
 
-`v0.2.0-rc.56` 候选相对 rc.55 新增 15 项修复，并继续包含 rc.55 的 5 项修复：
+`v0.2.0-rc.56` 候选相对 rc.55 新增 16 项修复，并继续包含 rc.55 的 5 项修复：
 
 - **技能标签查询不再命中原型链**（[Issue #1585](https://github.com/can4hou6joeng4/boss-harness/issues/1585)）：会话区与重试路径只读取技能映射自己的条目，缺失或形状不符返回空数组，损坏会话中的特殊 `turnId` 不再让整段消息落入错误边界。
 - **队列元数据不得少于可见明细**（[Issue #1587](https://github.com/can4hou6joeng4/boss-harness/issues/1587)）：待处理数或分类计数小于已载入条目时按缺失处理，面板与侧栏徽标回退到可见计数，不再出现「1 项待处理」上方列出 3 条记录或「排队 0」旁列出排队消息。
@@ -85,6 +85,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 - **分支摘要标记必须逐项校验**（[Issue #1631](https://github.com/can4hou6joeng4/boss-harness/issues/1631)）：缺字段或重复 `entryId` 的摘要条目被丢弃并提示数量，合法标记继续展示，损坏条目不再让整段会话区落入错误边界。
 - **分支端点与回合分页必须校验条目**（[Issue #1635](https://github.com/can4hou6joeng4/boss-harness/issues/1635)）：缺字段、其他会话或重复 `turnId` 的条目整体拒绝并显示读取失败，分支弹窗不再被损坏端点带入应用级错误边界，也不再静默少行列。
 - **会话列表条目必须逐项校验**（[Issue #1639](https://github.com/can4hou6joeng4/boss-harness/issues/1639)）：缺 `id`、重复 `id` 或畸形 `lastTurn` 的会话条目整体拒绝，侧栏不再静默吞掉会话或把操作落到同一目标，损坏条目也不再让列表读取抛 `TypeError`。
+- **技能目录条目必须逐项校验**（[Issue #1643](https://github.com/can4hou6joeng4/boss-harness/issues/1643)）：缺字段、重复 `id` 或摘要非法的技能条目整体拒绝，技能页不再在筛选时报错，选中、编辑与删除也不会作用到错误的技能上。
 - **运行资源计数与截断推导**（[Issue #1571](https://github.com/can4hou6joeng4/boss-harness/issues/1571)）：运行资源明细的计数与截断标记和已返回条目不一致时，界面不再把部分明细当成全部；计数小于明细视为矛盾响应整体报错。
 - **驾驶舱队列摘要采用持久分类计数**（[Issue #1575](https://github.com/can4hou6joeng4/boss-harness/issues/1575)）：队列摘要优先使用与持久待处理总数对齐的分类计数，旧内核缺省分类或合计不一致时才退回可见项并标注口径。
 - **摘要任务明细截断与计数一致性**（[Issue #1577](https://github.com/can4hou6joeng4/boss-harness/issues/1577)）：会话用量面板与 CSV 在计数大于已返回明细时强制标记截断，计数小于明细整体拒绝，不再静默执行 50 条本地上限而不提示。
