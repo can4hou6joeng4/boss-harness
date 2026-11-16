@@ -4,7 +4,9 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前没有未归入具名候选版本的变更。
+当前变更：
+
+- [Issue #1571](https://github.com/can4hou6joeng4/boss-harness/issues/1571)：`runtime/resources/read` 的渲染层读取器此前只按 `ownersTruncated` / `waitersTruncated` 判断截断，计数大于已返回明细但标记缺失或误报 `false` 时，驾驶舱会显示「运行中 owner 5」却只列出 1 行且没有「可见 N」提示；计数小于明细时标题数字还会比实际行数少。现在计数大于明细即按截断处理，计数小于明细视为矛盾响应整体报错；完整快照与显式截断行为不变。只改渲染层，不改变 RPC、协议或版本号。
 
 ## 0.2.0-rc.54 - 2026-11-16
 
