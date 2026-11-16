@@ -108,6 +108,24 @@ export function safeSlice(text: string, end: number): string {
   return text.slice(0, last >= 0xd800 && last <= 0xdbff ? limit - 1 : limit);
 }
 
+/**
+ * 按 Unicode 码点计数，与 Python `str` 的 `len()` 及内核参数上限的口径一致。
+ * `String.length` 按 UTF-16 码元计数，emoji 等补充平面字符会被算成 2；
+ * 面向用户文本的上下限判断应使用本函数，而不是直接比较 `String.length`。
+ */
+export function codePointLength(text: string): number {
+  let length = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff && index + 1 < text.length) {
+      const next = text.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) index += 1;
+    }
+    length += 1;
+  }
+  return length;
+}
+
 export function truncate(text: string, max: number): string {
   if (max <= 0) return "";
   return text.length <= max ? text : `${safeSlice(text, max - 1)}…`;
