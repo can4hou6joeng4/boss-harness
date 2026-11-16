@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ContextCompactJob, ContextCompactPlan, ContextReadResponse } from "@boss-harness/protocol";
+import type { ContextCompactJob, ContextReadResponse } from "@boss-harness/protocol";
 import { compactionReferenceOf, isContextJob, manualCompactionJob } from "./contextJob";
+import { contextPlanOf, type ContextPlan } from "./contextPlan";
 import { contextReadOf } from "./contextRead";
 import { disconnectPatch, settleReadFlight } from "./contextPanelState";
 import { abortContextCompaction, harnessErrorText, planContextCompaction, readContext, readContextCompaction, startContextCompaction } from "./harnessBridge";
@@ -13,7 +14,7 @@ interface StartAttempt {
 export interface ContextPanelState {
   keepRecentTokens: string;
   budget?: ContextReadResponse;
-  plan?: ContextCompactPlan;
+  plan?: ContextPlan;
   job?: ContextCompactJob;
   lifecycleActive: boolean | null;
   reading: boolean;
@@ -234,9 +235,9 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
     try {
       const result = await planContextCompaction({ threadId: id, keepRecentTokens });
       if (!valid()) return;
-      if (result.threadId !== id || result.keepRecentTokens !== keepRecentTokens || result.selection !== "keepRecentTokens") throw new Error("整理计划响应归属或保留目标不一致");
-      if (!/^[0-9a-f]{64}$/.test(result.sourceDigest) || !result.throughTurnId) throw new Error("整理计划缺少有效来源校验或完整回合边界");
-      update(id, { plan: result });
+      // 计划字段直接进入面板渲染：在写入状态前整体校验，畸形回执按生成失败处理。
+      const plan = contextPlanOf(result, { threadId: id, keepRecentTokens });
+      update(id, { plan });
     } catch (error) { if (valid()) update(id, { error: `无法生成整理计划：${harnessErrorText(error)}` }); }
     finally { if (valid()) update(id, { planning: false }); }
   }, [get, update]);
