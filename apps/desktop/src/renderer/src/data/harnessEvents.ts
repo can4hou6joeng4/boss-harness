@@ -53,9 +53,14 @@ function runningToolText(state: ThreadItem["executionState"]): string {
 export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent, receivedAt = Date.now()): MessageItem[] {
   const params = event.params ?? {};
   const at = Number.isFinite(receivedAt) ? receivedAt : undefined;
-  const id = params.itemId ?? (params.approvalId ? `approval-${params.approvalId}` : undefined);
+  // 通知与事件重放载荷不是持久投影：标识必须是非空字符串。对象 itemId 用引用比较
+  // 永远匹配不到已有卡片，每条通知都会追加新条目，列表 key 还会退化成
+  // "[object Object]"；对象 approvalId 会让不同审批共用同一张卡。
+  const itemId = typeof params.itemId === "string" && params.itemId ? params.itemId : undefined;
+  const approvalId = typeof params.approvalId === "string" && params.approvalId ? params.approvalId : undefined;
+  const id = itemId ?? (approvalId ? `approval-${approvalId}` : undefined);
   if (!id) return previous;
-  const index = previous.findIndex(item => item.id === id || item.id === params.clientUserMessageId || (params.approvalId && item.approval?.approvalId === params.approvalId));
+  const index = previous.findIndex(item => item.id === id || item.id === params.clientUserMessageId || (approvalId && item.approval?.approvalId === approvalId));
   const before = index >= 0 ? previous[index] : undefined;
   let item: MessageItem = before ?? { id, turnId: params.turnId, role: "agent", paragraphs: [] };
   switch (event.method) {
@@ -125,9 +130,9 @@ export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent,
       break;
     }
     case "approval/requested": {
-      if (!params.approvalId) return previous;
+      if (!approvalId) return previous;
       const deadline = approvalDeadlineMs(params.deadline);
-      item = { ...item, approval: { approvalId: params.approvalId, toolName: itemToolName(params.toolName),
+      item = { ...item, approval: { approvalId, toolName: itemToolName(params.toolName),
         description: itemText(params.summary) ?? "该操作需要你的批准", params: plainRecord(params.params) ?? {},
         consequential: typeof params.consequential === "boolean" ? params.consequential : true,
         ...(deadline !== undefined ? { deadline } : {}) } };
