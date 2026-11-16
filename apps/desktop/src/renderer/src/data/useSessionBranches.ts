@@ -3,6 +3,7 @@ import type { ContextBranchSummary, ContextBranchSummaryIssue, ContextCompactJob
 import { abortContextCompaction, harnessErrorText, listBranchTurns, listQueue, listThreadBranches, readContext, readContextCompaction, setThreadLeaf } from "./harnessBridge";
 import { readPagedItems } from "./pagedRead";
 import { compactionReferenceOf } from "./contextJob";
+import { branchSummariesOf } from "./branchSummaries";
 
 /**
  * 会话内分支（只在内核同时声明 sessionLeaf / sessionBranchTree / sessionBranchViews 时启用）。
@@ -158,7 +159,12 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
         const context = await readContext(id);
         if (!valid()) return;
         if (context.threadId === id) {
-          summaries = Array.isArray(context.branchSummaries) ? context.branchSummaries : [];
+          // 摘要标记由会话区直接渲染；一条损坏条目会让整段会话落入错误边界。
+          const read = branchSummariesOf(context.branchSummaries);
+          summaries = read.summaries;
+          if (read.dropped > 0) {
+            summaryError = `有 ${read.dropped} 条摘要标记无法识别，已隐藏；分支端点和切换不受影响。`;
+          }
           // 损坏条目不影响有效摘要与切换；但界面不能把「摘要记录失效」显示成「没有生成摘要」。
           summaryIssues = (Array.isArray(context.branchSummaryIssues) ? context.branchSummaryIssues : [])
             .filter(issue => Boolean(issue) && typeof issue === "object"
