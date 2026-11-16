@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { WorkspaceInstructionsText } from "@boss-harness/protocol";
 import { harnessErrorText, readWorkspaceInstructions, writeWorkspaceInstructions } from "../data/harnessBridge";
-import { workspaceInstructionBytesOf, workspaceInstructionStatusOf } from "../data/workspaceInstructions";
+import { workspaceInstructionBytesOf, workspaceInstructionStatusOf, workspaceInstructionWriteOf } from "../data/workspaceInstructions";
 
 export interface WorkspaceInstructionsEditorProps {
   open: boolean;
@@ -114,18 +114,27 @@ export function WorkspaceInstructionsEditor(props: WorkspaceInstructionsEditorPr
     if (saving || overLimit || !info || !props.connected) return;
     const attempt = ++saveAttempt.current;
     const payload = content;
-    const payloadBytes = bytes;
     setSaving(true); setError(""); setNotice("");
     try {
-      await writeWorkspaceInstructions(payload);
+      const response = await writeWorkspaceInstructions(payload);
       // 已关闭、已卸载或已开始新编辑会话：回执不得落回当前界面。
       if (!mountedRef.current || !openRef.current || saveAttempt.current !== attempt) return;
-      // 保存后草稿就是新基线，未保存提示随之消失。
-      setInfo(previous => previous ? { ...previous, content: payload, bytes: payloadBytes, status: payload.trim() ? "loaded" : "empty" } : previous);
+      const saved = workspaceInstructionWriteOf(response);
+      if (!saved) {
+        // 内核已响应，但回执无法核对：不把草稿标记为已保存，提示重新读取确认。
+        setError("内核返回的保存结果无法识别；请重新读取确认后再关闭。");
+        props.onSaved();
+        return;
+      }
+      // 保存后草稿就是新基线，未保存提示随之消失；路径、状态与字节数采用内核回执。
+      setInfo(previous => previous ? { ...previous, content: payload, bytes: saved.bytes, status: saved.status,
+        path: saved.path, pathPreferred: saved.path, limitBytes: saved.limitBytes } : previous);
       setBaselineContent(payload);
       setConfirmDiscard(false);
       // 文件确实已写入，但空正文不会注入下一回合：回执按实际生效情况区分，不笼统说「下一回合生效」。
-      setNotice(payload.trim() ? `已保存 ${payloadBytes} 字节，下一回合生效。` : "文件已保存为空；空正文不会注入下一回合。");
+      setNotice(saved.status === "loaded"
+        ? `已保存 ${saved.bytes} 字节到 ${saved.path}，下一回合生效。`
+        : "文件已保存为空；空正文不会注入下一回合。");
       props.onSaved();
     } catch (cause) {
       if (!mountedRef.current || !openRef.current || saveAttempt.current !== attempt) return;
