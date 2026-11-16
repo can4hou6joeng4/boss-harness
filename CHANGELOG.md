@@ -4,7 +4,7 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前没有未归入具名候选版本的变更。
+- [Issue #1508](https://github.com/can4hou6joeng4/boss-harness/issues/1508)：新建项目与重命名项目的名称输入框此前使用 HTML `maxLength={60}`，按 UTF-16 码元计数，emoji 等扩展区字符占 2 个码元，实际最多只能输入 30 个字符，超限时静默截断且没有提示；截断落在代理对中间时还可能残留孤立代理项并存入本机项目列表。现在项目名称按 Unicode 码点计数，上限 60 个字符，输入框按码元放宽到 120；超过上限时显示「项目名称最多 60 字符」并禁用提交，与聊天名称的口径一致。离线探针覆盖 60 / 61 个 emoji 与 CJK 字符的边界以及空白输入；`npm run typecheck`、`npm run build` 通过。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.47 - 2026-11-16
 
