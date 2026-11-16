@@ -37,8 +37,8 @@ from boss_harness.models.capabilities import REASONING_EFFORTS
 _T = TypeVar("_T")
 _THREAD_ID = re.compile(r"[a-f0-9]{12}\Z")
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
-#: 与桌面审批卡片的展示上限一致；无法展示工具名的审批不能进入列表或持久计数。
-_APPROVAL_TOOL_NAME_CHARS = 200
+#: 与桌面审批卡片字段的展示上限一致；无法展示工具名或条目 id 的审批不能进入列表或持久计数。
+_APPROVAL_VIEW_FIELD_CHARS = 200
 _EVENT_ID = re.compile(r"[a-f0-9]{32}\Z")
 _ATTACHMENT_DIGEST = re.compile(r"[a-f0-9]{64}\Z")
 _ATTACHMENT_TEMP = re.compile(r"tmp-[a-f0-9]{32}\Z")
@@ -1340,7 +1340,9 @@ class SessionStore:
         decision = approval.get("decision") if isinstance(approval, dict) else None
         tool_name = approval.get("toolName") if isinstance(approval, dict) else None
         visible_name = tool_name.strip() if isinstance(tool_name, str) else ""
-        # 桌面按去空白后的非空、≤200 字符展示工具名；无法展示的审批不能进入索引、
+        item_id = item.get("id")
+        visible_item_id = item_id.strip() if isinstance(item_id, str) else ""
+        # 桌面按去空白后的非空、≤200 字符展示工具名与条目 id；无法展示的审批不能进入索引、
         # 列表或持久计数，否则铃铛总数会大于通知面板中可处理的条目。
         if (item.get("kind") != "toolCall" or not isinstance(approval, dict)
                 or (decision is not None and (not isinstance(decision, str)
@@ -1348,7 +1350,9 @@ class SessionStore:
                 or not isinstance(approval.get("approvalId"), str)
                 or not _EVENT_ID.fullmatch(approval["approvalId"])
                 or not visible_name
-                or len(visible_name) > _APPROVAL_TOOL_NAME_CHARS
+                or len(visible_name) > _APPROVAL_VIEW_FIELD_CHARS
+                or not visible_item_id
+                or len(visible_item_id) > _APPROVAL_VIEW_FIELD_CHARS
                 or tool_name != item.get("toolName")
                 or not isinstance(item.get("turnId"), str)
                 or not _IDENTIFIER.fullmatch(item["turnId"])
