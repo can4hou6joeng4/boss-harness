@@ -68,7 +68,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 
 ## 近期进展
 
-`v0.2.0-rc.56` 候选相对 rc.55 新增 26 项修复与 1 项界面改进，并继续包含 rc.55 的 5 项修复：
+`v0.2.0-rc.56` 候选相对 rc.55 新增 27 项修复与 1 项界面改进，并继续包含 rc.55 的 5 项修复：
 
 - **技能标签查询不再命中原型链**（[Issue #1585](https://github.com/can4hou6joeng4/boss-harness/issues/1585)）：会话区与重试路径只读取技能映射自己的条目，缺失或形状不符返回空数组，损坏会话中的特殊 `turnId` 不再让整段消息落入错误边界。
 - **队列元数据不得少于可见明细**（[Issue #1587](https://github.com/can4hou6joeng4/boss-harness/issues/1587)）：待处理数或分类计数小于已载入条目时按缺失处理，面板与侧栏徽标回退到可见计数，不再出现「1 项待处理」上方列出 3 条记录或「排队 0」旁列出排队消息。
@@ -97,6 +97,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 - **主进程登录回执同样校验形状**（[Issue #1679](https://github.com/can4hou6joeng4/boss-harness/issues/1679)）：`platform/login/start`、`complete`、`read` 的回执先经 `loginAttemptOf()` 校验再写入状态机，无法识别时按各自失败路径结束并只对合法 `id` 补发取消；缺 `state` / `summary` 或未知状态不再让占用与取消判定失效，主进程与渲染层不会对同一值作出相反判断。
 - **跨会话搜索命中必须校验形状**（[Issue #1683](https://github.com/can4hou6joeng4/boss-harness/issues/1683)）：命中条目逐项校验标识、角色与片段并限制条目数，非字符串 `snippet` 不再让搜索弹窗渲染抛错，损坏标识不再让「打开并定位消息」失效，未知角色不再把工具命中显示成助手。
 - **会话错误通知正文必须校验形状**（[Issue #1687](https://github.com/can4hou6joeng4/boss-harness/issues/1687)）：`session/error` 的 `threadId` 与 `message` 先经 `sessionErrorNoticeOf()` 收敛，非字符串正文整条通知丢弃并保留上一次有效提示，对象不再作为 React 子节点让整屏落入错误边界；超长正文折叠空白并按上限截断。
+- **上下文预算回执必须校验形状**（[Issue #1691](https://github.com/can4hou6joeng4/boss-harness/issues/1691)）：`context/read` 的必填字段先经 `contextReadOf()` 校验，畸形系统提示分段、分支摘要问题清单或工作区说明按缺失收敛，不再让上下文面板渲染期抛错；归属不符或核心字段类型错误按读取失败处理并保留上一次成功状态。
 - **运行资源计数与截断推导**（[Issue #1571](https://github.com/can4hou6joeng4/boss-harness/issues/1571)）：运行资源明细的计数与截断标记和已返回条目不一致时，界面不再把部分明细当成全部；计数小于明细视为矛盾响应整体报错。
 - **驾驶舱队列摘要采用持久分类计数**（[Issue #1575](https://github.com/can4hou6joeng4/boss-harness/issues/1575)）：队列摘要优先使用与持久待处理总数对齐的分类计数，旧内核缺省分类或合计不一致时才退回可见项并标注口径。
 - **摘要任务明细截断与计数一致性**（[Issue #1577](https://github.com/can4hou6joeng4/boss-harness/issues/1577)）：会话用量面板与 CSV 在计数大于已返回明细时强制标记截断，计数小于明细整体拒绝，不再静默执行 50 条本地上限而不提示。
