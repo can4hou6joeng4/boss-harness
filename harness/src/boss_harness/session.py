@@ -57,12 +57,23 @@ def _is_hangul_jamo(char: str) -> bool:
     return 0x1100 <= code <= 0x11FF or 0xA960 <= code <= 0xA97C or 0xD7B0 <= code <= 0xD7FB
 
 
+#: 半角假名的浊音 / 半浊音符号。组合类为 0，但 NFKC 会与前面的半角假名合成预组合假名。
+_HALFWIDTH_VOICED_MARKS = frozenset({"ﾞ", "ﾟ"})
+
+
+def _is_halfwidth_kana(char: str) -> bool:
+    """半角片假名基字（U+FF66–U+FF9D）；U+FF9E / U+FF9F 是随后合并的浊音符号。"""
+    return 0xFF66 <= ord(char) <= 0xFF9D
+
+
 def _search_clusters(value: str) -> Iterator[tuple[int, int, str]]:
     """逐个组合簇产出 (原文起点, 原文终点, NFKC + casefold 后的片段)。
 
     NFKC 会把基字符与后续组合记号、分解状态的谚文 jamo 组合成一个字符；逐码点
-    归一化做不到跨码点组合，NFC / NFD 正文互相查询会漏命中。casefold 逐码点进行，
-    与旧实现的语义一致（上下文无关，不改变词尾 sigma 等结果）。
+    归一化做不到跨码点组合，NFC / NFD 正文互相查询会漏命中。半角假名的浊音 /
+    半浊音符号组合类为 0，需单独并入前面的半角假名，否则 ``ｶﾞ`` 会被拆成
+    ``カ`` + ``゛`` 而无法与 ``ガ`` 互相命中。casefold 逐码点进行，与旧实现的
+    语义一致（上下文无关，不改变词尾 sigma 等结果）。
     """
     index = 0
     length = len(value)
@@ -71,7 +82,11 @@ def _search_clusters(value: str) -> Iterator[tuple[int, int, str]]:
         if _is_hangul_jamo(value[index]):
             while end < length and _is_hangul_jamo(value[end]):
                 end += 1
-        while end < length and unicodedata.combining(value[end]):
+        halfwidth_kana = _is_halfwidth_kana(value[index])
+        while end < length and (
+            unicodedata.combining(value[end])
+            or (halfwidth_kana and value[end] in _HALFWIDTH_VOICED_MARKS)
+        ):
             end += 1
         yield index, end, unicodedata.normalize("NFKC", value[index:end]).casefold()
         index = end
