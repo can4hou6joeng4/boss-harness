@@ -68,13 +68,14 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 
 ## 近期进展
 
-`v0.2.0-rc.56` 候选相对 rc.55 新增 5 项修复，并继续包含 rc.55 的 5 项修复：
+`v0.2.0-rc.56` 候选相对 rc.55 新增 6 项修复，并继续包含 rc.55 的 5 项修复：
 
 - **技能标签查询不再命中原型链**（[Issue #1585](https://github.com/can4hou6joeng4/boss-harness/issues/1585)）：会话区与重试路径只读取技能映射自己的条目，缺失或形状不符返回空数组，损坏会话中的特殊 `turnId` 不再让整段消息落入错误边界。
 - **队列元数据不得少于可见明细**（[Issue #1587](https://github.com/can4hou6joeng4/boss-harness/issues/1587)）：待处理数或分类计数小于已载入条目时按缺失处理，面板与侧栏徽标回退到可见计数，不再出现「1 项待处理」上方列出 3 条记录或「排队 0」旁列出排队消息。
 - **审批按会话计数覆盖可见条目**（[Issue #1591](https://github.com/can4hou6joeng4/boss-harness/issues/1591)）：可见会话缺失计数或计数偏小时丢弃整组持久计数，侧栏徽标与「待你处理」分组回退到通知面板实际列出的审批，不再同一会话一处显示 1、一处列出 3 条。
 - **用量请求计数与验证分类必须一致**（[Issue #1595](https://github.com/can4hou6joeng4/boss-harness/issues/1595)）：已验证与未验证请求之和必须等于请求总数，未计入原因合计必须等于未验证请求数；任一矛盾即整体拒绝该用量，回合明细、摘要任务与 CSV 不再展示无法解释的差额。
 - **冻结快照必须完整读取**（[Issue #1599](https://github.com/can4hou6joeng4/boss-harness/issues/1599)）：会话恢复核对快照声明的条目总数，少读或多读都整体失败且不展示部分历史；普通与分支快照一致，旧内核缺少计数时保持兼容。
+- **会话条目必须有唯一标识**（[Issue #1603](https://github.com/can4hou6joeng4/boss-harness/issues/1603)）：缺少 `id` 或跨页重复的条目整体拒绝，不再静默丢消息或让同一审批卡、工具卡出现两次。
 - **运行资源计数与截断推导**（[Issue #1571](https://github.com/can4hou6joeng4/boss-harness/issues/1571)）：运行资源明细的计数与截断标记和已返回条目不一致时，界面不再把部分明细当成全部；计数小于明细视为矛盾响应整体报错。
 - **驾驶舱队列摘要采用持久分类计数**（[Issue #1575](https://github.com/can4hou6joeng4/boss-harness/issues/1575)）：队列摘要优先使用与持久待处理总数对齐的分类计数，旧内核缺省分类或合计不一致时才退回可见项并标注口径。
 - **摘要任务明细截断与计数一致性**（[Issue #1577](https://github.com/can4hou6joeng4/boss-harness/issues/1577)）：会话用量面板与 CSV 在计数大于已返回明细时强制标记截断，计数小于明细整体拒绝，不再静默执行 50 条本地上限而不提示。
