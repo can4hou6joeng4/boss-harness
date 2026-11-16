@@ -8,6 +8,8 @@
 
 - [Issue #1462](https://github.com/can4hou6joeng4/boss-harness/issues/1462)：聊天代码围栏的语言标记接受 `#`，`c#`、`f#`、`q#` 等标记不再按普通文本渲染，结束围栏也不会把后续正文吞进空代码块；`js`、`csharp` 等原有标记与未闭合围栏、CRLF 行为不变。不改变协议、RPC、持久化格式或工具权限。
 
+- [Issue #1464](https://github.com/can4hou6joeng4/boss-harness/issues/1464)：聊天内查找把 NFKC / casefold 展开（`ﬃ` → `ffi`、`ß` → `ss`）映射回同一原文字素的重复命中合并为一条区间，计数、Enter 步进与可见高亮不再出现「显示 2 处、实际 1 处」；普通文本、整段查询与搜索标注行为不变。不改变协议、RPC、持久化格式或工具权限。
+
 ## 0.2.0-rc.43 - 2026-11-16
 
 本节汇总第四十三个候选版本的源码与交付内容；rc.16 至 rc.43 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。

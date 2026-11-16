@@ -10,7 +10,7 @@ export const FIND_HIGHLIGHT_LIMIT = 200;
 
 export interface TextRange { start: number; end: number }
 
-/** 在已归一化的文本中查找命中区间，并把偏移量还原到原文。 */
+/** 在已归一化的文本中查找命中区间，并把偏移量还原到原文；同一次展开产生的重叠区间合并。 */
 function scanRanges(mapped: MappedSearchText, needle: string, limit: number): TextRange[] {
   const { normalized, starts, ends } = mapped;
   const ranges: TextRange[] = [];
@@ -21,7 +21,11 @@ function scanRanges(mapped: MappedSearchText, needle: string, limit: number): Te
     const start = starts[index];
     const end = ends[index + needle.length - 1];
     if (start === undefined || end === undefined) break;
-    ranges.push({ start, end });
+    // NFKC / casefold 会把一个字素展开成多个归一化码元（`ﬃ` → `ffi`、`ß` → `ss`），
+    // 同一次展开里的命中映射回同一原文区间；合并后计数与可见高亮才一致。
+    const previous = ranges[ranges.length - 1];
+    if (previous && start < previous.end) previous.end = Math.max(previous.end, end);
+    else ranges.push({ start, end });
     from = index + needle.length;
   }
   return ranges;
