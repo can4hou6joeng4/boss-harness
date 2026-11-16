@@ -39,7 +39,7 @@ function readApproval(value: unknown): PendingApproval | null {
 
 export interface PendingApprovalList {
   approvals: PendingApproval[];
-  /** 内核还有更早的待审批未返回；旧内核缺省视为没有截断。 */
+  /** 内核还有待审批未返回；旧内核缺省视为没有截断。 */
   truncated: boolean;
 }
 
@@ -49,7 +49,7 @@ export function mapPendingApprovals(value: unknown, limit = 100): PendingApprova
     throw new Error("内核审批列表无法识别");
   }
   const truncated = (value as Record<string, unknown>).truncated;
-  // 截断标记决定「是否还有更早的待审批」能否如实展示；存在但类型不对时整体拒绝，不猜。
+  // 截断标记决定「是否还有未返回的待审批」能否如实展示；存在但类型不对时整体拒绝，不猜。
   if (truncated !== undefined && typeof truncated !== "boolean") {
     throw new Error("内核审批列表无法识别");
   }
