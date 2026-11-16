@@ -202,6 +202,8 @@ flowchart LR
 - `none` 只表示不调用模型，不表示不调用招聘 CLI，也不代表不会访问平台。
 - 代码交付授权不等于招聘平台操作授权；对外沟通、投递和批量操作需要用户明确授权。
 
+发现可能影响状态目录保护、JSON-RPC 边界、工具审批或导出脱敏的问题时，请先通过非公开渠道联系维护者，不要在公开 Issue 中附带可利用细节、凭据或真实招聘记录；报告方式与负责范围见[安全政策](SECURITY.md)。
+
 首次运行建议使用临时工作区和只读工具。不要把凭据、Cookie 或真实招聘记录放入仓库、Issue、PR 或公开日志。
 
 ## 模型与运行时配置
@@ -255,6 +257,7 @@ CI 会执行 npm 依赖审计、TypeScript 检查、Electron 源码构建及 Pyt
 - [内核与业务契约参考](docs/TECHNICAL_REFERENCE.md)：请求边界、失败恢复、上下文预算、资源上限和模块接口。
 - [贡献与验证](CONTRIBUTING.md)：开发约定、提交格式、PR 与文档同步。
 - [发布约定](RELEASING.md)：候选版本节奏、版本一致性、发布验证与对外介绍。
+- [安全政策](SECURITY.md)：安全报告渠道、负责范围与披露原则。
 - [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)：已发布 tag、说明与实际可下载资产。
 - [上游吸收记录](UPSTREAM.md)：Pi 等参考项目的来源、取舍和适配差异。
 - [版本变化](CHANGELOG.md)：候选版本的功能、修复和验证范围。
