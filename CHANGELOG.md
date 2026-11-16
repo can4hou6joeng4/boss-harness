@@ -4,7 +4,7 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前没有未归入具名候选版本的变更。
+- [Issue #1523](https://github.com/can4hou6joeng4/boss-harness/issues/1523)：README 增加「English overview」段，用英文概括项目定位、进程边界、执行与队列、安全边界、模型线路与桌面能力，并明确 `0.2.0-rc.50` 仍为源码候选、最新实际发布为 `v0.2.0-rc.15`、当前没有独立安装包；同时链接现有中文 README、使用指南、技术要求与上游核对记录。不改变代码、RPC、协议或版本号。
 
 ## 0.2.0-rc.50 - 2026-11-16
 
