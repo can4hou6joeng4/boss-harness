@@ -4,6 +4,7 @@ import { abortContextCompaction, harnessErrorText, listBranchTurns, listQueue, l
 import { readPagedItems } from "./pagedRead";
 import { compactionReferenceOf } from "./contextJob";
 import { branchSummariesOf } from "./branchSummaries";
+import { branchEndpointOf, branchTurnOf, uniqueTurnIds } from "./branchPages";
 
 /**
  * 会话内分支（只在内核同时声明 sessionLeaf / sessionBranchTree / sessionBranchViews 时启用）。
@@ -140,16 +141,29 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       const endpointPage = await readPagedItems("分支列表", async cursor => {
         const page = await listThreadBranches(id, cursor);
         if (!valid()) throw new Error("分支列表读取已过期");
-        if (page.threadId !== id || !Array.isArray(page.endpoints)) throw new Error("分支列表不属于当前会话");
+        if (page.threadId !== id || !Array.isArray(page.endpoints)
+          || typeof page.branched !== "boolean" || !Number.isSafeInteger(page.turnCount) || page.turnCount < 0
+          || (page.leafTurnId !== null && (typeof page.leafTurnId !== "string"
+            || page.leafTurnId.length === 0 || page.leafTurnId.length > 200))) {
+          throw new Error("分支列表不属于当前会话或格式无法识别");
+        }
+        // 端点条目直接渲染并作为切换目标；损坏条目不能让弹窗在应用级错误边界里接管界面。
+        const endpoints = page.endpoints.map(branchEndpointOf);
+        if (endpoints.some(endpoint => endpoint === null)) throw new Error("分支列表包含无法识别的端点");
         head ??= page;
-        return { items: page.endpoints, nextCursor: page.nextCursor ?? null };
+        return { items: endpoints as ThreadBranchEndpoint[], nextCursor: page.nextCursor ?? null };
       }, MAX_PAGES);
+      if (!uniqueTurnIds(endpointPage.items)) throw new Error("分支列表包含重复端点");
       const turnPage = await readPagedItems("当前分支回合", async cursor => {
         const page = await listBranchTurns(id, cursor);
         if (!valid()) throw new Error("当前分支回合读取已过期");
         if (page.view !== "branch" || !Array.isArray(page.turns)) throw new Error("当前分支回合响应无效");
-        return { items: page.turns.filter(turn => turn.threadId === id), nextCursor: page.nextCursor ?? null };
+        // 其他会话的回合是归属错误，不能静默过滤后展示少一截的列表。
+        const turns = page.turns.map(turn => branchTurnOf(turn, id));
+        if (turns.some(turn => turn === null)) throw new Error("当前分支回合响应包含无法识别的条目");
+        return { items: turns as TurnSummary[], nextCursor: page.nextCursor ?? null };
       }, MAX_PAGES);
+      if (!uniqueTurnIds(turnPage.items)) throw new Error("当前分支回合包含重复条目");
       let summaries: ContextBranchSummary[] = [];
       let summaryIssues: ContextBranchSummaryIssue[] = [];
       let summaryIssueCount = 0;
