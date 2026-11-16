@@ -305,18 +305,17 @@ export async function startThread(title: string, model?: string, provider?: stri
     ClientMethods.threadStart,
     { title, provider, model, toolPolicy: "readOnly" },
   );
-  if (!response || !response.thread || typeof response.thread.id !== "string" || !response.thread.id) {
-    throw new Error("会话创建响应无法识别");
-  }
+  const thread = threadSummaryOf(response?.thread);
+  if (!thread) throw new Error("会话创建响应无法识别");
   return {
-    id: response.thread.id,
-    title: response.thread.title,
-    timeAgo: formatRelativeTime(response.thread.updatedAt),
-    updatedAt: response.thread.updatedAt,
-    toolPolicy: response.thread.toolPolicy,
-    provider: response.thread.provider,
-    model: response.thread.model,
-    reasoningEffort: response.thread.reasoningEffort,
+    id: thread.id,
+    title: thread.title,
+    timeAgo: formatRelativeTime(thread.updatedAt),
+    updatedAt: thread.updatedAt,
+    toolPolicy: thread.toolPolicy,
+    provider: thread.provider,
+    model: thread.model,
+    reasoningEffort: thread.reasoningEffort,
     status: "idle",
     projectId: HARNESS_PROJECT_ID,
   };
@@ -394,8 +393,8 @@ export async function setThreadReasoning(threadId: string, effort: string | null
   const api = bridge();
   if (!api) throw new Error("本地 Harness 未连接");
   const response = await api.request<ThreadReasoningSetResponse>(ClientMethods.threadReasoningSet, { threadId, effort });
-  const thread = response?.thread;
-  if (!thread || typeof thread.id !== "string" || !thread.id) throw new Error("推理设置响应无法识别");
+  const thread = threadSummaryOf(response?.thread);
+  if (!thread) throw new Error("推理设置响应无法识别");
   const queue = threadQueueCountsOf(thread.queueActiveItems, thread.queueCounts);
   return { id: thread.id, title: thread.title, timeAgo: formatRelativeTime(thread.updatedAt),
     updatedAt: thread.updatedAt, status: thread.lastTurn?.status === "running" ? "running"
@@ -644,12 +643,11 @@ export async function forkThread(threadId: string, turnId: string): Promise<Sess
   const api = bridge();
   if (!api) throw new Error("本地 Harness 未连接");
   const response = await api.request<ThreadReadResponse>(ClientMethods.threadFork, { threadId, turnId });
-  if (!response || !response.thread || typeof response.thread.id !== "string" || !response.thread.id) {
-    throw new Error("分支响应无法识别");
-  }
-  return { id: response.thread.id, title: response.thread.title, timeAgo: "刚刚", status: "idle", projectId: HARNESS_PROJECT_ID,
-    toolPolicy: response.thread.toolPolicy ?? "approval", provider: response.thread.provider,
-    model: response.thread.model, reasoningEffort: response.thread.reasoningEffort };
+  const thread = threadSummaryOf(response?.thread);
+  if (!thread) throw new Error("分支响应无法识别");
+  return { id: thread.id, title: thread.title, timeAgo: "刚刚", status: "idle", projectId: HARNESS_PROJECT_ID,
+    toolPolicy: thread.toolPolicy ?? "approval", provider: thread.provider,
+    model: thread.model, reasoningEffort: thread.reasoningEffort };
 }
 
 /** 把内核的审批状态转成渲染层消息：协议里 `deadline` 是 Unix 秒，这里统一换算为毫秒。 */

@@ -31,6 +31,7 @@ export function threadSummaryOf(value: unknown): ThreadSummary | null {
   if (typeof raw.title !== "string" || raw.title.length > TITLE_LIMIT) return null;
   if (typeof raw.updatedAt !== "string" || raw.updatedAt.length > TIME_LIMIT) return null;
   if (raw.archived !== undefined && typeof raw.archived !== "boolean") return null;
+  if (raw.toolPolicy !== undefined && raw.toolPolicy !== "readOnly" && raw.toolPolicy !== "approval") return null;
   const provider = optionalText(raw.provider, ID_LIMIT);
   const model = optionalText(raw.model, ID_LIMIT);
   const reasoningEffort = optionalText(raw.reasoningEffort, ID_LIMIT);
