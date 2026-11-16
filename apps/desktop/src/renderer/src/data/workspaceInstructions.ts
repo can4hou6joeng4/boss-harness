@@ -1,4 +1,4 @@
-import type { WorkspaceInstructionsState } from "@boss-harness/protocol";
+import type { WorkspaceInstructionsState, WorkspaceInstructionsWriteResponse } from "@boss-harness/protocol";
 
 /**
  * 工作区说明读取回执的共享判定。
@@ -20,4 +20,24 @@ export function workspaceInstructionBytesOf(value: unknown): number | null | und
   if (value === null) return null;
   if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
   return undefined;
+}
+
+/**
+ * 保存回执的规范化结果；字段缺失或类型不符时返回 `null`。
+ *
+ * 保存后界面应以内核回执为准。只用本地 payload 合成状态时，正文的空白判定
+ * 与内核不一致会给出相反提示（例如看起来为空、内核却按已加载注入）；真实
+ * 保存路径、字节数与上限也不会进入界面。写入成功回执只可能是 `loaded` /
+ * `empty`，其余状态说明回执不可信。
+ */
+export function workspaceInstructionWriteOf(value: unknown): WorkspaceInstructionsWriteResponse | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const status = workspaceInstructionStatusOf(raw.status);
+  if (status !== "loaded" && status !== "empty") return null;
+  const bytes = workspaceInstructionBytesOf(raw.bytes);
+  if (bytes === null || bytes === undefined) return null;
+  if (typeof raw.limitBytes !== "number" || !Number.isSafeInteger(raw.limitBytes) || raw.limitBytes <= 0) return null;
+  if (typeof raw.path !== "string" || !raw.path || raw.path.length > 4096) return null;
+  return { path: raw.path, bytes, status, limitBytes: raw.limitBytes };
 }
