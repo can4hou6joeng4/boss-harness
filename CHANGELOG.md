@@ -10,6 +10,8 @@
 
 - [Issue #1456](https://github.com/can4hou6joeng4/boss-harness/issues/1456)：用量「未计入原因」查表只读取 `USAGE_REASONS` 的自有属性，`constructor` / `toString` 等原型链键不再被映射成函数源码；`unverifiedReasons` 改用空原型对象承接，`__proto__` 键也能原样展示。已知原因文案与顺序不变；不改变协议、RPC、持久化格式或工具权限。
 
+- [Issue #1458](https://github.com/can4hou6joeng4/boss-harness/issues/1458)：任务核对与驾驶舱的标签查表只读取自有属性，内核返回的任意状态、阶段或配置策略值（`constructor` / `toString` / `__proto__` 等）不再命中原型链成员；渲染进程崩溃与登录页退出原因同样只匹配自有标签，未知原因原样保留。已知文案不变；不改变协议、RPC、持久化格式或工具权限。
+
 ## 0.2.0-rc.43 - 2026-11-16
 
 本节汇总第四十三个候选版本的源码与交付内容；rc.16 至 rc.43 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。

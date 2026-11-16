@@ -75,9 +75,14 @@ const PHASE_STATUS_LABELS: Record<string, string> = {
   cancelled: "已取消",
 };
 
-/** 已知取值给中文标签，未知取值原样放在「」里，读者能分辨哪部分是内部标识。 */
+/**
+ * 已知取值给中文标签，未知取值原样放在「」里，读者能分辨哪部分是内部标识。
+ * 只读自有属性：内核可返回任意状态或策略字符串，`constructor` / `__proto__`
+ * 等原型链成员不能被当成已知标签，否则界面会显示函数源码。
+ */
 export function labeledValue(labels: Record<string, string>, value: string): string {
-  return labels[value] ?? `「${value}」`;
+  const known = Object.prototype.hasOwnProperty.call(labels, value) ? labels[value] : undefined;
+  return known ?? `「${value}」`;
 }
 
 /** 队列项的取消是撤回；回合与摘要任务的取消是取消，同一状态按任务类型分开口径。 */
