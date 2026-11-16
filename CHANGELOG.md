@@ -4,7 +4,7 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前没有未归入具名候选版本的变更。
+- [Issue #1513](https://github.com/can4hou6joeng4/boss-harness/issues/1513)：标题工具此前把上限当作 UTF-16 码元处理。`compactTitle` 用 `String.length` 判断是否超限、用按码元截断的 `safeSlice` 执行截断：emoji 等扩展区字符每个占 2 个码元，20 个 emoji、上限 28 时码元数 40 超过上限，未超限的短标题被追加了省略号，29 个 emoji 则被提前截到 14 个；会话顶栏标题（上限 28）与分支标签（上限 80）都受影响。同文件的 `sessionTitleFromPrompt` 同样按码元截断，40 个 emoji 的提示词生成的会话标题只有 16 个字符。现在两者都先按 Unicode 码点判断、再按码点截断：未超限的 emoji 标题原样返回，新建标题最多 32 个码点，ASCII / CJK 边界不变，截断结果不含孤立代理项。离线探针覆盖 20 / 28 / 29 个 emoji、40 个 emoji 与 ASCII 的新建标题、CJK 边界、项目前缀剥离、空白折叠与空输入回退；`npm run typecheck`、`npm run build` 通过。不新增 RPC，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.48 - 2026-11-16
 
