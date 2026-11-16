@@ -4,7 +4,9 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前没有未归入具名候选版本的新变更；后续合入的变更继续在此汇总。
+当前未归入具名候选版本的变更：
+
+- [Issue #1462](https://github.com/can4hou6joeng4/boss-harness/issues/1462)：聊天代码围栏的语言标记接受 `#`，`c#`、`f#`、`q#` 等标记不再按普通文本渲染，结束围栏也不会把后续正文吞进空代码块；`js`、`csharp` 等原有标记与未闭合围栏、CRLF 行为不变。不改变协议、RPC、持久化格式或工具权限。
 
 ## 0.2.0-rc.43 - 2026-11-16
 
