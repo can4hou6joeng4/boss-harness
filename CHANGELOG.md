@@ -22,6 +22,8 @@
 
 - [Issue #1476](https://github.com/can4hou6joeng4/boss-harness/issues/1476)：会话搜索把谚文兼容字母（U+3131–U+318E）与半角字母（U+FFA0–U+FFDC）并入相邻谚文音节 / jamo 的组合簇，`ㄱㅏ` / `ㄱㅏᆫ` / `가ㄳ` 分别与 `가` / `간` / `갃` 归一化为同一文本并可互相命中；桌面会话内查找与内核搜索两个方向一致，`findTextRanges("ㄱㅏ", "가")` 与反向都返回完整区间。纯兼容字母组合仍按 NFKC 归并（`ㅎㅏㄴ` → `하` + 前导 jamo），预组合音节仍各自成簇，普通韩文文本的逐字素映射、组合 jamo、假名浊音、组合重音与 casefold 行为不变。不改变协议、RPC、持久化格式或工具权限。
 
+- [Issue #1478](https://github.com/can4hou6joeng4/boss-harness/issues/1478)：会话搜索的归一化补齐 Python 运行时较旧 Unicode 数据与桌面运行时（Node 24 / Unicode 17.0）的映射差值：Unicode 14–17 新增的 casefold（Vithkuqi、Garay、Beria Erfe 等大小写字母）与 NFKC 兼容分解（修饰字母、outlined 字母与数字、U+A7F1）在 Python 3.10–3.13 上也能与桌面一致地互相命中，Python 3.14 已覆盖的部分保持幂等。含补表码点的文本在分解后再次 NFKC，`U+A7F1` + 组合锐音符与预组合 `ś` 归一化为同一文本。纯 ASCII 文本走 `isascii` 快路径，普通文本不承担补表开销；既有 casefold、谚文 / 假名组合与搜索区间行为不变。不改变协议、RPC、持久化格式或工具权限。
+
 ## 0.2.0-rc.43 - 2026-11-16
 
 本节汇总第四十三个候选版本的源码与交付内容；rc.16 至 rc.43 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
