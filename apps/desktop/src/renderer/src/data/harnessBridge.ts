@@ -74,6 +74,7 @@ import { isQueueItem, queuePageOf, threadQueueCountsOf, type QueuePage } from ".
 import { TURN_SKILL_PAGE_LIMIT, turnSkillPageOf } from "./turnSkills";
 import { approvalDeadlineMs, mapPendingApprovals, type PendingApprovalList } from "./pendingApprovals";
 import { readPagedItems } from "./pagedRead";
+import { trackCursor } from "./cursorChain";
 import { toolDurationMs } from "./toolTiming";
 import {
   approvalDecision, itemContextEdit, itemResultRef, itemSource, itemText, itemToolName,
@@ -213,12 +214,13 @@ export const listBranchTurns = (threadId: string, cursor?: string | null, view: 
 export async function readTurnSkillIds(threadId: string, view: "branch" | "log"): Promise<Record<string, string[]>> {
   const skills: Record<string, string[]> = {};
   let cursor: string | null = null;
+  const seen = new Set<string>();
   for (let pages = 0; pages < TURN_SKILL_PAGE_LIMIT; pages += 1) {
     const page = turnSkillPageOf(await listBranchTurns(threadId, cursor, view));
     if (!page) throw new Error("回合列表响应无法识别");
     for (const [turnId, ids] of Object.entries(page.skills)) skills[turnId] = ids;
     if (page.nextCursor === null) return skills;
-    if (page.nextCursor === cursor) throw new Error("回合列表分页未前进");
+    trackCursor(seen, page.nextCursor, "回合列表");
     cursor = page.nextCursor;
   }
   throw new Error("回合列表分页过多");
