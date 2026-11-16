@@ -221,6 +221,12 @@ class SkillCatalog:
                     problems.append({"id": repr(skill_id)[:200],
                                      "reason": "目录名不是有效的 UTF-8，无法通过协议读取"})
                     continue
+                # id 会进入 skills 列表并被读取 / 写入 / 删除复用，三处统一限制 200 字符；
+                # 超长目录仍须出现在未加载项里，但不能让整份列表被桌面校验拒绝。
+                if len(skill_id) > self.MAX_EXISTING_SKILL_ID:
+                    problems.append({"id": skill_id[:self.MAX_EXISTING_SKILL_ID],
+                                     "reason": f"目录名超过 {self.MAX_EXISTING_SKILL_ID} 个字符，无法按技能读取"})
+                    continue
                 loaded = self._read_bounded(path)
                 if loaded is None:
                     problems.append({"id": skill_id, "reason": self._problem_reason(path)})
