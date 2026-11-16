@@ -41,8 +41,21 @@ Python 内核包构建使用满足项目要求的独立环境：
 ```sh
 uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python build
-.venv/bin/python -m build ./harness
+.venv/bin/python -m build ./harness --outdir dist/python
 ```
+
+Source build 在 wheel / sdist 之后运行 `scripts/release_assets.py`，生成 `build-info.json` 与 `SHA256SUMS.txt`，并把整个目录作为 `python-dist` 工作流产物上传。本地复现使用同一入口：
+
+```sh
+VERSION="$(.venv/bin/python -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("harness/pyproject.toml").read_text())["project"]["version"])')"
+.venv/bin/python scripts/release_assets.py \
+  --version "$VERSION" \
+  --commit "$(git rev-parse HEAD)" \
+  --out-dir dist/python \
+  dist/python/*.whl dist/python/*.tar.gz
+```
+
+需要固定构建时间以便复核时，追加 `--built-at 2026-11-16T04:30:00Z`。脚本只处理显式列出的普通文件，拒绝符号链接、目录、重复文件名与保留输出名，按文件名排序并按块计算 SHA-256；两个清单先写临时文件再原子替换。`build-info.json` 记录 `schemaVersion`、项目名、Python 版本、源码提交、`builtAt`、构建用 Python 版本与每个资产的 `name` / `bytes` / `sha256`。工作流产物用于审阅与核对，不等于 GitHub Release 资产；实际发布仍须从 tag 提交重新构建、复核哈希后上传。
 
 按本次变更补充适用的真实 Electron 离线验收；使用临时 HOME、userData、工作区与内核目录，隔离凭据和真实会话。`none` 仅表示不调用模型，部分命令仍可调用招聘 CLI，不能把它当成平台网络隔离；验收应独立阻断并核对模型、真实回合、招聘工具与平台网络尝试。
 

@@ -32,3 +32,17 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install build
       - run: python -m build ./harness --outdir dist/python
+      - name: Generate release asset manifest
+        run: |
+          VERSION="$(python -c "import pathlib, tomllib; print(tomllib.loads(pathlib.Path('harness/pyproject.toml').read_text(encoding='utf-8'))['project']['version'])")"
+          python scripts/release_assets.py \
+            --version "$VERSION" \
+            --commit "$GITHUB_SHA" \
+            --out-dir dist/python \
+            dist/python/*.whl dist/python/*.tar.gz
+      - name: Upload Python distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/python
+          if-no-files-found: error
