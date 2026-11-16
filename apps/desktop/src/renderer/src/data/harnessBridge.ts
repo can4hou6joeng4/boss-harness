@@ -77,6 +77,7 @@ import { readPagedItems } from "./pagedRead";
 import { trackCursor } from "./cursorChain";
 import { threadSummaryOf, uniqueThreadIds } from "./threadList";
 import { skillDescriptorOf, uniqueSkillIds } from "./skillCatalog";
+import { modelDescriptorOf, uniqueModelKeys } from "./modelCatalog";
 import { toolDurationMs } from "./toolTiming";
 import {
   approvalDecision, itemContextEdit, itemResultRef, itemSource, itemText, itemToolName,
@@ -560,7 +561,12 @@ export async function configuredModels(): Promise<ModelListResponse["models"]> {
   if (!api) throw new Error("本地 Harness 未连接");
   const response = await api.request<ModelListResponse>(ClientMethods.modelList);
   if (!response || !Array.isArray(response.models)) throw new Error("模型列表响应无法识别");
-  return response.models;
+  // 输入区菜单按 provider / id 渲染并提交选择；损坏条目会让过滤与菜单项在渲染期抛错。
+  const models = response.models.map(modelDescriptorOf);
+  if (models.some(model => model === null)) throw new Error("模型列表包含无法识别的条目");
+  const known = models as ModelListResponse["models"];
+  if (!uniqueModelKeys(known)) throw new Error("模型列表包含重复线路");
+  return known;
 }
 
 /** 工作区技能目录与生效来源。读取失败不吞掉：调用方要区分「没有技能」与「读取失败」。 */
