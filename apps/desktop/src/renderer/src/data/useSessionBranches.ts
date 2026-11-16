@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextBranchSummary, ContextBranchSummaryIssue, ContextCompactJob, InitializeResponse, QueueItem, ThreadBranchEndpoint, TurnSummary } from "@boss-harness/protocol";
 import { abortContextCompaction, harnessErrorText, listBranchTurns, listQueue, listThreadBranches, readContext, readContextCompaction, setThreadLeaf } from "./harnessBridge";
 import { readPagedItems } from "./pagedRead";
-import { compactionReferenceOf } from "./contextJob";
+import { branchJobOf, compactionReferenceOf } from "./contextJob";
 import { branchSummariesOf } from "./branchSummaries";
 import { branchEndpointOf, branchTurnOf, uniqueTurnIds } from "./branchPages";
 
@@ -70,13 +70,6 @@ function rpcDetail(error: unknown): { rpc: boolean; code: number | null; text: s
 
 /** 内核没有这个摘要任务：可能随进程重启丢失，或被任务记录保留窗口淘汰。 */
 const JOB_NOT_FOUND = -32011;
-
-function isBranchJob(value: unknown, threadId: string): value is ContextCompactJob {
-  if (!value || typeof value !== "object") return false;
-  const job = value as ContextCompactJob;
-  return job.kind === "branchSummary" && job.threadId === threadId && typeof job.jobId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(job.jobId)
-    && ["running", "completed", "failed", "cancelled"].includes(job.status);
-}
 
 /** 切换前的界面侧阻断原因；与内核 thread/leaf/set 的 -32004 拒绝条件对应。 */
 export function branchSwitchBlock(options: { connected: boolean; archived: boolean; running: boolean; queueItems: QueueItem[]; compacting: boolean; switching: boolean }): string | null {
@@ -206,7 +199,8 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       if (watch) {
         try {
           const job = await readContextCompaction(watch);
-          if (valid() && isBranchJob(job, id)) applyJob(id, job);
+          const parsed = branchJobOf(job, id);
+          if (valid() && parsed) applyJob(id, parsed);
         } catch (error) {
           const detail = rpcDetail(error);
           if (!valid()) return;
@@ -240,9 +234,10 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       }
       const id = typeof params.threadId === "string" ? params.threadId : null;
       if (!id || !current.current.support) return;
-      if (event.method.startsWith("context/compaction") && isBranchJob(params, id)) {
-        applyJob(id, params);
-        if (params.status !== "running") void refresh(id);
+      const branchJob = event.method.startsWith("context/compaction") ? branchJobOf(params, id) : null;
+      if (branchJob) {
+        applyJob(id, branchJob);
+        if (branchJob.status !== "running") void refresh(id);
         return;
       }
       if (["thread/leafChanged", "turn/completed", "thread/updated", "context/compacted"].includes(event.method) && id === current.current.threadId) {
@@ -259,9 +254,10 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
         const valid = () => alive.current && epoch.current === connectionEpoch
           && stateRef.current[id]?.summaryJob?.jobId === job?.jobId && stateRef.current[id]?.summaryJob?.status === "running";
         if (job?.status === "running") void readContextCompaction(job.jobId).then(next => {
-          if (!valid() || !isBranchJob(next, id) || next.jobId !== job.jobId) return;
-          applyJob(id, next);
-          if (next.status !== "running") void refresh(id);
+          const parsed = branchJobOf(next, id);
+          if (!valid() || !parsed || parsed.jobId !== job.jobId) return;
+          applyJob(id, parsed);
+          if (parsed.status !== "running") void refresh(id);
           pollFailures.current.delete(id);
           if (stateRef.current[id]?.summaryPollError) update(id, { summaryPollError: "" });
         }).catch(error => {
@@ -311,7 +307,8 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       const result = await setThreadLeaf(summarize && supported.summary ? { threadId: id, turnId, summarize: true } : { threadId: id, turnId });
       if (!valid()) return false;
       if (result.threadId !== id || result.leafTurnId !== turnId) throw new Error("切换回执与所选位置不一致");
-      if (result.summaryJob && isBranchJob(result.summaryJob, id)) applyJob(id, result.summaryJob);
+      const summaryJob = result.summaryJob ? branchJobOf(result.summaryJob, id) : null;
+      if (summaryJob) applyJob(id, summaryJob);
       await current.current.onSwitched(id);
       // 会话重读也可能跨越重连；旧调用不能把新打开的分支窗口作为成功收起。
       return valid();
@@ -343,8 +340,9 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
     try {
       const result = await abortContextCompaction(job.jobId);
       if (!valid()) return;
-      if (!isBranchJob(result, id) || result.jobId !== job.jobId) throw new Error("取消摘要回执与当前任务不一致");
-      applyJob(id, result);
+      const cancelled = branchJobOf(result, id);
+      if (!cancelled || cancelled.jobId !== job.jobId) throw new Error("取消摘要回执与当前任务不一致");
+      applyJob(id, cancelled);
     } catch (error) {
       // 已确认的终态优先于迟到取消失败，不再把完成任务描述为回执未知。
       if (valid() && stateRef.current[id]?.summaryJob?.status === "running") {

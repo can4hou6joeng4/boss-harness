@@ -142,3 +142,16 @@ export function contextJobOf(value: unknown): ContextCompactJob | null {
 export function manualCompactionJob(job: ContextCompactJob): ContextCompactJob | null {
   return job.kind === "branchSummary" ? null : job;
 }
+
+/**
+ * 分支摘要任务：与手动压缩共用任务通道，必须通过同一套完整校验并匹配会话。
+ *
+ * 分支面板只查 `kind` / `jobId` / `status` 时，对象类型的进度计数与失败说明
+ * 会直接进入提示卡并渲染成 `[object Object]`；这里复用 `contextJobOf()`。
+ * 畸形载荷按「不适用」丢弃而不是抛出：事件回调与轮询不能因一条坏通知中断。
+ */
+export function branchJobOf(value: unknown, threadId: string): ContextCompactJob | null {
+  let job: ContextCompactJob | null;
+  try { job = contextJobOf(value); } catch { return null; }
+  return job !== null && job.kind === "branchSummary" && job.threadId === threadId ? job : null;
+}
