@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PlatformLoginContext, SessionExportSaveRequest, ThreadExportResponse } from "@boss-harness/protocol";
+import { codePointLength } from "@boss-harness/shared";
 
 /** A native child view must stay inside the renderer's measured content slot. */
 export function loginViewBounds(value: unknown, content: { width: number; height: number }): PlatformLoginContext["bounds"] | null {
@@ -100,7 +101,7 @@ const THREAD_METHODS = new Set([
 
 /** 已存在技能的目录名：允许旧名称，但必须是单层安全路径。 */
 function safeSkillId(value: unknown): value is string {
-  return typeof value === "string" && value.length >= 1 && value.length <= 200 &&
+  return typeof value === "string" && codePointLength(value) >= 1 && codePointLength(value) <= 200 &&
     value !== "." && value !== ".." && !value.includes("/") && !value.includes("\\") &&
     !/[\u0000-\u001f\u007f]/.test(value);
 }
@@ -244,7 +245,7 @@ export function validateHarnessRequest(payload: unknown): { method: string; para
     throw new Error("invalid auto compaction policy");
   }
   if (payload.method === "thread/start" && params?.title !== undefined &&
-    (typeof params.title !== "string" || params.title.length > 500)) throw new Error("invalid thread title");
+    (typeof params.title !== "string" || codePointLength(params.title) > 500)) throw new Error("invalid thread title");
   if (payload.method === "thread/start" && params?.provider !== undefined &&
     (typeof params.provider !== "string" || !PROVIDER_PATTERN.test(params.provider))) {
     throw new Error("invalid thread provider");
@@ -276,7 +277,7 @@ export function validateHarnessRequest(payload: unknown): { method: string; para
       (payload.method === "context/edit" &&
         (typeof params.sourceDigest !== "string" || !/^[a-f0-9]{64}$/.test(params.sourceDigest) ||
           (params.replacementText !== null && (typeof params.replacementText !== "string" ||
-            params.replacementText.length < 1 || params.replacementText.length > 32_000 ||
+            codePointLength(params.replacementText) < 1 || codePointLength(params.replacementText) > 32_000 ||
             Buffer.byteLength(params.replacementText, "utf8") > 128 * 1024))))) {
       throw new Error("invalid context edit request");
     }
@@ -286,7 +287,7 @@ export function validateHarnessRequest(payload: unknown): { method: string; para
     throw new Error("workspace instructions read does not accept params");
   }
   if (payload.method === "skills/read" && (!params || Reflect.ownKeys(params).length !== 1 ||
-    typeof params.id !== "string" || params.id.length < 1 || params.id.length > 200 || /[\u0000-\u001f\u007f]/.test(params.id))) {
+    typeof params.id !== "string" || codePointLength(params.id) < 1 || codePointLength(params.id) > 200 || /[\u0000-\u001f\u007f]/.test(params.id))) {
     throw new Error("invalid skill read");
   }
   if (payload.method === "skills/create" && (!params || Reflect.ownKeys(params).length !== 2 ||
@@ -346,7 +347,7 @@ export function validateHarnessRequest(payload: unknown): { method: string; para
   if (payload.method === "thread/search") {
     const allowed = new Set(["query", "limit", "includeArchived"]);
     if (!params || Object.keys(params).some(key => !allowed.has(key)) ||
-      typeof params.query !== "string" || !params.query.trim() || params.query.length > 200 ||
+      typeof params.query !== "string" || !params.query.trim() || codePointLength(params.query) > 200 ||
       (params.limit !== undefined && (typeof params.limit !== "number" ||
         !Number.isSafeInteger(params.limit) || params.limit < 1 || params.limit > 50)) ||
       (params.includeArchived !== undefined && typeof params.includeArchived !== "boolean")) {

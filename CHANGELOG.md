@@ -4,7 +4,9 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前没有未归入具名候选版本的变更。
+当前未归入具名候选版本的变更：
+
+- [Issue #1483](https://github.com/can4hou6joeng4/boss-harness/issues/1483)：桌面主进程对 `thread/start.title`、`thread/search.query`、`context/edit.replacementText` 与技能目录名（`skills/read`、`skills/write`、`skills/delete`）的长度上限改用 Unicode 码点计数，与内核 `len()` 及上下文编辑对话框的保存条件一致；101 个 emoji 的搜索查询与 16001 个 emoji 的替换文本不再在到达内核前被拒绝，最近搜索的 200 字符上限同样按码点判定。按码点超限的输入仍被拒绝，UTF-8 字节上限、路径安全规则、协议、RPC、持久化格式与工具权限不变。
 
 ## 0.2.0-rc.44 - 2026-11-16
 
