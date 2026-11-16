@@ -333,7 +333,7 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     <div className="turn-queue-heading"><strong>任务队列</strong><span data-queue-pending={pendingCount} title={activeItems !== undefined ? "待处理数量由内核按全部持久队列项统计。"
       : kernelHidden ? "待处理数量按内核已载入的队列项统计。" : undefined}>{pendingCount} 项待处理</span>
       {hiddenNote && <span className="turn-queue-more" data-queue-total={total} data-queue-truncated={kernelHidden ? "true" : "false"} data-queue-visible={visibleItems.length}
-        title={kernelHidden ? `内核只返回有界投影（暂停项优先，待处理合计最多 200 项），未载入的项目可能包括排队项或暂停项。${activeItems !== undefined
+        title={kernelHidden ? `内核只返回有界投影（暂停项优先，待处理合计最多 200 项，已结束项另受 50 项上限），未载入的项目可能包括排队项、暂停项或已结束项。${activeItems !== undefined
           ? "待处理数量仍按全部持久项统计。" : "待处理数量按已载入项统计。"}` : "任务队列较长，界面只显示最近的项目。"}>{hiddenNote}</span>}
       {collapsedHidden && <button type="button" className="turn-queue-show-all" aria-expanded={showAll}
         data-queue-expanded={showAll ? "true" : "false"}
