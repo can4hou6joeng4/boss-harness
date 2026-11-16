@@ -46,8 +46,9 @@ export function queueRetryLocalItems(previous: QueueItem[], oldId: string, creat
 /**
  * 重新排队已受理但队列刷新失败时的本地投影。
  *
- * 待处理总数沿用与 `patchQueuePage` 相同的口径：已有内核持久总数时按旧项撤下与新项加入增减；
- * 缺少总数且投影完整时才用已载入数；截断且缺省保持未知，不把可见计数写成内核总数。
+ * 持久总数只随新增记录增加：撤回把旧项标记为 cancelled 但保留记录，新项总会新增一条，
+ * 因此已有内核总数时统一加 1；缺少总数且投影完整时才用已载入数；截断且缺省保持未知，
+ * 不把可见计数写成内核总数。
  * 截断投影同时记录已载入条目的分类增量，供徽标合并把已知分类校正到新的状态组成。
  */
 export function queueRetryPage(page: QueuePage | undefined, previousItems: QueueItem[], oldId: string,
@@ -64,8 +65,8 @@ export function queueRetryPage(page: QueuePage | undefined, previousItems: Queue
   }
   let totalItems: number | undefined;
   if (typeof page?.totalItems === "number") {
-    // 旧项撤下与新项加入相互抵消；撤回未确认时旧项仍计入，总数只增加新项。
-    totalItems = Math.max(page.totalItems + (removed ? 0 : 1), items.length);
+    // 撤回只把旧项标记为 cancelled，持久记录仍计入内核总数；重新排队总会新增一条记录。
+    totalItems = Math.max(page.totalItems + 1, items.length);
   } else if (items.length > 0) {
     totalItems = items.length;
   }

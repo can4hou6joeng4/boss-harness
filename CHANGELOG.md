@@ -4,7 +4,7 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前没有未归入具名候选版本的变更。
+- [Issue #1553](https://github.com/can4hou6joeng4/boss-harness/issues/1553)：重新排队已受理但队列刷新失败时，`queueRetryPage` 对成功撤回的旧项按 0 增量计算持久总数；内核 `queue/remove` 只把旧项标记为 `cancelled`，记录仍计入 `totalItems`，新项又新增一条，截断队列因此少显示 1 项（5 而非 6），多次重试持续漂移。现在只要内核总数已知，重新排队统一按新项加 1，成功撤回不再扣减；本地条目、待处理数与分类计数不变。只改渲染层兜底投影，不改变 RPC、协议或版本号。
 
 ## 0.2.0-rc.52 - 2026-11-16
 
