@@ -298,9 +298,13 @@ export class HarnessHostConnection {
   #expireFinishedApprovals(notification: JsonRpcNotification, client: HarnessClient): void {
     if (!object(notification.params)) return;
     const params = notification.params;
+    // 回合终态必须是字符串本身：String() 会把 ["completed"] 这类畸形状态
+    // 转成合法值，提前撤销仍在等待的审批。
+    const finishedTurn = typeof params.status === "string" &&
+      ["completed", "interrupted", "blocked", "error"].includes(params.status);
     for (const [approvalId, route] of this.#approvals) {
       const completedTurn = notification.method === "thread/updated" && params.threadId === route.threadId &&
-        ["completed", "interrupted", "blocked", "error"].includes(String(params.status));
+        finishedTurn;
       const completedItem = notification.method === "item/completed" &&
         (params.itemId === route.itemId || (object(params.item) && params.item.id === route.itemId));
       if (!completedTurn && !completedItem) continue;
