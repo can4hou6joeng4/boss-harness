@@ -68,7 +68,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 
 ## 近期进展
 
-`v0.2.0-rc.56` 候选相对 rc.55 新增 35 项修复与 1 项界面改进，并继续包含 rc.55 的 5 项修复：
+`v0.2.0-rc.56` 候选相对 rc.55 新增 36 项修复与 1 项界面改进，并继续包含 rc.55 的 5 项修复：
 
 - **技能标签查询不再命中原型链**（[Issue #1585](https://github.com/can4hou6joeng4/boss-harness/issues/1585)）：会话区与重试路径只读取技能映射自己的条目，缺失或形状不符返回空数组，损坏会话中的特殊 `turnId` 不再让整段消息落入错误边界。
 - **队列元数据不得少于可见明细**（[Issue #1587](https://github.com/can4hou6joeng4/boss-harness/issues/1587)）：待处理数或分类计数小于已载入条目时按缺失处理，面板与侧栏徽标回退到可见计数，不再出现「1 项待处理」上方列出 3 条记录或「排队 0」旁列出排队消息。
@@ -106,6 +106,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 - **冻结快照的非对象条目按损坏处理**（[Issue #1711](https://github.com/can4hou6joeng4/boss-harness/issues/1711)）：`_decode_item()` 统一要求快照条目是字符串载荷解码出的对象，数组、字符串或 `null` 条目不再让分页与正文读取抛 `AttributeError`，而是给出「会话快照已损坏」的可读提示。
 - **非 UTF-8 附件按内容损坏处理**（[Issue #1714](https://github.com/can4hou6joeng4/boss-harness/issues/1714)）：读取路径统一经 `_decode_attachment_text()` 解码，非 UTF-8 对象不再让附件读取与上下文注入抛 `UnicodeDecodeError` 的内部错误，而是提示重新添加。
 - **续接预检回执必须校验展示字段**（[Issue #1717](https://github.com/can4hou6joeng4/boss-harness/issues/1717)）：`continuationReadOf()` 校验身份、可续接标记、检查点边界与原因文本，对象 `warning` 不再让会话区落入错误边界，非布尔 `eligible` 不再显示续接按钮，未知检查点不再显示成「已完成的工具批次」。
+- **分支边界序号不再受持久载荷影响**（[Issue #1720](https://github.com/can4hou6joeng4/boss-harness/issues/1720)）：回合归并跳过载荷里的 `firstOrdinal` / `lastOrdinal` / `boundaryOrdinal`，损坏记录不再让创建分支返回内部错误，也不再静默截断分支边界。
 - **运行资源计数与截断推导**（[Issue #1571](https://github.com/can4hou6joeng4/boss-harness/issues/1571)）：运行资源明细的计数与截断标记和已返回条目不一致时，界面不再把部分明细当成全部；计数小于明细视为矛盾响应整体报错。
 - **驾驶舱队列摘要采用持久分类计数**（[Issue #1575](https://github.com/can4hou6joeng4/boss-harness/issues/1575)）：队列摘要优先使用与持久待处理总数对齐的分类计数，旧内核缺省分类或合计不一致时才退回可见项并标注口径。
 - **摘要任务明细截断与计数一致性**（[Issue #1577](https://github.com/can4hou6joeng4/boss-harness/issues/1577)）：会话用量面板与 CSV 在计数大于已返回明细时强制标记截断，计数小于明细整体拒绝，不再静默执行 50 条本地上限而不提示。
