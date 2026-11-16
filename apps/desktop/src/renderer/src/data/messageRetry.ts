@@ -1,4 +1,5 @@
 import type { MessageItem } from "./mockData";
+import { turnSkillIdsFor } from "./turnSkills";
 
 /** 内核单回合最多注入 10 个技能；重试沿用同一上限。 */
 const MAX_RETRY_SKILLS = 10;
@@ -71,14 +72,12 @@ export function retryRequestForMessage(
   const source = retrySource(messages, messageId);
   if (!source) return null;
   const turnId = source.item.turnId;
-  const recorded = typeof turnId === "string" ? turnSkillIds[turnId] : undefined;
+  const recorded = turnSkillIdsFor(turnSkillIds, turnId);
   const available = new Set(availableSkillIds);
   const skillIds: string[] = [];
-  if (Array.isArray(recorded)) {
-    for (const id of recorded) {
-      if (skillIds.length >= MAX_RETRY_SKILLS) break;
-      if (typeof id === "string" && available.has(id) && !skillIds.includes(id)) skillIds.push(id);
-    }
+  for (const id of recorded) {
+    if (skillIds.length >= MAX_RETRY_SKILLS) break;
+    if (typeof id === "string" && available.has(id) && !skillIds.includes(id)) skillIds.push(id);
   }
   return { text: source.text, skillIds };
 }

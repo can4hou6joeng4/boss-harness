@@ -33,6 +33,7 @@ import { clampFindCursor, findCursorPosition, findStepTotal, stepFindCursor, typ
 import { findSeedFromSelection, isEditableTarget } from "../data/findSeed";
 import { mergeLocalMessageState } from "../data/messageMerge";
 import { retryBlockReason, retryRequestForMessage } from "../data/messageRetry";
+import { turnSkillIdsFor } from "../data/turnSkills";
 import { messageCopyText } from "../data/messageCopy";
 import { FIND_HIGHLIGHT_LIMIT, collectKernelTextRanges, collectTextRanges } from "../data/findHighlight";
 import { compactTitle, stripProjectPrefix } from "../data/sessionTitle";
@@ -674,7 +675,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
                 <div className={"msg-row-user" + (findMatch ? " is-find-match" : "") + (currentFindId === item.id ? " is-find-current" : "") + (focusFlash === item.id ? " is-focus-target" : "")} id={"message-" + item.id}>
                   <div className="user-bubble">{item.content}</div>
                   {(() => {
-                    const ids = item.turnId ? turnSkillIds[item.turnId] ?? [] : [];
+                    const ids = turnSkillIdsFor(turnSkillIds, item.turnId);
                     if (!ids.length) return null;
                     const names = ids.map(id => skills.find(skill => skill.id === id)?.name ?? id);
                     return (
