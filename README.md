@@ -68,7 +68,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 
 ## 近期进展
 
-`v0.2.0-rc.56` 候选相对 rc.55 新增 22 项修复与 1 项界面改进，并继续包含 rc.55 的 5 项修复：
+`v0.2.0-rc.56` 候选相对 rc.55 新增 23 项修复与 1 项界面改进，并继续包含 rc.55 的 5 项修复：
 
 - **技能标签查询不再命中原型链**（[Issue #1585](https://github.com/can4hou6joeng4/boss-harness/issues/1585)）：会话区与重试路径只读取技能映射自己的条目，缺失或形状不符返回空数组，损坏会话中的特殊 `turnId` 不再让整段消息落入错误边界。
 - **队列元数据不得少于可见明细**（[Issue #1587](https://github.com/can4hou6joeng4/boss-harness/issues/1587)）：待处理数或分类计数小于已载入条目时按缺失处理，面板与侧栏徽标回退到可见计数，不再出现「1 项待处理」上方列出 3 条记录或「排队 0」旁列出排队消息。
@@ -93,6 +93,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 - **会话写操作回执必须逐项校验**（[Issue #1663](https://github.com/can4hou6joeng4/boss-harness/issues/1663)）：新建、分叉与推理设置的回执复用会话条目校验，缺字段、未知 `toolPolicy` 或畸形 `lastTurn` 整体拒绝，损坏元数据不会插入侧栏或当前会话。
 - **工具清单展示执行模式**（[Issue #1667](https://github.com/can4hou6joeng4/boss-harness/issues/1667)）：「技能与工具」页在 `executionMode` 存在时标注 `· 串行` / `· 并行`，与驾驶舱的「串行」徽标一致，字段缺省时保持原有文案。
 - **登录状态回执必须校验形状**（[Issue #1671](https://github.com/can4hou6joeng4/boss-harness/issues/1671)）：广播与 `open` / `cancel` 回执逐项校验 `state`、`summary`、可选字段与 `browser` 四字段，无法识别时保留上一次有效状态并给出原因；未知状态不再让登录引导常驻且无取消入口，非字符串 `code` / `summary` 不再让引导卡片渲染抛错。
+- **设置页登录状态同样校验形状**（[Issue #1675](https://github.com/can4hou6joeng4/boss-harness/issues/1675)）：设置对话框独立订阅的登录状态与初始读取复用同一校验，非法回执保留上一次有效状态并显示原因；终态判断抽为 `loginSettled()`，未知状态不再让账号行误显示「正在登录」却又允许重新登录。
 - **运行资源计数与截断推导**（[Issue #1571](https://github.com/can4hou6joeng4/boss-harness/issues/1571)）：运行资源明细的计数与截断标记和已返回条目不一致时，界面不再把部分明细当成全部；计数小于明细视为矛盾响应整体报错。
 - **驾驶舱队列摘要采用持久分类计数**（[Issue #1575](https://github.com/can4hou6joeng4/boss-harness/issues/1575)）：队列摘要优先使用与持久待处理总数对齐的分类计数，旧内核缺省分类或合计不一致时才退回可见项并标注口径。
 - **摘要任务明细截断与计数一致性**（[Issue #1577](https://github.com/can4hou6joeng4/boss-harness/issues/1577)）：会话用量面板与 CSV 在计数大于已返回明细时强制标记截断，计数小于明细整体拒绝，不再静默执行 50 条本地上限而不提示。
