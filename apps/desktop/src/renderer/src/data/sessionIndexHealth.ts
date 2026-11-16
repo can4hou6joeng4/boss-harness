@@ -25,8 +25,13 @@ export function readSessionIndexHealth(config: unknown): SessionIndexHealth | nu
   const count = config.unreadableThreadCount;
   if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) return null;
   const ids: string[] = [];
-  if (count === 0) return { count, ids };
   const raw = config.unreadableThreadIds;
+  // 计数为零却列出不可读 id 是自相矛盾的响应；宁可显示「未报告」，也不能显示「正常」。
+  if (count === 0) {
+    const listed = Array.isArray(raw) && raw.some(value =>
+      typeof value === "string" && value.length > 0 && value.length <= MAX_THREAD_ID_LENGTH);
+    return listed ? null : { count, ids };
+  }
   if (Array.isArray(raw)) {
     for (const value of raw) {
       if (ids.length >= SESSION_INDEX_MAX_IDS) break;
