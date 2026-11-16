@@ -42,6 +42,26 @@ def snapshot_view_mismatch(snapshot_id: str, view: str) -> RpcError:
                     {"code": "SNAPSHOT_VIEW_MISMATCH", "snapshotId": snapshot_id, "snapshotView": view})
 
 
+def _decode_item(payload: object) -> dict:
+    """解码一条快照条目：非字符串或非对象载荷按快照损坏处理。
+
+    快照库属于持久数据，条目 `payload` 可能被外部改写或损坏。`json.loads()`
+    对数组、字符串与 `null` 都会正常返回，而调用方随后按对象读取 `.items()` /
+    `.get`，异常会逃逸成 `-32603`；这里统一要求解码结果是非数组对象，
+    给出与其它损坏场景一致的可读提示。
+    """
+    if not isinstance(payload, str):
+        raise ValueError("会话快照已损坏；请重新打开会话")
+    try:
+        item = json.loads(payload)
+    except (TypeError, ValueError, RecursionError):
+        # 深嵌套 payload 同样视为快照损坏，不能让 RecursionError 逃逸成 -32603。
+        raise ValueError("会话快照已损坏；请重新打开会话") from None
+    if not isinstance(item, dict):
+        raise ValueError("会话快照已损坏；请重新打开会话")
+    return item
+
+
 def read_source_entries(source: BinaryIO, size: int) -> list[dict]:
     """Decode a pinned rollout prefix once (branch projection needs the whole prefix), then rewind."""
     if size > MAX_SNAPSHOT_SOURCE_BYTES:
@@ -142,12 +162,7 @@ class SnapshotBuilder:
         row = self.connection.execute("SELECT payload FROM items WHERE ordinal=?", (ordinal,)).fetchone()
         if row is None:
             raise ValueError("冻结快照索引不一致")
-        try:
-            return json.loads(row[0])
-        except (TypeError, ValueError, RecursionError):
-            # 快照库属于持久数据：深嵌套 payload 同样视为快照损坏，
-            # 不能让 RecursionError 逃逸成 -32603。
-            raise ValueError("会话快照已损坏；请重新打开会话") from None
+        return _decode_item(row[0])
 
     def _write_item(self, ordinal: int, item: dict, *, is_new: bool, previous_size: int = 0) -> None:
         encoded = json.dumps(item, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
@@ -413,14 +428,13 @@ class SnapshotStore:
                 result = []
                 payload_bytes = 0
                 for row in rows:
-                    payload_bytes += len(row[0].encode("utf-8"))
+                    payload = row[0]
+                    if not isinstance(payload, str):
+                        raise ValueError("会话快照已损坏；请重新打开会话")
+                    payload_bytes += len(payload.encode("utf-8"))
                     if result and payload_bytes > max_payload_bytes:
                         break
-                    try:
-                        item = json.loads(row[0])
-                    except (TypeError, ValueError, RecursionError):
-                        raise ValueError("会话快照已损坏；请重新打开会话") from None
-                    result.append((item, {"entryId": row[1], "excluded": bool(row[2])}
+                    result.append((_decode_item(payload), {"entryId": row[1], "excluded": bool(row[2])}
                                    if row[1] is not None else None))
             finally:
                 connection.close()
@@ -435,10 +449,7 @@ class SnapshotStore:
                 row = connection.execute("SELECT payload FROM items WHERE item_id=?", (item_id,)).fetchone()
             finally:
                 connection.close()
-            try:
-                return json.loads(row[0]) if row else None
-            except (TypeError, ValueError, RecursionError):
-                raise ValueError("会话快照已损坏；请重新打开会话") from None
+            return _decode_item(row[0]) if row else None
 
     def edit_state(self, snapshot_id: str, thread_id: str, item_id: str) -> dict | None:
         with self._lock:
