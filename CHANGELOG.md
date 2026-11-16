@@ -20,6 +20,8 @@
 
 - [Issue #1474](https://github.com/can4hou6joeng4/boss-harness/issues/1474)：会话搜索把预组合谚文音节后的 jamo 并入同一组合簇，`간`（U+AC00 U+11AB）与 `간` 归一化为同一文本并可互相命中；完全分解的 L V T jamo 仍归一化为 `간`，`각ᆫ`、`가ᅡ` 的 NFKC 结果、假名浊音、组合重音与 casefold 行为不变。不改变协议、RPC、持久化格式或工具权限。
 
+- [Issue #1476](https://github.com/can4hou6joeng4/boss-harness/issues/1476)：会话搜索把谚文兼容字母（U+3131–U+318E）与半角字母（U+FFA0–U+FFDC）并入相邻谚文音节 / jamo 的组合簇，`ㄱㅏ` / `ㄱㅏᆫ` / `가ㄳ` 分别与 `가` / `간` / `갃` 归一化为同一文本并可互相命中；桌面会话内查找与内核搜索两个方向一致，`findTextRanges("ㄱㅏ", "가")` 与反向都返回完整区间。纯兼容字母组合仍按 NFKC 归并（`ㅎㅏㄴ` → `하` + 前导 jamo），预组合音节仍各自成簇，普通韩文文本的逐字素映射、组合 jamo、假名浊音、组合重音与 casefold 行为不变。不改变协议、RPC、持久化格式或工具权限。
+
 ## 0.2.0-rc.43 - 2026-11-16
 
 本节汇总第四十三个候选版本的源码与交付内容；rc.16 至 rc.43 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。

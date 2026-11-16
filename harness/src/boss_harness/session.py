@@ -51,10 +51,17 @@ _SEARCH_TOOL_ARGS = 2000
 _SEARCH_TOOL_TEXT = 6000
 
 
-def _is_hangul_jamo(char: str) -> bool:
-    """谚文 jamo（含扩展区）：NFKC 会把连续的 L / V / T 合成一个音节。"""
+def _is_hangul_letter(char: str) -> bool:
+    """参与谚文音节组合的字母：组合 jamo（含扩展区）、兼容 jamo 与半角字母。
+
+    NFKC 会把连续的 L / V / T 合成一个音节；兼容 jamo（U+3131–U+318E）与
+    半角字母（U+FFA0–U+FFDC）会先分解成组合 jamo 再参与合成，因此
+    ``ㄱ`` + ``ㅏ`` → ``가``、``가`` + ``ㄳ`` → ``갃`` 也要求跨字符归一化。
+    """
     code = ord(char)
-    return 0x1100 <= code <= 0x11FF or 0xA960 <= code <= 0xA97C or 0xD7B0 <= code <= 0xD7FB
+    return (0x1100 <= code <= 0x11FF or 0xA960 <= code <= 0xA97C
+            or 0xD7B0 <= code <= 0xD7FB or 0x3131 <= code <= 0x318E
+            or 0xFFA0 <= code <= 0xFFDC)
 
 
 def _is_hangul_syllable(char: str) -> bool:
@@ -73,19 +80,22 @@ def _search_clusters(value: str) -> Iterator[tuple[int, int, str]]:
     NFKC 会把基字符与后续组合记号、分解状态的谚文 jamo、预组合音节后的尾音
     jamo 组合成一个字符；逐码点归一化做不到跨码点组合，NFC / NFD 正文互相
     查询会漏命中。谚文 jamo 只要跟随在音节或另一个 jamo 之后就并入同一簇：
-    这比字素规则略宽，只影响原文区间粒度，不改变整簇 NFKC 的结果。半角假名的
-    浊音 / 半浊音符号组合类为 0，需按扩展记号并入前一个字素，否则 ``ｶﾞ`` /
-    ``カﾞ`` 会被拆开而无法与 ``ガ`` 互相命中。casefold 逐码点进行，与旧实现的
-    语义一致（上下文无关，不改变词尾 sigma 等结果）。
+    这比字素规则略宽，只影响原文区间粒度，不改变整簇 NFKC 的结果。兼容 jamo
+    与半角字母会先分解成组合 jamo 再参与合成（``ㄱ`` + ``ㅏ`` → ``가``、
+    ``가`` + ``ㄳ`` → ``갃``），同样并入同一簇；预组合音节仍各自成簇，避免
+    把整段韩文并成一个组合单元。半角假名的浊音 / 半浊音符号组合类为 0，需按
+    扩展记号并入前一个字素，否则 ``ｶﾞ`` / ``カﾞ`` 会被拆开而无法与 ``ガ``
+    互相命中。casefold 逐码点进行，与旧实现的语义一致（上下文无关，不改变
+    词尾 sigma 等结果）。
     """
     index = 0
     length = len(value)
     while index < length:
         end = index + 1
-        hangul = _is_hangul_jamo(value[index]) or _is_hangul_syllable(value[index])
+        hangul = _is_hangul_letter(value[index]) or _is_hangul_syllable(value[index])
         while end < length and (
             unicodedata.combining(value[end])
-            or (hangul and _is_hangul_jamo(value[end]))
+            or (hangul and _is_hangul_letter(value[end]))
             or value[end] in _HALFWIDTH_VOICED_MARKS
         ):
             end += 1
