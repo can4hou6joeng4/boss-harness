@@ -12,6 +12,10 @@ const ID_LIMIT = 200;
 /** 主进程正在占用登录，与 `PlatformLogin.open` 的占用判定一致。 */
 export const loginActive = (status: PlatformLoginStatus): boolean => ["opening", "waiting", "saving"].includes(status.state);
 
+/** 登录已结束；只有这些状态值得让设置页重读连接检查。 */
+export const loginSettled = (status: PlatformLoginStatus): boolean =>
+  ["succeeded", "blocked", "failed", "cancelled"].includes(status.state);
+
 /**
  * 登录状态回执的形状校验。
  *

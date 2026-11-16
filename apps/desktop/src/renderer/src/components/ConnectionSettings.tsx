@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ConnectionCheck, ConnectionReport, ConnectionTarget, PlatformLoginStatus } from "@boss-harness/protocol";
 import { harnessErrorText, connectionReport, harnessStatus, reconnectHarness } from "../data/harnessBridge";
 import { connectionNoticeParts, connectionViewOf, mergeConnectionView, startupCheckRows, type ConnectionView } from "../data/connectionNotice";
+import { loginActive, loginSettled, platformLoginStatusOf } from "../data/platformLoginState";
 import { formatIsoClock } from "../data/timeFormat";
 
 const LABELS: Record<ConnectionCheck["state"], string> = {
@@ -72,14 +73,25 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
   useEffect(() => {
     if (!window.boss?.platformLogin) return;
     let alive = true, updated = false;
-    const unsubscribe = window.boss.onPlatformLogin(next => {
+    const unsubscribe = window.boss.onPlatformLogin(raw => {
       updated = true;
       if (!alive) return;
+      // 与会话内登录引导共用同一形状校验：未知状态或非法字段不写入设置页。
+      const next = platformLoginStatusOf(raw);
+      if (!next) {
+        setLoginError("登录状态更新无法识别，已保留上一次有效状态。请在会话中核对当前登录。");
+        return;
+      }
       setLogin(next); setLoginError("");
-      if (["succeeded", "blocked", "failed", "cancelled"].includes(next.state) && harnessUp) void fetchReport();
+      if (loginSettled(next) && harnessUp) void fetchReport();
     });
     // 读不到登录状态时不能当成「尚未开始」：账号行会显示成可重新登录，而实际可能仍在等待扫码。
-    void window.boss.platformLogin("status").then(next => { if (alive && !updated) setLogin(next); })
+    void window.boss.platformLogin("status").then(raw => {
+      if (!alive || updated) return;
+      const next = platformLoginStatusOf(raw);
+      if (!next) { setLoginError("无法读取登录状态：回执无法识别。请在会话中核对当前登录。"); return; }
+      setLogin(next);
+    })
       .catch(cause => {
         if (alive && !updated) setLoginError(`无法读取登录状态：${harnessErrorText(cause)}。请在会话中核对当前登录。`);
       });
@@ -92,7 +104,7 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
     return () => clearTimeout(timer);
   }, [harnessUp, checking, report, error]);
 
-  const loginBusy = Boolean(login && ["opening", "waiting", "saving"].includes(login.state));
+  const loginBusy = Boolean(login && loginActive(login));
   const cliBusy = report?.cli.state === "checking" || report?.platform.state === "checking" || loginBusy;
   const rows: Array<{ target: ConnectionTarget; title: string; description: string; check: ConnectionCheck | undefined; action: string }> = [
     { target: "local", title: "本机 CLI", description: "检查可执行文件、协议与本地登录态，不访问平台", check: report?.cli, action: "检查本机" },
