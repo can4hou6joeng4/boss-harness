@@ -1,5 +1,6 @@
 import type {
-  AutoCompactionPolicy, ThreadUsageBucket, ThreadUsageCacheWaste, ThreadUsageSummaryJob, ThreadUsageTurn,
+  AutoCompactionPolicy, ThreadUsageBucket, ThreadUsageCacheWaste, ThreadUsageReadResponse,
+  ThreadUsageSummaryJob, ThreadUsageTurn,
 } from "@boss-harness/protocol";
 import { safeSlice } from "@boss-harness/shared";
 import { parseIsoDateTime } from "./timeFormat";
@@ -147,4 +148,37 @@ export function summaryJobOf(value: unknown): ThreadUsageSummaryJob | null {
   return { ...bucket, jobId, kind, turnId, reason, origin, providers, models,
     ...(throughTurnId !== undefined ? { throughTurnId } : {}),
     ...(active ? { active: true } : {}) };
+}
+
+/** 摘要任务明细的展示上限；内核当前也按 50 条截断，界面仍自行兜底。 */
+const MAX_SUMMARY_JOBS = 50;
+
+export interface SummaryJobsMeta {
+  summaryJobs?: ThreadUsageSummaryJob[];
+  summaryJobCount?: number;
+  summaryJobsTruncated?: boolean;
+}
+
+/**
+ * 摘要任务明细在每页重复返回；任一页形状不符即报错，展示时只取第一份。
+ * 计数必须覆盖已接收明细，小于明细数是自相矛盾的快照；计数大于已展示明细
+ * （含本地展示上限）时明细必然不完整，不能信任缺失或误报 false 的截断标记。
+ */
+export function summaryJobsOf(
+  page: Pick<ThreadUsageReadResponse, "summaryJobs" | "summaryJobCount" | "summaryJobsTruncated">,
+): SummaryJobsMeta {
+  if (page.summaryJobs === undefined) return {};
+  if (!Array.isArray(page.summaryJobs) || (page.summaryJobCount !== undefined && !isCount(page.summaryJobCount))
+    || (page.summaryJobsTruncated !== undefined && typeof page.summaryJobsTruncated !== "boolean")) {
+    throw new Error("内核返回的摘要任务用量格式无法识别");
+  }
+  const jobs = page.summaryJobs.slice(0, MAX_SUMMARY_JOBS).map(summaryJobOf);
+  if (jobs.some(job => !job)) throw new Error("内核返回的摘要任务用量格式无法识别");
+  const count = page.summaryJobCount ?? page.summaryJobs.length;
+  if (count < page.summaryJobs.length) throw new Error("内核返回的摘要任务计数与明细不一致");
+  return {
+    summaryJobs: jobs as ThreadUsageSummaryJob[],
+    summaryJobCount: count,
+    summaryJobsTruncated: page.summaryJobsTruncated === true || count > jobs.length,
+  };
 }
