@@ -40,6 +40,19 @@ jobs:
             --commit "$GITHUB_SHA" \
             --out-dir dist/python \
             dist/python/*.whl dist/python/*.tar.gz
+      - name: Verify distributions install and start
+        shell: bash
+        run: |
+          VERSION="$(python -c "import pathlib, tomllib; print(tomllib.loads(pathlib.Path('harness/pyproject.toml').read_text(encoding='utf-8'))['project']['version'])")"
+          STATE_DIR="$(mktemp -d "$RUNNER_TEMP/boss-harness-state.XXXXXX")"
+          for artifact in dist/python/*.whl dist/python/*.tar.gz; do
+            venv="$RUNNER_TEMP/venv-$(basename "$artifact" | tr -c 'A-Za-z0-9' '-')"
+            python -m venv "$venv"
+            "$venv/bin/pip" install --quiet --disable-pip-version-check "$artifact"
+            installed="$("$venv/bin/python" -c 'import boss_harness; print(boss_harness.__version__)')"
+            test "$installed" = "$VERSION"
+            "$venv/bin/boss-harness" --check --provider none --state-dir "$STATE_DIR" > /dev/null
+          done
       - name: Upload Python distributions
         uses: actions/upload-artifact@v4
         with:
