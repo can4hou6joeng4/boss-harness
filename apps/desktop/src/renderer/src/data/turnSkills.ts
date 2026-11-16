@@ -78,3 +78,21 @@ export function turnSkillPageOf(response: TurnListResponse | null | undefined):
   if (next !== null && (typeof next !== "string" || !next || next.length > MAX_CURSOR_LENGTH)) return null;
   return { skills: collectTurnSkillIds(response.turns), nextCursor: next };
 }
+
+/**
+ * 查询某回合注入的技能。
+ *
+ * `turnSkillIds` 由普通对象承接并按 id 合并；直接下标查询在未命中的 `turnId`
+ * 恰好等于 `constructor`、`hasOwnProperty` 等原型成员时会取到函数，而不是
+ * `undefined`。会话区随后把该值当技能数组调用 `.map`，会让整段消息渲染崩溃。
+ * 这里只认映射自己的条目，缺失或形状不符一律返回空数组。
+ */
+export function turnSkillIdsFor(
+  mapping: Readonly<Record<string, readonly string[]>> | null | undefined,
+  turnId: string | null | undefined,
+): readonly string[] {
+  if (!mapping || typeof turnId !== "string"
+    || !Object.prototype.hasOwnProperty.call(mapping, turnId)) return [];
+  const ids = mapping[turnId];
+  return Array.isArray(ids) ? ids : [];
+}
