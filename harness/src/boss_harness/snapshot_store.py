@@ -463,6 +463,7 @@ class SnapshotStore:
                 terminal: deque[tuple[int, str]] = deque(maxlen=MAX_QUEUE_VIEW_TERMINAL_ITEMS)
                 total = 0
                 active = 0
+                counts = {"queued": 0, "delivering": 0, "paused": 0}
                 for ordinal, payload in rows:
                     try:
                         decoded = json.loads(payload)
@@ -476,6 +477,8 @@ class SnapshotStore:
                     total += 1
                     if status in ACTIVE_QUEUE_STATUSES:
                         active += 1
+                    if status in counts:
+                        counts[status] += 1
                     if status in {"queued", "delivering"}:
                         pending.append((ordinal, payload))
                     elif status in ACTIVE_QUEUE_STATUSES:
@@ -491,7 +494,7 @@ class SnapshotStore:
                         continue
                     if isinstance(item, dict):
                         items.append(item)
-                return project_queue(items, total_items=total, active_items=active)
+                return project_queue(items, total_items=total, active_items=active, counts=counts)
             finally:
                 connection.close()
 

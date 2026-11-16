@@ -1,4 +1,4 @@
-import type { QueueItem, QueueListResponse } from "@boss-harness/protocol";
+import type { QueueItem, QueueListResponse, QueueStatusCounts } from "@boss-harness/protocol";
 
 /**
  * 内核只返回有界投影：暂停项优先，排队 / 投递中项使用剩余名额（待处理合计最多 200 项），
@@ -10,6 +10,8 @@ export interface QueuePage {
   totalItems?: number;
   /** 内核按全部持久项统计的待处理数（排队 / 投递中 / 暂停）；旧内核缺省。 */
   activeItems?: number;
+  /** 内核按全部持久项统计的分类计数，不受条目投影截断影响；旧内核缺省。 */
+  counts?: QueueStatusCounts;
   truncated?: boolean;
   /**
    * 本地变更对分类计数的增量，只由渲染层的本地合入填写，内核投影不会携带。
@@ -81,6 +83,26 @@ export function isQueueItem(value: unknown): value is QueueItem {
   return true;
 }
 
+function isSafeCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+/**
+ * 校验持久分类计数：三个非负安全整数，传入待处理总数时必须与之相等。
+ * 不可信的分项不能进入界面，避免徽标显示与待处理总数矛盾的数字。
+ */
+export function queueStatusCountsOf(value: unknown, activeItems?: number): QueueStatusCounts | null {
+  if (!isRecord(value)) return null;
+  const queued = value.queued;
+  const delivering = value.delivering;
+  const paused = value.paused;
+  if (!isSafeCount(queued) || !isSafeCount(delivering) || !isSafeCount(paused)) return null;
+  const counts: QueueStatusCounts = { queued, delivering, paused };
+  if (activeItems !== undefined
+    && counts.queued + counts.delivering + counts.paused !== activeItems) return null;
+  return counts;
+}
+
 /** 列表整体校验：任一项非法即整体不可用，避免只渲染一部分时界面数量与内核总数对不上。 */
 export function queueItemsOf(value: unknown): QueueItem[] | null {
   if (!Array.isArray(value)) return null;
@@ -106,6 +128,11 @@ export function queuePageOf(response: QueueListResponse | null | undefined): Que
   if (typeof active === "number" && Number.isSafeInteger(active) && active >= 0
     && (page.totalItems === undefined || active <= page.totalItems)) page.activeItems = active;
   if (typeof response.truncated === "boolean") page.truncated = response.truncated;
+  // 分项必须与已接受的待处理总数一致；不一致时退回按已载入项处理，不展示不可信的分项。
+  if (page.activeItems !== undefined) {
+    const counts = queueStatusCountsOf(response.counts, page.activeItems);
+    if (counts) page.counts = counts;
+  }
   return page;
 }
 
@@ -161,12 +188,25 @@ export function patchQueuePage(page: QueuePage | undefined, item: QueueItem): Qu
     totalItems = items.length;
   }
 
-  // 截断投影下拿不到完整分类；把本次本地变更的已载入条目差异留给徽标合并校正。
-  const countsDelta = page?.truncated === true ? queueCountsDelta(currentItems, items) : undefined;
+  // 本地操作只触及已载入条目，分类差异可以精确应用；截断投影同时留给徽标合并校正旧内核。
+  const delta = queueCountsDelta(currentItems, items);
+  const countsDelta = page?.truncated === true ? delta : undefined;
+  let counts: QueueStatusCounts | undefined;
+  if (page?.counts) {
+    const next = {
+      queued: page.counts.queued + delta.queued,
+      delivering: page.counts.delivering + delta.delivering,
+      paused: page.counts.paused + delta.paused,
+    };
+    if (next.queued >= 0 && next.delivering >= 0 && next.paused >= 0
+      && (activeItems === undefined
+        || next.queued + next.delivering + next.paused === activeItems)) counts = next;
+  }
   return {
     items,
     totalItems,
     activeItems,
+    counts,
     truncated: page?.truncated,
     countsDelta,
   };

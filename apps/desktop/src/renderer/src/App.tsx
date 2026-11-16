@@ -35,7 +35,7 @@ import { stopFailureNotice, stopFailureRecheckNotice, stopMissingNotice, stopMis
 import { sessionStartNotice, type SessionStartOutcome } from "./data/sessionStart";
 import { connectionNotice, connectionViewOf, mergeConnectionView, type ConnectionView } from "./data/connectionNotice";
 import { HarnessReplica } from "./data/harnessReplica";
-import { patchQueuePage, queueItemsOf, queueSubmissionLookup, type QueuePage } from "./data/queueMapping";
+import { patchQueuePage, queueItemsOf, queueStatusCountsOf, queueSubmissionLookup, type QueuePage } from "./data/queueMapping";
 import { patchQueueBadge, queueBadgeOf } from "./data/queueBadge";
 import { queueItemRetryable } from "./data/queueRetry";
 import { createQueueReadGuard } from "./data/queueReadGuard";
@@ -473,6 +473,8 @@ export function App(): JSX.Element {
           activeItems: typeof snapshot.queueActiveItems === "number" ? snapshot.queueActiveItems : undefined,
           truncated: typeof snapshot.queueTruncated === "boolean" ? snapshot.queueTruncated : undefined,
         };
+        const counts = queueStatusCountsOf(snapshot.queueCounts, page.activeItems);
+        if (counts) page.counts = counts;
         queueCache.current.set(id, page);
         if (activeRef.current?.id === id) {
           queueReads.current.invalidate(id);

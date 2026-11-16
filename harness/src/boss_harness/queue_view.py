@@ -119,18 +119,26 @@ def queue_view_record(record: dict) -> dict:
 
 
 def project_queue(items: list[dict], *, total_items: int | None = None,
-                  active_items: int | None = None) -> dict:
+                  active_items: int | None = None, counts: dict | None = None) -> dict:
     """Return the bounded list projection plus the durable totals.
 
-    ``active_items`` lets callers that already counted the full queue (such as the
-    snapshot database) report the exact pending total even when only a bounded
-    subset of items is passed in.
+    ``total_items`` / ``active_items`` / ``counts`` let callers that already counted
+    the full queue (such as the snapshot database) report exact totals even when only
+    a bounded subset of items is passed in; otherwise all three derive from ``items``.
+    ``counts`` is the durable queued / delivering / paused classification, independent
+    of the bounded item projection, so clients do not need to infer it from visible
+    items.
     """
     ordered = [item for item in (queue_record(value) for value in items)
                if item is not None]
     pending = [item for item in ordered if item.get("status") in _PENDING_QUEUE_STATUSES]
     paused = [item for item in ordered if item.get("status") == "paused"]
     terminal = [item for item in ordered if item.get("status") in TERMINAL_QUEUE_STATUSES]
+    status_counts = {
+        "queued": sum(1 for item in ordered if item.get("status") == "queued"),
+        "delivering": sum(1 for item in ordered if item.get("status") == "delivering"),
+        "paused": len(paused),
+    }
 
     # 暂停项不会自动投递，只能由用户重新排队或撤回；先保留最新的暂停项，
     # 排队 / 投递中项再占用剩余名额，避免需要用户处理的项目被将自动投递的项目挤出。
@@ -156,5 +164,9 @@ def project_queue(items: list[dict], *, total_items: int | None = None,
     # 待处理数量按全部持久项统计，不受有界投影影响；旧调用方不传时按已载入项计算。
     active = len(pending) + len(paused) if active_items is None else active_items
     active = max(0, min(active, total))
+    if counts is not None:
+        # 调用方已按完整记录流计数；不能用有界子集重算，否则截断时分类会偏小。
+        status_counts = {"queued": counts["queued"], "delivering": counts["delivering"],
+                         "paused": counts["paused"]}
     return {"items": visible, "totalItems": total, "activeItems": active,
-            "truncated": len(visible) < total}
+            "truncated": len(visible) < total, "counts": status_counts}

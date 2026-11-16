@@ -6,6 +6,7 @@
 
 - [Issue #1535](https://github.com/can4hou6joeng4/boss-harness/issues/1535)：截断队列投影下侧栏徽标会丢失暂停计数。228 个待处理项（128 排队 + 100 暂停）时，`queue/list` 投影只返回 100 暂停 + 100 排队并标记截断，`queueBadgeOf` 只给出待处理总数，`patchQueueBadge` 因此把会话行已有的 `queueCounts` 清成 `undefined`，侧栏的暂停徽标与「待你处理」分组在下次 `thread/list` 刷新前消失。现在截断投影且待处理总数未变时保留上一次分类计数；总数变化或拿到完整计数时仍按新值更新。只改渲染层徽标合并逻辑与说明，不改变 RPC、内核投影、协议或版本号。
 - [Issue #1537](https://github.com/can4hou6joeng4/boss-harness/issues/1537)：`#1536` 只覆盖待处理总数不变的截断刷新；本地入队、撤回暂停项或重新排队仍会改变总数，`queueBadgeOf` 只返回新的待处理总数，`patchQueueBadge` 随即清空会话行的 `queueCounts`，暂停徽标与「待你处理」分组再次消失。现在 `patchQueuePage` / `queueRetryPage` 在截断投影上记录已载入条目的分类增量，徽标合并时在已知计数与旧总数一致的前提下应用增量，并要求结果非负且分类之和等于新的待处理总数，否则只保留总数。不改变 RPC、内核投影、协议或版本号。
+- [Issue #1539](https://github.com/can4hou6joeng4/boss-harness/issues/1539)：内核事件导致的投递同样会改变待处理总数，但截断投影没有本地增量可依：228 个待处理项（128 排队 + 100 暂停）投递一条后，`queue/list` 只返回 100 暂停 + 99 排队且不带分类，侧栏 `queueCounts` 再次被清空，暂停徽标与「待你处理」分组反复消失。现在 `project_queue` 按全部有效持久记录返回分类计数，快照路径按完整记录流计数；`queue/list` 附可选 `counts`，`thread/read` / `thread/resume` 附可选 `queueCounts`。渲染层校验三个计数为非负安全整数且之和等于待处理总数，徽标优先使用持久分类，本地操作按已载入条目增量校正；旧内核缺省时沿用既有回退。不新增 RPC 方法，不改变持久化格式或权限，协议仍为 `0.2.0`。
 
 ## 0.2.0-rc.51 - 2026-11-16
 
