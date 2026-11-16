@@ -225,6 +225,17 @@ export function readCockpitResources(value: unknown): RuntimeResourcesReadRespon
   if (ownerCount < owners.length || waiterCount < waiters.length) {
     throw new Error("内核运行资源计数与明细不一致");
   }
+  // 并发回合不能超过并发容量，保留回合不能超过保留上限，每个保留回合都必须出现在 owner 列表中。
+  // 违反任一项的快照会渲染出「5 / 2」这类不可能的分式或掩盖 owner 记录缺口，整体拒绝。
+  if (activeTurnCount > turnCapacity) {
+    throw new Error("内核运行资源计数超过并发容量");
+  }
+  if (retainedTurnCount > maxRetainedTurns) {
+    throw new Error("内核运行资源计数超过保留上限");
+  }
+  if (ownerCount < retainedTurnCount) {
+    throw new Error("内核运行资源计数未覆盖保留回合");
+  }
   const ownersTruncated = boolean(value.ownersTruncated);
   const waitersTruncated = boolean(value.waitersTruncated);
   if (ownersTruncated === undefined || waitersTruncated === undefined) {
