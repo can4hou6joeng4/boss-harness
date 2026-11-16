@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextEditReadResponse } from "@boss-harness/protocol";
+import { codePointLength } from "@boss-harness/shared";
 import { harnessErrorText, isHarnessRpcRejection, readContextEdit, writeContextEdit } from "../data/harnessBridge";
-import { CONTEXT_EDIT_STALE_NOTICE, contextEditSubmitBlocked } from "../data/contextEditState";
+import { CONTEXT_EDIT_MAX_TEXT_LENGTH, CONTEXT_EDIT_STALE_NOTICE, contextEditSubmitBlocked, contextEditTextTooLong } from "../data/contextEditState";
 import { clearContextEditDraft, readContextEditDraft, writeContextEditDraft } from "../data/contextEditDrafts";
 import { ModalSurface } from "./ModalSurface";
 import "../styles/context-edit.css";
@@ -98,6 +99,11 @@ export function ContextEditDialog({ threadId, itemId, title, threadTitle, onClos
 
   const apply = async (replacementText: string | null) => {
     if (!record || saving || stale || !record.canEdit) return;
+    // 主进程会拒绝超限的替换文本；在这里先给出可理解的原因，避免落入「结果未确认」。
+    if (contextEditTextTooLong(replacementText)) {
+      setError(`替换文本超过 ${CONTEXT_EDIT_MAX_TEXT_LENGTH} 字符上限，未提交；请精简后再试。`);
+      return;
+    }
     setSaving(true);
     setError("");
     setUncertain(false);
@@ -163,6 +169,9 @@ export function ContextEditDialog({ threadId, itemId, title, threadTitle, onClos
   const blocked = contextEditSubmitBlocked({ loading, saving, stale });
   // 未保存判定只看编辑器正文与最后一次有效基线；与「提交后当前是否已替换」无关。
   const dirty = draft !== baseline;
+  // 与主进程 `context/edit` 一致按 Unicode 码点计数；HTML `maxLength` 不适用于此上限。
+  const draftLength = codePointLength(draft);
+  const draftTooLong = draftLength > CONTEXT_EDIT_MAX_TEXT_LENGTH;
   // 关闭按钮、Esc 与遮罩共享同一入口：有修改先提示，再次关闭才丢弃并清除草稿。
   const close = () => {
     if (saving) return;
@@ -194,6 +203,8 @@ export function ContextEditDialog({ threadId, itemId, title, threadTitle, onClos
         {record.canEdit && <label className="context-edit-label" htmlFor="context-edit-draft">替换文本{dirty ? " · 未保存" : ""}
           <textarea id="context-edit-draft" rows={7} value={draft} onChange={event => updateDraft(event.target.value)} disabled={saving || loading} />
         </label>}
+        {record.canEdit && <p className="context-edit-status">{draftLength} / {CONTEXT_EDIT_MAX_TEXT_LENGTH} 字符</p>}
+        {record.canEdit && draftTooLong && <p className="context-edit-warning" role="alert">替换文本超过 {CONTEXT_EDIT_MAX_TEXT_LENGTH} 字符上限，无法提交；请精简后再试。</p>}
         {record.canEdit && dirty && <p className="context-edit-status" role="status">替换文本尚未提交；编辑只在你点击下方按钮后生效。</p>}
         {notice && <p className="context-edit-status" role="status">{notice}</p>}
         {record.reason && !record.canEdit && <p className="context-edit-warning" role="status">{record.reason}</p>}
@@ -207,7 +218,7 @@ export function ContextEditDialog({ threadId, itemId, title, threadTitle, onClos
         {record?.canEdit && <>
           <button className="secondary-button" type="button" onClick={() => void apply(record.originalText)} disabled={blocked || (!excluded && !changed && draft === record.originalText)}>恢复原文</button>
           <button className="secondary-button" type="button" onClick={() => void apply(null)} disabled={blocked || excluded}>排除消息</button>
-          <button className="solid-button" type="button" onClick={() => void apply(draft)} disabled={blocked || !draft.trim() || [...draft].length > 32000 || draft === record.currentText}>{saving ? "正在核对…" : "使用替换文本"}</button>
+          <button className="solid-button" type="button" onClick={() => void apply(draft)} disabled={blocked || !draft.trim() || draftTooLong || draft === record.currentText}>{saving ? "正在核对…" : "使用替换文本"}</button>
         </>}
       </div>
     </div>

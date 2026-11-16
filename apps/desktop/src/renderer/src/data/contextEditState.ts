@@ -1,3 +1,5 @@
+import { codePointLength } from "@boss-harness/shared";
+
 /**
  * 「后续模型上下文」对话框的提交闸门。
  *
@@ -12,6 +14,17 @@ export interface ContextEditGate {
 
 export function contextEditSubmitBlocked(gate: ContextEditGate): boolean {
   return gate.loading || gate.saving || gate.stale;
+}
+
+/**
+ * 替换文本上限：按 Unicode 码点计数，与主进程 `context/edit` 的安全校验及使用指南
+ * 的「最多 32000 字符」一致。界面不能直接用 HTML `maxLength`，它按 UTF-16 码元计数。
+ */
+export const CONTEXT_EDIT_MAX_TEXT_LENGTH = 32_000;
+
+/** 替换文本是否超过上限；`null` 表示排除消息，不受正文上限约束。 */
+export function contextEditTextTooLong(text: string | null): boolean {
+  return text !== null && codePointLength(text) > CONTEXT_EDIT_MAX_TEXT_LENGTH;
 }
 
 /** 旧快照提示；与提交闸门一起使用，明确说明界面展示的不是当前事实。 */
