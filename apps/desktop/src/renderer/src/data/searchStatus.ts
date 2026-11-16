@@ -1,10 +1,16 @@
 import { codePointLength } from "@boss-harness/shared";
 
 /** 搜索弹窗的消息搜索状态；与组件内的状态机保持一致。 */
-export type MessageSearchState = "idle" | "loading" | "ready" | "error";
+export type MessageSearchState = "idle" | "loading" | "ready" | "error" | "tooLong";
 
 /** 触发消息搜索的最少字符数：按 Unicode 码点计数，与界面文案「至少 2 个字符」一致。 */
 export const MESSAGE_SEARCH_MIN_LENGTH = 2;
+
+/**
+ * 消息搜索的查询上限：按 Unicode 码点计数，与主进程 `thread/search` 安全校验及内核
+ * `_text(maximum=200)` 一致。超限时不发请求，由界面说明原因。
+ */
+export const MESSAGE_SEARCH_MAX_LENGTH = 200;
 
 /**
  * 状态行的文字。
@@ -13,6 +19,7 @@ export const MESSAGE_SEARCH_MIN_LENGTH = 2;
  * `role="status"` 区域获知失败，因此失败信息必须进入状态行。截断同理：命中标题旁的
  * 「仅显示部分结果」可能只以悬停提示说明原因，状态行必须自己给出结论，否则只听到
  * 数量的用户会把部分结果当成完整结果。零命中且截断时，状态行与空态使用同一说法。
+ * 搜索词超限同样要说明「未搜索消息」，不能与失败混淆。
  */
 export function searchStatusText(
   query: string,
@@ -30,6 +37,7 @@ export function searchStatusText(
     }
     return `找到 ${chatCount} 个聊天、${messageCount} 条消息`;
   }
+  if (messageState === "tooLong") return `找到 ${chatCount} 个聊天；搜索词超过 ${MESSAGE_SEARCH_MAX_LENGTH} 字符，未搜索消息`;
   if (messageState === "error") return `找到 ${chatCount} 个聊天；消息搜索失败`;
   return `找到 ${chatCount} 个聊天`;
 }
@@ -42,9 +50,9 @@ export interface SearchEmptyCopy {
 /**
  * 结果区为空时的文案。
  *
- * 空态只能描述真正完成的搜索范围：消息搜索失败、旧内核不支持消息搜索或查询
- * 短于 2 个字符时，标题为空并不能说明消息内容没有命中，不能用「没有找到相关
- * 聊天或消息」给出完整结论。
+ * 空态只能描述真正完成的搜索范围：消息搜索失败、旧内核不支持消息搜索、查询
+ * 短于 2 个字符或超过 200 个字符时，标题为空并不能说明消息内容没有命中，不能用
+ * 「没有找到相关聊天或消息」给出完整结论。
  */
 export function searchEmptyCopy(
   query: string,
@@ -62,6 +70,12 @@ export function searchEmptyCopy(
     return {
       title: "标题中没有匹配的聊天",
       hint: "消息搜索失败，暂时无法确认消息内容是否有命中；可稍后重试或换个关键词",
+    };
+  }
+  if (messageState === "tooLong") {
+    return {
+      title: "没有找到匹配的聊天",
+      hint: `标题中没有匹配；消息搜索需要 ${MESSAGE_SEARCH_MAX_LENGTH} 个字符以内，可缩短搜索词后重试`,
     };
   }
   if (codePointLength(query.trim()) < MESSAGE_SEARCH_MIN_LENGTH) {

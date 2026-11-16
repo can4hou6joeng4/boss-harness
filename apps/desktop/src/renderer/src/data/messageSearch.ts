@@ -4,7 +4,7 @@ import type { MessageItem } from "./mockData";
 import { approvalDecisionText } from "./approvalCopy";
 import { approvalRemainingText } from "./pendingApprovals";
 import { searchText } from "./searchText";
-import { MESSAGE_SEARCH_MIN_LENGTH, type MessageSearchState } from "./searchStatus";
+import { MESSAGE_SEARCH_MAX_LENGTH, MESSAGE_SEARCH_MIN_LENGTH, type MessageSearchState } from "./searchStatus";
 import { toolOutcomeBadge } from "./toolOutcome";
 import { toolQueriedAtLabel } from "./toolSource";
 import { toolCompletedTimingLabel } from "./toolTiming";
@@ -152,8 +152,8 @@ export interface MessageSearchSettlement {
  * 组件里的状态描述的是最近一次请求：输入或归档范围变化后旧批次立即失效，但新请求
  * 要等防抖计时结束才发出。这段时间若继续按 `ready` 渲染，空态会断言当前查询「没有
  * 命中」，与 `searchEmptyCopy`「空态只能描述真正完成的搜索范围」的约定相悖。批次
- * 尚未对应当前输入时统一按 `loading` 呈现；未启用消息搜索或查询短于 2 个字符时
- * 保持组件状态（此时不发请求，空态文案另有说明）。
+ * 尚未对应当前输入时统一按 `loading` 呈现；未启用消息搜索、查询短于 2 个字符或
+ * 超过 200 个字符时保持组件状态（此时不发请求，空态文案另有说明）。
  */
 export function liveMessageSearchState(
   state: MessageSearchState,
@@ -164,6 +164,7 @@ export function liveMessageSearchState(
 ): MessageSearchState {
   const needle = query.trim();
   if (!enabled || codePointLength(needle) < MESSAGE_SEARCH_MIN_LENGTH) return state;
+  if (codePointLength(needle) > MESSAGE_SEARCH_MAX_LENGTH) return state;
   if (settled && settled.query === needle && settled.includeArchived === includeArchived) return state;
   return "loading";
 }
