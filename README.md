@@ -68,7 +68,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 
 ## 近期进展
 
-`v0.2.0-rc.56` 候选相对 rc.55 新增 53 项修复、1 项界面改进与 1 项打包元数据改进，并继续包含 rc.55 的 5 项修复。完整清单与每项验证记录见 [CHANGELOG](CHANGELOG.md)，以下按主题归并代表项：
+`v0.2.0-rc.56` 候选相对 rc.55 新增 54 项修复、1 项界面改进与 1 项打包元数据改进，并继续包含 rc.55 的 5 项修复。完整清单与每项验证记录见 [CHANGELOG](CHANGELOG.md)，以下按主题归并代表项：
 
 - **回执与投影校验**：会话、队列、审批、用量、技能、工具、模型、分支与搜索的回执逐项校验形状；计数与可见明细矛盾时回退到可见计数或整体拒绝，不再静默丢条目、重复行或错置操作目标（[#1587](https://github.com/can4hou6joeng4/boss-harness/issues/1587)、[#1595](https://github.com/can4hou6joeng4/boss-harness/issues/1595)、[#1663](https://github.com/can4hou6joeng4/boss-harness/issues/1663)、[#1683](https://github.com/can4hou6joeng4/boss-harness/issues/1683)）。
 - **内核持久路径加固**：损坏的投影索引、事件游标、回合元数据与快照条目按可读错误或既有重建路径处理，一条被外部改写的记录不再让内核启动失败或让读取返回内部错误（[#1726](https://github.com/can4hou6joeng4/boss-harness/issues/1726)、[#1729](https://github.com/can4hou6joeng4/boss-harness/issues/1729)、[#1732](https://github.com/can4hou6joeng4/boss-harness/issues/1732)）。
