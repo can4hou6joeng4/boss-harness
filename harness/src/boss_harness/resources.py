@@ -708,8 +708,13 @@ class AttachmentStore:
     def _attachment_from_entries(self, thread_id: str, attachment_id: str, entries: list[dict]) -> dict:
         item = next((entry["payload"] for entry in entries
                      if entry["type"] == "attachment" and entry["payload"].get("id") == attachment_id), None)
-        if item is None or not re.fullmatch(r"[a-f0-9]{64}", str(item.get("digest", ""))):
+        if item is None:
             raise ValueError("附件不属于该会话")
+        # 摘要会拼进对象路径，必须是字符串：只对 str() 后的副本做正则会放过整数摘要，
+        # 随后 Path / int 抛 TypeError，整条读取路径变成内部错误。
+        digest = item.get("digest")
+        if not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest):
+            raise ValueError("附件记录已损坏；请重新添加")
         # 持久记录不可信：名称会进入用户消息里的附件标签，字节数决定对象定位。字段缺失
         # 或类型不符时按记录损坏处理，避免 KeyError 变成内部错误，也避免把 repr 写进提示词。
         name, size = item.get("name"), item.get("bytes")
