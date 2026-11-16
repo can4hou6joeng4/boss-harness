@@ -31,7 +31,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码候选为 npm `0.2.0-rc.42` / Python `0.2.0rc42`，尚未实际发布；最新发布仍为 [v0.2.0-rc.15](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。本轮聚合 `skills/list` 未加载项清单的 2 项报告修正，技能加载与注入语义不变；附件正文分段读取、上下文编辑拒绝说明与分支切换连接归属继续适用，此前的客户端约束也继续适用：
+当前源码候选为 npm `0.2.0-rc.42` / Python `0.2.0rc42`，尚未实际发布；最新发布仍为 [v0.2.0-rc.15](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。本轮聚合 `skills/list` 的 3 项报告修正与附件名称转义 1 项输入卫生修正，技能加载与附件注入语义不变；附件正文分段读取、上下文编辑拒绝说明与分支切换连接归属继续适用，此前的客户端约束也继续适用：
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -45,7 +45,7 @@
 - 桌面编辑后续上下文被内核明确拒绝时，显示「未受理、没有写入」与错误码；回执未确认仍保留待核对说明，不自动重试。
 - 分支切换途中断连后，旧队列核对回执不会继续提交，旧切换回执不会关闭重新打开的窗口或覆盖新操作状态。恢复连接后先核对当前位置，再按需确认；已生效的切换不回滚。
 - 分支摘要取消回执只更新发起时连接中的同一任务：重连或任务更换后，旧成功、失败与收尾不会提前解锁当前取消、覆盖其进度提示或写入旧连接的失败说明；新任务不继承旧任务的取消等待。取消受理后仍以任务终态为准，回执任务编号不符时提示核对，不自动重发。
-- `attachment/read` 省略 `cursor`、`limit` 与 `sha256` 时整份返回附件正文；整份回执超过约 1 MiB 单页预算时返回 `RESPONSE_TOO_LARGE`，错误数据给出 `recoveryMethod=attachment/read`、总字符数与建议分段，客户端应改用分段读取。分段回执为 `text`、`offset`、`nextCursor` 与绑定附件摘要的 `contentRef`；续读时回传 `contentRef.sha256`，附件被替换后返回 `STALE_ATTACHMENT`。未知参数、非法游标与越界 `limit` 返回 `-32602`。
+- `attachment/read` 省略 `cursor`、`limit` 与 `sha256` 时整份返回附件正文；整份回执超过约 1 MiB 单页预算时返回 `RESPONSE_TOO_LARGE`，错误数据给出 `recoveryMethod=attachment/read`、总字符数与建议分段，客户端应改用分段读取。分段回执为 `text`、`offset`、`nextCursor` 与绑定附件摘要的 `contentRef`；续读时回传 `contentRef.sha256`，附件被替换后返回 `STALE_ATTACHMENT`。未知参数、非法游标与越界 `limit` 返回 `-32602`。提示词中的附件名称按 JSON 字符串字面量转义，文件名含换行或控制字符时不会伪造出额外的附件标注行。
 
 协议与内核仍为 `0.2.0`，没有数据迁移或新增工具权限。完整字段与返回码见[内核与业务契约参考](TECHNICAL_REFERENCE.md)。
 

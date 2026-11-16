@@ -1234,6 +1234,7 @@ export interface SkillWriteResponse { skill: SkillDescriptor; root?: string }
 export interface SkillDeleteParams { id: string; expectedDigest: string }
 /** `skills/delete` 结果：被删除的技能 id 与生效目录。 */
 export interface SkillDeleteResponse { id: string; root?: string }
+/** 附件描述；`name` 保留工作区原始文件名（孤立代理项降级为 U+FFFD），提示词里另行转义。 */
 export interface AttachmentDescriptor { id: string; name: string; digest: string; bytes: number; mediaType: string }
 
 /** 附件正文引用：绑定会话、附件 id 与内容摘要，分段读取不回退到其他版本。 */
