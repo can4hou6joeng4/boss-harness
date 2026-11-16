@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextCompactJob, ContextCompactPlan, ContextReadResponse } from "@boss-harness/protocol";
 import { compactionReferenceOf, isContextJob, manualCompactionJob } from "./contextJob";
+import { contextReadOf } from "./contextRead";
 import { disconnectPatch, settleReadFlight } from "./contextPanelState";
 import { abortContextCompaction, harnessErrorText, planContextCompaction, readContext, readContextCompaction, startContextCompaction } from "./harnessBridge";
 
@@ -89,9 +90,8 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
     const valid = () => alive.current && epoch.current === connectionEpoch && readVersions.current.get(id) === version;
     const flight = (async () => {
       try {
-        const budget = await readContext(id);
+        const budget = contextReadOf(await readContext(id), id);
         if (!valid()) return;
-        if (budget.threadId !== id) throw new Error("预算响应不属于当前会话");
         if ((revisions.current.get(id) ?? 0) !== lifecycleRevision) {
           refreshAgain.current.add(id);
           update(id, { budget });
