@@ -1229,7 +1229,12 @@ class SessionStore:
                         WHERE thread_id=? ORDER BY first_ordinal,turn_id LIMIT 50""", (thread_id,))
                     turn_bytes = 0
                     for row in rows:
-                        turn_bytes += len(row["metadata_json"].encode("utf-8"))
+                        raw = row["metadata_json"]
+                        if not isinstance(raw, str):
+                            # 投影列被改写为 BLOB / 整数时交给既有重建路径，不能让
+                            # .encode() 的 AttributeError 绕过重试逃逸成 -32603。
+                            raise _IndexedMetadataError(row["thread_id"])
+                        turn_bytes += len(raw.encode("utf-8"))
                         if turn_bytes > max_turn_bytes:
                             return metadata, turns, True
                         turns.append(self._turn_metadata(row))
