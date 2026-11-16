@@ -40,10 +40,15 @@ const REASON_LABELS: Record<string, string> = {
   "integrity-failure": "完整性校验失败",
 };
 
-/** 把 Electron 的退出原因翻成可读标签；未知原因保留原始值，便于反馈时核对。 */
+/**
+ * 把 Electron 的退出原因翻成可读标签；未知原因保留原始值，便于反馈时核对。
+ * 只读自有属性：事件字段可被替换成任意字符串，`constructor` 等原型链成员
+ * 不能被当成已知原因，否则诊断页会显示函数源码。
+ */
 export function rendererGoneReasonLabel(reason: unknown): string {
   if (typeof reason !== "string" || !reason.trim()) return "未知原因";
-  return REASON_LABELS[reason] ?? reason;
+  const known = Object.prototype.hasOwnProperty.call(REASON_LABELS, reason) ? REASON_LABELS[reason] : undefined;
+  return known ?? reason;
 }
 
 /** 崩溃摘要：用户能看懂的标签 + 原始原因与合法退出码。 */
