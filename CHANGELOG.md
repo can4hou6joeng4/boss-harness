@@ -4,16 +4,27 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前变更：
+当前没有未归入具名候选版本的变更。
 
+## 0.2.0-rc.54 - 2026-11-16
+
+本节汇总第五十四个候选版本的源码与交付内容；rc.16 至 rc.54 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.53，本次包含 5 项交付：恢复快照队列元数据与列表共用校验（#1559、#1560）；截断投影不误判未载入项（#1561、#1562）；缺标识审批不可提交（#1563、#1564）；会话队列分类计数统一校验（#1565、#1566）；技术参考与使用指南补记边界（#1567、#1568）。同时把根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本同步为 npm `0.2.0-rc.54` / Python `0.2.0rc54`（#1569）。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
+
+升级注意：不改变协议、RPC、持久化格式、存储键或工具权限；已安装的 rc.53 源码无需迁移。rc.53 已准备的 5 项交付与更早候选内容继续适用。最新实际发布仍为 rc.15。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。
+
+### 变更
+
+- [Issue #1569](https://github.com/can4hou6joeng4/boss-harness/issues/1569)：同步根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本为 npm `0.2.0-rc.54` / Python `0.2.0rc54`；将 rc.53 之后 5 项交付归入本候选，同步 README 近期进展与版本表、使用指南的候选状态、技术参考中的候选引用与 Issue 表单示例版本。候选准备不代表实际 tag、Release、资产上传或包注册表发布。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
 - [Issue #1559](https://github.com/can4hou6joeng4/boss-harness/issues/1559)：`thread/resume` 快照此前只按 `typeof === "number"` 接收队列元数据，`NaN`、负数、小数或 `activeItems > totalItems` 会写进 `queueCache` 与队列面板，界面出现「共 NaN 项」「-1 项待处理」。现在恢复路径与 `queue/list` 共用同一组元数据校验：非法总数、待处理数、分类计数与截断标记按缺失处理，`counts` 与待处理总数不一致时整体丢弃；`queue/list` 行为不变。只改渲染层，不改变 RPC、协议或版本号。
-
 - [Issue #1561](https://github.com/can4hou6joeng4/boss-harness/issues/1561)：`queue/list` 与 `thread/resume` 的队列元数据已知 `totalItems` / `activeItems` 大于已载入规模时，`truncated` 缺失或误报为 `false` 会让同一页面在驾驶舱、队列面板与提交核对中得到矛盾结论，未载入的消息被判为「不存在」。现在共用校验在投影必然不完整时强制截断，提交核对返回「无法确认」，队列面板显示未载入提示；完整投影行为不变。只改渲染层，不改变 RPC、协议或版本号。
-
 - [Issue #1563](https://github.com/can4hou6joeng4/boss-harness/issues/1563)：真实内核来源的审批缺少 `approvalId` 时，审批卡仍可点击，处理函数把无标识审批当成示例模式卡片，只改本地状态并显示「已批准 / 已拒绝」，内核从未收到裁决，刷新后又回到待审批。现在 `approvalBlockReason` 区分模式与标识：真实模式下缺少有效标识返回新的阻塞原因，渲染与处理函数共用该判定，按钮禁用并提示刷新会话核对；示例模式的无标识卡片保持本地演示行为。只改渲染层，不改变 RPC、协议或版本号。
-
 - [Issue #1565](https://github.com/can4hou6joeng4/boss-harness/issues/1565)：`thread/list` 的会话行先校验 `queueActiveItems`，却用原始值校验 `queueCounts`；字符串、负数或 `NaN` 总数会跳过一致性检查，分类计数仍进入侧栏，`sessionNeedsAttention` 可能把会话列入「待你处理」而队列徽标不显示。现在 `queueMapping` 提供 `threadQueueCountsOf`，待处理总数无效时分类整体丢弃，会话列表与推理设置回执共用；`queueStatusCountsOf` 要求传入已校验的总数。只改渲染层，不改变 RPC、协议或版本号。
-
 - [Issue #1567](https://github.com/can4hou6joeng4/boss-harness/issues/1567)：技术参考与使用指南补记 rc.53 之后四项渲染层修正的行为边界：`queue/list` 与 `thread/resume` 共用元数据校验；总数或待处理数大于已载入项时按截断处理，截断标记缺失或误报为 `false` 不改变结论；分类计数必须与已接受的待处理总数一致，会话行分类计数以总数有效为前提；真实审批缺少有效标识时不可提交。只改文档，不改变源码、RPC、协议或版本号。
 
 ## 0.2.0-rc.53 - 2026-11-16
