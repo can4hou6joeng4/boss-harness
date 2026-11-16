@@ -68,7 +68,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 
 ## 近期进展
 
-`v0.2.0-rc.56` 候选相对 rc.55 新增 18 项修复，并继续包含 rc.55 的 5 项修复：
+`v0.2.0-rc.56` 候选相对 rc.55 新增 19 项修复，并继续包含 rc.55 的 5 项修复：
 
 - **技能标签查询不再命中原型链**（[Issue #1585](https://github.com/can4hou6joeng4/boss-harness/issues/1585)）：会话区与重试路径只读取技能映射自己的条目，缺失或形状不符返回空数组，损坏会话中的特殊 `turnId` 不再让整段消息落入错误边界。
 - **队列元数据不得少于可见明细**（[Issue #1587](https://github.com/can4hou6joeng4/boss-harness/issues/1587)）：待处理数或分类计数小于已载入条目时按缺失处理，面板与侧栏徽标回退到可见计数，不再出现「1 项待处理」上方列出 3 条记录或「排队 0」旁列出排队消息。
@@ -88,6 +88,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 - **技能目录条目必须逐项校验**（[Issue #1643](https://github.com/can4hou6joeng4/boss-harness/issues/1643)）：缺字段、重复 `id` 或摘要非法的技能条目整体拒绝，技能页不再在筛选时报错，选中、编辑与删除也不会作用到错误的技能上。
 - **模型列表条目必须逐项校验**（[Issue #1647](https://github.com/can4hou6joeng4/boss-harness/issues/1647)）：缺 `id`、重复 `provider:id` 或畸形能力信息的模型条目整体拒绝，输入区菜单不再在过滤时抛错，也不会把未配置或不可用的线路当成可选。
 - **工具清单条目必须逐项校验**（[Issue #1651](https://github.com/can4hou6joeng4/boss-harness/issues/1651)）：缺字段、重复 `name` 或畸形权限标记的工具条目整体拒绝，「技能与工具」页不再在渲染期抛错，也不会把非布尔标记显示成错误权限。
+- **连接检查回执必须校验形状**（[Issue #1655](https://github.com/can4hou6joeng4/boss-harness/issues/1655)）：缺 `cli` / `model` / `platform` 卡片、未知状态或非法可选字段的回执整体拒绝，设置页不再在渲染诊断结果时抛错，也不会显示空白状态与来源。
 - **运行资源计数与截断推导**（[Issue #1571](https://github.com/can4hou6joeng4/boss-harness/issues/1571)）：运行资源明细的计数与截断标记和已返回条目不一致时，界面不再把部分明细当成全部；计数小于明细视为矛盾响应整体报错。
 - **驾驶舱队列摘要采用持久分类计数**（[Issue #1575](https://github.com/can4hou6joeng4/boss-harness/issues/1575)）：队列摘要优先使用与持久待处理总数对齐的分类计数，旧内核缺省分类或合计不一致时才退回可见项并标注口径。
 - **摘要任务明细截断与计数一致性**（[Issue #1577](https://github.com/can4hou6joeng4/boss-harness/issues/1577)）：会话用量面板与 CSV 在计数大于已返回明细时强制标记截断，计数小于明细整体拒绝，不再静默执行 50 条本地上限而不提示。
