@@ -5,13 +5,13 @@ import type { ProjectFolder, SessionItem } from "../data/mockData";
 import { sessionRows } from "../data/sessionRows";
 import { useLocalNow } from "../data/useLocalNow";
 import { buildSearchOptions, searchHitFocus, searchRoleLabel, type SearchOption } from "../data/searchOptions";
-import { searchEmptyCopy, searchStatusText, type MessageSearchState } from "../data/searchStatus";
+import { searchEmptyCopy, searchStatusText, MESSAGE_SEARCH_MIN_LENGTH, type MessageSearchState } from "../data/searchStatus";
 import { splitKernelQueryHighlight, splitQueryHighlight } from "../data/findHighlight";
 import { visibleThreadSearchHits, liveMessageSearchState, type MessageSearchSettlement, type ThreadSearchBatch } from "../data/messageSearch";
 import { searchThreadMessages } from "../data/harnessBridge";
 import { clearRecentSearches, readRecentSearches, rememberRecentSearch, RECENT_SEARCH_MIN_LENGTH } from "../data/recentSearches";
 import { findSeedFromSelection, isEditableTarget } from "../data/findSeed";
-import { formatRelativeTime } from "@boss-harness/shared";
+import { formatRelativeTime, codePointLength } from "@boss-harness/shared";
 
 /** 与 `thread/search` 的上限及「仅显示部分结果」的说明一致：内核最多返回 50 条。 */
 const MESSAGE_SEARCH_LIMIT = 50;
@@ -76,7 +76,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
   }, [selected, options[selected]?.key]);
   useEffect(() => {
     const needle = query.trim();
-    if (!searchMessages || needle.length < 2) {
+    if (!searchMessages || codePointLength(needle) < MESSAGE_SEARCH_MIN_LENGTH) {
       setHitBatch(null); setMessageState("idle"); setSettled(null);
       return;
     }
@@ -102,7 +102,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
   }, [query, searchMessages, includeArchived]);
   const openOption = (option: SearchOption | undefined) => {
     if (!option) return;
-    if (query.trim().length >= RECENT_SEARCH_MIN_LENGTH) setRecent(rememberRecentSearch(query));
+    if (codePointLength(query.trim()) >= RECENT_SEARCH_MIN_LENGTH) setRecent(rememberRecentSearch(query));
     if (option.kind === "session") { onSelect(option.row.session); onClose(); return; }
     if (onOpenMessage) {
       const focus = searchHitFocus(option.hit, query);
@@ -138,7 +138,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
         <button type="button" className="search-recent-clear" onClick={() => { clearRecentSearches(); setRecent([]); }}>清除</button>
       </div>}
       <div id={listId} role="listbox" aria-label="聊天与消息搜索结果">
-        {query.trim().length >= 2 && searchMessages && <>
+        {codePointLength(query.trim()) >= MESSAGE_SEARCH_MIN_LENGTH && searchMessages && <>
           <p className="search-message-heading" role="presentation">{shownMessageState === "loading" ? "正在搜索消息…"
             : shownMessageState === "error" ? "消息搜索失败，可继续按标题查找"
             : messageOptions.length ? <>{`消息命中`}{hitsTruncated && <span className="search-truncated" title="搜索有界：最多 100 个会话、50 条消息，较早或过多的命中不会全部返回；也可能有会话未能读取">仅显示部分结果</span>}</>

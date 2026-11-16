@@ -4,9 +4,12 @@
  * 浏览器与编辑器打开查找时会把当前选择填进查找框，这里做同样的接续。只放行适合当
  * 关键词的选择：单行、去掉首尾空白后非空、长度有上限。多行选择按原样沿用没有意义
  * （查找框是单行的），整段选择多半是复制意图，超长文本填进去只会得到一片无意义高亮。
+ * 长度按 Unicode 码点计数：界面与调用方都把 120 理解为 120 个字符，非 BMP 字符
+ * （emoji 等）在 UTF-16 中占两个码元，不能按 `String.length` 判定。
  */
+import { codePointLength } from "@boss-harness/shared";
 
-/** 超过这个长度的选择不作为关键词。 */
+/** 超过这个长度（Unicode 码点）的选择不作为关键词。 */
 export const FIND_SEED_MAX_LENGTH = 120;
 
 export interface FindSeedContext {
@@ -32,6 +35,6 @@ export function findSeedFromSelection(
   const text = selection.trim();
   if (!text) return null;
   if (/[\r\n]/.test(text)) return null;
-  if (text.length > FIND_SEED_MAX_LENGTH) return null;
+  if (codePointLength(text) > FIND_SEED_MAX_LENGTH) return null;
   return text;
 }
