@@ -8,6 +8,8 @@
 
 - [Issue #1559](https://github.com/can4hou6joeng4/boss-harness/issues/1559)：`thread/resume` 快照此前只按 `typeof === "number"` 接收队列元数据，`NaN`、负数、小数或 `activeItems > totalItems` 会写进 `queueCache` 与队列面板，界面出现「共 NaN 项」「-1 项待处理」。现在恢复路径与 `queue/list` 共用同一组元数据校验：非法总数、待处理数、分类计数与截断标记按缺失处理，`counts` 与待处理总数不一致时整体丢弃；`queue/list` 行为不变。只改渲染层，不改变 RPC、协议或版本号。
 
+- [Issue #1561](https://github.com/can4hou6joeng4/boss-harness/issues/1561)：`queue/list` 与 `thread/resume` 的队列元数据已知 `totalItems` / `activeItems` 大于已载入规模时，`truncated` 缺失或误报为 `false` 会让同一页面在驾驶舱、队列面板与提交核对中得到矛盾结论，未载入的消息被判为「不存在」。现在共用校验在投影必然不完整时强制截断，提交核对返回「无法确认」，队列面板显示未载入提示；完整投影行为不变。只改渲染层，不改变 RPC、协议或版本号。
+
 ## 0.2.0-rc.53 - 2026-11-16
 
 本节汇总第五十三个候选版本的源码与交付内容；rc.16 至 rc.53 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
