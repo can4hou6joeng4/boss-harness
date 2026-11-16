@@ -4,7 +4,7 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前没有未归入具名候选版本的变更。
+- [Issue #1518](https://github.com/can4hou6joeng4/boss-harness/issues/1518)：使用指南补充「项目分组」一节，说明新建项目、更改显示名称与移除本地分组的入口和影响；记录项目名称按 Unicode 码点最多 60 个字符、超限提示并禁用提交，以及分组与显示名称只保存在本机界面偏好、移除本地分组不会删除会话。快速导航增加对应锚点。不改变代码、RPC 或协议，协议与内核仍为 `0.2.0`。
 
 ## 0.2.0-rc.49 - 2026-11-16
 
