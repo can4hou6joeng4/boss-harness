@@ -35,7 +35,7 @@ import { stopFailureNotice, stopFailureRecheckNotice, stopMissingNotice, stopMis
 import { sessionStartNotice, type SessionStartOutcome } from "./data/sessionStart";
 import { connectionNotice, connectionViewOf, mergeConnectionView, type ConnectionView } from "./data/connectionNotice";
 import { HarnessReplica } from "./data/harnessReplica";
-import { patchQueuePage, queueItemsOf, queueStatusCountsOf, queueSubmissionLookup, type QueuePage } from "./data/queueMapping";
+import { patchQueuePage, queuePageOfSnapshot, queueSubmissionLookup, type QueuePage } from "./data/queueMapping";
 import { patchQueueBadge, queueBadgeOf } from "./data/queueBadge";
 import { queueItemRetryable } from "./data/queueRetry";
 import { createQueueReadGuard } from "./data/queueReadGuard";
@@ -465,16 +465,8 @@ export function App(): JSX.Element {
     }, snapshot => {
       if (cancelled) return;
       const id = snapshot.thread.id;
-      const resumedItems = queueItemsOf(snapshot.queue);
-      if (resumedItems) {
-        const page: QueuePage = {
-          items: resumedItems,
-          totalItems: typeof snapshot.queueTotalItems === "number" ? snapshot.queueTotalItems : undefined,
-          activeItems: typeof snapshot.queueActiveItems === "number" ? snapshot.queueActiveItems : undefined,
-          truncated: typeof snapshot.queueTruncated === "boolean" ? snapshot.queueTruncated : undefined,
-        };
-        const counts = queueStatusCountsOf(snapshot.queueCounts, page.activeItems);
-        if (counts) page.counts = counts;
+      const page = queuePageOfSnapshot(snapshot);
+      if (page) {
         queueCache.current.set(id, page);
         if (activeRef.current?.id === id) {
           queueReads.current.invalidate(id);
