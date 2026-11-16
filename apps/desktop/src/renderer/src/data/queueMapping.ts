@@ -114,26 +114,57 @@ export function queueItemsOf(value: unknown): QueueItem[] | null {
   return items;
 }
 
+interface QueuePageMetadata {
+  totalItems?: unknown;
+  activeItems?: unknown;
+  counts?: unknown;
+  truncated?: unknown;
+}
+
+/** `queue/list` 与 `thread/resume` 共用的元数据校验；非法值按缺失处理，不进入界面。 */
+function queuePageWithMetadata(items: QueueItem[], metadata: QueuePageMetadata): QueuePage {
+  const page: QueuePage = { items };
+  const total = metadata.totalItems;
+  // 总数只接受不小于已载入项的安全整数；异常时退回按已载入项计算。
+  if (typeof total === "number" && Number.isSafeInteger(total) && total >= items.length) page.totalItems = total;
+  const active = metadata.activeItems;
+  // 待处理数可以大于已载入项，但不能超过持久总数。
+  if (typeof active === "number" && Number.isSafeInteger(active) && active >= 0
+    && (page.totalItems === undefined || active <= page.totalItems)) page.activeItems = active;
+  if (typeof metadata.truncated === "boolean") page.truncated = metadata.truncated;
+  // 分项必须与已接受的待处理总数一致；不一致时退回按已载入项处理，不展示不可信的分项。
+  if (page.activeItems !== undefined) {
+    const counts = queueStatusCountsOf(metadata.counts, page.activeItems);
+    if (counts) page.counts = counts;
+  }
+  return page;
+}
+
 /** 校验并保留队列列表的总数 / 待处理数 / 截断元数据；items 形状不符时返回 null，交由调用方按不可用处理。 */
 export function queuePageOf(response: QueueListResponse | null | undefined): QueuePage | null {
   if (!response) return null;
   const items = queueItemsOf(response.items);
-  if (!items) return null;
-  const page: QueuePage = { items };
-  const total = response.totalItems;
-  // 总数只接受不小于已载入项的安全整数；异常时退回按已载入项计算。
-  if (typeof total === "number" && Number.isSafeInteger(total) && total >= items.length) page.totalItems = total;
-  const active = response.activeItems;
-  // 待处理数可以大于已载入项，但不能超过持久总数。
-  if (typeof active === "number" && Number.isSafeInteger(active) && active >= 0
-    && (page.totalItems === undefined || active <= page.totalItems)) page.activeItems = active;
-  if (typeof response.truncated === "boolean") page.truncated = response.truncated;
-  // 分项必须与已接受的待处理总数一致；不一致时退回按已载入项处理，不展示不可信的分项。
-  if (page.activeItems !== undefined) {
-    const counts = queueStatusCountsOf(response.counts, page.activeItems);
-    if (counts) page.counts = counts;
-  }
-  return page;
+  return items ? queuePageWithMetadata(items, response) : null;
+}
+
+/**
+ * 校验 `thread/resume` 快照中的队列投影。恢复路径与 `queue/list` 共用同一组元数据规则：
+ * 非法总数、待处理数、分类或截断标记按缺失处理，避免把不可信数字写进缓存与队列面板。
+ */
+export function queuePageOfSnapshot(snapshot: {
+  queue?: unknown;
+  queueTotalItems?: unknown;
+  queueActiveItems?: unknown;
+  queueCounts?: unknown;
+  queueTruncated?: unknown;
+}): QueuePage | null {
+  const items = queueItemsOf(snapshot.queue);
+  return items ? queuePageWithMetadata(items, {
+    totalItems: snapshot.queueTotalItems,
+    activeItems: snapshot.queueActiveItems,
+    counts: snapshot.queueCounts,
+    truncated: snapshot.queueTruncated,
+  }) : null;
 }
 
 /**

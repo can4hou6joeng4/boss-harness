@@ -4,7 +4,9 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前没有未归入具名候选版本的变更。
+当前变更：
+
+- [Issue #1559](https://github.com/can4hou6joeng4/boss-harness/issues/1559)：`thread/resume` 快照此前只按 `typeof === "number"` 接收队列元数据，`NaN`、负数、小数或 `activeItems > totalItems` 会写进 `queueCache` 与队列面板，界面出现「共 NaN 项」「-1 项待处理」。现在恢复路径与 `queue/list` 共用同一组元数据校验：非法总数、待处理数、分类计数与截断标记按缺失处理，`counts` 与待处理总数不一致时整体丢弃；`queue/list` 行为不变。只改渲染层，不改变 RPC、协议或版本号。
 
 ## 0.2.0-rc.53 - 2026-11-16
 
