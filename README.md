@@ -55,14 +55,18 @@
 
 ## 近期进展
 
-`v0.2.0-rc.43` 候选相对 rc.42 汇总 2 项文档交付：
+`v0.2.0-rc.43` 候选相对 rc.42 汇总 2 项文档交付与候选期后续 4 项修正：
 
 - **安全报告政策**（[Issue #1444](https://github.com/can4hou6joeng4/boss-harness/issues/1444)）：新增 `SECURITY.md`，说明支持范围、首选非公开报告渠道、报告应含与不得含的内容、本项目负责的状态目录 / JSON-RPC / 工具审批 / 导出脱敏边界，以及不负责的上游 CLI、自定义端点、真实账号与依赖漏洞范围；README 的安全边界与项目导航同步加入入口。政策不假定仓库私密漏洞报告入口已经可见，启用仓库安全设置仍需单独授权。
 - **候选基线表述修正**（[Issue #1446](https://github.com/can4hou6joeng4/boss-harness/issues/1446)）：README 原写「rc.42 之后 6 项修正」，与版本表、CHANGELOG 的「相对 rc.41」及发布准备记录不一致；现改为「相对 rc.41」，读者可据此判断 rc.42 实际包含的变化。
+- **发布资产清单**（[Issue #1452](https://github.com/can4hou6joeng4/boss-harness/issues/1452)）：新增 `scripts/release_assets.py`，Source build 在 wheel / sdist 后生成 `build-info.json` 与 `SHA256SUMS.txt`，并把 `python-dist` 作为工作流产物上传；脚本只处理显式列出的普通文件，拒绝符号链接、目录、重复文件名与保留名，按文件名排序并原子写入。工作流产物不等于已发布资产。
+- **非法日期校验**（[Issue #1454](https://github.com/can4hou6joeng4/boss-harness/issues/1454)）：`parseIsoDateTime` 在交给 `Date` 前校验年月日、时分秒与偏移范围，`2026-02-30`、`2026-04-31`、`24:00:00` 等不再被静默归一化成另一个时间；会话排序、工具来源时间与耗时显示保持真实。
+- **用量原因查表**（[Issue #1456](https://github.com/can4hou6joeng4/boss-harness/issues/1456)）：用量「未计入原因」只读取 `USAGE_REASONS` 的自有属性，`constructor` / `toString` 等原型链键不再显示成函数源码；`unverifiedReasons` 改用空原型对象承接，`__proto__` 键也能原样展示。
+- **任务与崩溃标签**（[Issue #1458](https://github.com/can4hou6joeng4/boss-harness/issues/1458)）：任务核对、驾驶舱与渲染进程崩溃 / 登录页退出原因的标签查表只读取自有属性，内核或 Electron 返回的未知取值原样保留，不再把原型链成员当成已知标签。
 
 本候选同时包含 rc.42 已准备的技能清单报告、附件名称转义、输入区截断提示与流泵取消修正，以及此前准备的桌面恢复、附件分段读取、握手、快照、停止目标与队列压缩覆盖校验等改进。完整变化保留在 [CHANGELOG](CHANGELOG.md)，自定义客户端的升级约束见[使用指南](docs/USER_GUIDE.md#当前候选与客户端升级)。
 
-rc.43 仍为尚未发布的源码候选；最新实际发布仍为 [rc.15 候选预发布](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。每项变更的来源、验证与限制记录在 [CHANGELOG](CHANGELOG.md)；本地离线 Electron 验证不代表真实模型、招聘平台或独立安装包已经验收。协议与内核仍为 `0.2.0`。
+rc.43 仍为尚未发布的源码候选；最新实际发布仍为 [rc.15 候选预发布](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。候选范围以 `main` 最新提交为准；发布前需按最终基线重新构建并核对资产哈希，不能沿用早期准备的构建结果。每项变更的来源、验证与限制记录在 [CHANGELOG](CHANGELOG.md)；本地离线 Electron 验证不代表真实模型、招聘平台或独立安装包已经验收。协议与内核仍为 `0.2.0`。
 
 ### 本地配置自检（rc.43 候选）
 

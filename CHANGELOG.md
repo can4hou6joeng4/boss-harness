@@ -4,13 +4,7 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-- [Issue #1452](https://github.com/can4hou6joeng4/boss-harness/issues/1452)：新增 `scripts/release_assets.py`，为 wheel / sdist 生成 `build-info.json` 与 `SHA256SUMS.txt`；Source build 在构建后运行该脚本，并把 `dist/python` 作为 `python-dist` 工作流产物上传。脚本只读取显式列出的普通文件，拒绝符号链接、目录、重复文件名与保留输出名，按块计算 SHA-256、按文件名排序并原子写入；工作流产物不代替从 tag 提交构建和实际 Release 资产。不改变内核、RPC、工具权限或持久化格式。
-
-- [Issue #1454](https://github.com/can4hou6joeng4/boss-harness/issues/1454)：`parseIsoDateTime` 在交给 `Date` 前校验年月日、时分秒与偏移范围，拒绝 `2026-02-30`、`2026-04-31`、`24:00:00` 等会被 `Date` 静默归一化的非法时间。会话排序、工具来源时间、回合耗时与相对时间不再把损坏记录显示成另一个日期；合法 `Z` / 偏移、小数秒与闰日行为保持不变。不改变协议、RPC、持久化格式或工具权限。
-
-- [Issue #1456](https://github.com/can4hou6joeng4/boss-harness/issues/1456)：用量「未计入原因」查表只读取 `USAGE_REASONS` 的自有属性，`constructor` / `toString` 等原型链键不再被映射成函数源码；`unverifiedReasons` 改用空原型对象承接，`__proto__` 键也能原样展示。已知原因文案与顺序不变；不改变协议、RPC、持久化格式或工具权限。
-
-- [Issue #1458](https://github.com/can4hou6joeng4/boss-harness/issues/1458)：任务核对与驾驶舱的标签查表只读取自有属性，内核返回的任意状态、阶段或配置策略值（`constructor` / `toString` / `__proto__` 等）不再命中原型链成员；渲染进程崩溃与登录页退出原因同样只匹配自有标签，未知原因原样保留。已知文案不变；不改变协议、RPC、持久化格式或工具权限。
+当前没有未归入具名候选版本的新变更；后续合入的变更继续在此汇总。
 
 ## 0.2.0-rc.43 - 2026-11-16
 
@@ -18,11 +12,11 @@
 
 ### 本版概览
 
-相对 rc.42，本次聚合 2 项文档交付：新增安全报告政策并在 README 的安全边界与项目导航加入入口（#1444），以及修正 README 中 rc.42 候选基线表述（#1446）。按持续小版本迭代与版本、文档同步要求触发候选准备。
+相对 rc.42，本次聚合 2 项文档交付与候选期后续 4 项使用者可见修正：新增安全报告政策并在 README 的安全边界与项目导航加入入口（#1444），修正 README 中 rc.42 候选基线表述（#1446）；候选准备后补充发布资产清单生成入口（#1452）、拒绝被 `Date` 归一化的非法 ISO 日期（#1454）、用量「未计入原因」查表只读自有属性（#1456），以及任务核对、驾驶舱与渲染进程崩溃标签只读自有属性（#1458）。按持续小版本迭代与版本、文档同步要求触发候选准备。
 
-升级注意：本候选不含运行时代码、协议或持久化格式变更；npm 与 Python 包仅版本号变化，已安装的 rc.42 源码无需迁移。安全政策只说明报告渠道与负责边界，不代表仓库已启用私密漏洞报告、secret scanning 或 Dependabot 安全更新；这些设置需单独授权。最新实际发布仍为 rc.15。
+升级注意：本候选包含渲染层与共享工具的运行时代码修正，但不改变协议、RPC、持久化格式或工具权限；npm 与 Python 包版本号为候选值，已安装的 rc.42 源码无需迁移。安全政策只说明报告渠道与负责边界，不代表仓库已启用私密漏洞报告、secret scanning 或 Dependabot 安全更新；这些设置需单独授权。最新实际发布仍为 rc.15。
 
-交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；新增的 `scripts/release_assets.py` 只在 CI 与本地发布准备中生成资产清单，不改变安装方式。真实模型、招聘平台、跨平台与独立签名安装包仍未验收。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
 
 ### 变更
 
@@ -31,6 +25,14 @@
 - [Issue #1444](https://github.com/can4hou6joeng4/boss-harness/issues/1444)：新增安全报告政策 `SECURITY.md`，说明支持范围、首选非公开报告渠道、报告应含与不得含的内容、本项目负责的状态目录、JSON-RPC、工具审批与导出脱敏边界，以及不负责的上游 CLI、用户自定义端点、真实账号与依赖漏洞范围；README 的安全边界与项目导航同步加入入口。政策不假定 GitHub 私密漏洞报告入口已经可见，启用 secret scanning、Dependabot 安全更新等仓库设置仍需单独授权。
 
 - [Issue #1446](https://github.com/can4hou6joeng4/boss-harness/issues/1446)：README「近期进展」把 rc.42 候选写成「汇总 rc.42 之后 6 项修正」，与同一文件的版本表、CHANGELOG 的「相对 rc.41」及 Issue #1443 的发布正文草稿不一致。现已改为「相对 rc.41」，6 项修正清单、链接与其余表述不变，读者可据此判断 rc.42 实际包含的变化。仅文档修正。
+
+- [Issue #1452](https://github.com/can4hou6joeng4/boss-harness/issues/1452)：新增 `scripts/release_assets.py`，为 wheel / sdist 生成 `build-info.json` 与 `SHA256SUMS.txt`；Source build 在构建后运行该脚本，并把 `dist/python` 作为 `python-dist` 工作流产物上传。脚本只读取显式列出的普通文件，拒绝符号链接、目录、重复文件名与保留输出名，按块计算 SHA-256、按文件名排序并原子写入；工作流产物不代替从 tag 提交构建和实际 Release 资产。不改变内核、RPC、工具权限或持久化格式。
+
+- [Issue #1454](https://github.com/can4hou6joeng4/boss-harness/issues/1454)：`parseIsoDateTime` 在交给 `Date` 前校验年月日、时分秒与偏移范围，拒绝 `2026-02-30`、`2026-04-31`、`24:00:00` 等会被 `Date` 静默归一化的非法时间。会话排序、工具来源时间、回合耗时与相对时间不再把损坏记录显示成另一个日期；合法 `Z` / 偏移、小数秒与闰日行为保持不变。不改变协议、RPC、持久化格式或工具权限。
+
+- [Issue #1456](https://github.com/can4hou6joeng4/boss-harness/issues/1456)：用量「未计入原因」查表只读取 `USAGE_REASONS` 的自有属性，`constructor` / `toString` 等原型链键不再被映射成函数源码；`unverifiedReasons` 改用空原型对象承接，`__proto__` 键也能原样展示。已知原因文案与顺序不变；不改变协议、RPC、持久化格式或工具权限。
+
+- [Issue #1458](https://github.com/can4hou6joeng4/boss-harness/issues/1458)：任务核对与驾驶舱的标签查表只读取自有属性，内核返回的任意状态、阶段或配置策略值（`constructor` / `toString` / `__proto__` 等）不再命中原型链成员；渲染进程崩溃与登录页退出原因同样只匹配自有标签，未知原因原样保留。已知文案不变；不改变协议、RPC、持久化格式或工具权限。
 
 ## 0.2.0-rc.42 - 2026-11-16
 
