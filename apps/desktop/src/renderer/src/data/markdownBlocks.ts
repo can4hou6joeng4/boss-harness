@@ -18,8 +18,8 @@ export interface MarkdownBlock {
   content: string;
 }
 
-/** 起始围栏：前缀允许任意文本（与旧实现一致），其后是语言标记与行尾空白。 */
-const OPENING_FENCE = /^(.*?)(`{3,})([A-Za-z0-9_+.-]*)[ \t]*$/;
+/** 起始围栏：前缀允许任意文本（与旧实现一致），其后是语言标记与行尾空白；`#` 用于 `c#` / `f#` / `q#`。 */
+const OPENING_FENCE = /^(.*?)(`{3,})([A-Za-z0-9_+.#-]*)[ \t]*$/;
 /** 结束围栏：整行只有反引号与空白。 */
 const CLOSING_FENCE = /^[ \t]*(`{3,})[ \t]*$/;
 
