@@ -26,6 +26,20 @@ export interface DisconnectPatch {
  *
  * `unknownStart` 与运行中的摘要任务仍保留原有提示，等重连后核对，不重复开始。
  */
+/**
+ * 读取航班收尾：只有仍持有该会话读取槽位的航班才能清理槽位并消费尾随刷新标记。
+ * 断连会清空槽位并开启新 epoch，但断连前的读取不会被取消；旧航班迟到落地时
+ * 不得删除或消费重连后新航班登记的刷新请求，否则面板会漏掉一次必要的重读。
+ * 返回 true 表示调用方应立即补发读取。
+ */
+export function settleReadFlight<T>(
+  flights: Map<string, T>, pending: Set<string>, id: string, flight: T,
+): boolean {
+  if (flights.get(id) !== flight) return false;
+  flights.delete(id);
+  return pending.delete(id);
+}
+
 export function disconnectPatch(state: DisconnectState): DisconnectPatch {
   return {
     plan: undefined, reading: false, planning: false, starting: false, cancelInFlight: false,
