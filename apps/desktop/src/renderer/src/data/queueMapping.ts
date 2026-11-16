@@ -1,8 +1,9 @@
 import type { QueueItem, QueueListResponse } from "@boss-harness/protocol";
 
 /**
- * 内核只返回有界投影：待处理与已结束条目各自封顶，并用 totalItems / truncated 说明总量。
- * 渲染层必须保留这两个字段，否则界面上会无痕丢掉老队列记录，待处理数量也会偏小。
+ * 内核只返回有界投影：暂停项优先，排队 / 投递中项使用剩余名额（待处理合计最多 200 项），
+ * 已结束项再使用剩余名额并另受 50 项上限；totalItems / activeItems / truncated 说明全量。
+ * 渲染层必须保留这些字段，否则界面上会无痕丢掉队列记录，待处理数量也会偏小。
  */
 export interface QueuePage {
   items: QueueItem[];
