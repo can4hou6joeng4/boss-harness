@@ -31,7 +31,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码候选为 npm `0.2.0-rc.42` / Python `0.2.0rc42`，尚未实际发布；最新发布仍为 [v0.2.0-rc.15](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。本轮聚合 `skills/list` 的 3 项报告修正与附件名称转义 1 项输入卫生修正，技能加载与附件注入语义不变；附件正文分段读取、上下文编辑拒绝说明与分支切换连接归属继续适用，此前的客户端约束也继续适用：
+当前源码候选为 npm `0.2.0-rc.42` / Python `0.2.0rc42`，尚未实际发布；最新发布仍为 [v0.2.0-rc.15](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。本轮聚合 `skills/list` 的 4 项技能清单报告修正与附件名称转义 1 项输入卫生修正，技能加载与附件注入语义不变；附件正文分段读取、上下文编辑拒绝说明与分支切换连接归属继续适用，此前的客户端约束也继续适用：
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。

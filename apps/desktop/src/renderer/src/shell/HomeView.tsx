@@ -16,6 +16,8 @@ interface Props {
   selectedProjectId: string; onSelectProject: (id: string) => void; onNewProject: () => void;
   folders: ProjectFolder[]; preview: boolean; harnessUp: boolean; blocked?: boolean; onOpenSettings: () => void; draft: ComposerDraft; onDraftChange: UpdateComposerDraft;
   skills: SkillDescriptor[]; skillCatalogState: SkillCatalogState; skillCatalogError?: string; onRefreshSkills: () => void; skillProblems?: SkillProblem[];
+  /** 可加载技能超过展示上限；旧内核视为完整。 */
+  skillSkillsTruncated?: boolean;
   /** 工作区模板等待替换确认：只有用户确认后才写入，取消则保留现有草稿。 */
   pendingTemplate?: string | null; onResolveTemplate?: (apply: boolean) => void;
   /** 新聊天等待丢弃确认；空字符串表示不指定项目，null 表示没有待定操作。 */
@@ -71,7 +73,7 @@ export function HomeView(props: Props) {
           <div className="menu-note">项目作为任务上下文随消息提供。</div>
         </Popover>
       </div>
-      <Composer ref={ref} value={value} onChange={setValue} draft={props.draft} onDraftChange={props.onDraftChange} home readOnly={!props.preview} preview={props.preview} blocked={props.blocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} currentMode={props.currentMode} onModeChange={props.onModeChange} onOpenSettings={props.onOpenSettings} skills={props.skills} skillCatalogState={props.skillCatalogState} skillCatalogError={props.skillCatalogError} onRefreshSkills={props.onRefreshSkills} skillProblems={props.skillProblems}
+      <Composer ref={ref} value={value} onChange={setValue} draft={props.draft} onDraftChange={props.onDraftChange} home readOnly={!props.preview} preview={props.preview} blocked={props.blocked} models={props.models} activeModelProvider={props.activeModelProvider} activeModelId={props.activeModelId} configuredModelLabel={props.configuredModelLabel} onSelectModel={props.onSelectModel} currentMode={props.currentMode} onModeChange={props.onModeChange} onOpenSettings={props.onOpenSettings} skills={props.skills} skillCatalogState={props.skillCatalogState} skillCatalogError={props.skillCatalogError} onRefreshSkills={props.onRefreshSkills} skillProblems={props.skillProblems} skillsTruncated={props.skillSkillsTruncated}
         onSend={(text, skillIds) => props.onStartSessionWithPrompt(project ? `招聘项目：${props.folders.find(folder => folder.id === project)?.name}\n\n${text}` : text, "precision-match", props.activeModelProvider ?? "", props.activeModelId, skillIds)} />
       <div className="starter-prompts">
         {suggestions.map(item => <button key={item.title} onClick={() => applySuggestion(item.prompt)}><item.icon size={18} /><strong>{item.title}</strong><span>{item.detail}</span></button>)}

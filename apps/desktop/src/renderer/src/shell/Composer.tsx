@@ -30,6 +30,8 @@ export interface ComposerProps {
   onSelectModel?: (provider: string, id: string) => void | boolean | string | Promise<void | boolean | string>; onOpenSettings?: () => void;
   sessionReasoning?: SessionReasoningControl;
   skills?: SkillDescriptor[]; skillCatalogState?: SkillCatalogState; skillCatalogError?: string; onRefreshSkills?: () => void; skillProblems?: SkillProblem[];
+  /** 可加载技能超过展示上限、清单只含字典序前若干项；旧内核视为完整。 */
+  skillsTruncated?: boolean;
   /** 本会话已发送的用户输入（从旧到新）；空数组表示不启用上下键调取。 */
   history?: readonly string[];
   home?: boolean;
@@ -57,6 +59,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   onQueue, onCheckQueueSubmission,
   currentMode = "agent", onModeChange, models = [], activeModelProvider, activeModelId, configuredModelLabel, onSelectModel, onOpenSettings, home = false, onLogin,
   skills = [], skillCatalogState = "unavailable", skillCatalogError, onRefreshSkills, skillProblems = [],
+  skillsTruncated = false,
   history = [],
   sessionReasoning,
 }, forwardedRef) {
@@ -546,6 +549,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
             {staleSkillIds.length > 0 && skillCatalogKnown && <div className="composer-menu-empty">{staleSkillIds.length} 项已选技能已不在当前目录中。</div>}
             {staleSkillIds.length > 0 && skillCatalogKnown && <button type="button" disabled={submitting} onClick={() => updateDraft(previous => ({ ...previous, skillIds: previous.skillIds.filter(id => !staleSkillIds.includes(id)) }))}>清除不可用技能</button>}
             {selectedSkillIds.length > 0 && !skillCatalogKnown && <button type="button" disabled={submitting} onClick={() => updateDraft(previous => ({ ...previous, skillIds: [] }))}>清除已选技能</button>}
+            {skillCatalogState === "ready" && skillsTruncated && <div className="composer-menu-footer" role="status">可加载技能超过展示上限，菜单只含字典序前 {skills.length} 个；其余技能不会出现在列表，也无法按 id 选择。整理目录后可刷新重试。</div>}
             {skillProblems.length > 0 && <div className="composer-menu-footer" role="status">{skillProblems.length} 个技能未能加载；到「技能与工具」页查看原因。</div>}
             {skillCatalogState !== "unavailable" && onRefreshSkills && <button type="button" disabled={submitting || skillCatalogState === "loading"} onClick={onRefreshSkills}>{skillCatalogState === "error" ? "重试加载技能" : "刷新技能目录"}</button>}
             <div className="composer-menu-footer">所选技能应用于本次发送或排到后续回合的消息；转交成功后清空。</div>
