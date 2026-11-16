@@ -68,7 +68,7 @@
 
 rc.43 仍为尚未发布的源码候选；最新实际发布仍为 [rc.15 候选预发布](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。候选范围以 `main` 最新提交为准；发布前需按最终基线重新构建并核对资产哈希，不能沿用早期准备的构建结果。每项变更的来源、验证与限制记录在 [CHANGELOG](CHANGELOG.md)；本地离线 Electron 验证不代表真实模型、招聘平台或独立安装包已经验收。协议与内核仍为 `0.2.0`。
 
-候选之后合入的修正继续在 CHANGELOG「未发布」汇总；当前包括聊天代码围栏识别 `c#` / `f#` / `q#` 等带 `#` 的语言标记（[Issue #1462](https://github.com/can4hou6joeng4/boss-harness/issues/1462)）、聊天内查找合并 NFKC / casefold 展开产生的重复命中（[Issue #1464](https://github.com/can4hou6joeng4/boss-harness/issues/1464)），以及识别 `~~~` / `~~~~` 波浪号代码围栏（[Issue #1466](https://github.com/can4hou6joeng4/boss-harness/issues/1466)），代码正文、语言标签、复制按钮、围栏标记与命中计数不再退化。
+候选之后合入的修正继续在 CHANGELOG「未发布」汇总；当前包括聊天代码围栏识别 `c#` / `f#` / `q#` 等带 `#` 的语言标记（[Issue #1462](https://github.com/can4hou6joeng4/boss-harness/issues/1462)）、聊天内查找合并 NFKC / casefold 展开产生的重复命中（[Issue #1464](https://github.com/can4hou6joeng4/boss-harness/issues/1464)）、识别 `~~~` / `~~~~` 波浪号代码围栏（[Issue #1466](https://github.com/can4hou6joeng4/boss-harness/issues/1466)），以及接受语言标记前的空格 / Tab（[Issue #1468](https://github.com/can4hou6joeng4/boss-harness/issues/1468)），代码正文、语言标签、复制按钮、围栏标记、围栏空白与命中计数不再退化。
 
 ### 本地配置自检（rc.43 候选）
 
