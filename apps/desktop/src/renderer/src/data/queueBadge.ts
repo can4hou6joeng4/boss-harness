@@ -32,14 +32,20 @@ export function queueBadgeOf(page: QueuePage): QueueBadge {
   return complete && activeItems > 0 ? { activeItems, counts } : { activeItems };
 }
 
-/** 会话列表里能承载徽标的最小形状；返回新数组，未命中或数值未变时返回 null。 */
+/**
+ * 会话列表里能承载徽标的最小形状；返回新数组，未命中或数值未变时返回 null。
+ *
+ * 截断投影不携带分类计数：此时若待处理总数与已知值一致，保留上一次的分类，
+ * 避免暂停项从侧栏徽标和「待你处理」分组消失；总数变化或拿到完整计数时按新值更新。
+ */
 export function patchQueueBadge<T extends { id: string; queueActiveItems?: number; queueCounts?: QueueStatusCounts }>(
   sessions: readonly T[], threadId: string, badge: QueueBadge,
 ): T[] | null {
   let changed = false;
   const next = sessions.map(session => {
     if (session.id !== threadId) return session;
-    const counts = badge.counts;
+    const counts = badge.counts
+      ?? (badge.activeItems === session.queueActiveItems ? session.queueCounts : undefined);
     if (session.queueActiveItems === badge.activeItems
       && session.queueCounts?.queued === counts?.queued
       && session.queueCounts?.delivering === counts?.delivering

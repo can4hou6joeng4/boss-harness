@@ -4,7 +4,7 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前没有未归入具名候选版本的变更。
+- [Issue #1535](https://github.com/can4hou6joeng4/boss-harness/issues/1535)：截断队列投影下侧栏徽标会丢失暂停计数。228 个待处理项（128 排队 + 100 暂停）时，`queue/list` 投影只返回 100 暂停 + 100 排队并标记截断，`queueBadgeOf` 只给出待处理总数，`patchQueueBadge` 因此把会话行已有的 `queueCounts` 清成 `undefined`，侧栏的暂停徽标与「待你处理」分组在下次 `thread/list` 刷新前消失。现在截断投影且待处理总数未变时保留上一次分类计数；总数变化或拿到完整计数时仍按新值更新。只改渲染层徽标合并逻辑与说明，不改变 RPC、内核投影、协议或版本号。
 
 ## 0.2.0-rc.51 - 2026-11-16
 
