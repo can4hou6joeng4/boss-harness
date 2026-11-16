@@ -68,7 +68,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 
 ## 近期进展
 
-`v0.2.0-rc.56` 候选相对 rc.55 新增 41 项修复与 1 项界面改进，并继续包含 rc.55 的 5 项修复：
+`v0.2.0-rc.56` 候选相对 rc.55 新增 43 项修复与 1 项界面改进，并继续包含 rc.55 的 5 项修复：
 
 - **技能标签查询不再命中原型链**（[Issue #1585](https://github.com/can4hou6joeng4/boss-harness/issues/1585)）：会话区与重试路径只读取技能映射自己的条目，缺失或形状不符返回空数组，损坏会话中的特殊 `turnId` 不再让整段消息落入错误边界。
 - **队列元数据不得少于可见明细**（[Issue #1587](https://github.com/can4hou6joeng4/boss-harness/issues/1587)）：待处理数或分类计数小于已载入条目时按缺失处理，面板与侧栏徽标回退到可见计数，不再出现「1 项待处理」上方列出 3 条记录或「排队 0」旁列出排队消息。
@@ -112,6 +112,8 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 - **分页快照的损坏回合投影会重建索引**（[Issue #1729](https://github.com/can4hou6joeng4/boss-harness/issues/1729)）：`snapshot_projection()` 读取投影列先校验类型，BLOB 或整数元数据交给既有索引重建路径，`thread/resume snapshot=true` 不再返回 `-32603` 内部错误。
 - **压缩任务恢复不再解析持久游标**（[Issue #1732](https://github.com/can4hou6joeng4/boss-harness/issues/1732)）：恢复只依赖事件记录顺序，事件投影被改写成对象游标不再让 `ApplicationService` 构造失败、内核启动即退出。
 - **断连时读取态立即复位**（[Issue #1735](https://github.com/can4hou6joeng4/boss-harness/issues/1735)）：工作区说明编辑器、技能页状态与自动压缩面板在断连后不再长期显示「正在读取…」，重连后照常重新读取。
+- **附件摘要必须是字符串**（[Issue #1738](https://github.com/can4hou6joeng4/boss-harness/issues/1738)）：非字符串摘要按损坏记录提示，附件读取、分块与上下文注入不再返回 `-32603`。
+- **附件添加路径必须是普通文件**（[Issue #1740](https://github.com/can4hou6joeng4/boss-harness/issues/1740)）：目录、FIFO 与缺失路径按可读错误拒绝，FIFO 不再阻塞内核请求处理。
 - **运行资源计数与截断推导**（[Issue #1571](https://github.com/can4hou6joeng4/boss-harness/issues/1571)）：运行资源明细的计数与截断标记和已返回条目不一致时，界面不再把部分明细当成全部；计数小于明细视为矛盾响应整体报错。
 - **驾驶舱队列摘要采用持久分类计数**（[Issue #1575](https://github.com/can4hou6joeng4/boss-harness/issues/1575)）：队列摘要优先使用与持久待处理总数对齐的分类计数，旧内核缺省分类或合计不一致时才退回可见项并标注口径。
 - **摘要任务明细截断与计数一致性**（[Issue #1577](https://github.com/can4hou6joeng4/boss-harness/issues/1577)）：会话用量面板与 CSV 在计数大于已返回明细时强制标记截断，计数小于明细整体拒绝，不再静默执行 50 条本地上限而不提示。
