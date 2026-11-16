@@ -55,7 +55,7 @@
 
 ## 近期进展
 
-`v0.2.0-rc.42` 候选汇总 rc.42 之后 6 项修正：
+`v0.2.0-rc.42` 候选相对 rc.41 汇总 6 项修正：
 
 - **未加载项清单独立封顶**（[Issue #1422](https://github.com/can4hou6joeng4/boss-harness/issues/1422)）：此前有效技能凑满 100 个展示上限就停止枚举，排在后面的坏目录完全不出现在未加载清单里。现在两份清单各自封顶，扫描最多检查 800 个目录项，超过展示或枚举上限时分别返回 `problemsTruncated` 与 `candidatesTruncated`。
 - **恰好等于窗口不再误报截断**（[Issue #1424](https://github.com/can4hou6joeng4/boss-harness/issues/1424)）：候选枚举改为显式记录是否丢弃过目录，目录数恰好顶到窗口但已全部检查时不再返回 `candidatesTruncated`。
