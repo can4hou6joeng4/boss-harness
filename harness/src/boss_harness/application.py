@@ -819,6 +819,7 @@ class ApplicationService:
                           "eventCursor": event_cursor, "queue": snapshot_queue["items"],
                           "queueTotalItems": snapshot_queue["totalItems"],
                           "queueActiveItems": snapshot_queue["activeItems"],
+                          "queueCounts": snapshot_queue["counts"],
                           "queueTruncated": snapshot_queue["truncated"],
                           "snapshotId": snapshot_id, "itemCount": item_count, **branch_extra}
                 self._check_response_budget(result)
@@ -853,7 +854,7 @@ class ApplicationService:
                     "activeTurnId": job["turnId"] if job else None,
                     "eventCursor": self.sessions.latest_event_cursor(), "queue": queue["items"],
                     "queueTotalItems": queue["totalItems"], "queueActiveItems": queue["activeItems"],
-                    "queueTruncated": queue["truncated"]}
+                    "queueCounts": queue["counts"], "queueTruncated": queue["truncated"]}
             if branch:
                 result["view"] = "branch"
                 result["branch"] = self.sessions.read_leaf(thread_id)

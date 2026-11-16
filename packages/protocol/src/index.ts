@@ -511,6 +511,8 @@ export interface ThreadReadResponse {
   queueTotalItems?: number;
   /** Durable count of queued / delivering / paused items; independent of the bounded projection. */
   queueActiveItems?: number;
+  /** Durable queued / delivering / paused breakdown; independent of the bounded projection. */
+  queueCounts?: QueueStatusCounts;
   queueTruncated?: boolean;
   snapshotId?: string;
   itemCount?: number;
@@ -832,6 +834,8 @@ export interface QueueListResponse {
   totalItems?: number;
   /** Durable count of queued / delivering / paused items; independent of `items`. */
   activeItems?: number;
+  /** Durable queued / delivering / paused breakdown; independent of the bounded `items`. */
+  counts?: QueueStatusCounts;
   truncated?: boolean;
 }
 export interface QueueGetParams { threadId: string; queueId: string }

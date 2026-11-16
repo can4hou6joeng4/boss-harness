@@ -1,4 +1,4 @@
-import type { QueueItem } from "@boss-harness/protocol";
+import type { QueueItem, QueueStatusCounts } from "@boss-harness/protocol";
 import { harnessErrorText, isHarnessRpcRejection } from "./harnessBridge";
 import { isQueueActive, queueCountsDelta, type QueuePage } from "./queueMapping";
 
@@ -69,6 +69,18 @@ export function queueRetryPage(page: QueuePage | undefined, previousItems: Queue
   } else if (items.length > 0) {
     totalItems = items.length;
   }
-  const countsDelta = page?.truncated === true ? queueCountsDelta(previousItems, items) : undefined;
-  return { items, totalItems, activeItems, truncated: page?.truncated, countsDelta };
+  const delta = queueCountsDelta(previousItems, items);
+  const countsDelta = page?.truncated === true ? delta : undefined;
+  let counts: QueueStatusCounts | undefined;
+  if (page?.counts) {
+    const next = {
+      queued: page.counts.queued + delta.queued,
+      delivering: page.counts.delivering + delta.delivering,
+      paused: page.counts.paused + delta.paused,
+    };
+    if (next.queued >= 0 && next.delivering >= 0 && next.paused >= 0
+      && (activeItems === undefined
+        || next.queued + next.delivering + next.paused === activeItems)) counts = next;
+  }
+  return { items, totalItems, activeItems, counts, truncated: page?.truncated, countsDelta };
 }

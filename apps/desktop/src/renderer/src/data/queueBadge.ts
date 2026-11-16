@@ -19,9 +19,10 @@ export interface QueueBadge {
 /**
  * 从有界队列投影推出徽标数值。
  *
- * `queue/list` 的条目是有界投影：截断时分类计数会偏小，但内核仍给出全部持久项的
- * 待处理总数。此时只保留总数，分类留给下一次会话列表刷新校正，避免显示
- * 「待处理 8 条：排队 3」这种自相矛盾的分项。
+ * `queue/list` 的条目是有界投影：截断时按条目统计的分项会偏小。内核给出的持久
+ * 分类计数（counts）不受截断影响，优先使用；旧内核缺省时只保留待处理总数，
+ * 分类留给会话列表刷新或本地增量校正，避免显示「待处理 8 条：排队 3」这种
+ * 自相矛盾的分项。
  */
 export function queueBadgeOf(page: QueuePage): QueueBadge {
   const counts: QueueStatusCounts = { queued: 0, delivering: 0, paused: 0 };
@@ -30,6 +31,8 @@ export function queueBadgeOf(page: QueuePage): QueueBadge {
   }
   const loaded = counts.queued + counts.delivering + counts.paused;
   const activeItems = page.activeItems ?? loaded;
+  // 持久分类不受投影截断影响，优先于按已载入条目推算的分项。
+  if (page.counts && activeItems > 0) return { activeItems, counts: page.counts };
   const complete = page.truncated !== true && loaded === activeItems;
   if (complete && activeItems > 0) return { activeItems, counts };
   if (page.countsDelta && activeItems > 0) return { activeItems, delta: page.countsDelta };
