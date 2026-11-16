@@ -79,6 +79,7 @@ import { threadSummaryOf, uniqueThreadIds } from "./threadList";
 import { skillDescriptorOf, uniqueSkillIds } from "./skillCatalog";
 import { modelDescriptorOf, uniqueModelKeys } from "./modelCatalog";
 import { toolDescriptorOf, uniqueToolNames } from "./toolCatalog";
+import { connectionReportOf } from "./connectionReport";
 import { toolDurationMs } from "./toolTiming";
 import {
   approvalDecision, itemContextEdit, itemResultRef, itemSource, itemText, itemToolName,
@@ -624,7 +625,10 @@ export async function listTools(): Promise<ToolDescriptor[]> {
 export async function connectionReport(target?: ConnectionTarget): Promise<ConnectionReport> {
   const api = bridge();
   if (!api) throw new Error("本地 Harness 未连接");
-  return api.request(target ? ClientMethods.connectionCheck : ClientMethods.connectionRead, target ? { target } : {});
+  const response = await api.request<unknown>(target ? ClientMethods.connectionCheck : ClientMethods.connectionRead, target ? { target } : {});
+  const report = connectionReportOf(response);
+  if (!report) throw new Error("连接检查回执无法识别");
+  return report;
 }
 
 /** 重连本地内核。返回真实状态与原因：调用方要据此提示，而不是把失败当作无事发生。 */
