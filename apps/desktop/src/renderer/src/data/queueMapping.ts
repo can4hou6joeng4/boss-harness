@@ -88,19 +88,32 @@ function isSafeCount(value: unknown): value is number {
 }
 
 /**
- * 校验持久分类计数：三个非负安全整数，传入待处理总数时必须与之相等。
- * 不可信的分项不能进入界面，避免徽标显示与待处理总数矛盾的数字。
+ * 校验持久分类计数：三个非负安全整数，且必须与已校验的待处理总数相等。
+ * 调用方先确认待处理总数有效；不可信的分项不能进入界面，避免徽标显示与待处理总数矛盾的数字。
  */
-export function queueStatusCountsOf(value: unknown, activeItems?: number): QueueStatusCounts | null {
-  if (!isRecord(value)) return null;
+export function queueStatusCountsOf(value: unknown, activeItems: number): QueueStatusCounts | null {
+  if (!isSafeCount(activeItems) || !isRecord(value)) return null;
   const queued = value.queued;
   const delivering = value.delivering;
   const paused = value.paused;
   if (!isSafeCount(queued) || !isSafeCount(delivering) || !isSafeCount(paused)) return null;
   const counts: QueueStatusCounts = { queued, delivering, paused };
-  if (activeItems !== undefined
-    && counts.queued + counts.delivering + counts.paused !== activeItems) return null;
+  if (counts.queued + counts.delivering + counts.paused !== activeItems) return null;
   return counts;
+}
+
+/**
+ * `thread/list` 等会话投影的队列元数据。分类计数只在待处理总数通过校验时保留：
+ * 内核总是一起发送这两个字段，缺少可信总数时无法验证分项，不能单独进入侧栏。
+ */
+export function threadQueueCountsOf(activeItems: unknown, counts: unknown): {
+  activeItems?: number;
+  counts?: QueueStatusCounts;
+} {
+  const active = isSafeCount(activeItems) ? activeItems : undefined;
+  if (active === undefined) return {};
+  const parsed = queueStatusCountsOf(counts, active);
+  return parsed ? { activeItems: active, counts: parsed } : { activeItems: active };
 }
 
 /** 列表整体校验：任一项非法即整体不可用，避免只渲染一部分时界面数量与内核总数对不上。 */
