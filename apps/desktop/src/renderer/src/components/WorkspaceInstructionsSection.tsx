@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { WorkspaceInstructionsState, WorkspaceInstructionsText } from "@boss-harness/protocol";
 import { harnessErrorText, readWorkspaceInstructions } from "../data/harnessBridge";
+import { workspaceInstructionBytesOf, workspaceInstructionStatusOf } from "../data/workspaceInstructions";
 import { WorkspaceInstructionsEditor } from "./WorkspaceInstructionsEditor";
 
 export interface WorkspaceInstructionsSectionProps {
@@ -45,7 +46,9 @@ export function WorkspaceInstructionsSection(props: WorkspaceInstructionsSection
     setReading(true);
     readWorkspaceInstructions().then(value => {
       if (!active) return;
-      if (!value || typeof value.path !== "string" || typeof value.status !== "string" || typeof value.limitBytes !== "number") {
+      if (!value || typeof value.path !== "string" || workspaceInstructionStatusOf(value.status) === null
+        || workspaceInstructionBytesOf(value.bytes) === undefined
+        || typeof value.limitBytes !== "number" || !Number.isSafeInteger(value.limitBytes) || value.limitBytes < 0) {
         setError("内核返回的工作区说明状态无法识别。");
         return;
       }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { WorkspaceInstructionsText } from "@boss-harness/protocol";
 import { harnessErrorText, readWorkspaceInstructions, writeWorkspaceInstructions } from "../data/harnessBridge";
+import { workspaceInstructionBytesOf, workspaceInstructionStatusOf } from "../data/workspaceInstructions";
 
 export interface WorkspaceInstructionsEditorProps {
   open: boolean;
@@ -71,7 +72,9 @@ export function WorkspaceInstructionsEditor(props: WorkspaceInstructionsEditorPr
       if (!active) return;
       // 内核返回的正文与上限是保存判定的唯一依据；不在这里补默认值。
       if (!value || typeof value.content !== "string" || typeof value.path !== "string"
-        || typeof value.pathPreferred !== "string" || typeof value.limitBytes !== "number") {
+        || typeof value.pathPreferred !== "string" || workspaceInstructionStatusOf(value.status) === null
+        || workspaceInstructionBytesOf(value.bytes) === undefined
+        || typeof value.limitBytes !== "number" || !Number.isSafeInteger(value.limitBytes) || value.limitBytes < 0) {
         setError("内核返回的工作区说明无法识别。");
         return;
       }
