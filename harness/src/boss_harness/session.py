@@ -1878,7 +1878,12 @@ class SessionStore:
             # A deleted or renamed damaged log must not linger in the diagnostic set.
             self.unreadable_threads.intersection_update(known)
             for row in connection.execute("SELECT id,rollout_path FROM threads").fetchall():
-                if Path(row["rollout_path"]).parent == self.root and row["id"] not in known:
+                if row["id"] in known:
+                    continue
+                rollout_path = row["rollout_path"]
+                # 投影列可能被外部改写为 BLOB 或整数；这类行没有可核对的源日志，
+                # 与已删除日志的陈旧投影一样清理，不能让 Path() 的 TypeError 阻断启动。
+                if not isinstance(rollout_path, str) or Path(rollout_path).parent == self.root:
                     connection.execute("DELETE FROM threads WHERE id=?", (row["id"],))
 
     def get_thread(self, thread_id: str) -> dict:
