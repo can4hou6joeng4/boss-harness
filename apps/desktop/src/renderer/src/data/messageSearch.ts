@@ -1,9 +1,10 @@
 import type { ThreadSearchMatch } from "@boss-harness/protocol";
+import { codePointLength } from "@boss-harness/shared";
 import type { MessageItem } from "./mockData";
 import { approvalDecisionText } from "./approvalCopy";
 import { approvalRemainingText } from "./pendingApprovals";
 import { searchText } from "./searchText";
-import type { MessageSearchState } from "./searchStatus";
+import { MESSAGE_SEARCH_MIN_LENGTH, type MessageSearchState } from "./searchStatus";
 import { toolOutcomeBadge } from "./toolOutcome";
 import { toolQueriedAtLabel } from "./toolSource";
 import { toolCompletedTimingLabel } from "./toolTiming";
@@ -162,7 +163,7 @@ export function liveMessageSearchState(
   enabled: boolean,
 ): MessageSearchState {
   const needle = query.trim();
-  if (!enabled || needle.length < 2) return state;
+  if (!enabled || codePointLength(needle) < MESSAGE_SEARCH_MIN_LENGTH) return state;
   if (settled && settled.query === needle && settled.includeArchived === includeArchived) return state;
   return "loading";
 }

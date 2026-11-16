@@ -1,5 +1,10 @@
+import { codePointLength } from "@boss-harness/shared";
+
 /** 搜索弹窗的消息搜索状态；与组件内的状态机保持一致。 */
 export type MessageSearchState = "idle" | "loading" | "ready" | "error";
+
+/** 触发消息搜索的最少字符数：按 Unicode 码点计数，与界面文案「至少 2 个字符」一致。 */
+export const MESSAGE_SEARCH_MIN_LENGTH = 2;
 
 /**
  * 状态行的文字。
@@ -59,7 +64,7 @@ export function searchEmptyCopy(
       hint: "消息搜索失败，暂时无法确认消息内容是否有命中；可稍后重试或换个关键词",
     };
   }
-  if (query.trim().length < 2) {
+  if (codePointLength(query.trim()) < MESSAGE_SEARCH_MIN_LENGTH) {
     return {
       title: "没有找到匹配的聊天",
       hint: "标题中没有匹配；输入至少 2 个字符可同时搜索消息内容",

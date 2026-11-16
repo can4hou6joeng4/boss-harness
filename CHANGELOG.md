@@ -8,6 +8,8 @@
 
 - [Issue #1483](https://github.com/can4hou6joeng4/boss-harness/issues/1483)：桌面主进程对 `thread/start.title`、`thread/search.query`、`context/edit.replacementText` 与技能目录名（`skills/read`、`skills/write`、`skills/delete`）的长度上限改用 Unicode 码点计数，与内核 `len()` 及上下文编辑对话框的保存条件一致；101 个 emoji 的搜索查询与 16001 个 emoji 的替换文本不再在到达内核前被拒绝，最近搜索的 200 字符上限同样按码点判定。按码点超限的输入仍被拒绝，UTF-8 字节上限、路径安全规则、协议、RPC、持久化格式与工具权限不变。
 
+- [Issue #1485](https://github.com/can4hou6joeng4/boss-harness/issues/1485)：搜索弹窗、聊天内查找与最近搜索的字符阈值改用 Unicode 码点计数，与界面文案「至少 2 个字符」「120 个字符」一致。消息搜索的最小长度收为单一常量 `MESSAGE_SEARCH_MIN_LENGTH`，弹窗请求、进行中状态与空态提示共用；单个 emoji 不再被当成 2 个字符触发 `thread/search`、显示「正在搜索消息…」或记入最近搜索，2 个 emoji 仍触发并可记入。查找种子（`findSeedFromSelection`）的 120 字符上限按码点判定：120 个 emoji 的选中文本可作为关键词，121 个仍拒绝，120 个 ASCII 行为不变。最近搜索的下限与上限现在都按码点计数。不新增 RPC，协议、内核与持久化格式不变。
+
 ## 0.2.0-rc.44 - 2026-11-16
 
 本节汇总第四十四个候选版本的源码与交付内容；rc.16 至 rc.44 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
