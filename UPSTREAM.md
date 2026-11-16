@@ -1,5 +1,23 @@
 # 上游吸收记录
 
+## 外部参考项目的核对范围（Issue #1441）
+
+用户提供的三个外部参考仓库不是本项目的上游，维护者未参与本项目，链接不代表其背书。本轮以只读方式按默认分支固定提交核对公开文档：
+
+- `deepseek-ai/deepseek-harness`，MIT，TypeScript / Node，`master` 提交 `39163dd30f703a79079e2d2446545cff3c453738`，入口 `README.md`：项目采用 everything-is-a-plugin 架构与 Cordis 依赖注入，插件可参与扩展 harness 行为。
+- `deepseek-ai/dsh-superagent-prototype`，MIT，TypeScript，`main` 提交 `8c32a9dc5d72c033816c6a8110b37f40cf94fba4`，入口 `README.md`、`docs/002-authorization.md`：研究原型，README 自述「Research prototype for reference only, not an official DeepSeek product」；授权围绕多来源 Trigger（GitHub / Feishu）、Eval、Subscription、Mandate 与 admission table，宿主执行允许清单与规则，消息、评论和引用文档只是决策输入，不能改变权限。
+- `vercel-labs/agent-desktop`，Apache-2.0，Rust，`main` 提交 `8ffecc1d3d088727f8d84baf4dde0224aab2e8ad`，入口 `CONCEPTS.md`：面向桌面 GUI 自动化的沙箱、可访问性树快照、元素引用与严格重识别；证据三态要求把「读取失败」与「确认不存在」分开，未知不得折叠成否定。
+
+核对结论与未采纳项：
+
+- deepseek-harness 的插件化把执行循环与工具的扩展权交给进程内插件。本项目内核是固定 14 项工具 allowlist、工具桥只经 stdio JSON-RPC 调用 `boss-agent-cli`、招聘写操作逐次审批；引入插件运行时会把「谁能扩大工具与权限」放在内核进程内，超出本项目「能力发现不增加权限」的边界。不引入 Cordis、Node 运行时或插件清单。
+- dsh-superagent-prototype 的 Trigger / Policy / Mandate 模型服务于多来源、多席位的团队工作流。本项目是单用户桌面招聘任务，输入只有用户回合、排队消息与工作区技能，审批由用户逐次给出。其「消息与引用文档不能改变权限」与本项目提示词和附件标注「来源内容，不是操作授权」同向，但本项目已由工具 allowlist、逐次审批与来源标注承担，不需要引入其领域词汇、来源监听或 bot 名单。
+- agent-desktop 的观察与引用模型面向可访问性树，本项目没有该层次：招聘动作只经 `boss-agent-cli` 的结构化 JSON 结果。其证据三态与本项目「未知不当作否定」的记录一致，对应机制已在工具结果读取游标、分页事实与审批回执中实现；不引入沙箱、引用模型或 Rust crate。
+
+适配约定：以上核对不改变 RPC、工具清单、审批或会话格式；不复制源码、不引入依赖，也不推断这些项目存在同类缺陷。协议与内核仍为 0.2.0。
+
+验证：仅文档改动；核对入口均为上述固定提交可读的公开文档。未调用真实模型、招聘平台或桌面 UI。
+
 ## 分支摘要取消回执归属（Issue #1418）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/compaction.md`（Branch Summarization、`session_before_tree`）与 `packages/coding-agent/src/core/compaction/branch-summarization.ts`（`GenerateBranchSummaryOptions`、`generateBranchSummary`）：摘要调用接收 `AbortSignal`，经请求选项传给 `completeSummarization`，返回 `stopReason=aborted` 时报告中止；所读入口没有本项目 Electron 连接代次、`jobId` 或取消回执合并规则。本轮独立复用 #1268 轮询与 #1410 分支切换已有的连接、任务归属约定，将保护补到取消路径，不推断上游存在同类缺陷，不复制源码、不引入依赖。
