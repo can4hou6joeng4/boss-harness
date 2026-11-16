@@ -47,6 +47,24 @@ export interface PendingApprovalList {
   total?: number;
 }
 
+export interface ApprovalBadgeState {
+  /** 铃铛与应用图标使用的数量；持久总数可用时不受列表上限影响。 */
+  count: number;
+  /** 只有总数未知时才把数量文案标成「至少」。 */
+  truncated: boolean;
+  /** 侧栏会话行的待审批数量；旧内核回退到已返回条目。 */
+  counts: Record<string, number>;
+}
+
+/** 侧栏与徽标共用的计数口径：优先内核持久计数，旧内核回退到已返回条目。 */
+export function approvalBadgeState(list: PendingApprovalList): ApprovalBadgeState {
+  return {
+    count: list.total ?? list.approvals.length,
+    truncated: list.truncated && list.total === undefined,
+    counts: list.threadCounts ?? countPendingApprovalsByThread(list.approvals),
+  };
+}
+
 /** 校验按会话的持久计数；任一项非法或合计小于已返回条目时整体丢弃，不展示不可信数字。 */
 function threadCountsOf(value: unknown, visible: number): { counts: Record<string, number>; total: number } | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;

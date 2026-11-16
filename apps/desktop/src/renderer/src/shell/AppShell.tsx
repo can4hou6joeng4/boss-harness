@@ -19,7 +19,7 @@ import { SearchDialog } from "../components/SearchDialog";
 import { NotificationsDialog } from "../components/NotificationsDialog";
 import { ModalSurface } from "../components/ModalSurface";
 import { type ProjectFolder, type SessionItem, type MessageItem, type ConversationMode } from "../data/mockData";
-import { countPendingApprovalsByThread, isApprovalCountEvent, readApprovalFocus } from "../data/pendingApprovals";
+import { approvalBadgeState, isApprovalCountEvent, readApprovalFocus } from "../data/pendingApprovals";
 import { createSingleFlightReload } from "../data/singleFlightReload";
 import { readThreadFocus } from "../data/threadFocus";
 import { focusResolution } from "../data/focusIntent";
@@ -177,9 +177,11 @@ export function AppShell(props: AppShellProps) {
     const reload = createSingleFlightReload(async () => {
       const result = await listPendingApprovals(100);
       if (disposed) return;
-      setPendingApprovals(result.approvals.length);
-      setPendingApprovalsTruncated(result.truncated);
-      setApprovalCounts(countPendingApprovalsByThread(result.approvals));
+      // 后台轮询与通知面板共用同一口径：持久计数可用时不受列表上限影响。
+      const badge = approvalBadgeState(result);
+      setPendingApprovals(badge.count);
+      setPendingApprovalsTruncated(badge.truncated);
+      setApprovalCounts(badge.counts);
     }, () => document.visibilityState !== "hidden");
     pendingReload.current = reload.run;
     reload.run();
@@ -774,10 +776,10 @@ export function AppShell(props: AppShellProps) {
     <SettingsDialog isOpen={settings} initialSection={settingsSection} onClose={() => setSettings(false)} theme={props.theme} onThemeChange={props.onThemeChange} onOpenShortcuts={() => { setSettings(false); props.onOpenShortcuts(); }} harnessUp={props.harnessUp ?? false} autoCompactionConfig={props.autoCompactionConfig === true} onLogin={() => { void loginEntry(true); }} />
     {search && <SearchDialog folders={allFolders} onSelect={select} onOpenMessage={openMessage} onClose={() => setSearch(false)} searchMessages={props.threadSearchable === true} searchArchived={props.threadSearchArchived === true} />}
     {notifications && <NotificationsDialog folders={allFolders} preview={props.simulateLocal === true} refreshToken={approvalPulse} onSelect={select} onOpenMessage={openMessage} onLoaded={list => {
-              // 列表仍可能截断；只有缺少持久总数时，侧栏数量文案才标成「至少」。
-              setPendingApprovals(list.total ?? list.approvals.length);
-              setPendingApprovalsTruncated(list.truncated && list.total === undefined);
-              setApprovalCounts(list.threadCounts ?? countPendingApprovalsByThread(list.approvals));
+              const badge = approvalBadgeState(list);
+              setPendingApprovals(badge.count);
+              setPendingApprovalsTruncated(badge.truncated);
+              setApprovalCounts(badge.counts);
             }} onClose={() => setNotifications(false)} />}
     {newProject && <ModalSurface title="新建项目" onClose={() => setNewProject(false)} className="compact-dialog"><form className="dialog-form" onSubmit={event => { event.preventDefault(); if (!projectName.trim() || projectNameTooLongInput) return; const id = "group-" + crypto.randomUUID(); setGroups(prev => [...prev, { id, name: projectName.trim(), sessions: [] }]); setDraftProjectId(id); openRoute({ page: "home" }); setProjectName(""); setNewProject(false); }}><label>项目名称<input autoFocus maxLength={PROJECT_NAME_MAX_LENGTH * 2} value={projectName} onChange={event => setProjectName(event.target.value)} placeholder="例如：核心产研团队招聘" /></label><p>创建一个保存在此设备上的项目分组。</p>{projectNameTooLongInput && <p className="context-panel-warning" role="alert">项目名称最多 {PROJECT_NAME_MAX_LENGTH} 字符</p>}<button className="solid-button" disabled={!projectName.trim() || projectNameTooLongInput}>创建项目</button></form></ModalSurface>}
     {rename && <ModalSurface title="更改显示名称" onClose={() => { if (!renameBusy) setRename(null); }} closeDisabled={renameBusy} className="compact-dialog"><form className="dialog-form" onSubmit={event => { event.preventDefault(); void confirmRenameSession(); }}><label>聊天名称<input autoFocus value={name} maxLength={MAX_ALIAS_LENGTH * 2} disabled={renameBusy} onChange={event => setName(event.target.value)} /></label><p>{props.onRenameSession ? "名称会写入本地内核并随会话保存。" : "只更新此工作区的显示名称。"}</p>{renameNameTooLong && <p className="context-panel-warning" role="alert">名称最多 {MAX_ALIAS_LENGTH} 字符</p>}<button className="solid-button" disabled={!name.trim() || renameBusy || renameNameTooLong}>{renameBusy ? "正在保存…" : "保存"}</button></form></ModalSurface>}
