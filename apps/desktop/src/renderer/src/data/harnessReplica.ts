@@ -7,6 +7,15 @@ interface Api { request<T>(method: string, params?: unknown): Promise<T> }
 /** 单次恢复允许的分页上限：只兜住异常内核造成的无尽翻页，正常会话远达不到。 */
 const MAX_PAGE_COUNT = 10_000;
 const MAX_CURSOR_LENGTH = 2048;
+
+/** 冻结快照声明的条目总数；旧内核缺省，存在但非法时整体拒绝。 */
+function snapshotItemCount(value: unknown): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error("会话快照条目计数无效");
+  }
+  return value;
+}
 function validateContentReference(reference: ItemContentReference): void {
   if (!reference || reference.encoding !== "text" || typeof reference.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(reference.sha256) ||
       typeof reference.itemId !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(reference.itemId) ||
@@ -67,7 +76,8 @@ export class HarnessReplica {
             typeof snapshot.snapshotId !== "string" || !/^[a-f0-9]{32}$/.test(snapshot.snapshotId)) throw new Error("分支快照响应无效");
         const snapshotId = snapshot.snapshotId;
         const items = await this.readAllItems(
-          pageCursor => ({ threadId, snapshotId, view: "branch", cursor: pageCursor, limit: 100 }), current);
+          pageCursor => ({ threadId, snapshotId, view: "branch", cursor: pageCursor, limit: 100 }),
+          current, snapshotItemCount(snapshot.itemCount));
         const hydrated: ThreadItem[] = [];
         for (const item of items) { current(); hydrated.push(await this.resolveItemContent(item, threadId, snapshotId, current)); }
         snapshot.items = hydrated;
@@ -171,7 +181,8 @@ export class HarnessReplica {
       } else if (snapshot.snapshotId) {
         const snapshotId = snapshot.snapshotId;
         const items = await this.readAllItems(
-          pageCursor => ({ threadId, snapshotId, cursor: pageCursor, limit: 100 }), current);
+          pageCursor => ({ threadId, snapshotId, cursor: pageCursor, limit: 100 }),
+          current, snapshotItemCount(snapshot.itemCount));
         const hydrated: ThreadItem[] = [];
         for (const item of items) { current(); hydrated.push(await this.resolveItemContent(item, threadId, snapshot.snapshotId, current)); }
         snapshot.items = hydrated;
@@ -213,6 +224,7 @@ export class HarnessReplica {
   private async readAllItems(
     params: (cursor: string | null) => Record<string, unknown>,
     current: () => void,
+    expectedCount?: number,
   ): Promise<ThreadItem[]> {
     const items: ThreadItem[] = [];
     const seen = new Set<string>();
@@ -228,7 +240,13 @@ export class HarnessReplica {
       }
       if (next !== null) trackCursor(seen, next, "会话条目");
       items.push(...page.items);
-      if (next === null) return items;
+      if (next === null) {
+        // 冻结快照的条目数固定；提前结束或多读都说明历史不完整，不能静默展示。
+        if (expectedCount !== undefined && items.length !== expectedCount) {
+          throw new Error(`会话快照条目数不一致：声明 ${expectedCount} 个，实际读取 ${items.length} 个`);
+        }
+        return items;
+      }
       cursor = next;
     }
   }
