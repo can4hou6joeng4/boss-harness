@@ -8,7 +8,8 @@ export const MAX_MESSAGE_TEXT_LENGTH = 100_000;
 /**
  * 输入区最终发出的完整消息：正文在上、附件逐个附在下面。
  * 提交、排队与核对队列共用，避免两处拼接分叉。
- * 按 UTF-16 码元计数，可能比内核的码点计数更严格，但不会放行内核会拒绝的消息。
+ * 调用方按 Unicode 码点计数并与 `MAX_MESSAGE_TEXT_LENGTH` 比较，与内核 `_text`
+ * 的 `len()` 口径一致；UTF-16 码元会把 emoji 等补充平面字符算成两个字符。
  */
 export function composedMessageText(text: string, attachments: readonly DraftAttachment[]): string {
   return [text.trim(), ...attachments.map(file => `附件：${file.name}\n\n${file.text}`)].filter(Boolean).join("\n\n");

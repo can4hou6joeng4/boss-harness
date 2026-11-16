@@ -5,6 +5,7 @@ import { SlashCommandList, filterSlashCommands, slashMenuVisible, type SlashComm
 import { MODEL_OPTIONS, type ConversationMode } from "../data/mockData";
 import { useModelSwitch } from "../data/modelSwitchState";
 import type { ModelDescriptor, SkillDescriptor, SkillProblem } from "@boss-harness/protocol";
+import { codePointLength } from "@boss-harness/shared";
 import type { SkillCatalogState } from "../data/harnessBridge";
 import { harnessErrorText, isHarnessRpcRejection } from "../data/harnessBridge";
 import { filterSkills } from "../data/skillFilter";
@@ -266,8 +267,10 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     const text = composedMessageText(submitted.text, submitted.attachments);
     // 附件按原文拼进消息，界面允许的 4 × 200 KB 很容易超过内核单条上限；
     // 在内核之前拦下，避免把必被拒绝的消息送出（首页还会先建会话留下空会话）。
-    if (text.length > MAX_MESSAGE_TEXT_LENGTH) {
-      setNotice(`消息连同附件共 ${text.length} 字符，超过内核单条 ${MAX_MESSAGE_TEXT_LENGTH} 字符上限；请减少附件或精简正文后再发送。`);
+    // 与内核 `_text` 的 `len()` 一致按 Unicode 码点计数；UTF-16 码元会把 emoji 算成两个字符。
+    const textLength = codePointLength(text);
+    if (textLength > MAX_MESSAGE_TEXT_LENGTH) {
+      setNotice(`消息连同附件共 ${textLength} 字符，超过内核单条 ${MAX_MESSAGE_TEXT_LENGTH} 字符上限；请减少附件或精简正文后再发送。`);
       return;
     }
     const skillIds = submitted.skillIds ?? [];
