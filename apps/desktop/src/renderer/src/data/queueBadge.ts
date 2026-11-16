@@ -10,7 +10,7 @@ import type { QueuePage, QueueStatusDelta } from "./queueMapping";
  */
 export interface QueueBadge {
   activeItems: number;
-  /** 仅在投影完整（未截断且分类之和等于待处理总数）时提供。 */
+  /** 内核按全部持久项统计的分类；截断投影也可能携带，待处理数大于 0 时优先使用。 */
   counts?: QueueStatusCounts;
   /** 截断投影下本地操作带来的分类增量；合并时用于校正上一次已知计数。 */
   delta?: QueueStatusDelta;
