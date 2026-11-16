@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextCompactJob, ContextCompactPlan, ContextReadResponse } from "@boss-harness/protocol";
 import { isContextJob, manualCompactionJob } from "./contextJob";
-import { disconnectPatch } from "./contextPanelState";
+import { disconnectPatch, settleReadFlight } from "./contextPanelState";
 import { abortContextCompaction, harnessErrorText, planContextCompaction, readContext, readContextCompaction, startContextCompaction } from "./harnessBridge";
 
 interface StartAttempt {
@@ -148,8 +148,8 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
     })();
     readFlights.current.set(id, flight);
     void flight.finally(() => {
-      if (readFlights.current.get(id) === flight) readFlights.current.delete(id);
-      if (refreshAgain.current.delete(id) && current.current.connected && epoch.current === connectionEpoch) void refresh(id);
+      if (settleReadFlight(readFlights.current, refreshAgain.current, id, flight)
+        && current.current.connected && epoch.current === connectionEpoch) void refresh(id);
     });
     return flight;
   }, [applyJob, get, update]);
