@@ -3,6 +3,7 @@ import type { SessionExportSaveRequest, SessionExportSaveResult } from "@boss-ha
 import { safeSlice } from "@boss-harness/shared";
 import { ModalSurface } from "./ModalSurface";
 import { harnessErrorText } from "../data/harnessBridge";
+import { savedExportResult } from "../data/exportReceipt";
 import "../styles/context-panel.css";
 
 type ExportView = SessionExportSaveRequest["view"];
@@ -23,20 +24,6 @@ function rpcError(value: unknown): Error | null {
   const rpc = (value as { __harnessRpcError?: { code?: unknown; message?: unknown } }).__harnessRpcError;
   const message = typeof rpc?.message === "string" ? safeSlice(rpc.message, 300) : "内核拒绝了导出请求";
   return new Error(typeof rpc?.code === "number" ? `${message}（内核 ${rpc.code}）` : message);
-}
-
-function savedResult(value: unknown): SessionExportSaveResult | null {
-  if (!value || typeof value !== "object") return null;
-  const raw = value as Record<string, unknown>;
-  if (raw.saved === false && raw.canceled === true) return { saved: false, canceled: true };
-  const counts = raw.redactions as Record<string, unknown> | undefined;
-  const count = (item: unknown) => typeof item === "number" && Number.isSafeInteger(item) && item >= 0;
-  if (raw.saved !== true || typeof raw.fileName !== "string" || !raw.fileName || raw.fileName.length > 255 ||
-    !count(raw.bytes) || typeof raw.truncated !== "boolean" || !count(raw.turnCount) || !count(raw.exportedTurnCount) ||
-    (raw.toolResults !== "omitted" && raw.toolResults !== "included") || !counts ||
-    (raw.permissionsUnchanged !== undefined && typeof raw.permissionsUnchanged !== "boolean") ||
-    !["secrets", "environment", "paths", "personalInfo"].every(key => count(counts[key]))) return null;
-  return value as SessionExportSaveResult;
 }
 
 /**
@@ -85,7 +72,7 @@ export function ExportDialog({ target, onClose, branchViews, connected }: {
       if (version.current !== mine) return;
       const failure = rpcError(response);
       if (failure) throw failure;
-      const result = savedResult(response);
+      const result = savedExportResult(response);
       if (!result) throw new Error("导出结果格式无法识别");
       setStatus(result.saved ? { kind: "saved", result } : { kind: "canceled" });
     } catch (error) {

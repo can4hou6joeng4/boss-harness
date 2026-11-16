@@ -394,6 +394,7 @@ export function validateThreadExportResponse(value: unknown, request: SessionExp
     value.toolResults !== (request.includeToolResults ? "included" : "omitted") ||
     typeof value.content !== "string" || !value.content || Buffer.byteLength(value.content, "utf8") > EXPORT_MAX_BYTES ||
     typeof value.truncated !== "boolean" || !count(value.bytes) || !count(value.turnCount) || !count(value.exportedTurnCount) ||
+    value.exportedTurnCount > value.turnCount ||
     !record(value.redactions) || !["secrets", "environment", "paths", "personalInfo"].every(key => count((value.redactions as Record<string, unknown>)[key]))) {
     throw new Error("kernel returned an unrecognized session export");
   }
