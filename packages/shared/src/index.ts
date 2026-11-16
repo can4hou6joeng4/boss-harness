@@ -5,19 +5,48 @@
 const pad2 = (part: number) => String(part).padStart(2, "0");
 
 // 内核输出形如 `2026-11-05T08:00:00.123456+00:00`；演示与导出数据也用 `Z`。
-const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/;
+const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
+
+function isLeapYear(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+
+/**
+ * ISO 字段的日历校验。
+ *
+ * `Date` 会把 `2026-02-30`、`2026-04-31` 或 `24:00:00` 静默归一化成另一个日期；
+ * 严格解析必须先按年月日、时分秒与偏移范围拒绝，不能只看正则外形。
+ */
+function validIsoDateTime(parts: RegExpExecArray): boolean {
+  const year = Number(parts[1]);
+  const month = Number(parts[2]);
+  const day = Number(parts[3]);
+  const hour = Number(parts[4]);
+  const minute = Number(parts[5]);
+  const second = Number(parts[6]);
+  const offsetHour = parts[8] === undefined ? 0 : Number(parts[8]);
+  const offsetMinute = parts[9] === undefined ? 0 : Number(parts[9]);
+  if (![year, month, day, hour, minute, second, offsetHour, offsetMinute].every(Number.isInteger)) return false;
+  if (month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59) return false;
+  if (offsetHour > 23 || offsetMinute > 59) return false;
+  const monthDays = month === 2 && isLeapYear(year) ? 29 : MONTH_DAYS[month - 1];
+  return monthDays !== undefined && day <= monthDays;
+}
 
 /**
  * 严格解析内核与持久记录中的 ISO 日期时间。
  *
  * `Date.parse` 会把 `"1"`、`"2026"`、只有日期的字符串或带空格的本地时间都猜成具体
- * 时刻；这里只接受带秒与时区的完整 ISO 时间，缺失、空白或无法解析时返回 null。
- * 桌面时间工具、回合耗时、用量行、会话排序与相对时间共用这一判定。
+ * 时刻；这里只接受带秒与时区的完整 ISO 时间，并在交给 `Date` 前校验日历字段，
+ * 缺失、空白、无效日期或无法解析时返回 null。桌面时间工具、回合耗时、用量行、
+ * 会话排序与相对时间共用这一判定。
  */
 export function parseIsoDateTime(value: unknown): Date | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
-  if (!ISO_DATE_TIME.test(trimmed)) return null;
+  const parts = ISO_DATE_TIME.exec(trimmed);
+  if (!parts || !validIsoDateTime(parts)) return null;
   const at = new Date(trimmed);
   return Number.isNaN(at.getTime()) ? null : at;
 }
