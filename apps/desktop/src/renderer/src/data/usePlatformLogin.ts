@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PlatformLoginStatus } from "@boss-harness/protocol";
 import { harnessErrorText } from "./harnessBridge";
-import { fallbackLoginStatus, loginActive } from "./platformLoginState";
+import { fallbackLoginStatus, loginActive, platformLoginStatusOf } from "./platformLoginState";
 
 const focusComposer = () => requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(".thread-composer-inner textarea")?.focus());
 
@@ -20,11 +20,23 @@ export function usePlatformLogin() {
     if (!window.boss) return;
     let alive = true;
     const initial = revision.current;
-    const unsubscribe = window.boss.onPlatformLogin(next => {
+    const unsubscribe = window.boss.onPlatformLogin(raw => {
       revision.current += 1;
-      if (alive) { setStatusError(""); setStatus(next); }
+      if (!alive) return;
+      // 广播同样来自进程边界：未知状态或非法字段整体拒绝，界面保留上一次有效状态。
+      const next = platformLoginStatusOf(raw);
+      if (!next) {
+        setStatusError("登录状态更新无法识别，已保留上一次有效状态；请重新打开官方页面，或重新连接后再试。");
+        return;
+      }
+      setStatusError(""); setStatus(next);
     });
-    void window.boss.platformLogin("status").then(next => { if (alive && initial === revision.current) setStatus(next); })
+    void window.boss.platformLogin("status").then(raw => {
+      if (!alive || initial !== revision.current) return;
+      const next = platformLoginStatusOf(raw);
+      if (!next) { setStatusError("无法读取上一次登录状态：回执无法识别"); return; }
+      setStatus(next);
+    })
       .catch(cause => {
         // 读不到上一次登录状态时，面板会当成「尚未开始」；记下原因，等用户准备登录时提示，避免撞上仍在进行的登录。
         if (alive && initial === revision.current) setStatusError(`无法读取上一次登录状态：${harnessErrorText(cause)}`);
@@ -46,8 +58,12 @@ export function usePlatformLogin() {
     flight.current = true; setBusy(true);
     const before = revision.current;
     try {
-      const next = await window.boss.platformLogin("open", { threadId });
-      if (before === revision.current) setStatus(next);
+      const raw = await window.boss.platformLogin("open", { threadId });
+      if (before !== revision.current) return;
+      // 回执是界面状态的唯一来源：无法识别的形状按失败处理，不能用可疑值覆盖当前状态。
+      const next = platformLoginStatusOf(raw);
+      if (!next) throw new Error("登录状态回执无法识别");
+      setStatus(next);
     } catch (cause) {
       setError({ threadId, message: `无法启动登录：${harnessErrorText(cause)}。请检查本机连接后重试；已有账号登录态仍保留。` });
       if (before === revision.current) {
@@ -64,8 +80,13 @@ export function usePlatformLogin() {
     flight.current = true; setBusy(true); setError(null);
     const before = revision.current;
     try {
-      const next = await window.boss.platformLogin("cancel", { threadId, browserId: status.browserId });
-      if (before === revision.current) setStatus(next);
+      const raw = await window.boss.platformLogin("cancel", { threadId, browserId: status.browserId });
+      if (before === revision.current) {
+        // 取消未确认时保留浏览器分栏与取消入口，不把无法识别的回执当成已取消。
+        const next = platformLoginStatusOf(raw);
+        if (!next) throw new Error("取消回执无法识别");
+        setStatus(next);
+      }
       setPanelThreadId(null);
       focusComposer();
     } catch (cause) { setError({ threadId, message: `取消结果未确认：${harnessErrorText(cause)}。请检查连接后重试。` }); }
