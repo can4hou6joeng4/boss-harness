@@ -186,11 +186,16 @@ class SkillCatalog:
         都是真实文件 I/O，不能让一个塞满坏目录的工作区把读取次数放大到目录总量。
         到达扫描上限时以 ``candidatesTruncated`` 如实说明仍有目录未检查，界面因此
         不会把不完整清单当作总数。
+
+        有效技能超过 ``MAX_SKILL_DESCRIPTORS`` 时以 ``skillsTruncated`` 说明清单只含
+        字典序前若干项：截断本身有界，但目录已经全部检查，``candidatesTruncated`` 不会
+        置位，缺任何一个标记都会让界面把部分清单说成总数。
         """
         limit = self.MAX_SKILL_DESCRIPTORS
         while True:
             skills: list[dict] = []
             problems: list[dict] = []
+            skills_dropped = False
             candidates, dropped = self._candidate_paths(limit)
             for skill_id, path in candidates:
                 # Linux 上非 UTF-8 文件名经 surrogateescape 解码后带孤立代理项，这种 id
@@ -210,6 +215,10 @@ class SkillCatalog:
                 fields = self._fields(source)
                 if len(skills) < self.MAX_SKILL_DESCRIPTORS:
                     skills.append(self._descriptor(skill_id, fields, digest, byte_length))
+                else:
+                    # 目录已全部检查也可能有第 101 个有效技能；必须单独记下，否则
+                    # skills/list 的数量会被界面与文档当作总数。
+                    skills_dropped = True
             # 没有候选被丢弃才说明目录已全部看到；仅比较长度会把「目录恰好等于窗口」
             # 误判成还有目录未检查，界面随之误报截断。
             exhausted = not dropped
@@ -219,6 +228,7 @@ class SkillCatalog:
                 return {"skills": skills, "problems": problems[:self.MAX_SKILL_DESCRIPTORS],
                         **({"problemsTruncated": True}
                            if len(problems) > self.MAX_SKILL_DESCRIPTORS else {}),
+                        **({"skillsTruncated": True} if skills_dropped else {}),
                         **({} if exhausted else {"candidatesTruncated": True})}
             limit = min(limit * 2, self.MAX_SKILL_SCAN_ENTRIES)
 

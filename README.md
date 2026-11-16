@@ -55,10 +55,11 @@
 
 ## 近期进展
 
-`v0.2.0-rc.42` 候选汇总 rc.42 之后 2 项 `skills/list` 报告修正：
+`v0.2.0-rc.42` 候选汇总 rc.42 之后 3 项 `skills/list` 报告修正：
 
 - **未加载项清单独立封顶**（[Issue #1422](https://github.com/can4hou6joeng4/boss-harness/issues/1422)）：此前有效技能凑满 100 个展示上限就停止枚举，排在后面的坏目录完全不出现在未加载清单里。现在两份清单各自封顶，扫描最多检查 800 个目录项，超过展示或枚举上限时分别返回 `problemsTruncated` 与 `candidatesTruncated`。
 - **恰好等于窗口不再误报截断**（[Issue #1424](https://github.com/can4hou6joeng4/boss-harness/issues/1424)）：候选枚举改为显式记录是否丢弃过目录，目录数恰好顶到窗口但已全部检查时不再返回 `candidatesTruncated`。
+- **有效技能超限如实标记**（[Issue #1431](https://github.com/can4hou6joeng4/boss-harness/issues/1431)）：可加载技能超过 100 个展示上限时，清单只含字典序前若干项；此前第 101 个及以后的技能被静默丢弃，界面会把部分清单说成总数。现在返回 `skillsTruncated`，界面在计数后加「+」并说明清单不完整。
 
 本候选同时包含此前准备的桌面恢复修正、附件分段读取、握手、快照、停止目标与队列压缩覆盖校验，以及队列计数、任务核对、会话恢复、审批回执、上下文压缩、工作区技能、搜索导出和桌面反馈改进。完整变化保留在 [CHANGELOG](CHANGELOG.md)，自定义客户端的升级约束见[使用指南](docs/USER_GUIDE.md#当前候选与客户端升级)。
 
