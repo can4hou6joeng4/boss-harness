@@ -44,6 +44,8 @@ _ATTACHMENT_DIGEST = re.compile(r"[a-f0-9]{64}\Z")
 _ATTACHMENT_TEMP = re.compile(r"tmp-[a-f0-9]{32}\Z")
 _DELETE_INTENT = re.compile(r"\.delete-([a-f0-9]{12})\.json\Z")
 _TERMINAL = frozenset({"completed", "interrupted", "blocked", "error"})
+#: 回合归并自己的顺序记账字段；持久载荷同名键不可信，既不能覆盖内部值，也不随公开回合返回。
+_TURN_INTERNAL_FIELDS = frozenset({"firstOrdinal", "lastOrdinal", "boundaryOrdinal"})
 _SEARCH_THREADS = 100
 _SEARCH_MATCHES = 50
 _SEARCH_PER_THREAD = 5
@@ -1681,12 +1683,13 @@ class SessionStore:
                         "startedAt": entry.get("timestamp", ""), "firstOrdinal": previous_end + 1}
                 turns[turn_id] = turn
             first_ordinal = turn["firstOrdinal"]
-            boundary_ordinal = turn.get("boundaryOrdinal")
-            turn.update(payload)
+            # 持久载荷不可信：顺序字段是归并过程的记账，不能被同名键覆盖。否则首条
+            # 终态记录的 boundaryOrdinal 会原样留在内部对象上，fork 的边界切片拿到
+            # 字符串就抛 TypeError（-32603），拿到负数则静默截断分支。
+            turn.update({key: value for key, value in payload.items()
+                         if key not in _TURN_INTERNAL_FIELDS})
             turn.update(threadId=thread_id, turnId=turn_id, firstOrdinal=first_ordinal,
                         lastOrdinal=ordinal, updatedAt=entry.get("timestamp", ""))
-            if boundary_ordinal is not None:
-                turn["boundaryOrdinal"] = boundary_ordinal
             if isinstance(turn.get("status"), str) and turn.get("status") in _TERMINAL:
                 turn.setdefault("boundaryOrdinal", ordinal)
                 turn.setdefault("completedAt", entry.get("timestamp", ""))
@@ -1696,7 +1699,7 @@ class SessionStore:
     @staticmethod
     def _public_turn(turn: dict) -> dict:
         return {key: value for key, value in turn.items()
-                if key not in {"firstOrdinal", "lastOrdinal", "boundaryOrdinal"}}
+                if key not in _TURN_INTERNAL_FIELDS}
 
     @staticmethod
     def _queue_status_counts(entries: list[dict]) -> dict[str, int]:
