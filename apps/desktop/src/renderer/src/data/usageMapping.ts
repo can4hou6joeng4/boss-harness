@@ -17,7 +17,8 @@ export function bucketOf(value: unknown): ThreadUsageBucket | null {
   if (!COUNT_KEYS.every(key => isCount(raw[key])) || !NULLABLE_KEYS.every(key => raw[key] === null || isCount(raw[key]))) return null;
   const reasons = raw.unverifiedReasons;
   if (!reasons || typeof reasons !== "object" || Array.isArray(reasons)) return null;
-  const unverifiedReasons: Record<string, number> = {};
+  // 空原型承接内核返回的任意原因键；普通对象会给 "__proto__" 赋值走 setter，丢掉该条数据。
+  const unverifiedReasons: Record<string, number> = Object.create(null) as Record<string, number>;
   for (const [reason, amount] of Object.entries(reasons as Record<string, unknown>).slice(0, 20)) {
     if (!isCount(amount)) return null;
     unverifiedReasons[safeSlice(reason, 40)] = amount;

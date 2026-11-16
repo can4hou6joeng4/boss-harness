@@ -37,10 +37,19 @@ export function usageAmount(bucket: ThreadUsageBucket, value: number | null): nu
   return bucket.verifiedRequests === 0 || value === null ? null : value;
 }
 
+/**
+ * 原因键的展示文案。只读取 USAGE_REASONS 的自有属性：内核响应可能带任意键，
+ * `constructor` / `toString` 等原型链成员不能被当成已知原因，否则会显示函数源码。
+ */
+function reasonLabel(reason: string): string {
+  const known = Object.prototype.hasOwnProperty.call(USAGE_REASONS, reason) ? USAGE_REASONS[reason] : undefined;
+  return known ?? reason;
+}
+
 /** 未计入原因与次数，保持内核返回的顺序。 */
 export function usageReasonEntries(bucket: ThreadUsageBucket): Array<{ label: string; count: number }> {
   return Object.entries(bucket.unverifiedReasons)
-    .map(([reason, count]) => ({ label: USAGE_REASONS[reason] ?? reason, count }));
+    .map(([reason, count]) => ({ label: reasonLabel(reason), count }));
 }
 
 /** 单行摘要片段：压缩空白后截断，空内容回退到给定文案。 */
