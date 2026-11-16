@@ -76,6 +76,7 @@ import { approvalDeadlineMs, mapPendingApprovals, type PendingApprovalList } fro
 import { readPagedItems } from "./pagedRead";
 import { trackCursor } from "./cursorChain";
 import { threadSummaryOf, uniqueThreadIds } from "./threadList";
+import { skillDescriptorOf, uniqueSkillIds } from "./skillCatalog";
 import { toolDurationMs } from "./toolTiming";
 import {
   approvalDecision, itemContextEdit, itemResultRef, itemSource, itemText, itemToolName,
@@ -568,13 +569,18 @@ export async function listSkills(): Promise<{ skills: SkillDescriptor[]; root: s
   if (!api) throw new Error("本地 Harness 未连接");
   const response = await api.request<SkillListResponse>(ClientMethods.skillsList);
   if (!response || !Array.isArray(response.skills)) throw new Error("技能目录响应无法识别");
+  // 技能页按 id 选中并用 digest 校验读取 / 写入；损坏条目不能进入筛选与详情。
+  const skills = response.skills.map(skillDescriptorOf);
+  if (skills.some(skill => skill === null)) throw new Error("技能目录包含无法识别的条目");
+  const known = skills as SkillDescriptor[];
+  if (!uniqueSkillIds(known)) throw new Error("技能目录包含重复技能");
   // 旧内核不返回 root / problems：按「未知来源、没有已知问题」处理，而不是猜。
   const problems = Array.isArray(response.problems)
     ? response.problems.filter(item => item && typeof item.id === "string" && typeof item.reason === "string"
       && item.id.length > 0 && item.id.length <= 200 && item.reason.length > 0 && item.reason.length <= 300)
     : [];
   // 截断标记只在内核明确返回 true 时生效；旧内核视为清单完整。
-  return { skills: response.skills, root: typeof response.root === "string" && response.root ? response.root : null, problems,
+  return { skills: known, root: typeof response.root === "string" && response.root ? response.root : null, problems,
     skillsTruncated: response.skillsTruncated === true,
     problemsTruncated: response.problemsTruncated === true, candidatesTruncated: response.candidatesTruncated === true };
 }
