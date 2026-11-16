@@ -7,6 +7,14 @@ interface Api { request<T>(method: string, params?: unknown): Promise<T> }
 /** 单次恢复允许的分页上限：只兜住异常内核造成的无尽翻页，正常会话远达不到。 */
 const MAX_PAGE_COUNT = 10_000;
 const MAX_CURSOR_LENGTH = 2048;
+const ITEM_ID_LIMIT = 200;
+
+/** 分页条目必须带可用于定位与合并的标识；原始值、数组与空 id 都不能进入快照。 */
+function threadItemId(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const id = (value as { id?: unknown }).id;
+  return typeof id === "string" && id.length > 0 && id.length <= ITEM_ID_LIMIT ? id : null;
+}
 
 /** 冻结快照声明的条目总数；旧内核缺省，存在但非法时整体拒绝。 */
 function snapshotItemCount(value: unknown): number | undefined {
@@ -228,6 +236,7 @@ export class HarnessReplica {
   ): Promise<ThreadItem[]> {
     const items: ThreadItem[] = [];
     const seen = new Set<string>();
+    const seenIds = new Set<string>();
     let cursor: string | null = null;
     for (let pages = 0; ; pages += 1) {
       if (pages >= MAX_PAGE_COUNT) throw new Error("会话条目分页过多，未能完整读取");
@@ -239,7 +248,14 @@ export class HarnessReplica {
         throw new Error("会话条目分页游标无效");
       }
       if (next !== null) trackCursor(seen, next, "会话条目");
-      items.push(...page.items);
+      for (const entry of page.items) {
+        const id = threadItemId(entry);
+        if (id === null) throw new Error("会话条目缺少有效标识");
+        // 同一条记录只能出现一次；重复 id 会让消息定位与本地状态合并无法区分条目。
+        if (seenIds.has(id)) throw new Error(`会话条目标识重复：${safeSlice(id, 40)}`);
+        seenIds.add(id);
+        items.push(entry);
+      }
       if (next === null) {
         // 冻结快照的条目数固定；提前结束或多读都说明历史不完整，不能静默展示。
         if (expectedCount !== undefined && items.length !== expectedCount) {
