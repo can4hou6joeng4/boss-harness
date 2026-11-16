@@ -4,6 +4,26 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+## 0.2.0-rc.43 - 2026-11-16
+
+本节汇总第四十三个候选版本的源码与交付内容；rc.16 至 rc.43 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.42，本次聚合 2 项文档交付：新增安全报告政策并在 README 的安全边界与项目导航加入入口（#1444），以及修正 README 中 rc.42 候选基线表述（#1446）。按持续小版本迭代与版本、文档同步要求触发候选准备。
+
+升级注意：本候选不含运行时代码、协议或持久化格式变更；npm 与 Python 包仅版本号变化，已安装的 rc.42 源码无需迁移。安全政策只说明报告渠道与负责边界，不代表仓库已启用私密漏洞报告、secret scanning 或 Dependabot 安全更新；这些设置需单独授权。最新实际发布仍为 rc.15。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
+
+### 变更
+
+- [Issue #1448](https://github.com/can4hou6joeng4/boss-harness/issues/1448)：同步根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本为 npm `0.2.0-rc.43` / Python `0.2.0rc43`；将 rc.42 之后 2 项文档交付归入本候选，同步 README 近期进展与版本表、使用指南的候选状态与技术契约，保留 rc.15 首次实际发布入口与历史版本记录。候选准备不代表实际 tag、Release、资产上传或包注册表发布。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
+
+- [Issue #1444](https://github.com/can4hou6joeng4/boss-harness/issues/1444)：新增安全报告政策 `SECURITY.md`，说明支持范围、首选非公开报告渠道、报告应含与不得含的内容、本项目负责的状态目录、JSON-RPC、工具审批与导出脱敏边界，以及不负责的上游 CLI、用户自定义端点、真实账号与依赖漏洞范围；README 的安全边界与项目导航同步加入入口。政策不假定 GitHub 私密漏洞报告入口已经可见，启用 secret scanning、Dependabot 安全更新等仓库设置仍需单独授权。
+
+- [Issue #1446](https://github.com/can4hou6joeng4/boss-harness/issues/1446)：README「近期进展」把 rc.42 候选写成「汇总 rc.42 之后 6 项修正」，与同一文件的版本表、CHANGELOG 的「相对 rc.41」及 Issue #1443 的发布正文草稿不一致。现已改为「相对 rc.41」，6 项修正清单、链接与其余表述不变，读者可据此判断 rc.42 实际包含的变化。仅文档修正。
+
 ## 0.2.0-rc.42 - 2026-11-16
 
 本节汇总第四十二个候选版本的源码与交付内容；rc.16 至 rc.42 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
