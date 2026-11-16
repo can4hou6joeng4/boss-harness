@@ -64,6 +64,8 @@ export interface CockpitQueue {
   queued: number;
   delivering: number;
   paused: number;
+  /** 分类计数来自内核持久统计，不受投影截断影响。 */
+  countsExact?: boolean;
   truncated: boolean;
 }
 
@@ -288,20 +290,27 @@ export function readCockpitModels(values: unknown): CockpitModel[] {
   });
 }
 
-/** 队列投影统计：分类计数只覆盖本次有界返回的可见项；active 优先使用内核的持久总数。 */
+/**
+ * 队列投影统计：分类优先使用内核按全部持久项统计的 `counts`，与队列面板、侧栏徽标一致；
+ * 旧内核缺省分类或其合计与待处理总数不一致时，才退回按本次有界返回的可见项统计。
+ */
 export function readCockpitQueue(page: QueuePage | null): CockpitQueue | null {
   if (!page) return null;
-  const counts = { queued: 0, delivering: 0, paused: 0 };
+  const visible = { queued: 0, delivering: 0, paused: 0 };
   for (const item of page.items) {
-    if (item.status === "queued") counts.queued += 1;
-    else if (item.status === "delivering") counts.delivering += 1;
-    else if (item.status === "paused") counts.paused += 1;
+    if (item.status === "queued") visible.queued += 1;
+    else if (item.status === "delivering") visible.delivering += 1;
+    else if (item.status === "paused") visible.paused += 1;
   }
   const total = page.totalItems ?? page.items.length;
   const active = page.activeItems;
+  const persistent = page.counts && active !== undefined
+    && page.counts.queued + page.counts.delivering + page.counts.paused === active ? page.counts : undefined;
+  const counts = persistent ?? visible;
   return {
     ...(active !== undefined ? { active } : {}),
     ...counts,
+    ...(persistent ? { countsExact: true } : {}),
     truncated: page.truncated === true || page.items.length < total,
   };
 }
@@ -379,6 +388,7 @@ export function queueSummaryText(queue: CockpitQueue | null): string {
   const active = queue.active !== undefined
     ? `待处理 ${queue.active} 项`
     : `可见待处理 ${visible} 项（旧内核未提供总数）`;
-  const visibleNote = queue.truncated ? "（分类按可见项计数）" : "";
+  // 只有分类确实来自可见项时才提示口径；持久分类已是全量事实，不需要降级说明。
+  const visibleNote = queue.truncated && queue.countsExact !== true ? "（分类按可见项计数）" : "";
   return `${active} · 排队 ${queue.queued} / 投递中 ${queue.delivering} / 暂停 ${queue.paused}${visibleNote}`;
 }

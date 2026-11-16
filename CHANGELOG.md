@@ -8,6 +8,8 @@
 
 - [Issue #1571](https://github.com/can4hou6joeng4/boss-harness/issues/1571)：`runtime/resources/read` 的渲染层读取器此前只按 `ownersTruncated` / `waitersTruncated` 判断截断，计数大于已返回明细但标记缺失或误报 `false` 时，驾驶舱会显示「运行中 owner 5」却只列出 1 行且没有「可见 N」提示；计数小于明细时标题数字还会比实际行数少。现在计数大于明细即按截断处理，计数小于明细视为矛盾响应整体报错；完整快照与显式截断行为不变。只改渲染层，不改变 RPC、协议或版本号。
 
+- [Issue #1575](https://github.com/can4hou6joeng4/boss-harness/issues/1575)：驾驶舱的队列摘要此前只按已载入条目重算分类，忽略 `queue/list` 已返回的持久分类计数；队列超过投影上限时，暂停项会被低估，分类合计与待处理总数矛盾，也与队列面板、侧栏徽标使用的数字不一致。现在摘要优先采用与待处理总数对齐的持久分类，旧内核缺省分类或分类合计不一致时才退回按可见项统计并保留「分类按可见项计数」提示。只改渲染层与文档，不改变 RPC、协议或版本号。
+
 ## 0.2.0-rc.54 - 2026-11-16
 
 本节汇总第五十四个候选版本的源码与交付内容；rc.16 至 rc.54 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
