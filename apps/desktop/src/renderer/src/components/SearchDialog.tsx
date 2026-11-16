@@ -9,6 +9,7 @@ import { searchEmptyCopy, searchStatusText, MESSAGE_SEARCH_MIN_LENGTH, MESSAGE_S
 import { splitKernelQueryHighlight, splitQueryHighlight } from "../data/findHighlight";
 import { visibleThreadSearchHits, liveMessageSearchState, type MessageSearchSettlement, type ThreadSearchBatch } from "../data/messageSearch";
 import { searchThreadMessages } from "../data/harnessBridge";
+import { threadSearchResultOf } from "../data/threadSearchResult";
 import { clearRecentSearches, readRecentSearches, rememberRecentSearch, RECENT_SEARCH_MIN_LENGTH } from "../data/recentSearches";
 import { findSeedFromSelection, isEditableTarget } from "../data/findSeed";
 import { formatRelativeTime, codePointLength } from "@boss-harness/shared";
@@ -90,12 +91,13 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
     const timer = window.setTimeout(() => {
       void searchThreadMessages(needle, MESSAGE_SEARCH_LIMIT, includeArchived).then(result => {
         if (cancelled) return;
-        // 响应形状不可信：matches 不是数组时按失败处理，不能把畸形值带进渲染期。
-        if (!result || !Array.isArray(result.matches)) {
+        // 响应形状不可信：逐项校验命中的标识、角色与片段，畸形条目整体拒绝，不带进渲染期。
+        const parsed = threadSearchResultOf(result);
+        if (!parsed) {
           setHitBatch(null); setSettled({ query: needle, includeArchived }); setMessageState("error");
           return;
         }
-        setHitBatch({ query: needle, includeArchived, matches: result.matches, truncated: result.truncated === true });
+        setHitBatch({ query: needle, includeArchived, matches: parsed.matches, truncated: parsed.truncated });
         setSettled({ query: needle, includeArchived });
         setMessageState("ready");
       }).catch(() => {
