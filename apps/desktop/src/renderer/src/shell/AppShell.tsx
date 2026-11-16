@@ -26,7 +26,8 @@ import { focusResolution } from "../data/focusIntent";
 import { approvalSoundEnabled, playApprovalChime } from "../data/approvalChime";
 import { isCommandChord, isNotificationsShortcut } from "../data/shortcuts";
 import { booleanPreference, projectFolders, stringList, stringRecord } from "../data/preferenceShapes";
-import { planAliasMigrations } from "../data/aliasMigration";
+import { codePointLength } from "@boss-harness/shared";
+import { MAX_ALIAS_LENGTH, planAliasMigrations } from "../data/aliasMigration";
 import { type ModelDescriptor, type SkillDescriptor, type ToolDescriptor } from "@boss-harness/protocol";
 import { createComposerDraft, withDraftText, type ComposerDraft, type UpdateComposerDraft, type ComposerSend } from "../data/composerDraft";
 import { homeDraftHasContent, templateFillIntent, withHomeDraftSkill } from "../data/homeDraftFill";
@@ -521,6 +522,7 @@ export function AppShell(props: AppShellProps) {
     const target = rename;
     const nextName = name.trim();
     if (!target || renameBusy || !nextName) return;
+    if (codePointLength(nextName) > MAX_ALIAS_LENGTH) return;
     // 无内核桥接（浏览器预览）时保留原本地别名行为；有桥接则必须写入内核，失败不静默回退。
     if (!props.onRenameSession) {
       setAliases(previous => ({ ...previous, [target.id]: nextName }));
@@ -717,6 +719,10 @@ export function AppShell(props: AppShellProps) {
     const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = title.replace(/[\\/:*?"<>|]/g, "_") + ".md"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
+  // 与内核 `thread/name/set` 的 500 字符上限一致；HTML `maxLength` 按 UTF-16 码元，
+  // 500 个码点最多占 1000 个码元，用 2× 作输入安全网不会拦住合法名称。
+  const renameNameLength = codePointLength(name.trim());
+  const renameNameTooLong = rename !== null && renameNameLength > MAX_ALIAS_LENGTH;
   return <>
     <div className={`app-container ${window.boss ? "native-window" : "browser-window"} ${browserOpen ? `with-browser${login.expanded ? " browser-expanded" : ""}` : summaryOpen && hasConversation ? "with-summary" : ""}`}>
       <TitleBar summaryAvailable={summaryAvailable && !browserOpen} hasConversation={hasConversation} title={title} isSidebarOpen={props.isSidebarOpen} isSummaryOpen={summaryOpen && !browserOpen} canGoBack={nextReachableIndex(history, cursor, -1, routeReachable) >= 0} canGoForward={nextReachableIndex(history, cursor, 1, routeReachable) >= 0} onBack={() => go(-1)} onForward={() => go(1)} onToggleSidebar={props.onToggleSidebar} onToggleSummary={() => setSummaryOpen(!summaryOpen)} onNewTask={newTask} onOpenSettings={() => openSettings()} onOpenRewind={props.onOpenRewind} onOpenContext={props.onOpenContext} onOpenUsage={props.onOpenUsage} onOpenExport={props.onOpenExport} onOpenBranches={props.sessionBranches ? () => props.sessionBranches?.onOpen() : undefined} onRename={() => { if (props.activeSession) { setRename(props.activeSession); setName(title); } }} onPin={() => { const id = props.activeSession?.id; if (id) setPinned(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]); }} isPinned={pinned.includes(props.activeSession?.id ?? "")} onDelete={() => { if (props.activeSession) setDeleteSession(props.activeSession); }} onExport={exportChat} browserOpen={browserOpen} onOpenBrowser={window.boss ? () => { if (browserOpen) login.closePanel(); else void loginEntry(); } : undefined} />
@@ -764,7 +770,7 @@ export function AppShell(props: AppShellProps) {
     {search && <SearchDialog folders={allFolders} onSelect={select} onOpenMessage={openMessage} onClose={() => setSearch(false)} searchMessages={props.threadSearchable === true} searchArchived={props.threadSearchArchived === true} />}
     {notifications && <NotificationsDialog folders={allFolders} preview={props.simulateLocal === true} refreshToken={approvalPulse} onSelect={select} onOpenMessage={openMessage} onLoaded={(approvals, truncated) => { setPendingApprovals(approvals.length); setPendingApprovalsTruncated(truncated); setApprovalCounts(countPendingApprovalsByThread(approvals)); }} onClose={() => setNotifications(false)} />}
     {newProject && <ModalSurface title="新建项目" onClose={() => setNewProject(false)} className="compact-dialog"><form className="dialog-form" onSubmit={event => { event.preventDefault(); if (!projectName.trim()) return; const id = "group-" + crypto.randomUUID(); setGroups(prev => [...prev, { id, name: projectName.trim(), sessions: [] }]); setDraftProjectId(id); openRoute({ page: "home" }); setProjectName(""); setNewProject(false); }}><label>项目名称<input autoFocus maxLength={60} value={projectName} onChange={event => setProjectName(event.target.value)} placeholder="例如：核心产研团队招聘" /></label><p>创建一个保存在此设备上的项目分组。</p><button className="solid-button" disabled={!projectName.trim()}>创建项目</button></form></ModalSurface>}
-    {rename && <ModalSurface title="更改显示名称" onClose={() => { if (!renameBusy) setRename(null); }} closeDisabled={renameBusy} className="compact-dialog"><form className="dialog-form" onSubmit={event => { event.preventDefault(); void confirmRenameSession(); }}><label>聊天名称<input autoFocus value={name} maxLength={100} disabled={renameBusy} onChange={event => setName(event.target.value)} /></label><p>{props.onRenameSession ? "名称会写入本地内核并随会话保存。" : "只更新此工作区的显示名称。"}</p><button className="solid-button" disabled={!name.trim() || renameBusy}>{renameBusy ? "正在保存…" : "保存"}</button></form></ModalSurface>}
+    {rename && <ModalSurface title="更改显示名称" onClose={() => { if (!renameBusy) setRename(null); }} closeDisabled={renameBusy} className="compact-dialog"><form className="dialog-form" onSubmit={event => { event.preventDefault(); void confirmRenameSession(); }}><label>聊天名称<input autoFocus value={name} maxLength={MAX_ALIAS_LENGTH * 2} disabled={renameBusy} onChange={event => setName(event.target.value)} /></label><p>{props.onRenameSession ? "名称会写入本地内核并随会话保存。" : "只更新此工作区的显示名称。"}</p>{renameNameTooLong && <p className="context-panel-warning" role="alert">名称最多 {MAX_ALIAS_LENGTH} 字符</p>}<button className="solid-button" disabled={!name.trim() || renameBusy || renameNameTooLong}>{renameBusy ? "正在保存…" : "保存"}</button></form></ModalSurface>}
     {renameProject && <ModalSurface title="更改项目显示名称" onClose={() => setRenameProject(null)} className="compact-dialog"><form className="dialog-form" onSubmit={event => { event.preventDefault(); if (!folderName.trim()) return; setProjectAliases(prev => ({ ...prev, [renameProject.id]: folderName.trim() })); setRenameProject(null); }}><label>项目名称<input autoFocus maxLength={60} value={folderName} onChange={event => setFolderName(event.target.value)} /></label><p>显示名称保存在此设备上。</p><button className="solid-button" disabled={!folderName.trim()}>保存</button></form></ModalSurface>}
     {removeProject && <ModalSurface title="移除本地分组" onClose={() => setRemoveProject(null)} className="compact-dialog"><div className="dialog-form"><p>移除“{removeProject.name}”后，其中的聊天会回到原项目。</p><div className="dialog-actions"><button className="secondary-button" onClick={() => setRemoveProject(null)}>取消</button><button className="solid-button" onClick={() => { const id = removeProject.id; setGroups(prev => prev.filter(folder => folder.id !== id)); setThreadGroups(prev => Object.fromEntries(Object.entries(prev).filter(([, folderId]) => folderId !== id))); if (draftProjectId === id) setDraftProjectId(""); setRemoveProject(null); }}>移除分组</button></div></div></ModalSurface>}
     {deleteSession && (() => {
