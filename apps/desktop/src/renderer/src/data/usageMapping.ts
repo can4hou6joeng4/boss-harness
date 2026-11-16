@@ -202,6 +202,12 @@ export function summaryJobsOf(
   }
   const jobs = page.summaryJobs.slice(0, MAX_SUMMARY_JOBS).map(summaryJobOf);
   if (jobs.some(job => !job)) throw new Error("内核返回的摘要任务用量格式无法识别");
+  // 表格按 jobId 作为 key：重复标识会让行错置或复用错误状态，与回合明细同一口径拒绝。
+  const seen = new Set<string>();
+  for (const job of jobs as ThreadUsageSummaryJob[]) {
+    if (seen.has(job.jobId)) throw new Error(`摘要任务用量条目标识重复：${safeSlice(job.jobId, 40)}`);
+    seen.add(job.jobId);
+  }
   const count = page.summaryJobCount ?? page.summaryJobs.length;
   if (count < page.summaryJobs.length) throw new Error("内核返回的摘要任务计数与明细不一致");
   return {
