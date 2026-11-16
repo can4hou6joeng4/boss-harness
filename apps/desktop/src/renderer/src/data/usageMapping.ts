@@ -8,6 +8,8 @@ import { parseIsoDateTime } from "./timeFormat";
 const COUNT_KEYS = ["requests", "verifiedRequests", "unverifiedRequests", "promptTokens",
   "uncachedInputTokens", "outputTokens"] as const;
 const NULLABLE_KEYS = ["cacheReadTokens", "cacheWriteTokens", "reasoningTokens"] as const;
+/** 未验证原因最多展示 20 项；合计校验仍覆盖全部键，避免截断掩盖矛盾。 */
+const REASON_LIMIT = 20;
 
 export const isCount = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
@@ -16,17 +18,28 @@ export function bucketOf(value: unknown): ThreadUsageBucket | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
   if (!COUNT_KEYS.every(key => isCount(raw[key])) || !NULLABLE_KEYS.every(key => raw[key] === null || isCount(raw[key]))) return null;
+  const requests = raw.requests as number, verified = raw.verifiedRequests as number;
+  const unverified = raw.unverifiedRequests as number;
+  // 内核每次请求恰好计入已验证或未验证之一；两项合计必须等于请求总数，否则分类无法解释差额。
+  if (verified + unverified !== requests) return null;
   const reasons = raw.unverifiedReasons;
   if (!reasons || typeof reasons !== "object" || Array.isArray(reasons)) return null;
   // 空原型承接内核返回的任意原因键；普通对象会给 "__proto__" 赋值走 setter，丢掉该条数据。
   const unverifiedReasons: Record<string, number> = Object.create(null) as Record<string, number>;
-  for (const [reason, amount] of Object.entries(reasons as Record<string, unknown>).slice(0, 20)) {
-    if (!isCount(amount)) return null;
-    unverifiedReasons[safeSlice(reason, 40)] = amount;
+  let reasonTotal = 0, keptReasons = 0;
+  for (const [reason, amount] of Object.entries(reasons as Record<string, unknown>)) {
+    if (!isCount(amount) || !Number.isSafeInteger(reasonTotal + amount)) return null;
+    reasonTotal += amount;
+    if (keptReasons < REASON_LIMIT) {
+      unverifiedReasons[safeSlice(reason, 40)] = amount;
+      keptReasons += 1;
+    }
   }
+  // 每个未验证请求恰好记录一次原因；展示截断不影响这里对全部键的合计校验。
+  if (reasonTotal !== unverified) return null;
   // 新内核才返回 unreportedRequests（未上报 usage，unverifiedRequests 的子集）；旧内核缺省视为不区分。
   const unreported = raw.unreportedRequests;
-  if (unreported !== undefined && (!isCount(unreported) || unreported > (raw.unverifiedRequests as number))) return null;
+  if (unreported !== undefined && (!isCount(unreported) || unreported > unverified)) return null;
   const bucket = {} as ThreadUsageBucket;
   for (const key of COUNT_KEYS) bucket[key] = raw[key] as number;
   for (const key of NULLABLE_KEYS) bucket[key] = raw[key] as number | null;
