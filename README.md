@@ -68,7 +68,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 
 ## 近期进展
 
-`v0.2.0-rc.56` 候选相对 rc.55 新增 31 项修复与 1 项界面改进，并继续包含 rc.55 的 5 项修复：
+`v0.2.0-rc.56` 候选相对 rc.55 新增 32 项修复与 1 项界面改进，并继续包含 rc.55 的 5 项修复：
 
 - **技能标签查询不再命中原型链**（[Issue #1585](https://github.com/can4hou6joeng4/boss-harness/issues/1585)）：会话区与重试路径只读取技能映射自己的条目，缺失或形状不符返回空数组，损坏会话中的特殊 `turnId` 不再让整段消息落入错误边界。
 - **队列元数据不得少于可见明细**（[Issue #1587](https://github.com/can4hou6joeng4/boss-harness/issues/1587)）：待处理数或分类计数小于已载入条目时按缺失处理，面板与侧栏徽标回退到可见计数，不再出现「1 项待处理」上方列出 3 条记录或「排队 0」旁列出排队消息。
@@ -102,6 +102,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 - **上下文整理计划回执必须校验形状**（[Issue #1699](https://github.com/can4hou6joeng4/boss-harness/issues/1699)）：`sourceItemCount`、`retainedTurnIds`、`firstKeptItemId` 等计划字段逐项收敛，缺字段或对象字段不再让面板渲染期抛错；保留回合必须唯一，首保留条目与保留条目数一致，面板不渲染的协议字段缺失时保持旧内核兼容。
 - **上下文编辑的不可编辑原因必须校验形状**（[Issue #1702](https://github.com/can4hou6joeng4/boss-harness/issues/1702)）：读取与提交后的回读共用 `contextEditOf()`，`reason` 只接受字符串并去掉首尾空白、按上限截断，对象、数组、数字与布尔整体拒绝，弹窗不再因原因字段畸形落入错误边界或显示错乱文本。
 - **摘要任务展示字段必须校验形状**（[Issue #1705](https://github.com/can4hou6joeng4/boss-harness/issues/1705)）：`contextJobOf()` 逐项收敛触发原因、进度计数、模型信息与失败说明，`null` 计数不再让 `toLocaleString` 抛错，对象字段不再让面板落入错误边界；未知原因不再把手动摘要显示成自动摘要。
+- **畸形队列标识不再中断任务读取**（[Issue #1708](https://github.com/can4hou6joeng4/boss-harness/issues/1708)）：`turn_snapshot()` 的队列归属筛选先要求标识是字符串，数组或对象标识不再触发 `unhashable type` 的内部错误，任务详情可以正常打开；合法标识的筛选与重复标记保持不变。
 - **运行资源计数与截断推导**（[Issue #1571](https://github.com/can4hou6joeng4/boss-harness/issues/1571)）：运行资源明细的计数与截断标记和已返回条目不一致时，界面不再把部分明细当成全部；计数小于明细视为矛盾响应整体报错。
 - **驾驶舱队列摘要采用持久分类计数**（[Issue #1575](https://github.com/can4hou6joeng4/boss-harness/issues/1575)）：队列摘要优先使用与持久待处理总数对齐的分类计数，旧内核缺省分类或合计不一致时才退回可见项并标注口径。
 - **摘要任务明细截断与计数一致性**（[Issue #1577](https://github.com/can4hou6joeng4/boss-harness/issues/1577)）：会话用量面板与 CSV 在计数大于已返回明细时强制标记截断，计数小于明细整体拒绝，不再静默执行 50 条本地上限而不提示。
