@@ -10,6 +10,8 @@
 
 - [Issue #1561](https://github.com/can4hou6joeng4/boss-harness/issues/1561)：`queue/list` 与 `thread/resume` 的队列元数据已知 `totalItems` / `activeItems` 大于已载入规模时，`truncated` 缺失或误报为 `false` 会让同一页面在驾驶舱、队列面板与提交核对中得到矛盾结论，未载入的消息被判为「不存在」。现在共用校验在投影必然不完整时强制截断，提交核对返回「无法确认」，队列面板显示未载入提示；完整投影行为不变。只改渲染层，不改变 RPC、协议或版本号。
 
+- [Issue #1563](https://github.com/can4hou6joeng4/boss-harness/issues/1563)：真实内核来源的审批缺少 `approvalId` 时，审批卡仍可点击，处理函数把无标识审批当成示例模式卡片，只改本地状态并显示「已批准 / 已拒绝」，内核从未收到裁决，刷新后又回到待审批。现在 `approvalBlockReason` 区分模式与标识：真实模式下缺少有效标识返回新的阻塞原因，渲染与处理函数共用该判定，按钮禁用并提示刷新会话核对；示例模式的无标识卡片保持本地演示行为。只改渲染层，不改变 RPC、协议或版本号。
+
 ## 0.2.0-rc.53 - 2026-11-16
 
 本节汇总第五十三个候选版本的源码与交付内容；rc.16 至 rc.53 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。

@@ -6,20 +6,30 @@ export function approvalUnconfirmedNotice(reason?: string, action: "审批" | "�
 }
 
 /** 审批卡按钮不可提交的原因；`null` 表示可以提交。 */
-export type ApprovalBlockReason = "archived" | "submitted" | "selfPending" | "otherPending";
+export type ApprovalBlockReason = "archived" | "submitted" | "selfPending" | "otherPending" | "missingId";
+
+export interface ApprovalBlockInput {
+  /** 内核审批标识；示例模式下的本地卡片允许缺省。 */
+  approvalId?: string;
+  /** 真实内核会话必须带审批标识，缺省时不能退回示例模式的本地裁决。 */
+  simulateLocal: boolean;
+}
 
 /**
  * 审批卡按钮的可用性。渲染（disabled 与说明文案）与处理函数的守卫共用这一判定：
  * 任一审批提交后内核只接受一个裁决，等待回执期间其余卡片必须显示为不可用，
- * 不能可点击后在处理函数里静默返回。
+ * 不能可点击后在处理函数里静默返回。真实模式缺少审批标识时同样不可提交：
+ * 该记录无法定位到内核审批，点击不能只改本地状态并显示成已有结论。
  */
 export function approvalBlockReason(
   messageId: string,
   submitted: boolean,
   pendingMessageId: string | null,
   archived: boolean,
+  input: ApprovalBlockInput,
 ): ApprovalBlockReason | null {
   if (archived) return "archived";
+  if (!input.simulateLocal && !input.approvalId) return "missingId";
   if (submitted) return "submitted";
   if (pendingMessageId === null) return null;
   return pendingMessageId === messageId ? "selfPending" : "otherPending";
