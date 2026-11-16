@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
+import { codePointLength } from "@boss-harness/shared";
 import { harnessErrorText } from "../data/harnessBridge";
+import { MAX_MESSAGE_TEXT_LENGTH } from "../data/composerDraft";
 import { quickAskNotice, type SessionStartOutcome } from "../data/sessionStart";
 import { attemptCurrent, createAttemptToken, invalidateAttempts, startAttempt } from "../data/attemptToken";
 import { currentShortcutLabel } from "../data/shortcutLabels";
@@ -24,8 +26,7 @@ interface SideMessage {
   text: string;
 }
 
-/** 单个问题的长度上限与内核输入契约一致；超出时在本地拒绝，不发起请求。 */
-const MAX_QUESTION_CHARS = 100_000;
+/** 浏览器预览用的示例回复；不调用模型。 */
 const PREVIEW_REPLY = "示例提示：招聘判断应附上履历依据与待确认问题。此窗口未调用模型，内容仅用于预览。";
 
 export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, connected, preview, busy = false, onAsk }) => {
@@ -58,7 +59,7 @@ export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, c
   if (!isOpen) return null;
 
   const question = inputText.trim();
-  const tooLong = question.length > MAX_QUESTION_CHARS;
+  const tooLong = codePointLength(question) > MAX_MESSAGE_TEXT_LENGTH;
   const blocked = live && !connected;
   const canSubmit = question.length > 0 && !tooLong && !submitting && !busy && !blocked;
 
@@ -143,7 +144,7 @@ export const SideChatModal: React.FC<SideChatModalProps> = ({ isOpen, onClose, c
           </div>
         ))}
         {notice ? <p className="sidechat-notice" role="status">{notice}</p> : null}
-        {tooLong ? <p className="sidechat-notice" role="alert">问题超过 {MAX_QUESTION_CHARS} 字符，无法发送。</p> : null}
+        {tooLong ? <p className="sidechat-notice" role="alert">问题超过 {MAX_MESSAGE_TEXT_LENGTH} 字符，无法发送。</p> : null}
         {blocked ? <p className="sidechat-notice" role="status">连接本地内核后才能提问。</p> : null}
       </div>
 

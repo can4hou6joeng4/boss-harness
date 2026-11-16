@@ -5,6 +5,7 @@
  * 提交流程状态（submitting / queueSubmission）也不落盘。存储键沿用 UI 命名空间，
  * 旧 `boss-cli.ui.*` 由启动迁移补齐。
  */
+import { codePointLength } from "@boss-harness/shared";
 import { MAX_MESSAGE_TEXT_LENGTH, createComposerDraft, type ComposerDraft } from "./composerDraft";
 import { UI_STORAGE_PREFIX } from "./uiStorage";
 
@@ -47,12 +48,12 @@ function defaultStorage(): DraftStorage | null {
 function draftEntry(value: unknown): PersistedComposerDraft | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as { text?: unknown; skillIds?: unknown; updatedAt?: unknown; projectId?: unknown; recallDraft?: unknown };
-  if (typeof record.text !== "string" || record.text.length > MAX_DRAFT_TEXT_LENGTH) return null;
+  if (typeof record.text !== "string" || codePointLength(record.text) > MAX_DRAFT_TEXT_LENGTH) return null;
   const skillIds = Array.isArray(record.skillIds)
     ? [...new Set(record.skillIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0))].slice(0, MAX_SKILL_IDS)
     : [];
   // 旧版本条目没有调取字段；非法类型或超长值忽略，按普通正文恢复，不影响已有草稿。
-  const recallDraft = typeof record.recallDraft === "string" && record.recallDraft.length <= MAX_DRAFT_TEXT_LENGTH
+  const recallDraft = typeof record.recallDraft === "string" && codePointLength(record.recallDraft) <= MAX_DRAFT_TEXT_LENGTH
     ? record.recallDraft : undefined;
   if (!record.text.trim() && skillIds.length === 0) return null;
   const updatedAt = typeof record.updatedAt === "number" && Number.isFinite(record.updatedAt) && record.updatedAt >= 0
@@ -102,11 +103,11 @@ export function loadComposerDraftStore(storage: DraftStorage | null = defaultSto
 /** 只取可持久化字段；附件、提交中与队列待核对状态都不进入本地存储。 */
 function collectDraft(draft: ComposerDraft | undefined): { text: string; skillIds: string[]; recallDraft?: string } | null {
   if (!draft) return null;
-  if (draft.text.length > MAX_DRAFT_TEXT_LENGTH) return null;
+  if (codePointLength(draft.text) > MAX_DRAFT_TEXT_LENGTH) return null;
   const skillIds = [...new Set((draft.skillIds ?? []).filter(id => typeof id === "string" && id.trim().length > 0))].slice(0, MAX_SKILL_IDS);
   if (!draft.text.trim() && skillIds.length === 0) return null;
   // 原稿超过存储上限时与普通超长草稿一致：不持久化，但保留当前被调取的正文。
-  const recallDraft = draft.recallDraft !== undefined && draft.recallDraft.length <= MAX_DRAFT_TEXT_LENGTH ? draft.recallDraft : undefined;
+  const recallDraft = draft.recallDraft !== undefined && codePointLength(draft.recallDraft) <= MAX_DRAFT_TEXT_LENGTH ? draft.recallDraft : undefined;
   return { text: draft.text, skillIds, ...(recallDraft !== undefined ? { recallDraft } : {}) };
 }
 

@@ -10,6 +10,8 @@
 
 - [Issue #1485](https://github.com/can4hou6joeng4/boss-harness/issues/1485)：搜索弹窗、聊天内查找与最近搜索的字符阈值改用 Unicode 码点计数，与界面文案「至少 2 个字符」「120 个字符」一致。消息搜索的最小长度收为单一常量 `MESSAGE_SEARCH_MIN_LENGTH`，弹窗请求、进行中状态与空态提示共用；单个 emoji 不再被当成 2 个字符触发 `thread/search`、显示「正在搜索消息…」或记入最近搜索，2 个 emoji 仍触发并可记入。查找种子（`findSeedFromSelection`）的 120 字符上限按码点判定：120 个 emoji 的选中文本可作为关键词，121 个仍拒绝，120 个 ASCII 行为不变。最近搜索的下限与上限现在都按码点计数。不新增 RPC，协议、内核与持久化格式不变。
 
+- [Issue #1487](https://github.com/can4hou6joeng4/boss-harness/issues/1487)：桌面发送前的消息长度校验与草稿持久化改用 Unicode 码点计数，与内核 `_text(maximum=100000)` 的 `len()` 口径一致。此前按 UTF-16 码元比较，60000 个 emoji 的消息会被误判为 120000 字符而拒绝，提示还声称超过内核上限；同类合法草稿也不会写入本地存储，重启后丢失。现在输入区发送与排队、首页首条消息（连同项目上下文与附件）、快速提问与草稿读写共用码点口径，快速提问复用 `MAX_MESSAGE_TEXT_LENGTH` 而不再单独维护同值常量。60000 个 emoji 的消息与草稿可正常发送、持久化并恢复，100001 个码点仍拒绝，100000 个 ASCII 字符行为不变。不新增 RPC，协议、内核与存储键不变。
+
 ## 0.2.0-rc.44 - 2026-11-16
 
 本节汇总第四十四个候选版本的源码与交付内容；rc.16 至 rc.44 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
