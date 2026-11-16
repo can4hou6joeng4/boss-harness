@@ -27,6 +27,7 @@ import { deleteThreadFailure } from "./data/deleteThreadError";
 import { resolveQuickAskRoute } from "./data/quickAsk";
 import { sessionTitleFromPrompt } from "./data/sessionTitle";
 import { matchesContinuation, resumedSession } from "./data/sessionState";
+import { continuationReadOf } from "./data/continuation";
 import { isCommandChord } from "./data/shortcuts";
 import { reduceHarnessEvent, autoApprovalFallback, hasApprovalDecision, type HarnessEvent } from "./data/harnessEvents";
 import { unconfirmedFailure } from "./data/confirmationFailure";
@@ -328,11 +329,10 @@ export function App(): JSX.Element {
     }
     setContinuationCheck({ threadId: session.id, sourceTurnId, loading: true });
     try {
-      const response = await readTurnContinuation({ threadId: session.id, sourceTurnId });
+      const raw = await readTurnContinuation({ threadId: session.id, sourceTurnId });
       if (generation !== continuationReadGeneration.current || activeRef.current?.id !== session.id) return;
-      if (response.threadId !== session.id || response.sourceTurnId !== sourceTurnId) {
-        throw new Error("预检结果与来源回合不一致");
-      }
+      // 回执字段直接进入会话区渲染：身份与展示字段在写入状态前整体校验。
+      const response = continuationReadOf(raw, { threadId: session.id, sourceTurnId });
       setContinuationCheck({ threadId: session.id, sourceTurnId, loading: false, response,
         error: response.eligible ? explicitRejection : undefined });
     } catch (error) {
