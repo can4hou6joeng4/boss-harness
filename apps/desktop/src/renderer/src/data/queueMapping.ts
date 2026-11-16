@@ -137,13 +137,16 @@ interface QueuePageMetadata {
 /** `queue/list` 与 `thread/resume` 共用的元数据校验；非法值按缺失处理，不进入界面。 */
 function queuePageWithMetadata(items: QueueItem[], metadata: QueuePageMetadata): QueuePage {
   const page: QueuePage = { items };
-  const loadedActive = items.filter(item => isQueueActive(item.status)).length;
+  const loadedByStatus: QueueStatusCounts = { queued: 0, delivering: 0, paused: 0 };
+  for (const item of items) if (isQueueActive(item.status)) loadedByStatus[item.status] += 1;
+  const loadedActive = loadedByStatus.queued + loadedByStatus.delivering + loadedByStatus.paused;
   const total = metadata.totalItems;
   // 总数只接受不小于已载入项的安全整数；异常时退回按已载入项计算。
   if (typeof total === "number" && Number.isSafeInteger(total) && total >= items.length) page.totalItems = total;
   const active = metadata.activeItems;
-  // 待处理数可以大于已载入项，但不能超过持久总数。
-  if (typeof active === "number" && Number.isSafeInteger(active) && active >= 0
+  // 持久待处理数统计全部记录，必然不少于已载入的待处理条目；少于明细说明响应自相矛盾，
+  // 按缺失处理，让面板与徽标退回可见计数，而不是在 3 条待处理记录上方写「1 项待处理」。
+  if (typeof active === "number" && Number.isSafeInteger(active) && active >= loadedActive
     && (page.totalItems === undefined || active <= page.totalItems)) page.activeItems = active;
   // 总数或待处理数大于已载入规模时投影必然不完整：截断标记缺失或误报 false 都不能让
   // 提交核对把未载入的消息当成不存在，也不能让队列面板漏掉未载入提示。
@@ -153,10 +156,14 @@ function queuePageWithMetadata(items: QueueItem[], metadata: QueuePageMetadata):
   } else if (typeof metadata.truncated === "boolean") {
     page.truncated = metadata.truncated;
   }
-  // 分项必须与已接受的待处理总数一致；不一致时退回按已载入项处理，不展示不可信的分项。
+  // 分项必须与已接受的待处理总数一致，且每个分类都不少于同状态的可见条目；任一矛盾都
+  // 说明分类不是这批记录的真实投影，退回按已载入项统计，避免「排队 0」旁列出排队消息。
   if (page.activeItems !== undefined) {
     const counts = queueStatusCountsOf(metadata.counts, page.activeItems);
-    if (counts) page.counts = counts;
+    if (counts && counts.queued >= loadedByStatus.queued
+      && counts.delivering >= loadedByStatus.delivering && counts.paused >= loadedByStatus.paused) {
+      page.counts = counts;
+    }
   }
   return page;
 }
