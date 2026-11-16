@@ -2075,8 +2075,9 @@ class ApplicationService:
                 if (not isinstance(job_id, str) or not re.fullmatch(r"[0-9a-f]{32}", job_id)
                         or not isinstance(thread_id, str)):
                     continue
+                # 事件索引是从 events.jsonl 派生的投影列，可以同源重建，但不能被信任：
+                # 只有记录顺序参与恢复，不要再从持久载荷解析任何数值。
                 job = {key: value for key, value in params.items() if key not in {"eventId", "eventCursor"}}
-                job["_eventCursor"] = int(params.get("eventCursor", "0"))
                 if event["method"] in {"context/compactionStarted", "context/compactionProgress"}:
                     if job_id not in terminal:
                         active[job_id] = job
@@ -2113,8 +2114,7 @@ class ApplicationService:
                 job.update(status="failed", code="COMPACTION_INTERRUPTED",
                            message="内核在摘要任务完成前退出；模型请求和检查点均未自动重放。请重新读取计划后显式开始新任务。")
                 method = "context/compactionFailed"
-            event = self.events.emit(method, self._compaction_public(job), publish=False, observe=False)
-            job["_eventCursor"] = int(event["params"]["eventCursor"])
+            self.events.emit(method, self._compaction_public(job), publish=False, observe=False)
             terminal[job_id] = job
             order.append(job_id)
             while len(order) > MAX_RETAINED_COMPACTION_JOBS:
@@ -2123,7 +2123,6 @@ class ApplicationService:
 
         for job_id in order:
             job = terminal[job_id]
-            job.pop("_eventCursor", None)
             self._compaction_jobs[job_id] = job
             self._compaction_terminal_ids.add(job_id)
             self._compaction_terminal_order.append(job_id)
