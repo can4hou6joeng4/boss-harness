@@ -63,7 +63,8 @@ export function WorkspaceInstructionsEditor(props: WorkspaceInstructionsEditorPr
       setError(""); setNotice(""); setConfirmDiscard(false);
       return;
     }
-    if (!props.connected) return;
+    // 断连会取消在途读取；这里必须同时复位读取态，否则页头会一直停在「正在读取…」。
+    if (!props.connected) { setLoading(false); return; }
     let active = true;
     const keepDraft = dirtyRef.current;
     const previousContent = baselineContent;

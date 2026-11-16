@@ -41,7 +41,8 @@ export function WorkspaceInstructionsSection(props: WorkspaceInstructionsSection
   }, [reportDirty]);
   useEffect(() => {
     setInfo(null); setError("");
-    if (!props.editable || !props.connected) return;
+    // 断连或能力声明消失时没有在途读取，复位读取态后再返回。
+    if (!props.editable || !props.connected) { setReading(false); return; }
     let active = true;
     setReading(true);
     readWorkspaceInstructions().then(value => {
