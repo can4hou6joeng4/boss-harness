@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextEditReadResponse } from "@boss-harness/protocol";
 import { codePointLength } from "@boss-harness/shared";
 import { harnessErrorText, isHarnessRpcRejection, readContextEdit, writeContextEdit } from "../data/harnessBridge";
+import { contextEditOf } from "../data/contextEdit";
 import { CONTEXT_EDIT_MAX_TEXT_LENGTH, CONTEXT_EDIT_STALE_NOTICE, contextEditSubmitBlocked, contextEditTextTooLong } from "../data/contextEditState";
 import { clearContextEditDraft, readContextEditDraft, writeContextEditDraft } from "../data/contextEditDrafts";
 import { ModalSurface } from "./ModalSurface";
@@ -15,15 +16,6 @@ interface Props {
   threadTitle?: string;
   onClose: () => void;
   onChanged: (state: ContextEditReadResponse) => void;
-}
-
-function validate(value: ContextEditReadResponse, threadId: string, itemId: string): ContextEditReadResponse {
-  if (value.threadId !== threadId || value.itemId !== itemId || !/^[a-f0-9]{64}$/.test(value.sourceDigest)
-      || typeof value.originalText !== "string" || !(typeof value.currentText === "string" || value.currentText === null)
-      || typeof value.canEdit !== "boolean" || typeof value.excluded !== "boolean") {
-    throw new Error("上下文编辑响应与当前消息不匹配，已停止操作。");
-  }
-  return value;
 }
 
 export function ContextEditDialog({ threadId, itemId, title, threadTitle, onClose, onChanged }: Props) {
@@ -53,7 +45,7 @@ export function ContextEditDialog({ threadId, itemId, title, threadTitle, onClos
     setError("");
     setNotice("");
     try {
-      const next = validate(await readContextEdit(threadId, itemId), threadId, itemId);
+      const next = contextEditOf(await readContextEdit(threadId, itemId), { threadId, itemId });
       // 读取中仍可显式关闭；旧窗口的迟到快照不能回退外层已经更新的消息标记。
       if (!mounted.current) return;
       const current = next.currentText ?? next.originalText;
@@ -117,7 +109,7 @@ export function ContextEditDialog({ threadId, itemId, title, threadTitle, onClos
     // A lost RPC response can follow a durable append. Read the authoritative
     // state before reporting failure; never repeat the append automatically.
     try {
-      const actual = validate(await readContextEdit(threadId, itemId), threadId, itemId);
+      const actual = contextEditOf(await readContextEdit(threadId, itemId), { threadId, itemId });
       const current = actual.currentText ?? actual.originalText;
       setRecord(actual);
       setStale(false);
