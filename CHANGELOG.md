@@ -4,6 +4,8 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+- [Issue #1452](https://github.com/can4hou6joeng4/boss-harness/issues/1452)：新增 `scripts/release_assets.py`，为 wheel / sdist 生成 `build-info.json` 与 `SHA256SUMS.txt`；Source build 在构建后运行该脚本，并把 `dist/python` 作为 `python-dist` 工作流产物上传。脚本只读取显式列出的普通文件，拒绝符号链接、目录、重复文件名与保留输出名，按块计算 SHA-256、按文件名排序并原子写入；工作流产物不代替从 tag 提交构建和实际 Release 资产。不改变内核、RPC、工具权限或持久化格式。
+
 ## 0.2.0-rc.43 - 2026-11-16
 
 本节汇总第四十三个候选版本的源码与交付内容；rc.16 至 rc.43 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。

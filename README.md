@@ -241,11 +241,11 @@ npx install-electron --no
 npm run typecheck
 npm run build
 python3 -m pip install build
-python3 -m build ./harness
+python3 -m build ./harness --outdir dist/python
 git diff --check
 ```
 
-CI 会执行 npm 依赖审计、TypeScript 检查、Electron 源码构建及 Python wheel / sdist 构建。真实模型、招聘平台、桌面 UI 和已签名安装包需要分别验收；源码构建不代表这些场景已经通过。贡献时请遵循[贡献与验证](CONTRIBUTING.md)中的提交、PR 和发布约定。
+CI 会执行 npm 依赖审计、TypeScript 检查、Electron 源码构建及 Python wheel / sdist 构建，并用 `scripts/release_assets.py` 生成 `build-info.json` / `SHA256SUMS.txt` 后上传 `python-dist` 工作流产物；工作流产物不等于已发布资产。真实模型、招聘平台、桌面 UI 和已签名安装包需要分别验收；源码构建不代表这些场景已经通过。贡献时请遵循[贡献与验证](CONTRIBUTING.md)中的提交、PR 和发布约定。
 
 ## 项目导航
 
