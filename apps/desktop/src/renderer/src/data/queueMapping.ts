@@ -11,11 +11,31 @@ export interface QueuePage {
   /** 内核按全部持久项统计的待处理数（排队 / 投递中 / 暂停）；旧内核缺省。 */
   activeItems?: number;
   truncated?: boolean;
+  /**
+   * 本地变更对分类计数的增量，只由渲染层的本地合入填写，内核投影不会携带。
+   * 截断投影拿不到完整分类，合并徽标时用它把已知计数校正到新的状态组成。
+   */
+  countsDelta?: QueueStatusDelta;
+}
+
+/** 分类计数的增量，可为负数；只覆盖占用待处理计数的状态。 */
+export interface QueueStatusDelta {
+  queued: number;
+  delivering: number;
+  paused: number;
 }
 
 /** 待处理状态：排队、投递中与暂停都占用待处理计数。面板、徽标与本地合入共用同一口径。 */
-export function isQueueActive(status: QueueItem["status"]): boolean {
+export function isQueueActive(status: QueueItem["status"]): status is "queued" | "delivering" | "paused" {
   return status === "queued" || status === "delivering" || status === "paused";
+}
+
+/** 已载入条目在两次本地投影之间的分类增量；未载入项不在两侧，不会被误算。 */
+export function queueCountsDelta(previous: readonly QueueItem[], next: readonly QueueItem[]): QueueStatusDelta {
+  const delta: QueueStatusDelta = { queued: 0, delivering: 0, paused: 0 };
+  for (const item of previous) if (isQueueActive(item.status)) delta[item.status] -= 1;
+  for (const item of next) if (isQueueActive(item.status)) delta[item.status] += 1;
+  return delta;
 }
 
 const QUEUE_KINDS: ReadonlySet<string> = new Set(["steering", "followUp"]);
@@ -141,10 +161,13 @@ export function patchQueuePage(page: QueuePage | undefined, item: QueueItem): Qu
     totalItems = items.length;
   }
 
+  // 截断投影下拿不到完整分类；把本次本地变更的已载入条目差异留给徽标合并校正。
+  const countsDelta = page?.truncated === true ? queueCountsDelta(currentItems, items) : undefined;
   return {
     items,
     totalItems,
     activeItems,
     truncated: page?.truncated,
+    countsDelta,
   };
 }

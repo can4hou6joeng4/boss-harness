@@ -1,6 +1,6 @@
 import type { QueueItem } from "@boss-harness/protocol";
 import { harnessErrorText, isHarnessRpcRejection } from "./harnessBridge";
-import { isQueueActive, type QueuePage } from "./queueMapping";
+import { isQueueActive, queueCountsDelta, type QueuePage } from "./queueMapping";
 
 /**
  * 队列操作（撤回、重新排队）的结果。
@@ -48,6 +48,7 @@ export function queueRetryLocalItems(previous: QueueItem[], oldId: string, creat
  *
  * 待处理总数沿用与 `patchQueuePage` 相同的口径：已有内核持久总数时按旧项撤下与新项加入增减；
  * 缺少总数且投影完整时才用已载入数；截断且缺省保持未知，不把可见计数写成内核总数。
+ * 截断投影同时记录已载入条目的分类增量，供徽标合并把已知分类校正到新的状态组成。
  */
 export function queueRetryPage(page: QueuePage | undefined, previousItems: QueueItem[], oldId: string,
   created: QueueItem, removed: boolean): QueuePage {
@@ -68,5 +69,6 @@ export function queueRetryPage(page: QueuePage | undefined, previousItems: Queue
   } else if (items.length > 0) {
     totalItems = items.length;
   }
-  return { items, totalItems, activeItems, truncated: page?.truncated };
+  const countsDelta = page?.truncated === true ? queueCountsDelta(previousItems, items) : undefined;
+  return { items, totalItems, activeItems, truncated: page?.truncated, countsDelta };
 }
