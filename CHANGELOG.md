@@ -12,6 +12,8 @@
 
 - [Issue #1563](https://github.com/can4hou6joeng4/boss-harness/issues/1563)：真实内核来源的审批缺少 `approvalId` 时，审批卡仍可点击，处理函数把无标识审批当成示例模式卡片，只改本地状态并显示「已批准 / 已拒绝」，内核从未收到裁决，刷新后又回到待审批。现在 `approvalBlockReason` 区分模式与标识：真实模式下缺少有效标识返回新的阻塞原因，渲染与处理函数共用该判定，按钮禁用并提示刷新会话核对；示例模式的无标识卡片保持本地演示行为。只改渲染层，不改变 RPC、协议或版本号。
 
+- [Issue #1565](https://github.com/can4hou6joeng4/boss-harness/issues/1565)：`thread/list` 的会话行先校验 `queueActiveItems`，却用原始值校验 `queueCounts`；字符串、负数或 `NaN` 总数会跳过一致性检查，分类计数仍进入侧栏，`sessionNeedsAttention` 可能把会话列入「待你处理」而队列徽标不显示。现在 `queueMapping` 提供 `threadQueueCountsOf`，待处理总数无效时分类整体丢弃，会话列表与推理设置回执共用；`queueStatusCountsOf` 要求传入已校验的总数。只改渲染层，不改变 RPC、协议或版本号。
+
 ## 0.2.0-rc.53 - 2026-11-16
 
 本节汇总第五十三个候选版本的源码与交付内容；rc.16 至 rc.53 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。

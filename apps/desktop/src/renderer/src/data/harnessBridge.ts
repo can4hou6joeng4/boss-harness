@@ -65,13 +65,12 @@ import {
   type ThreadSearchResponse,
   type TaskReadParams,
   type TaskReadResponse,
-  type QueueStatusCounts,
   type WorkspaceInstructionsText,
   type WorkspaceInstructionsWriteResponse,
   type StartupDiagnosis,
 } from "@boss-harness/protocol";
 import { formatRelativeTime, safeSlice, stripIpcErrorWrapper } from "@boss-harness/shared";
-import { isQueueItem, queuePageOf, type QueuePage } from "./queueMapping";
+import { isQueueItem, queuePageOf, threadQueueCountsOf, type QueuePage } from "./queueMapping";
 import { TURN_SKILL_PAGE_LIMIT, turnSkillPageOf } from "./turnSkills";
 import { approvalDeadlineMs, mapPendingApprovals, type PendingApprovalList } from "./pendingApprovals";
 import { readPagedItems } from "./pagedRead";
@@ -146,22 +145,6 @@ export function harnessErrorText(error: unknown): string {
     return `${message}（内核 ${value.code}${typeof data?.code === "string" ? ` / ${data.code}` : ""}）`;
   }
   return message;
-}
-
-/** 校验内核的队列分类计数；任一项非法或与总数不一致时整体丢弃，按旧内核处理。 */
-function mapQueueCounts(value: unknown, activeItems: unknown): QueueStatusCounts | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const counts = value as Record<string, unknown>;
-  const read = (key: string): number | undefined => {
-    const count = counts[key];
-    return typeof count === "number" && Number.isSafeInteger(count) && count >= 0 ? count : undefined;
-  };
-  const queued = read("queued"), delivering = read("delivering"), paused = read("paused");
-  if (queued === undefined || delivering === undefined || paused === undefined) return undefined;
-  const total = queued + delivering + paused;
-  if (typeof activeItems === "number" && Number.isSafeInteger(activeItems) && activeItems >= 0
-    && total !== activeItems) return undefined;
-  return { queued, delivering, paused };
 }
 
 function contextRequest<T>(method: string, params: unknown): Promise<T> {
@@ -258,28 +241,29 @@ export async function listThreads(archived = false): Promise<SessionItem[]> {
     100,
   );
   if (truncated) throw new Error("会话列表分页过多，未能完整读取");
-  return threads.map((thread) => ({
-    id: thread.id,
-    title: thread.title,
-    timeAgo: formatRelativeTime(thread.updatedAt),
-    updatedAt: thread.updatedAt,
-    status: thread.lastTurn?.status === "running" ? "running" as const
-      : thread.lastTurn?.status === "interrupted" ? "interrupted" as const : "idle" as const,
-    turnId: thread.lastTurn?.turnId,
-    lastTurnStatus: thread.lastTurn?.status,
-    lastTurnErrorCode: thread.lastTurn?.failureCode,
-    taskResumePolicy: thread.lastTurn?.taskResumePolicy,
-    queueActiveItems: typeof thread.queueActiveItems === "number"
-      && Number.isSafeInteger(thread.queueActiveItems) && thread.queueActiveItems >= 0
-      ? thread.queueActiveItems : undefined,
-    queueCounts: mapQueueCounts(thread.queueCounts, thread.queueActiveItems),
-    toolPolicy: thread.toolPolicy ?? "approval",
-    provider: thread.provider,
-    model: thread.model,
-    reasoningEffort: thread.reasoningEffort,
-    projectId: HARNESS_PROJECT_ID,
-    archived: thread.archived === true,
-  }));
+  return threads.map((thread) => {
+    const queue = threadQueueCountsOf(thread.queueActiveItems, thread.queueCounts);
+    return {
+      id: thread.id,
+      title: thread.title,
+      timeAgo: formatRelativeTime(thread.updatedAt),
+      updatedAt: thread.updatedAt,
+      status: thread.lastTurn?.status === "running" ? "running" as const
+        : thread.lastTurn?.status === "interrupted" ? "interrupted" as const : "idle" as const,
+      turnId: thread.lastTurn?.turnId,
+      lastTurnStatus: thread.lastTurn?.status,
+      lastTurnErrorCode: thread.lastTurn?.failureCode,
+      taskResumePolicy: thread.lastTurn?.taskResumePolicy,
+      queueActiveItems: queue.activeItems,
+      queueCounts: queue.counts,
+      toolPolicy: thread.toolPolicy ?? "approval",
+      provider: thread.provider,
+      model: thread.model,
+      reasoningEffort: thread.reasoningEffort,
+      projectId: HARNESS_PROJECT_ID,
+      archived: thread.archived === true,
+    };
+  });
 }
 
 /** 归档会话：内核会同时暂停队列并让待审批项失效。回执不可读时保留内核错误码。 */
@@ -401,16 +385,14 @@ export async function setThreadReasoning(threadId: string, effort: string | null
   const response = await api.request<ThreadReasoningSetResponse>(ClientMethods.threadReasoningSet, { threadId, effort });
   const thread = response?.thread;
   if (!thread || typeof thread.id !== "string" || !thread.id) throw new Error("推理设置响应无法识别");
+  const queue = threadQueueCountsOf(thread.queueActiveItems, thread.queueCounts);
   return { id: thread.id, title: thread.title, timeAgo: formatRelativeTime(thread.updatedAt),
     updatedAt: thread.updatedAt, status: thread.lastTurn?.status === "running" ? "running"
       : thread.lastTurn?.status === "interrupted" ? "interrupted" : "idle",
     turnId: thread.lastTurn?.turnId, lastTurnStatus: thread.lastTurn?.status,
     lastTurnErrorCode: thread.lastTurn?.failureCode,
     taskResumePolicy: thread.lastTurn?.taskResumePolicy,
-    queueActiveItems: typeof thread.queueActiveItems === "number"
-      && Number.isSafeInteger(thread.queueActiveItems) && thread.queueActiveItems >= 0
-      ? thread.queueActiveItems : undefined,
-    queueCounts: mapQueueCounts(thread.queueCounts, thread.queueActiveItems),
+    queueActiveItems: queue.activeItems, queueCounts: queue.counts,
     toolPolicy: thread.toolPolicy ?? "approval", model: thread.model,
     reasoningEffort: thread.reasoningEffort, projectId: HARNESS_PROJECT_ID };
 }
