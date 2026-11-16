@@ -4,7 +4,9 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
-当前没有未归入具名候选版本的变更。
+当前未归入具名候选版本的变更：
+
+- [Issue #1492](https://github.com/can4hou6joeng4/boss-harness/issues/1492)：排队消息编辑器的正文上限改用 Unicode 码点计数，与内核 `queue/update` 的 `_text(maximum=100000)` 一致。此前 `maxLength` 与计数器按 UTF-16 码元计算，60000 个 emoji 的排队消息会显示 `120000 / 100000 字符` 并阻止继续输入；现在计数器与保存前校验按码点判定，输入框只保留 `2 × 100000` 个码元的安全网（正好覆盖 100000 个补充平面字符的表示），超过 100000 码点的草稿禁止保存并提示原因。60000 个 emoji 可正常编辑并保存，100001 个码点仍拒绝，100000 个 ASCII 字符行为不变。不新增 RPC，协议、内核与队列格式不变。
 
 ## 0.2.0-rc.45 - 2026-11-16
 
