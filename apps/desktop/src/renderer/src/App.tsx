@@ -32,6 +32,7 @@ import { reduceHarnessEvent, autoApprovalFallback, hasApprovalDecision, type Har
 import { unconfirmedFailure } from "./data/confirmationFailure";
 import { sendFailureNotice, sendFailureRecheckNotice } from "./data/sendFailure";
 import { stopFailureNotice, stopFailureRecheckNotice, stopMissingNotice, stopMissingRecheckNotice } from "./data/stopFailure";
+import { sessionErrorNoticeOf } from "./data/sessionErrorNotice";
 import { sessionStartNotice, type SessionStartOutcome } from "./data/sessionStart";
 import { connectionNotice, connectionViewOf, mergeConnectionView, type ConnectionView } from "./data/connectionNotice";
 import { HarnessReplica } from "./data/harnessReplica";
@@ -451,7 +452,9 @@ export function App(): JSX.Element {
       }
       if (event.method === "thread/leafChanged") { void replica.reload(id); return; }
       if (event.method === "session/error") {
-        reportSessionError(id, params.message ?? "任务遇到错误，请检查后重试。");
+        // 正文直接进入提示条：非字符串会被 React 当成非法子节点，让整屏落入错误边界。
+        const notice = sessionErrorNoticeOf(params);
+        if (notice) reportSessionError(notice.threadId, notice.message);
         return;
       }
       if (event.method === "thread/updated") {
