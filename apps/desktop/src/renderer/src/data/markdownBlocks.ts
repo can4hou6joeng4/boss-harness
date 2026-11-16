@@ -3,11 +3,13 @@
  *
  * 消息在流式输出中逐段到达：起始围栏先到、结束围栏后到；模型输出也可能被截断而
  * 没有结束围栏。这里按行识别围栏，未闭合的围栏按到文末的代码块处理，避免流式期间
- * 把代码原样显示成带反引号的普通文本。
+ * 把代码原样显示成带围栏标记的普通文本。
  *
  * 围栏规则（比 CommonMark 宽松，只服务于本应用的单层渲染）：
- * - 起始围栏是行内第一次出现的三个以上反引号，其后只能跟语言标记与空白；
- * - 结束围栏必须独占一行，长度不短于起始围栏，因此代码正文里的反引号不会提前结束代码块；
+ * - 起始围栏是行内第一次出现的三个以上反引号；波浪号围栏只在行首（最多三个空格）识别，
+ *   避免正文里的装饰性 `~~~` 把后续内容变成代码块；
+ * - 结束围栏必须独占一行、与起始围栏同一种标记且长度不短于起始围栏，因此代码正文里的
+ *   反引号或波浪号不会提前结束代码块；
  * - 兼容 CRLF 正文与语言标记后的空格，正文整体按同一份文本展示与复制。
  */
 export interface MarkdownBlock {
@@ -18,10 +20,12 @@ export interface MarkdownBlock {
   content: string;
 }
 
-/** 起始围栏：前缀允许任意文本（与旧实现一致），其后是语言标记与行尾空白；`#` 用于 `c#` / `f#` / `q#`。 */
-const OPENING_FENCE = /^(.*?)(`{3,})([A-Za-z0-9_+.#-]*)[ \t]*$/;
-/** 结束围栏：整行只有反引号与空白。 */
-const CLOSING_FENCE = /^[ \t]*(`{3,})[ \t]*$/;
+/** 起始围栏：前缀允许任意文本（与旧实现一致），其后是反引号、语言标记与行尾空白；`#` 用于 `c#` / `f#` / `q#`。 */
+const BACKTICK_OPENING_FENCE = /^(.*?)(`{3,})([A-Za-z0-9_+.#-]*)[ \t]*$/;
+/** 波浪号围栏只在行首（最多三个空格）识别；正文里的装饰性 `~~~` 不开启代码块。 */
+const TILDE_OPENING_FENCE = /^([ \t]{0,3})(~{3,})([A-Za-z0-9_+.#-]*)[ \t]*$/;
+/** 结束围栏：整行只有同一种标记与空白。 */
+const CLOSING_FENCE = /^[ \t]*(`{3,}|~{3,})[ \t]*$/;
 
 /** CRLF 正文按 Unix 换行显示与复制，避免代码块里混入不可见的 `\r`。 */
 function normalizeCode(value: string): string {
@@ -48,7 +52,7 @@ export function splitMarkdownBlocks(content: string): MarkdownBlock[] {
   const blocks: MarkdownBlock[] = [];
   let textStart = 0;
   let offset = 0;
-  let fence: { length: number; lang: string } | null = null;
+  let fence: { marker: "`" | "~"; length: number; lang: string } | null = null;
   let codeStart = 0;
   while (offset <= content.length) {
     const newline = content.indexOf("\n", offset);
@@ -57,8 +61,8 @@ export function splitMarkdownBlocks(content: string): MarkdownBlock[] {
     const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
     if (fence) {
       const closing = CLOSING_FENCE.exec(line)?.[1];
-      if (closing && closing.length >= fence.length) {
-        const closingStart = offset + line.indexOf("`");
+      if (closing && closing[0] === fence.marker && closing.length >= fence.length) {
+        const closingStart = offset + line.indexOf(fence.marker);
         blocks.push({ type: "code", lang: fence.lang,
           content: trimCodeBlankLines(normalizeCode(content.slice(codeStart, offset))) });
         fence = null;
@@ -66,12 +70,14 @@ export function splitMarkdownBlocks(content: string): MarkdownBlock[] {
         textStart = closingStart + closing.length;
       }
     } else {
-      const opening = OPENING_FENCE.exec(line);
+      const opening = BACKTICK_OPENING_FENCE.exec(line) ?? TILDE_OPENING_FENCE.exec(line);
       if (opening) {
-        const [, prefix = "", ticks = "", marker] = opening;
-        const fenceStart = offset + prefix.length;
+        const [, prefix = "", run = "", marker] = opening;
+        const tilde = run[0] === "~";
+        // 反引号前缀是围栏前的正文，需要保留；波浪号前缀只是行首缩进，属于围栏本身。
+        const fenceStart = offset + (tilde ? 0 : prefix.length);
         if (fenceStart > textStart) blocks.push({ type: "text", content: content.slice(textStart, fenceStart) });
-        fence = { length: ticks.length, lang: marker || "text" };
+        fence = { marker: tilde ? "~" : "`", length: run.length, lang: marker || "text" };
         codeStart = newline < 0 ? content.length : newline + 1;
       }
     }
