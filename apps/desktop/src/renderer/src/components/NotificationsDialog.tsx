@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PendingApproval } from "@boss-harness/protocol";
+import type { PendingApprovalList } from "../data/pendingApprovals";
 import { ModalSurface } from "./ModalSurface";
 import { IconNotification, IconCheck, IconClock } from "./Icons";
 import { approvalRemainingText, groupPendingApprovals, nextApprovalIndex } from "../data/pendingApprovals";
@@ -11,7 +12,7 @@ import type { ProjectFolder, SessionItem } from "../data/mockData";
 
 type PendingState =
   | { status: "loading" }
-  | { status: "ready"; approvals: PendingApproval[]; truncated: boolean; now: number }
+  | { status: "ready"; approvals: PendingApproval[]; truncated: boolean; total?: number; now: number }
   | { status: "error"; message: string };
 
 export function NotificationsDialog({ folders, preview = false, refreshToken, onSelect, onOpenMessage, onLoaded, onClose }: {
@@ -23,8 +24,8 @@ export function NotificationsDialog({ folders, preview = false, refreshToken, on
   onSelect: (session: SessionItem) => void;
   /** 打开会话并定位到审批项；缺省时只打开会话。 */
   onOpenMessage?: (session: SessionItem, itemId: string) => void;
-  /** 成功读取后回报审批列表与截断标记，供侧栏徽标同步；失败不调用。 */
-  onLoaded?: (approvals: PendingApproval[], truncated: boolean) => void;
+  /** 成功读取后回报完整列表结果（含持久计数），供侧栏徽标同步；失败不调用。 */
+  onLoaded?: (list: PendingApprovalList) => void;
   onClose: () => void;
 }) {
   const [state, setState] = useState<PendingState>({ status: "loading" });
@@ -39,7 +40,7 @@ export function NotificationsDialog({ folders, preview = false, refreshToken, on
     setState({ status: "loading" });
     // 与侧栏共用单飞和尾随合并：慢读取期间的审批变化不能丢弃，结束后补读最新状态。
     const refresh = createSingleFlightReload(() => listPendingApprovals(100).then(
-      result => { if (cancelled) return; setState({ status: "ready", approvals: result.approvals, truncated: result.truncated, now: Date.now() }); loaded.current?.(result.approvals, result.truncated); },
+      result => { if (cancelled) return; setState({ status: "ready", approvals: result.approvals, truncated: result.truncated, total: result.total, now: Date.now() }); loaded.current?.(result); },
       cause => {
         if (cancelled) return;
         // 后台刷新失败保留已有列表；首次读取失败才展示错误与重试。
@@ -107,7 +108,7 @@ export function NotificationsDialog({ folders, preview = false, refreshToken, on
       {!preview && state.status === "ready" && state.approvals.length > 0 && <div onKeyDown={onListKeyDown}>
         <div className="notification-toolbar">
           <span title={state.truncated ? "内核还有待审批项未放入本次列表；处理当前项后刷新查看。" : undefined}>
-            {state.approvals.length} 项等待你确认{state.truncated ? "（仍有其他项未显示）" : ""} · ↑ ↓ 选择
+            {state.total ?? state.approvals.length} 项等待你确认{state.truncated ? "（仍有其他项未显示）" : ""} · ↑ ↓ 选择
           </span>
           <button className="secondary-button" onClick={retry}>刷新</button>
         </div>
