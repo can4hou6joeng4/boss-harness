@@ -219,11 +219,19 @@ export function readCockpitResources(value: unknown): RuntimeResourcesReadRespon
   if (owners.some(owner => owner === null) || waiters.some(waiter => waiter === null)) {
     throw new Error("内核运行资源条目格式无法识别");
   }
+  // 计数必须覆盖已返回的明细；小于明细数是自相矛盾的快照，整体拒绝。
+  if (ownerCount < owners.length || waiterCount < waiters.length) {
+    throw new Error("内核运行资源计数与明细不一致");
+  }
   const ownersTruncated = boolean(value.ownersTruncated);
   const waitersTruncated = boolean(value.waitersTruncated);
   if (ownersTruncated === undefined || waitersTruncated === undefined) {
     throw new Error("内核运行资源响应缺少截断标记");
   }
+  // 与队列投影同一口径：计数大于已载入规模时投影必然不完整，标记缺失或误报
+  // false 都不能让面板把明细当成全部；标记为真时保持原值。
+  const ownersIncomplete = ownersTruncated || ownerCount > owners.length;
+  const waitersIncomplete = waitersTruncated || waiterCount > waiters.length;
   return {
     turnCapacity,
     activeTurnCount,
@@ -231,10 +239,10 @@ export function readCockpitResources(value: unknown): RuntimeResourcesReadRespon
     retainedTurnCount,
     ownerCount,
     owners: owners as RuntimeResourceOwner[],
-    ownersTruncated,
+    ownersTruncated: ownersIncomplete,
     waiterCount,
     waiters: waiters as RuntimeResourceWaiter[],
-    waitersTruncated,
+    waitersTruncated: waitersIncomplete,
   };
 }
 
