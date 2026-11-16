@@ -34,6 +34,20 @@ class ToolRegistry(_ToolRegistry):
         super().__init__(definitions)
 
 
+def _decode_attachment_text(data: bytes) -> str:
+    """读取附件对象时要求内容是可解码的 UTF-8 文本。
+
+    `add()` 已拒绝非 UTF-8 文本，但附件对象与持久记录属于可被外部改写的文件：
+    记录中的 `digest` 与对象内容同时替换时仍能通过摘要与长度校验。
+    `UnicodeDecodeError` 不是 `ValueError`，不转换会逃逸成 `-32603`，且消息含
+    随内容变化的字节位置，不适合直接作为产品提示。
+    """
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ValueError("附件内容不是 UTF-8 文本；请重新添加") from None
+
+
 class SkillCatalog:
     MAX_SKILL_BYTES = 64 * 1024
     MAX_SKILL_DESCRIPTORS = 100
@@ -666,7 +680,7 @@ class AttachmentStore:
         data = self._read_object(item["digest"], item["bytes"])
         if data is None:
             raise ValueError("附件内容已损坏；请重新添加")
-        text = data.decode("utf-8")
+        text = _decode_attachment_text(data)
         reference = {"threadId": thread_id, "attachmentId": item["id"], "name": item["name"],
                      "sha256": item["digest"], "byteLength": item["bytes"],
                      "characterLength": len(text)}
@@ -713,7 +727,7 @@ class AttachmentStore:
             data = self._read_object(item["digest"], item["bytes"])
             if data is None:
                 raise ValueError("附件内容已损坏；请重新添加")
-            result["content"] = data.decode("utf-8")
+            result["content"] = _decode_attachment_text(data)
         return result
 
     def context(self, thread_id: str, ids: Any, *, entries: list[dict] | None = None) -> tuple[str, list[dict]]:
