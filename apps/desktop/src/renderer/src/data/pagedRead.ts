@@ -4,6 +4,8 @@
  * 调用方负责校验每一页的业务形状（归属、视图、条目结构）。这里保证异常游标不会让界面
  * 重复渲染同一页，也不会把「翻不到下一页」误当成「还有更多」。
  */
+import { trackCursor } from "./cursorChain";
+
 export interface PagedItems<T> {
   items: T[];
   /** 达到页数上限时内核仍有后续页。 */
@@ -18,6 +20,7 @@ export async function readPagedItems<T>(
   maxPages: number,
 ): Promise<PagedItems<T>> {
   const items: T[] = [];
+  const seen = new Set<string>();
   let cursor: string | null = null;
   for (let pages = 0; pages < maxPages; pages += 1) {
     const page = await fetchPage(cursor);
@@ -25,7 +28,7 @@ export async function readPagedItems<T>(
     if (next !== null && (typeof next !== "string" || !next || next.length > MAX_CURSOR_LENGTH)) {
       throw new Error(`${label}分页游标无效`);
     }
-    if (next !== null && next === cursor) throw new Error(`${label}分页未前进`);
+    if (next !== null) trackCursor(seen, next, label);
     items.push(...page.items);
     if (next === null) return { items, truncated: false };
     cursor = next;

@@ -1,6 +1,7 @@
 import type { EventListResponse, ItemContentReference, ItemContentReadResponse, ItemListResponse, ThreadItem, ThreadReadResponse } from "@boss-harness/protocol";
 import { safeSlice, stripIpcErrorWrapper } from "@boss-harness/shared";
 import type { HarnessEvent } from "./harnessEvents";
+import { trackCursor } from "./cursorChain";
 
 interface Api { request<T>(method: string, params?: unknown): Promise<T> }
 /** 单次恢复允许的分页上限：只兜住异常内核造成的无尽翻页，正常会话远达不到。 */
@@ -214,6 +215,7 @@ export class HarnessReplica {
     current: () => void,
   ): Promise<ThreadItem[]> {
     const items: ThreadItem[] = [];
+    const seen = new Set<string>();
     let cursor: string | null = null;
     for (let pages = 0; ; pages += 1) {
       if (pages >= MAX_PAGE_COUNT) throw new Error("会话条目分页过多，未能完整读取");
@@ -224,7 +226,7 @@ export class HarnessReplica {
       if (next !== null && (typeof next !== "string" || !next || next.length > MAX_CURSOR_LENGTH)) {
         throw new Error("会话条目分页游标无效");
       }
-      if (next !== null && next === cursor) throw new Error("会话条目分页未前进");
+      if (next !== null) trackCursor(seen, next, "会话条目");
       items.push(...page.items);
       if (next === null) return items;
       cursor = next;
@@ -234,6 +236,7 @@ export class HarnessReplica {
   /** 按事件游标重放增量，同样校验形状与游标前进，避免异常响应让恢复一直转圈。 */
   private async replayEvents(threadId: string, start: string, current: () => void): Promise<void> {
     let cursor = start;
+    const seen = new Set<string>([start]);
     for (let pages = 0; ; pages += 1) {
       if (pages >= MAX_PAGE_COUNT) throw new Error("会话事件分页过多，未能完整重放");
       const page: EventListResponse = await this.api.request("event/list", { threadId, cursor, limit: 200 });
@@ -244,8 +247,11 @@ export class HarnessReplica {
         throw new Error("会话事件分页游标无效");
       }
       const more = page.hasMore === true;
-      // 还有下一页却没有新事件、或游标不动：再请求只会得到同一页。
-      if (more && (next === cursor || page.events.length === 0)) throw new Error("会话事件分页未前进");
+      // 还有下一页却没有新事件、或游标重复：再请求只会得到同一批页。
+      if (more) {
+        if (page.events.length === 0) throw new Error("会话事件分页未前进");
+        trackCursor(seen, next, "会话事件");
+      }
       for (const event of page.events) this.apply(event as HarnessEvent);
       if (!more) return;
       cursor = next;
