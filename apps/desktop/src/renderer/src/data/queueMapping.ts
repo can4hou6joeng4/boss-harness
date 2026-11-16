@@ -124,6 +124,7 @@ interface QueuePageMetadata {
 /** `queue/list` 与 `thread/resume` 共用的元数据校验；非法值按缺失处理，不进入界面。 */
 function queuePageWithMetadata(items: QueueItem[], metadata: QueuePageMetadata): QueuePage {
   const page: QueuePage = { items };
+  const loadedActive = items.filter(item => isQueueActive(item.status)).length;
   const total = metadata.totalItems;
   // 总数只接受不小于已载入项的安全整数；异常时退回按已载入项计算。
   if (typeof total === "number" && Number.isSafeInteger(total) && total >= items.length) page.totalItems = total;
@@ -131,7 +132,14 @@ function queuePageWithMetadata(items: QueueItem[], metadata: QueuePageMetadata):
   // 待处理数可以大于已载入项，但不能超过持久总数。
   if (typeof active === "number" && Number.isSafeInteger(active) && active >= 0
     && (page.totalItems === undefined || active <= page.totalItems)) page.activeItems = active;
-  if (typeof metadata.truncated === "boolean") page.truncated = metadata.truncated;
+  // 总数或待处理数大于已载入规模时投影必然不完整：截断标记缺失或误报 false 都不能让
+  // 提交核对把未载入的消息当成不存在，也不能让队列面板漏掉未载入提示。
+  if ((page.totalItems !== undefined && page.totalItems > items.length)
+    || (page.activeItems !== undefined && page.activeItems > loadedActive)) {
+    page.truncated = true;
+  } else if (typeof metadata.truncated === "boolean") {
+    page.truncated = metadata.truncated;
+  }
   // 分项必须与已接受的待处理总数一致；不一致时退回按已载入项处理，不展示不可信的分项。
   if (page.activeItems !== undefined) {
     const counts = queueStatusCountsOf(metadata.counts, page.activeItems);
