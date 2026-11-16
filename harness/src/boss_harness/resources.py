@@ -101,14 +101,24 @@ class SkillCatalog:
         与窗口相同，调用方无法据此区分「全部看到」和「还有未保留」；只有显式记录是否
         发生过替换，才能把「恰好顶到窗口」与「确有目录未检查」分开。
         """
-        if not self.root.is_dir():
+        # 缺失的根目录是首次使用，按「没有技能」处理；存在但读不了则必须如实报错，
+        # 否则界面会把权限问题或同名文件当成空工作区。
+        try:
+            observed = os.stat(self.root)
+        except FileNotFoundError:
             return [], False
+        except OSError:
+            raise ValueError("无法读取技能目录；请检查目录权限后重试") from None
+        if not stat.S_ISDIR(observed.st_mode):
+            raise ValueError("技能目录不是普通目录")
         candidates: list[tuple[str, Path]] = []
         dropped = False
         try:
             entries = os.scandir(self.root)
-        except OSError:
+        except FileNotFoundError:
             return [], False
+        except OSError:
+            raise ValueError("无法读取技能目录；请检查目录权限后重试") from None
         with entries:
             for entry in entries:
                 try:
