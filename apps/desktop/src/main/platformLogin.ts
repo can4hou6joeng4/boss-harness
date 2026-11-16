@@ -5,7 +5,8 @@ import { isLoginVerificationUrl, isOfficialLoginUrl, loginCaptureReadiness, logi
 import { loginFailureDetail, loginViewGoneSummary } from "./loginFailure";
 import { selectLoginCookies } from "./loginCookies";
 
-type Attempt = PlatformLoginStatus & { id?: string };
+import { attemptIdOf, loginAttemptOf } from "./loginAttempt";
+
 type Request = <T>(method: string, params?: unknown) => Promise<T>;
 
 /** The official page never receives a preload, Node, IPC or the app session. */
@@ -73,9 +74,20 @@ export class PlatformLogin {
     const generation = ++this.generation;
     this.update({ state: "opening", phase: "scan", identity: "unknown", summary: "正在准备官方页面，请稍候…" });
     try {
-      const attempt = await this.request<Attempt>("platform/login/start");
+      const raw = await this.request<unknown>("platform/login/start");
       if (generation !== this.generation) {
-        if (attempt.id) void this.request("platform/login/cancel", { id: attempt.id }).catch(() => {});
+        const id = attemptIdOf(raw);
+        if (id) void this.request("platform/login/cancel", { id }).catch(() => {});
+        return this.read();
+      }
+      const attempt = loginAttemptOf(raw);
+      if (!attempt) {
+        // 无法识别的回执不能写入状态机；内核可能已创建 attempt，按合法 id 补发取消。
+        const id = attemptIdOf(raw);
+        if (id) void this.request("platform/login/cancel", { id }).catch(() => {});
+        this.update({ state: "failed", code: "LOGIN_OPEN_FAILED",
+          summary: "官方登录页回执无法识别，请检查本机连接与内核版本后重试" });
+        this.closeBrowser();
         return this.read();
       }
       if (attempt.state === "saving" && attempt.id) {
@@ -227,11 +239,20 @@ export class PlatformLogin {
         return;
       }
       this.update({ state: "saving", summary: readiness.summary, phase: readiness.phase, identity: readiness.identity });
-      const result = await this.request<Attempt>("platform/login/complete", {
+      const result = await this.request<unknown>("platform/login/complete", {
         id: this.attempt, cookies, userAgent: view.webContents.getUserAgent(),
       });
       if (generation !== this.generation) return;
-      this.update(result);
+      const attempt = loginAttemptOf(result);
+      if (!attempt) {
+        // 保存回执无法识别：保存结果未知，不能写入状态机；取消内核 attempt 后结束本次登录。
+        this.update({ state: "failed", code: "LOGIN_SAVE_FAILED",
+          summary: "登录保存回执无法识别，保存结果未知，请检查本机登录态" });
+        void this.request("platform/login/cancel", { id: this.attempt }).catch(() => {});
+        this.closeBrowser();
+        return;
+      }
+      this.update(attempt);
       this.poll(generation);
     } catch (error) {
       if (generation === this.generation) {
@@ -253,8 +274,16 @@ export class PlatformLogin {
     }
     this.pollTimer = setTimeout(() => {
       this.pollTimer = undefined;
-      void this.request<Attempt>("platform/login/read").then(result => {
+      void this.request<unknown>("platform/login/read").then(raw => {
         if (generation !== this.generation) return;
+        const result = loginAttemptOf(raw);
+        if (!result) {
+          // 回执无法识别不是连接中断：用独立错误码结束本次登录，避免把未识别说成已断线。
+          this.cancel();
+          this.update({ state: "failed", code: "LOGIN_READBACK_INVALID",
+            summary: "登录状态回执无法识别，保存结果未知，请检查本机登录态" });
+          return;
+        }
         if (result.id !== this.attempt) throw new Error("login attempt changed");
         this.update(result); this.poll(generation);
       }).catch(() => {
