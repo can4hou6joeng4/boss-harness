@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextBranchSummary, ContextBranchSummaryIssue, ContextCompactJob, InitializeResponse, QueueItem, ThreadBranchEndpoint, TurnSummary } from "@boss-harness/protocol";
 import { abortContextCompaction, harnessErrorText, listBranchTurns, listQueue, listThreadBranches, readContext, readContextCompaction, setThreadLeaf } from "./harnessBridge";
 import { readPagedItems } from "./pagedRead";
+import { compactionReferenceOf } from "./contextJob";
 
 /**
  * 会话内分支（只在内核同时声明 sessionLeaf / sessionBranchTree / sessionBranchViews 时启用）。
@@ -165,7 +166,8 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
           const total = context.branchSummaryIssueCount;
           summaryIssueCount = typeof total === "number" && Number.isSafeInteger(total) && total >= summaryIssues.length
             ? total : summaryIssues.length;
-          if (context.compactionJob?.active) jobId = context.compactionJob.jobId;
+          const reference = compactionReferenceOf(context.compactionJob);
+          if (reference?.active) jobId = reference.jobId;
         }
       } catch (error) {
         // 摘要条目只用于标注，不影响分支列表与切换；但界面不能把「读不到」显示成「没有摘要」。

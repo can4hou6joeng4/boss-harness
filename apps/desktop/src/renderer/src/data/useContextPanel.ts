@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContextCompactJob, ContextCompactPlan, ContextReadResponse } from "@boss-harness/protocol";
-import { isContextJob, manualCompactionJob } from "./contextJob";
+import { compactionReferenceOf, isContextJob, manualCompactionJob } from "./contextJob";
 import { disconnectPatch, settleReadFlight } from "./contextPanelState";
 import { abortContextCompaction, harnessErrorText, planContextCompaction, readContext, readContextCompaction, startContextCompaction } from "./harnessBridge";
 
@@ -97,7 +97,7 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
           update(id, { budget });
           return;
         }
-        const reference = budget.compactionJob;
+        const reference = compactionReferenceOf(budget.compactionJob);
         update(id, state => ({ ...state, budget, lifecycleActive: reference === undefined ? null : reference?.active ?? false,
           discoveryStopped: reference === undefined && state.unknownStart ? true : state.discoveryStopped,
           error: state.unknownStart || state.unavailableJob ? state.error : "" }));
