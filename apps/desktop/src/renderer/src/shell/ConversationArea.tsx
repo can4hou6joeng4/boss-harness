@@ -510,7 +510,8 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
     const pending = approvalSubmission.getState().pendingMessageId;
     // 归档会话中的审批已被内核关闭（APPROVAL_CLOSED）；其余不可提交状态与按钮的
     // disabled 共用同一判定，避免按钮可点却在这里静默返回。
-    if (!approval || approvalBlockReason(msgId, Boolean(approval.submitted), pending, archived) !== null) return;
+    if (!approval || approvalBlockReason(msgId, Boolean(approval.submitted), pending, archived,
+      { approvalId: approval.approvalId, simulateLocal }) !== null) return;
     const remember = !approval.consequential && (approvalSubmission.remember[msgId] || false);
     if (approval.approvalId) {
       // 发起后由会话级缓存持有在途锁并结算迟到回执；通知切走也不影响结果归属。
@@ -661,10 +662,12 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
             const copyText = messageCopyText(item);
             // 并发审批时只有一张能提交；其余卡片禁用并说明原因，而不是可点后静默失效。
             const approvalReason = item.approval
-              ? approvalBlockReason(item.id, Boolean(item.approval.submitted), approvalSubmission.pendingMessageId, archived)
+              ? approvalBlockReason(item.id, Boolean(item.approval.submitted), approvalSubmission.pendingMessageId, archived,
+                { approvalId: item.approval.approvalId, simulateLocal })
               : null;
             const approvalTitle = approvalReason === "archived"
               ? "此聊天已归档，审批已关闭"
+              : approvalReason === "missingId" ? "审批缺少标识，无法提交；请刷新会话核对记录"
               : approvalReason === "otherPending" ? "另一张审批正在提交，请等待完成" : undefined;
             if (item.role === "user") {
               return (
