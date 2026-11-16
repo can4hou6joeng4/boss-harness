@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ThreadReasoningReadResponse } from "@boss-harness/protocol";
 import { harnessErrorText, readThreadReasoning, setThreadReasoning } from "./harnessBridge";
-import { reasoningTarget } from "./reasoningControl";
+import { reasoningReadOf, reasoningTarget } from "./reasoningControl";
 
 export interface SessionReasoningControl {
   data: ThreadReasoningReadResponse | null;
@@ -53,10 +53,8 @@ export function useSessionReasoning(threadId: string | null, connected: boolean)
     readVersions.current.set(id, version);
     const valid = () => epoch.current === connectionEpoch && readVersions.current.get(id) === version;
     try {
-      const result = await readThreadReasoning(id);
-      if (result.threadId !== id || !Array.isArray(result.availableEfforts)
-        || result.availableEfforts.some(effort => typeof effort !== "string")
-        || (result.effort !== null && typeof result.effort !== "string")) throw new Error("推理设置响应无效");
+      const result = reasoningReadOf(await readThreadReasoning(id), id);
+      if (!result) throw new Error("推理设置响应无效");
       if (valid()) update(id, state => ({ ...state, data: result, error: clearError ? "" : state.error }));
       return result;
     } catch (cause) {
