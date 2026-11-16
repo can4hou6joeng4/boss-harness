@@ -101,7 +101,7 @@ export function ContextEditDialog({ threadId, itemId, title, threadTitle, onClos
     if (!record || saving || stale || !record.canEdit) return;
     // 主进程会拒绝超限的替换文本；在这里先给出可理解的原因，避免落入「结果未确认」。
     if (contextEditTextTooLong(replacementText)) {
-      setError(`替换文本超过 ${CONTEXT_EDIT_MAX_TEXT_LENGTH} 字符上限，未提交；请精简后再试。`);
+      setError(`替换文本超过 ${CONTEXT_EDIT_MAX_TEXT_LENGTH} 字符上限，未提交。`);
       return;
     }
     setSaving(true);
