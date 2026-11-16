@@ -4,6 +4,26 @@
 
 后续变更在此汇总；具名候选版本是否已实际发布，以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 的 tag 与资产为准。
 
+当前没有未归入具名候选版本的变更。
+
+## 0.2.0-rc.53 - 2026-11-16
+
+本节汇总第五十三个候选版本的源码与交付内容；rc.16 至 rc.53 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+相对 rc.52，本次包含 5 项交付：Source build 增加 wheel / sdist 隔离安装、版本断言与 `--check` 自检（#1547、#1548）；README 与队列徽标说明同步（#1549、#1550）；增加 Issue 表单与安全政策入口（#1551、#1552）；重新排队兜底投影计入已撤回记录（#1553、#1554）；审批字段展示约束对齐内核与桌面（#1555、#1556）。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
+
+升级注意：不改变协议、RPC、持久化格式、存储键或工具权限；已安装的 rc.52 源码无需迁移。rc.52 已准备的 5 项修复与更早候选内容继续适用。最新实际发布仍为 rc.15。
+
+交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
+
+### 变更
+
+- [Issue #1557](https://github.com/can4hou6joeng4/boss-harness/issues/1557)：同步根包、桌面及三个共享工作区包、锁文件与 Python 运行时版本为 npm `0.2.0-rc.53` / Python `0.2.0rc53`；将 rc.52 之后 5 项交付归入本候选，同步 README 近期进展与版本表、使用指南的候选状态、技术要求中的候选引用与 Issue 表单示例版本。候选准备不代表实际 tag、Release、资产上传或包注册表发布。不新增 RPC 方法，协议与内核仍为 `0.2.0`。
+- [Issue #1547](https://github.com/can4hou6joeng4/boss-harness/issues/1547)：`.github/workflows/build.yml` 原先只构建 wheel / sdist、生成清单并上传，产物不可安装或入口损坏时 Source build 仍然通过。现在构建后把 wheel 与 sdist 分别安装到全新 venv，断言 `boss_harness.__version__` 与 `harness/pyproject.toml` 一致，并用私有临时状态目录执行 `boss-harness --check --provider none`，非 0 即失败；不启动 Electron、不调用模型或招聘平台，缺少业务 CLI 只产生警告。
+- [Issue #1549](https://github.com/can4hou6joeng4/boss-harness/issues/1549)：README 的 CI 说明与 `QueueBadge.counts` 注释落后于实际行为。现在 CI 说明列出 wheel / sdist 隔离安装与启动自检；徽标注释说明截断投影也可能携带内核持久分类，待处理数大于 0 时优先使用。只改文档与注释，不改变运行时行为。
+- [Issue #1551](https://github.com/can4hou6joeng4/boss-harness/issues/1551)：仓库原先没有 Issue 表单，外部反馈缺少版本、安装方式、平台、复现步骤与验证范围，安全漏洞也可能进入公开 Issue。新增缺陷与功能建议表单及 `config.yml`，必填可复现信息并提示脱敏，提供安全政策、使用指南与技术参考入口；不改变源码、RPC、协议或版本号。
 - [Issue #1553](https://github.com/can4hou6joeng4/boss-harness/issues/1553)：重新排队已受理但队列刷新失败时，`queueRetryPage` 对成功撤回的旧项按 0 增量计算持久总数；内核 `queue/remove` 只把旧项标记为 `cancelled`，记录仍计入 `totalItems`，新项又新增一条，截断队列因此少显示 1 项（5 而非 6），多次重试持续漂移。现在只要内核总数已知，重新排队统一按新项加 1，成功撤回不再扣减；本地条目、待处理数与分类计数不变。只改渲染层兜底投影，不改变 RPC、协议或版本号。
 - [Issue #1555](https://github.com/can4hou6joeng4/boss-harness/issues/1555)：内核审批校验只要求 `toolName` 是字符串、不校验条目 id，桌面却要求两者去空白后非空且不超过 200 字符；损坏的待审批会进入索引、`pending_approvals` 与 `pending_approval_counts`，却被渲染层丢弃。两条待审批中一条工具名为空时，铃铛显示 2 项而通知面板只有 1 条可处理。现在 `_valid_approval_item` 对工具名与条目 id 使用与桌面展示一致的约束，索引、列表与持久计数都不再包含无法展示的条目；既有缓存索引在会话变化或运行 `--repair-state` 重建后收敛。不新增 RPC 方法，不改变持久化格式或权限，协议与内核仍为 `0.2.0`。
 
