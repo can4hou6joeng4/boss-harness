@@ -4,6 +4,9 @@
  * `casefold` 与 `lower` 在 297 个码点上不同（含 103 个展开映射，
  * 如 `ß` → `ss`、`ﬁ` → `fi`、`ς` → `σ`）；这里只保存差异项，其余码点回退小写。
  * 表由 Python 3.12 的 `str.casefold()` 生成；内核按单个码点做 NFKC 后再 casefold。
+ * 兜底小写跟随运行时 Unicode（Node 24 / ICU 78.3 为 Unicode 17.0）；内核在
+ * `search_unicode.py` 为较旧的 Python 补齐 Unicode 14–17 的映射差值，升级
+ * Node 后需按全码点对照重新核对。
  */
 const CASE_FOLD: Record<string, string> = {
   "\u00b5": "\u03bc",

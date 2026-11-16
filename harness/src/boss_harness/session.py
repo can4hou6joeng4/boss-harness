@@ -31,6 +31,7 @@ from typing import Any, TypeVar
 from boss_harness.persistence import PersistenceIndex, SCHEMA_VERSION
 from boss_harness.private_files import ensure_private_directory, open_private_file, restrict_private_file
 from boss_harness.queue_view import ACTIVE_QUEUE_STATUSES, queue_record
+from boss_harness.search_unicode import needs_extra, search_normalize
 from boss_harness.models.capabilities import REASONING_EFFORTS
 
 _T = TypeVar("_T")
@@ -74,8 +75,12 @@ def _is_hangul_syllable(char: str) -> bool:
 _HALFWIDTH_VOICED_MARKS = frozenset({"ﾞ", "ﾟ"})
 
 
-def _search_clusters(value: str) -> Iterator[tuple[int, int, str]]:
+def _search_clusters(value: str, normalize: Callable[[str], str] | None = None
+                     ) -> Iterator[tuple[int, int, str]]:
     """逐个组合簇产出 (原文起点, 原文终点, NFKC + casefold 后的片段)。
+
+    ``normalize`` 为 None 时走普通 NFKC + casefold；只有正文含新版 Unicode
+    映射码点时，调用方才传入补表的 ``search_normalize``。
 
     NFKC 会把基字符与后续组合记号、分解状态的谚文 jamo、预组合音节后的尾音
     jamo 组合成一个字符；逐码点归一化做不到跨码点组合，NFC / NFD 正文互相
@@ -99,7 +104,9 @@ def _search_clusters(value: str) -> Iterator[tuple[int, int, str]]:
             or value[end] in _HALFWIDTH_VOICED_MARKS
         ):
             end += 1
-        yield index, end, unicodedata.normalize("NFKC", value[index:end]).casefold()
+        part = value[index:end]
+        yield index, end, (unicodedata.normalize("NFKC", part).casefold()
+                           if normalize is None else normalize(part))
         index = end
 
 
@@ -2366,11 +2373,16 @@ class SessionStore:
         单码点簇归一化后仍是单字符时映射恒等，返回 `None` 让调用方直接用下标，
         常见正文因此不必为每个码点保留索引。需要映射时用 `array('I')` 紧凑存放：
         文本上限为 `_SEARCH_THREAD_BYTES`，索引远小于 2**32；逐码点的 Python 整数
-        列表会让长文本的搜索内存放大到文本大小的上百倍。
+        列表会让长文本的搜索内存放大到文本大小的上百倍。纯 ASCII 不受 NFKC /
+        casefold 影响，直接小写返回；其余文本只在含补表码点时走
+        `search_unicode.search_normalize`，普通文本不承担补表开销。
         """
+        if value.isascii():
+            return value.lower(), None, None
+        normalize = search_normalize if needs_extra(value) else None
         parts = io.StringIO()
         identity = True
-        for index, end, part in _search_clusters(value):
+        for index, end, part in _search_clusters(value, normalize):
             if not part:
                 continue
             parts.write(part)
@@ -2381,7 +2393,7 @@ class SessionStore:
             return normalized, None, None
         starts = array.array("I")
         ends = array.array("I")
-        for index, end, part in _search_clusters(value):
+        for index, end, part in _search_clusters(value, normalize):
             starts.extend([index] * len(part))
             ends.extend([end] * len(part))
         return normalized, starts, ends
