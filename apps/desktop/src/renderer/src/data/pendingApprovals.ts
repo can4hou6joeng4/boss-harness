@@ -41,6 +41,25 @@ export interface PendingApprovalList {
   approvals: PendingApproval[];
   /** 内核还有待审批未返回；旧内核缺省视为没有截断。 */
   truncated: boolean;
+  /** 内核按会话统计的全部待审批数量，不受列表上限影响；旧内核缺省。 */
+  threadCounts?: Record<string, number>;
+  /** threadCounts 的合计；与已返回的条目数无关。 */
+  total?: number;
+}
+
+/** 校验按会话的持久计数；任一项非法或合计小于已返回条目时整体丢弃，不展示不可信数字。 */
+function threadCountsOf(value: unknown, visible: number): { counts: Record<string, number>; total: number } | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const counts: Record<string, number> = Object.create(null) as Record<string, number>;
+  let total = 0;
+  for (const [threadId, count] of Object.entries(value as Record<string, unknown>)) {
+    if (!text(threadId, FIELD_LIMIT)) return undefined;
+    if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) return undefined;
+    if (!Number.isSafeInteger(total + count)) return undefined;
+    counts[threadId] = count;
+    total += count;
+  }
+  return total >= visible ? { counts, total } : undefined;
 }
 
 /** 校验 approval/list 的返回：外层不可读时抛错（不能伪装成「没有通知」），单条非法只丢弃该条。 */
@@ -62,7 +81,13 @@ export function mapPendingApprovals(value: unknown, limit = 100): PendingApprova
     approvals.push(approval);
     if (approvals.length >= limit) break;
   }
-  return { approvals, truncated: truncated === true };
+  const result: PendingApprovalList = { approvals, truncated: truncated === true };
+  const threadCounts = threadCountsOf((value as Record<string, unknown>).threadCounts, approvals.length);
+  if (threadCounts) {
+    result.threadCounts = threadCounts.counts;
+    result.total = threadCounts.total;
+  }
+  return result;
 }
 
 const MINUTE = 60_000;

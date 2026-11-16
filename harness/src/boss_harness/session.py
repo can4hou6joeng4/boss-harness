@@ -1382,6 +1382,26 @@ class SessionStore:
             return False
         return approval.get("paramsDigest") == digest
 
+    def _pending_approvals_where(self, thread_id: str | None) -> tuple[str, list[Any]] | None:
+        """待审批的共享过滤条件；删除占位过多时返回 None，调用方放弃整次读取。"""
+        pending_deletions = sorted(self._pending_deletion_ids())
+        if len(pending_deletions) > 800:
+            return None
+        where = """ FROM approvals a
+                    JOIN threads t ON t.id=a.thread_id
+                    JOIN turns r ON r.thread_id=a.thread_id AND r.turn_id=a.turn_id
+                    WHERE a.decision IS NULL AND a.status='running'
+                      AND a.execution_state='pending_approval' AND a.deadline>?
+                      AND t.archived=0 AND r.status IN ('running','interrupted')"""
+        parameters: list[Any] = [time.time()]
+        if thread_id is not None:
+            where += " AND a.thread_id=?"
+            parameters.append(thread_id)
+        if pending_deletions:
+            where += " AND a.thread_id NOT IN (" + ",".join("?" for _ in pending_deletions) + ")"
+            parameters.extend(pending_deletions)
+        return where, parameters
+
     def pending_approvals(self, thread_id: str | None = None, *,
                           limit: int = 100) -> tuple[list[dict], bool]:
         """Return the bounded pending page and whether more pending approvals were omitted."""
@@ -1391,24 +1411,13 @@ class SessionStore:
         with self._lock:
             if thread_id is not None:
                 self.require_thread(thread_id)
-            pending_deletions = sorted(self._pending_deletion_ids())
-            if len(pending_deletions) > 800:
+            condition = self._pending_approvals_where(thread_id)
+            if condition is None:
                 return [], False
-            query = """SELECT a.approval_id,a.thread_id,a.turn_id,a.item_id,a.tool_name,
-                       a.deadline,a.params_digest FROM approvals a
-                       JOIN threads t ON t.id=a.thread_id
-                       JOIN turns r ON r.thread_id=a.thread_id AND r.turn_id=a.turn_id
-                       WHERE a.decision IS NULL AND a.status='running'
-                         AND a.execution_state='pending_approval' AND a.deadline>?
-                         AND t.archived=0 AND r.status IN ('running','interrupted')"""
-            parameters: list[Any] = [time.time()]
-            if thread_id is not None:
-                query += " AND a.thread_id=?"
-                parameters.append(thread_id)
-            if pending_deletions:
-                query += " AND a.thread_id NOT IN (" + ",".join("?" for _ in pending_deletions) + ")"
-                parameters.extend(pending_deletions)
-            query += " ORDER BY t.updated_at DESC,a.thread_id DESC,a.item_id DESC LIMIT ?"
+            where, parameters = condition
+            query = ("""SELECT a.approval_id,a.thread_id,a.turn_id,a.item_id,a.tool_name,
+                       a.deadline,a.params_digest""" + where
+                     + " ORDER BY t.updated_at DESC,a.thread_id DESC,a.item_id DESC LIMIT ?")
             # Fetch one extra row only to distinguish “exactly at the limit” from “more remain”.
             parameters.append(limit + 1)
             with self._index.connection() as connection:
@@ -1420,6 +1429,26 @@ class SessionStore:
                       "summary": f"需要你批准后才会执行：{row['tool_name']}",
                       "deadline": row["deadline"], "paramsDigest": row["params_digest"]}
                      for row in rows[:limit]], truncated)
+
+    def pending_approval_counts(self, thread_id: str | None = None) -> dict[str, int]:
+        """按会话统计全部待审批数量，不受 approval/list 的条目上限影响。
+
+        侧栏徽标需要覆盖列表页之外的审批；与列表共用同一组过滤条件。
+        """
+        if thread_id is not None:
+            self.path_for(thread_id)
+        with self._lock:
+            if thread_id is not None:
+                self.require_thread(thread_id)
+            condition = self._pending_approvals_where(thread_id)
+            if condition is None:
+                return {}
+            where, parameters = condition
+            with self._index.connection() as connection:
+                rows = connection.execute(
+                    "SELECT a.thread_id,COUNT(*)" + where + " GROUP BY a.thread_id",
+                    parameters).fetchall()
+            return {str(row[0]): int(row[1]) for row in rows}
 
     def _append_approval_decision(self, thread_id: str, item: dict, decision: str,
                                   *, live_owner: bool) -> dict:

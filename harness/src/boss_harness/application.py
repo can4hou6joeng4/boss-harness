@@ -4045,7 +4045,9 @@ class ApplicationService:
         if type(limit) is not int or not 1 <= limit <= 200:
             raise ValueError("limit 必须是 1 到 200 之间的整数")
         approvals, truncated = self.sessions.pending_approvals(thread_id, limit=limit)
-        return {"approvals": approvals, "truncated": truncated}
+        # 列表有上限，但侧栏需要覆盖页面之外的会话；计数与列表共用同一组过滤条件。
+        return {"approvals": approvals, "truncated": truncated,
+                "threadCounts": self.sessions.pending_approval_counts(thread_id)}
 
     def on_approval_respond(self, params: dict | None) -> dict:
         if not isinstance(params, dict) or set(params) != {"approvalId", "approved"}:
