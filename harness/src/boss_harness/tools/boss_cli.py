@@ -10,6 +10,7 @@ import math
 import os
 import re
 import signal
+import stat
 import subprocess
 import threading
 import time
@@ -144,20 +145,36 @@ class BinaryChoice:
     source: str  # env | sibling | path
 
 
+def _executable_path(candidate: str) -> bool:
+    """A candidate must be a real executable, not a directory, link, or dead path.
+
+    `os.access(..., X_OK)` alone accepts directories on some platforms; a
+    dedicated lstat keeps a malformed sibling install from shadowing PATH.
+    """
+    path = Path(candidate)
+    try:
+        observed = path.lstat()
+    except OSError:
+        return False
+    if not stat.S_ISREG(observed.st_mode) or path.is_symlink():
+        return False
+    return os.access(path, os.X_OK)
+
+
 def resolve_binary(explicit: str | None = None) -> BinaryChoice:
     """按优先级找一个可用的上游二进制，并说明来源。
 
     顺序：显式参数 -> 环境变量 -> 并排的上游仓库虚拟环境 -> PATH。
     并排候选是为规避 PATH 上可能存在的悬空安装（本项目早期版本留下过）。
     """
-    if explicit:
+    if explicit and _executable_path(explicit):
         return BinaryChoice(explicit, "explicit")
     env = os.environ.get(BINARY_ENV)
-    if env:
+    if env and _executable_path(env):
         return BinaryChoice(env, "env")
 
     sibling = REPO_ROOT.parent / "boss-agent-cli" / ".venv" / "bin" / "boss"
-    if sibling.exists():
+    if _executable_path(str(sibling)):
         return BinaryChoice(str(sibling), "sibling")
 
     found = which("boss")
