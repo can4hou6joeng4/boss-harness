@@ -146,19 +146,21 @@ class BinaryChoice:
 
 
 def _executable_path(candidate: str) -> bool:
-    """A candidate must be a real executable, not a directory, link, or dead path.
+    """Check that a configured CLI path can actually be executed.
 
-    `os.access(..., X_OK)` alone accepts directories on some platforms; a
-    dedicated lstat keeps a malformed sibling install from shadowing PATH.
+    `os.access(..., X_OK)` alone accepts directories on some platforms, so use
+    lstat to reject directories and broken links. A valid symlink to an
+    executable (the normal shape of a Python virtualenv `bin/boss`) is allowed:
+    rejecting it would break the documented sibling and explicit-path setups.
     """
     path = Path(candidate)
     try:
         observed = path.lstat()
+        if stat.S_ISLNK(observed.st_mode):
+            observed = path.stat()
     except OSError:
         return False
-    if not stat.S_ISREG(observed.st_mode) or path.is_symlink():
-        return False
-    return os.access(path, os.X_OK)
+    return stat.S_ISREG(observed.st_mode) and os.access(path, os.X_OK)
 
 
 def resolve_binary(explicit: str | None = None) -> BinaryChoice:
