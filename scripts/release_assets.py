@@ -2,7 +2,8 @@
 """为 Python 内核发布资产生成 build-info.json 与 SHA256SUMS.txt。
 
 只读取命令行显式列出的普通文件；拒绝符号链接、目录、重复文件名与保留输出名。
-摘要按块流式计算，清单按文件名排序，两个输出文件都先写临时文件再原子替换。
+核对输出目录归属和每个 wheel / sdist 内的版本元数据，摘要按块流式计算；
+清单按文件名排序，两个输出文件都先写临时文件再原子替换。
 """
 
 from __future__ import annotations
@@ -15,12 +16,20 @@ import platform
 import re
 import stat
 import sys
+import tarfile
 import tempfile
+import zipfile
 from datetime import datetime, timezone
+from email.parser import Parser
 from pathlib import Path
 
+try:
+    from packaging.version import InvalidVersion, Version
+except ImportError:  # pragma: no cover - packaging 来自构建环境
+    InvalidVersion = None  # type: ignore[assignment]
+    Version = None  # type: ignore[assignment]
+
 CHUNK_BYTES = 1024 * 1024
-VERSION_PATTERN = re.compile(r"[0-9]+(?:\.[0-9]+)+(?:(?:a|b|rc)[0-9]+)?\Z")
 COMMIT_PATTERN = re.compile(r"[0-9a-fA-F]{40}\Z")
 BUILT_AT_PATTERN = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\Z")
 CONTROL_PATTERN = re.compile(r"[\u0000-\u001f\u007f]")
@@ -46,7 +55,46 @@ def parse_built_at(value: str | None) -> str:
     return value
 
 
-def artifact_record(path: Path) -> dict[str, object]:
+def _metadata_version(data: bytes, name: str) -> str:
+    text = data.decode("utf-8")
+    metadata = Parser().parsestr(text, headersonly=True)
+    value = metadata.get("Version")
+    if not value or not value.strip():
+        fail(f"{name} 缺少 Version 元数据")
+    return value.strip()
+
+
+def verify_artifact_version(path: Path, name: str, version: Version) -> None:
+    try:
+        if name.endswith(".whl"):
+            with zipfile.ZipFile(path) as archive:
+                candidates = [n for n in archive.namelist() if n.endswith(".dist-info/METADATA")]
+                if len(candidates) != 1:
+                    fail(f"{name} 未包含唯一的 METADATA")
+                actual = _metadata_version(archive.read(candidates[0]), name)
+        elif name.endswith(".tar.gz"):
+            with tarfile.open(path, "r:gz") as archive:
+                candidates = [m for m in archive.getmembers()
+                              if m.isfile() and m.name.endswith("/PKG-INFO")]
+                if len(candidates) != 1:
+                    fail(f"{name} 未包含唯一的 PKG-INFO")
+                handle = archive.extractfile(candidates[0])
+                if handle is None:
+                    fail(f"{name} 无法读取 PKG-INFO")
+                with handle:
+                    actual = _metadata_version(handle.read(), name)
+        else:
+            return
+    except (OSError, UnicodeError, zipfile.BadZipFile, tarfile.TarError) as exc:
+        fail(f"无法核对 {name} 的版本元数据：{exc}")
+    try:
+        if Version(actual) != version:
+            fail(f"{name} 的版本 {actual} 与 --version {version} 不一致")
+    except InvalidVersion:
+        fail(f"{name} 的版本元数据无效：{actual!r}")
+
+
+def artifact_record(path: Path, out_dir: Path, version: Version) -> dict[str, object]:
     name = path.name
     if not name:
         fail("资产路径缺少文件名")
@@ -56,6 +104,11 @@ def artifact_record(path: Path) -> dict[str, object]:
         fail(f"资产文件名包含控制字符：{name!r}")
     if "\\" in name:
         fail(f"资产文件名不能包含反斜杠：{name!r}")
+    try:
+        if path.parent.samefile(out_dir) is False:
+            fail(f"{name} 不在输出目录内")
+    except OSError as exc:
+        fail(f"无法核对 {name} 的目录归属：{exc.strerror or exc}")
 
     try:
         observed = path.lstat()
@@ -80,6 +133,7 @@ def artifact_record(path: Path) -> dict[str, object]:
             while chunk := handle.read(CHUNK_BYTES):
                 digest.update(chunk)
                 size += len(chunk)
+        verify_artifact_version(path, name, version)
     except OSError as exc:
         fail(f"无法读取 {name}：{exc.strerror or exc}")
     finally:
@@ -131,7 +185,11 @@ def main() -> int:
     parser.add_argument("artifacts", nargs="+", help="参与清单的 wheel / sdist 等普通文件")
     args = parser.parse_args()
 
-    if not VERSION_PATTERN.fullmatch(args.version):
+    if Version is None or InvalidVersion is None:
+        fail("缺少 packaging 依赖；请在构建环境中安装 packaging")
+    try:
+        version = Version(args.version)
+    except InvalidVersion:
         fail("--version 不是有效版本，如 0.2.0rcN")
     if not COMMIT_PATTERN.fullmatch(args.commit):
         fail("--commit 必须是 40 位十六进制提交")
@@ -146,7 +204,7 @@ def main() -> int:
     if stat.S_ISLNK(out_stat.st_mode) or not stat.S_ISDIR(out_stat.st_mode):
         fail(f"输出目录必须是已存在的目录，不能是符号链接：{out_dir}")
 
-    records = [artifact_record(Path(value)) for value in args.artifacts]
+    records = [artifact_record(Path(value), out_dir, version) for value in args.artifacts]
     records.sort(key=lambda record: str(record["name"]))
     names = [str(record["name"]) for record in records]
     duplicates = sorted({name for name in names if names.count(name) > 1})
@@ -156,7 +214,7 @@ def main() -> int:
     build_info = {
         "schemaVersion": 1,
         "name": "boss-harness",
-        "version": args.version,
+        "version": str(version),
         "sourceCommit": commit,
         "builtAt": built_at,
         "pythonVersion": platform.python_version(),
