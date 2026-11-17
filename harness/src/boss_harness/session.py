@@ -1416,7 +1416,11 @@ class SessionStore:
                     JOIN turns r ON r.thread_id=a.thread_id AND r.turn_id=a.turn_id
                     WHERE a.decision IS NULL AND a.status='running'
                       AND a.execution_state='pending_approval' AND a.deadline>?
-                      AND t.archived=0 AND r.status IN ('running','interrupted')"""
+                      AND t.archived=0 AND r.status IN ('running','interrupted')
+                      AND typeof(a.approval_id)='text' AND typeof(a.thread_id)='text'
+                      AND typeof(a.turn_id)='text' AND typeof(a.item_id)='text'
+                      AND typeof(a.tool_name)='text' AND typeof(a.params_digest)='text'
+                      AND typeof(a.deadline) IN ('integer','real')"""
         parameters: list[Any] = [time.time()]
         if thread_id is not None:
             where += " AND a.thread_id=?"
@@ -1447,12 +1451,26 @@ class SessionStore:
             with self._index.connection() as connection:
                 rows = connection.execute(query, parameters).fetchall()
             truncated = len(rows) > limit
-            return ([{"approvalId": row["approval_id"], "threadId": row["thread_id"],
-                      "turnId": row["turn_id"], "itemId": row["item_id"],
-                      "toolName": row["tool_name"],
-                      "summary": f"需要你批准后才会执行：{row['tool_name']}",
-                      "deadline": row["deadline"], "paramsDigest": row["params_digest"]}
-                     for row in rows[:limit]], truncated)
+            approvals = []
+            for row in rows[:limit]:
+                deadline = row["deadline"]
+                # 索引列不保证仍是写入时的类型：外部改写可把 deadline 变成 BLOB，
+                # 原样返回会让 JSON 序列化抛 TypeError，整次 approval/list 变成
+                # -32603 并连带隐藏其余可处理的审批。损坏行按缺失处理，与共享
+                # 过滤条件的 typeof 守卫保持一致，列表与计数因此仍然自洽。
+                deadline_valid = (type(deadline) is int
+                                  or (isinstance(deadline, float) and math.isfinite(deadline)))
+                if (not deadline_valid
+                        or not all(isinstance(row[key], str) and row[key] for key in
+                                   ("approval_id", "thread_id", "turn_id", "item_id",
+                                    "tool_name", "params_digest"))):
+                    continue
+                approvals.append({"approvalId": row["approval_id"], "threadId": row["thread_id"],
+                                  "turnId": row["turn_id"], "itemId": row["item_id"],
+                                  "toolName": row["tool_name"],
+                                  "summary": f"需要你批准后才会执行：{row['tool_name']}",
+                                  "deadline": deadline, "paramsDigest": row["params_digest"]})
+            return approvals, truncated
 
     def pending_approval_counts(self, thread_id: str | None = None) -> dict[str, int]:
         """按会话统计全部待审批数量，不受 approval/list 的条目上限影响。
