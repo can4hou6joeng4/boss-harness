@@ -331,6 +331,9 @@ export class HarnessHostConnection {
       const completedTurn = notification.method === "thread/updated" && params.threadId === route.threadId &&
         finishedTurn;
       const completedItem = notification.method === "item/completed" &&
+        // 条目与回合一样按会话作用域撤销：只比较 itemId 会让另一个会话的同名
+        // 条目撤销本会话仍在等待的审批。旧内核不带 threadId 时保持原匹配。
+        (params.threadId === undefined || params.threadId === route.threadId) &&
         (params.itemId === route.itemId || (object(params.item) && params.item.id === route.itemId));
       if (!completedTurn && !completedItem) continue;
       clearTimeout(route.timer); this.#approvals.delete(approvalId);
