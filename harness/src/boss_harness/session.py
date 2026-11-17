@@ -1845,6 +1845,12 @@ class SessionStore:
             raise _IndexedMetadataError(row["id"]) from None
         if not isinstance(metadata, dict):
             raise _IndexedMetadataError(row["id"])
+        # 投影行必须自称与主键相同的会话 id：外部改写或半写状态可能留下没有 id、
+        # 或复制自其它会话的 metadata_json。列表会把它原样交给调用方，启动恢复、
+        # 搜索与队列恢复随后读 thread["id"] 抛 KeyError（-32603），一条坏行就能
+        # 让内核每次启动都失败。按索引损坏处理，走既有重建路径。
+        if metadata.get("id") != row["id"]:
+            raise _IndexedMetadataError(row["id"])
         # 旧版本没有长度上限，历史会话头可能留着超长标识或标题。原始记录不改写，
         # 投影固定截断到同一上限并标记，使这类会话重新可读。
         project_id = metadata.get("projectId")
@@ -2439,6 +2445,12 @@ class SessionStore:
                 with self._index.connection() as connection:
                     rows = connection.execute(query, parameters).fetchall()
                 page = rows[:limit]
+                for row in page:
+                    # 投影列不保证仍是建表时的类型：SQLite 的列亲和性不会阻止外部把
+                    # updated_at 改写成 BLOB。游标的 json.dumps 会抛 TypeError，绕过
+                    # 只捕获 _IndexedMetadataError 的重建重试，把 -32603 送给调用方。
+                    if not isinstance(row["updated_at"], str):
+                        raise _IndexedMetadataError(row["id"])
                 next_cursor = (_page_cursor("threads", scope, [page[-1]["updated_at"], page[-1]["id"]])
                                if len(rows) > limit else None)
                 return {"threads": [self._thread_metadata(row) for row in page],
@@ -2728,6 +2740,11 @@ class SessionStore:
             with self._index.connection() as connection:
                 rows = connection.execute(query, parameters).fetchall()
             page = rows[:limit]
+            for row in page:
+                # 与 list_branch_turns 同款守卫（#1802）：first_ordinal 被外部改写成
+                # BLOB 时游标 json.dumps 抛 TypeError，回合分页会持续 -32603。
+                if type(row["first_ordinal"]) is not int or not isinstance(row["turn_id"], str):
+                    raise _IndexedMetadataError(thread_id)
             next_cursor = (_page_cursor("turns", scope, [page[-1]["first_ordinal"], page[-1]["turn_id"]])
                            if len(rows) > limit else None)
             return {"turns": [self._turn_metadata(row) for row in page], "nextCursor": next_cursor}
