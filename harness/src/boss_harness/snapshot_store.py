@@ -168,7 +168,9 @@ class SnapshotBuilder:
         self.connection.execute("PRAGMA cache_size=-256")
         self.connection.execute("PRAGMA temp_store=FILE")
         page_size = self.connection.execute("PRAGMA page_size").fetchone()[0]
-        max_pages = MAX_SNAPSHOT_BYTES // page_size
+        # 留一页余量：达到上限的那次写入由 SQLite 先抛内部错误，事后页数检查
+        # 才能读到越界页数并给出可读错误，而不是从 INSERT 处逃逸成 -32603。
+        max_pages = MAX_SNAPSHOT_BYTES // page_size + 1
         actual_max_pages = self.connection.execute(f"PRAGMA max_page_count={max_pages}").fetchone()[0]
         if actual_max_pages > max_pages:
             self.connection.close()
@@ -228,6 +230,11 @@ class SnapshotBuilder:
                 merged = {**current, **payload, "id": current["id"], "threadId": self.thread_id}
                 self._write_item(ordinal, merged, is_new=False, previous_size=previous_size)
             else:
+                if self._alias(entry_id) is not None:
+                    # 与 `_project_items` 一致：同一编号的顶层条目重复出现（外部改写或
+                    # 异常写入）时保留先出现的记录，跳过后续记录；否则分页会返回两条
+                    # 同 id 条目，而 `item()` 只取第一行，列表与内容读取落到不同修订。
+                    return
                 ordinal = self.count
                 merged = {**payload, "id": entry_id, "threadId": self.thread_id}
                 self._write_item(ordinal, merged, is_new=True)
@@ -258,6 +265,14 @@ class SnapshotBuilder:
             if record is None:
                 return
             encoded = json.dumps(record, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+            # 队列 payload 与条目共用同一份内容存储预算：此前只统计 items 表，
+            # 大量或超长的队列记录可以绕过条目上限，直到页数上限才失败。
+            previous = self.connection.execute(
+                "SELECT payload FROM queue_items WHERE queue_id=?", (record["id"],)).fetchone()
+            previous_size = len(previous[0].encode("utf-8")) if previous and isinstance(previous[0], str) else 0
+            self.item_bytes += len(encoded.encode("utf-8")) - previous_size
+            if self.item_bytes > MAX_SNAPSHOT_ITEM_BYTES:
+                raise ValueError("冻结会话超过快照条目存储上限")
             ordinal = self.queue_count
             self.queue_count += 1
             self.connection.execute("""INSERT INTO queue_items(queue_id,ordinal,payload)
@@ -309,6 +324,14 @@ class SnapshotBuilder:
             if size_on_disk > MAX_SNAPSHOT_BYTES:
                 raise ValueError("冻结会话超过快照磁盘预算")
             return size_on_disk
+        except sqlite3.OperationalError:
+            # 触达 `max_page_count` 时 SQLite 在 INSERT 处先抛内部错误，早于事后页数
+            # 检查；与预算检查同一语义，转为可读提示，不让 RPC 层返回 -32603。
+            if self.connection is not None:
+                self.connection.close()
+                self.connection = None
+            _remove_snapshot_files(self.path)
+            raise ValueError("冻结快照写入失败；会话可能超过快照磁盘预算，请重新打开会话") from None
         except BaseException:
             if self.connection is not None:
                 self.connection.close()
