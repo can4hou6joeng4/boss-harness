@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: 支持与问题分流
+    url: https://github.com/can4hou6joeng4/boss-harness/blob/main/SUPPORT.md
+    about: 先按文档、可复现缺陷、功能建议与安全报告分流，提交前移除隐私信息。
   - name: 安全漏洞报告
     url: https://github.com/can4hou6joeng4/boss-harness/security/policy
     about: 请按 SECURITY.md 私下报告，不要在公开 Issue 中披露敏感细节。
