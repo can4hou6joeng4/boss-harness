@@ -11,7 +11,7 @@ body:
     attributes:
       label: 版本与安装方式
       description: 写明候选版本或提交、安装来源（源码构建 / wheel / sdist / 桌面源码）以及是否使用上游 CLI。
-      placeholder: 例如 0.2.0-rc.59 源码构建，BOSS_HARNESS_PROVIDER=none
+      placeholder: 例如 0.2.0-rc.N 源码构建，BOSS_HARNESS_PROVIDER=none
     validations:
       required: true
   - type: dropdown
