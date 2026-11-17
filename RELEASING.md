@@ -89,9 +89,9 @@ release PR 的最新 head 必须通过全部约定检查。核对审查意见、
 - 推送 annotated tag。
 - 创建 GitHub Release，并标为候选预发布。
 - 上传已核对的资产。
-- 向 npm、PyPI 等注册表发布（若需要）。
+- 向 npm、PyPI 等注册表发布（当前未实际发布，仅作为需单独授权的可选渠道）。
 
-已有相应持续授权时按其范围执行；没有覆盖的动作在准备完成后统一确认。源码 PR 的推送 / 合并授权，不自动覆盖 tag、Release、注册表或第三方社区发送。
+已有相应持续授权时按其范围执行；没有覆盖的动作在准备完成后统一确认。源码 PR 的推送 / 合并授权，不自动覆盖 tag、Release、注册表或第三方社区发送。当前实际发布资产以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 为准；不要把 wheel、sdist 构建产物或候选版本说明写成已发布到包注册表。
 
 使用明确的合并提交创建 annotated tag，推送后核对 tag 指向。GitHub Release 使用已存在的 tag，不依赖工具自动创建轻量 tag；候选版本标为 prerelease。发布完成后再次读取远程 Release，核对 tag、提交、正文、资产名与哈希。连接中断或结果未知时先核对远端实际状态，不重复创建或覆盖。
 
