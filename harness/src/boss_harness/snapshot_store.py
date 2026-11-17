@@ -37,6 +37,23 @@ def snapshot_leaf_changed(snapshot_id: str) -> RpcError:
                      "recoveryMethod": "thread/resume", "view": "branch", "snapshot": True})
 
 
+def _decode_text(raw: bytes) -> str:
+    """快照库 TEXT 列的宽容解码；非法 UTF-8 字节按 U+FFFD 替换。
+
+    快照库属于持久数据，可能被外部改写或损坏。Python 默认的严格解码在列含
+    非法 UTF-8 时抛 ``sqlite3.OperationalError``，绕过 ``_decode_item`` /
+    ``queue_record`` 的损坏处理，让分页、正文读取与队列投影变成 -32603；
+    降级后条目解码失败仍走既有的「会话快照已损坏」可读错误。
+    """
+    return raw.decode("utf-8", "replace")
+
+
+def _connect(path: Path) -> sqlite3.Connection:
+    connection = sqlite3.connect(path)
+    connection.text_factory = _decode_text
+    return connection
+
+
 def snapshot_view_mismatch(snapshot_id: str, view: str) -> RpcError:
     return RpcError(-32011, "快照视图与读取视图不一致；分支快照只能用 view=branch 分页，日志快照不能用 view=branch",
                     {"code": "SNAPSHOT_VIEW_MISMATCH", "snapshotId": snapshot_id, "snapshotView": view})
@@ -419,7 +436,7 @@ class SnapshotStore:
                 raise snapshot_view_mismatch(snapshot_id, bound_view)
             if offset > count:
                 raise ValueError("条目分页游标超出结果范围")
-            connection = sqlite3.connect(path)
+            connection = _connect(path)
             try:
                 connection.execute("PRAGMA cache_size=-256")
                 rows = connection.execute("""SELECT items.payload,edits.entry_id,edits.excluded
@@ -448,7 +465,7 @@ class SnapshotStore:
     def item(self, snapshot_id: str, thread_id: str, item_id: str) -> dict | None:
         with self._lock:
             path, _ = self._metadata_locked(snapshot_id, thread_id)
-            connection = sqlite3.connect(path)
+            connection = _connect(path)
             try:
                 connection.execute("PRAGMA cache_size=-256")
                 row = connection.execute("SELECT payload FROM items WHERE item_id=?", (item_id,)).fetchone()
@@ -459,7 +476,7 @@ class SnapshotStore:
     def edit_state(self, snapshot_id: str, thread_id: str, item_id: str) -> dict | None:
         with self._lock:
             path, _ = self._metadata_locked(snapshot_id, thread_id)
-            connection = sqlite3.connect(path)
+            connection = _connect(path)
             try:
                 row = connection.execute("SELECT entry_id,excluded FROM edits WHERE item_id=?", (item_id,)).fetchone()
             finally:
@@ -474,7 +491,7 @@ class SnapshotStore:
         """Bounded queue projection; terminal history is windowed, not truncated by bytes."""
         with self._lock:
             path, _ = self._metadata_locked(snapshot_id, thread_id)
-            connection = sqlite3.connect(path)
+            connection = _connect(path)
             try:
                 connection.execute("PRAGMA cache_size=-256")
                 rows = connection.execute("SELECT ordinal,payload FROM queue_items ORDER BY ordinal")
