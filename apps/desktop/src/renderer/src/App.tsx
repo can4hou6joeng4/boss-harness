@@ -30,6 +30,7 @@ import { matchesContinuation, resumedSession } from "./data/sessionState";
 import { continuationReadOf } from "./data/continuation";
 import { isCommandChord } from "./data/shortcuts";
 import { reduceHarnessEvent, autoApprovalFallback, hasApprovalDecision, type HarnessEvent } from "./data/harnessEvents";
+import { turnIdOf } from "./data/itemFields";
 import { unconfirmedFailure } from "./data/confirmationFailure";
 import { sendFailureNotice, sendFailureRecheckNotice } from "./data/sendFailure";
 import { stopFailureNotice, stopFailureRecheckNotice, stopMissingNotice, stopMissingRecheckNotice } from "./data/stopFailure";
@@ -409,7 +410,10 @@ export function App(): JSX.Element {
       if (event.method === "turn/started") {
         lifecycleVersion.current += 1;
         clearModelRetry(id);
-        if (params.turnId) turnIds.current.set(id, params.turnId);
+        // 回合标识参与后续事件归属过滤：只接受非空字符串。对象等畸形值写入后，
+        // 每个正常字符串 turnId 都会被判定成其它回合并被静默丢弃。
+        const startedTurnId = turnIdOf(params.turnId);
+        if (startedTurnId) turnIds.current.set(id, startedTurnId);
         if (activeRef.current?.id === id) setContinuationCheck(null);
         // 新回合开始说明旧失败不再适用：删除该会话的记录；提示条正显示它时一并清除，其他会话的提示不受影响。
         if (sessionErrors.current.delete(id) && errorOwner.current === id) showError("");
@@ -489,9 +493,12 @@ export function App(): JSX.Element {
         if (activeRef.current?.id === id) setTurnSkillIds(previous => ({ ...previous, ...mapping }));
       }).catch(() => { /* 技能标签不可用不影响会话内容。 */ });
       updateThread(id, () => real);
-      if (snapshot.activeTurnId) turnIds.current.set(id, snapshot.activeTurnId);
+      // 快照的活动回合决定「运行中」状态与事件归属：同样只接受非空字符串，
+      // 畸形值按缺失处理，不能让它写进过滤表或把会话误标成运行中。
+      const activeTurnId = turnIdOf(snapshot.activeTurnId);
+      if (activeTurnId) turnIds.current.set(id, activeTurnId);
       else clearModelRetry(id, status => status.phase !== "waiting");
-      markRunning(id, Boolean(snapshot.activeTurnId));
+      markRunning(id, Boolean(activeTurnId));
     }, () => branchViewsRef.current, () => branchSnapshotsRef.current);
     replicaRef.current = replica;
     function refresh(): Promise<void> {
@@ -927,10 +934,11 @@ export function App(): JSX.Element {
     const continuationId = crypto.randomUUID();
     try {
       const response = await continueTurn({ threadId: check.threadId, sourceTurnId: check.sourceTurnId, continuationId });
-      if (response.continuedFromTurnId !== check.sourceTurnId || response.continuationId !== continuationId || !response.turnId) {
+      const continuedTurnId = turnIdOf(response.turnId);
+      if (response.continuedFromTurnId !== check.sourceTurnId || response.continuationId !== continuationId || !continuedTurnId) {
         throw new Error("续接回执与请求不一致");
       }
-      turnIds.current.set(check.threadId, response.turnId);
+      turnIds.current.set(check.threadId, continuedTurnId);
       // 只清理本次续接对应的提示；期间切换到其它会话时，新会话的提示必须保留。
       setContinuationCheck(previous => matchesContinuation(previous, check) ? null : previous);
       markRunning(check.threadId, true);
