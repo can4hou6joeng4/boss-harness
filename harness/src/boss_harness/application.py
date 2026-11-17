@@ -160,6 +160,20 @@ def _approval_timeout() -> float:
     return value if math.isfinite(value) and value > 0 else DEFAULT_APPROVAL_TIMEOUT_SECONDS
 
 
+def _approval_expiry_delay(deadline: float | None, failures: dict[str, int]) -> float:
+    """过期清扫的下一次等待时间。
+
+    失败项仍留在索引里，`next_recoverable_approval_deadline()` 会反复返回同一个
+    过去的 deadline；若按它算等待，损坏日志的会话会把线程钉在 20 Hz 并每轮重读
+    整份日志。按连续失败次数退避（1s、2s、4s…封顶 60s），健康路径不变。
+    """
+    delay = 5.0 if deadline is None else min(5.0, max(0.05, deadline - time.time()))
+    if failures:
+        attempts = min(max(failures.values()), 7)
+        delay = max(delay, min(60.0, 0.5 * (2 ** attempts)))
+    return delay
+
+
 STEERING_MODES = ("all", "one-at-a-time")
 
 
@@ -3838,20 +3852,29 @@ class ApplicationService:
         request.future.add_done_callback(completed)
 
     def _approval_expiry_loop(self) -> None:
+        failures: dict[str, int] = {}
         try:
             while not self._approval_expiry_stop.is_set():
                 try:
-                    for approval_id in self.sessions.expired_pending_approvals():
+                    expired = self.sessions.expired_pending_approvals()
+                    for approval_id in expired:
                         # 逐项隔离：一条损坏索引行只能失败自己。整批共用一个 try
                         # 时，坏行之后的全部过期审批会一直排在队首永不结算。
                         try:
                             result = self.sessions.expire_approval(approval_id)
                         except Exception:
+                            # 会话日志损坏时这一项每轮都会失败，而它仍留在索引里；
+                            # 记下连续失败次数用于退避，避免 20 Hz 空转。
+                            failures[approval_id] = failures.get(approval_id, 0) + 1
                             continue
+                        failures.pop(approval_id, None)
                         if result is not None:
                             self._publish_recovered_approval_decision(result)
+                    # 已离开过期集合的 id 不再需要退避记录，字典不会无限增长。
+                    for stale in [key for key in failures if key not in expired]:
+                        del failures[stale]
                     deadline = self.sessions.next_recoverable_approval_deadline()
-                    delay = (5.0 if deadline is None else min(5.0, max(0.05, deadline - time.time())))
+                    delay = _approval_expiry_delay(deadline, failures)
                 except Exception:
                     delay = 5.0
                 self._approval_expiry_stop.wait(delay)
