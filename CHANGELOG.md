@@ -7,8 +7,27 @@
 - [rc.15 详细变更与验证记录](docs/changelog-rc15-details.md)
 - 更早期版本的原始记录保留在下方各版本段；后续新增的大段验证记录按同样方式归档。
 
-- 工具结果向模型暴露执行状态与投递 / 重试提示，修正持久化失败、历史回放与旧失败记录的状态推断；三类结果引用错误返回当前摘要（#2123、#2124）。
-- 隔离归档构建在无 `.git` 目录时仍可生成发布清单，README 只读会话工具数量与实现对齐，摘要线路配置失败在压缩回合中返回明确错误（#2115、#2117、#2119）。
+## 0.2.0-rc.68 - 2026-11-18
+
+本节汇总第六十八个候选版本的源码与交付内容。相对 rc.67，本候选向模型暴露工具执行状态与重试安全提示，并修正隔离构建、结果引用与压缩错误映射。rc.16 至 rc.68 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 工具结果显示 `executionState` 与 `disposition`，区分未派发、结果不确定、失败与只读 / 写工具的重试安全提示；历史回放和持久化失败路径同步修正（#2123、#2124）。
+- 三类陈旧引用错误返回当前摘要，客户端无需猜测新版本引用（#2121、#2122）。
+- 摘要线路配置失败在压缩回合中映射为明确错误；隔离归档构建不再因缺少 `.git` 而失败；README 只读会话工具数量与实现对齐（#2115、#2117、#2119）。
+- 同步 npm / Python 版本到 `0.2.0-rc.68` / `0.2.0rc68`（#2125）。
+
+升级注意：不改变 JSON-RPC 协议、工具权限、会话持久化格式或存储键；rc.67 源码无需迁移。模型可见结果新增可选字段，旧客户端忽略即可；协议与内核仍为 `0.2.0`。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2115](https://github.com/can4hou6joeng4/boss-harness/issues/2115)：隔离归档构建允许生成发布清单。
+- [Issue #2117](https://github.com/can4hou6joeng4/boss-harness/issues/2117)：修正只读会话工具数量。
+- [Issue #2119](https://github.com/can4hou6joeng4/boss-harness/issues/2119)：压缩配置失败映射为明确错误。
+- [Issue #2121](https://github.com/can4hou6joeng4/boss-harness/issues/2121)：陈旧引用错误返回当前摘要。
+- [Issue #2123](https://github.com/can4hou6joeng4/boss-harness/issues/2123)：工具结果暴露执行状态与重试提示。
+- [Issue #2125](https://github.com/can4hou6joeng4/boss-harness/issues/2125)：准备 rc.68 源码候选并同步版本来源。
 
 ## 0.2.0-rc.67 - 2026-11-18
 
