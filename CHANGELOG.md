@@ -6,6 +6,28 @@
 
 当前没有未归入具名候选版本的变更。
 
+## 0.2.0-rc.57 - 2026-11-18
+
+本节汇总第五十七个候选版本的源码与交付内容。相对 rc.56，本候选只整理项目首页、文档与仓库元数据，不改变协议、工具权限、持久化格式或运行时行为。rc.16 至 rc.57 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 首页不再承载逐批修复计数与候选自检细节；版本状态压缩为稳定说明，新增可执行的快速开始与桌面交互指南入口（#2030、#2031）。
+- 统一 README、CONTRIBUTING、RELEASING 与内核包的构建 / 安装口径，删除未发布 PyPI 安装示例，清理使用指南与技术参考中的候选期措辞（#2032、#2033）。
+- 补齐根包 repository / homepage / bugs 元数据与完整描述；桌面根目录探测改以 npm workspaces 清单为准，删除过期的 pnpm 工作区声明（#2034、#2035）。
+- 增加行为准则、支持与问题分流及文档索引，Issue 模板链接支持入口（#2036、#2037）。
+- 同步 npm / Python 版本到 `0.2.0-rc.57` / `0.2.0rc57`（#2039）。
+
+升级注意：仅文档、元数据与版本来源变化；已安装的 rc.56 源码无需迁移，协议与内核仍为 `0.2.0`。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist；桌面从源码构建，尚无独立签名安装包，真实模型与招聘平台验收仍未执行。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2030](https://github.com/can4hou6joeng4/boss-harness/issues/2030)：README 从逐批发布流水账收敛为项目入口页，新增桌面交互指南，发布流程不再要求向首页追加近期进展。
+- [Issue #2032](https://github.com/can4hou6joeng4/boss-harness/issues/2032)：统一 uv / .venv 构建命令，修正配置优先级指针与内核包安装说明；候选状态只保留在变更记录与 Release。
+- [Issue #2034](https://github.com/can4hou6joeng4/boss-harness/issues/2034)：补齐 npm 仓库元数据，根目录探测不再依赖 pnpm 工作区文件。
+- [Issue #2036](https://github.com/can4hou6joeng4/boss-harness/issues/2036)：补齐行为准则、支持分流和文档索引，明确安全报告与社区参与渠道。
+- [Issue #2039](https://github.com/can4hou6joeng4/boss-harness/issues/2039)：准备 rc.57 源码候选并同步所有版本来源。
+
 ## 0.2.0-rc.56 - 2026-11-16 起持续汇总
 
 本节汇总第五十六个候选版本的源码与交付内容；rc.16 至 rc.56 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
