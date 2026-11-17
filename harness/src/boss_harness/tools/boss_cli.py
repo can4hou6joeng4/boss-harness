@@ -116,12 +116,18 @@ BROWSER_SOURCE_VALUES = frozenset({"auto", "existing-browser", "stored-cookie"})
 
 
 def resolve_browser_source_override(value: str | None = None) -> str | None:
-    """Read an optional, validated per-process upstream browser policy."""
+    """Read an optional, validated per-process upstream browser policy.
+
+    An empty or whitespace-only value is the same as leaving the variable unset:
+    it must not become an invalid explicit policy that blocks startup.
+    """
     if value is None:
         value = os.environ.get(BROWSER_SOURCE_ENV)
-    if value is None or value == "":
+    if value is None:
         return None
     normalized = value.strip().lower()
+    if normalized == "":
+        return None
     if normalized not in BROWSER_SOURCE_VALUES:
         choices = ", ".join(sorted(BROWSER_SOURCE_VALUES))
         raise ValueError(f"{BROWSER_SOURCE_ENV} 必须是以下值之一：{choices}")
