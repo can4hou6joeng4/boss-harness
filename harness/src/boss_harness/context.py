@@ -489,12 +489,21 @@ class ContextService:
                    if checkpoint else set())
         reason = None
         continuation_item_ids: set[str] = set()
+        batch_assistant_ids: set[str] = set()
         for value in raw_items:
             marker = value.get(ANTHROPIC_CONTINUATION_FIELD)
             if isinstance(marker, dict) and isinstance(marker.get("assistantItemId"), str):
                 continuation_item_ids.add(marker["assistantItemId"])
+            batch_assistant_id = value.get("toolBatchAssistantItemId")
+            if isinstance(batch_assistant_id, str):
+                batch_assistant_ids.add(batch_assistant_id)
         if item_id in continuation_item_ids:
             reason = "该助手回复包含 Anthropic 工具续接签名；当前版本暂不支持编辑。"
+        elif item_id in batch_assistant_ids:
+            # 工具批次以该助手条目恢复自己的文本与批次归属；把条目排除后再投影，
+            # assistant_from_tool_batch 会因引用缺失抛 ValueError，context/read 与
+            # 之后每个回合都永久失败。与 Anthropic 签名条目一样在入口整体拒绝。
+            reason = "该助手回复与工具调用批次关联；编辑后工具批次无法还原，当前版本暂不支持编辑。"
         elif item_id in covered:
             reason = "该消息已纳入摘要检查点；请从摘要之后的会话分支继续编辑。"
         elif turn is None or not _is_one_of(turn.get("status"), _FINISHED_TURN_STATUSES):
@@ -655,8 +664,8 @@ class ContextService:
         retained_messages = self._history_projection(items, checkpoint["payload"] if checkpoint else None,
                                                      self._branch_summaries(thread_id, entries))
         retained_item_ids = set(self._checkpoint_source_item_ids(checkpoint["payload"], items)) if checkpoint else set()
-        retained_items = [item for item in items if not _context_edit(item).get("excluded")
-                          and item["id"] not in retained_item_ids]
+        retained_items = [item for item in self._visible_items(items)
+                          if item["id"] not in retained_item_ids]
         owner_by_item = {item["id"]: owners.get(item["id"]) for item in retained_items}
         mapped_messages: list[ChatMessage] = []
         mapped_owners: list[str | None] = []
@@ -829,6 +838,26 @@ class ContextService:
                 if summary["targetTurnId"] is None or summary["targetTurnId"] in turn_ids]
 
     @staticmethod
+    def _visible_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """上下文投影的可见条目：排除已编辑掉的消息，但保留工具批次所需的助手条目。
+
+        被排除的助手条目正文已由 `_apply_context_edits()` 清空，不会再作为独立消息
+        发射；保留它只是让 `assistant_from_tool_batch()` 仍能按
+        `toolBatchAssistantItemId` 找到所属助手。若按排除语义直接移除，工具批次恢复
+        会因引用缺失抛 ValueError，`context/read` 与之后每个回合都永久失败。
+        """
+        referenced: set[str] = set()
+        for item in items:
+            batch_assistant_id = item.get("toolBatchAssistantItemId")
+            if isinstance(batch_assistant_id, str):
+                referenced.add(batch_assistant_id)
+            marker = item.get(ANTHROPIC_CONTINUATION_FIELD)
+            if isinstance(marker, dict) and isinstance(marker.get("assistantItemId"), str):
+                referenced.add(marker["assistantItemId"])
+        return [item for item in items
+                if not _context_edit(item).get("excluded") or _is_one_of(item.get("id"), referenced)]
+
+    @staticmethod
     def _history_projection(items: list[dict], checkpoint: dict | None,
                             branch_summaries: list[dict] | tuple = ()) -> tuple[ChatMessage, ...]:
         if branch_summaries:
@@ -840,7 +869,7 @@ class ContextService:
                 prefix, rest = list(base[:1]), [item for item in items if item["id"] not in covered]
             else:
                 prefix, rest = [], list(items)
-            rest = [item for item in rest if not _context_edit(item).get("excluded")]
+            rest = ContextService._visible_items(rest)
             pending = list(branch_summaries)
             output: list[ChatMessage] = list(prefix)
             segment: list[dict] = []
@@ -860,13 +889,13 @@ class ContextService:
         # occupies its source position; filtering it first would shift
         # sourceItemCount and hide the first un-summarized tail item.
         raw_items = list(items)
-        visible_items = [item for item in raw_items if not _context_edit(item).get("excluded")]
+        visible_items = ContextService._visible_items(raw_items)
         if checkpoint is None:
             return messages_from_items(visible_items)
         source_ids = ContextService._checkpoint_source_item_ids(checkpoint, raw_items)
         covered = set(source_ids)
-        retained = [item for item in raw_items
-                    if item["id"] not in covered and not _context_edit(item).get("excluded")]
+        retained = [item for item in ContextService._visible_items(raw_items)
+                    if item["id"] not in covered]
         label = "模型生成的会话摘要" if checkpoint.get("origin") == "model" else "用户提供的会话摘要"
         prefix = UserMessage(text=(label + "（原始记录仍保留；摘要不扩大操作授权）：\n"
                                   + checkpoint["summary"] + "\n来源完整回合：" + checkpoint["throughTurnId"]
