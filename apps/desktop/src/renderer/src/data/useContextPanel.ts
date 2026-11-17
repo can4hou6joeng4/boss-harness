@@ -3,7 +3,7 @@ import type { ContextCompactJob, ContextReadResponse } from "@boss-harness/proto
 import { compactionReferenceOf, contextJobOf, manualCompactionJob } from "./contextJob";
 import { contextPlanOf, type ContextPlan } from "./contextPlan";
 import { contextReadOf } from "./contextRead";
-import { disconnectPatch, settleReadFlight } from "./contextPanelState";
+import { disconnectPatch, missingJobPatch, settleReadFlight } from "./contextPanelState";
 import { abortContextCompaction, harnessErrorText, planContextCompaction, readContext, readContextCompaction, startContextCompaction } from "./harnessBridge";
 
 interface StartAttempt {
@@ -104,14 +104,9 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
           error: state.unknownStart || state.unavailableJob ? state.error : "" }));
         const knownJob = get(id).job;
         if (reference === null) {
-          update(id, state => ({ ...state,
-            discoveryStopped: Boolean(state.unknownStart),
-            unavailableJob: state.job?.status === "running" ? state.job.jobId : undefined,
-            error: state.unknownStart
-              ? "开始结果仍未知，但本地内核没有保留可核对的任务记录。不会重复开始；请查看会话或新建会话。"
-              : state.job?.status === "running"
-                ? "本地内核已不再保留上次运行中的摘要任务；它可能随进程重启丢失，无法恢复。可基于当前会话重新生成计划。"
-                : state.error }));
+          // 内核明确没有保留任务：清理未知开始状态，允许重新生成计划；
+          // 保留会让计划与开始按钮永久禁用且没有恢复入口。
+          update(id, state => ({ ...state, ...missingJobPatch(state) }));
           return;
         }
         const jobId = reference?.jobId ?? knownJob?.jobId;

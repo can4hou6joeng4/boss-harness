@@ -48,3 +48,35 @@ export function disconnectPatch(state: DisconnectState): DisconnectPatch {
       : state.job?.status === "running" ? "连接已断开，摘要任务状态待核对。" : state.error,
   };
 }
+
+export interface MissingJobPatch {
+  unknownStart: undefined;
+  starting: false;
+  discoveryStopped: false;
+  unavailableJob?: string;
+  error: string;
+}
+
+/**
+ * 内核明确没有保留任务（`context/read.compactionJob === null`）时的状态收敛。
+ *
+ * 摘要任务只存在于本机内核进程中：记录缺失说明上次开始请求对应的任务已随进程
+ * 重启消失或已被淘汰，不可能仍在执行。保留 `unknownStart` 会永久禁用计划与开始
+ * 按钮——发现轮询在 `discoveryStopped` 后停止，用户没有任何恢复入口，只能新建
+ * 会话。这里把「结果未知」降级为可读说明并允许重新生成计划：旧任务不会再执行，
+ * 也不存在与旧任务并发开始的重复压缩。仍在本地运行中的任务（`job.status ===
+ * "running"`）仍按不可用处理，不自动清理。
+ */
+export function missingJobPatch(state: DisconnectState): MissingJobPatch {
+  return {
+    unknownStart: undefined,
+    starting: false,
+    discoveryStopped: false,
+    ...(state.job?.status === "running" ? { unavailableJob: state.job.jobId } : {}),
+    error: state.unknownStart
+      ? "本机内核没有保留上次开始压缩对应的任务（可能随进程重启丢失）；旧任务不会再执行，可重新生成计划。"
+      : state.job?.status === "running"
+        ? "本地内核已不再保留上次运行中的摘要任务；它可能随进程重启丢失，无法恢复。可基于当前会话重新生成计划。"
+        : state.error,
+  };
+}
