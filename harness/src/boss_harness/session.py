@@ -131,6 +131,12 @@ LEAF_ENTRY_TYPE = "leaf"
 # right after the leaf record it belongs to, so it projects only on that branch.
 BRANCH_SUMMARY_ENTRY_TYPE = "branch_summary"
 MAX_BRANCH_SUMMARY_CHARS = 32_000
+# 摘要注入文本还包含被放弃回合与来源摘要；这两项不进摘要正文长度，必须单独
+# 有界，否则一条 2 MB 的来源摘要会让压缩后的历史永久超出上下文预算。
+MAX_BRANCH_SUMMARY_TURNS = 200
+MAX_BRANCH_SUMMARY_TURN_ID_CHARS = 128
+MAX_BRANCH_SUMMARY_TURN_TOTAL_CHARS = 4_096
+MAX_BRANCH_SUMMARY_DIGEST_CHARS = 128
 
 
 def branch_summary_issue(payload: dict, positions: Mapping[str, int]) -> str | None:
@@ -151,8 +157,15 @@ def branch_summary_issue(payload: dict, positions: Mapping[str, int]) -> str | N
     if anchor is not None and (not isinstance(anchor, str) or anchor not in positions):
         return "摘要的目标回合不在当前分支上"
     if (not isinstance(abandoned, list) or not abandoned
-            or not all(isinstance(turn_id, str) for turn_id in abandoned)):
+            or len(abandoned) > MAX_BRANCH_SUMMARY_TURNS
+            or not all(isinstance(turn_id, str)
+                       and len(turn_id) <= MAX_BRANCH_SUMMARY_TURN_ID_CHARS for turn_id in abandoned)
+            or sum(len(turn_id) for turn_id in abandoned) > MAX_BRANCH_SUMMARY_TURN_TOTAL_CHARS):
         return "被放弃回合列表为空或无效"
+    digest = payload.get("sourceTextDigest")
+    if digest is not None and (not isinstance(digest, str)
+                               or len(digest) > MAX_BRANCH_SUMMARY_DIGEST_CHARS):
+        return "摘要来源摘要无效"
     return None
 
 
