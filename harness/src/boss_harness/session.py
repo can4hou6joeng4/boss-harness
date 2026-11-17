@@ -190,6 +190,10 @@ _EVENT_READ_CHUNK_BYTES = 64 * 1024
 # transport.  Keep one explicit line limit so a damaged append-only log cannot
 # make a cold index rebuild allocate without bound.
 MAX_EVENT_LINE_BYTES = 8 * 1024 * 1024
+# 单页事件最多解析的 `params_json` 原始字节数。单条事件可接近 8 MiB，
+# 一页 1000 条时全部取回再逐行解码会在存储锁内占用数 GiB；按原始字节
+# 预算逐行读取，超出即停并置 `hasMore`，由调用方的翻页循环续读。
+_EVENT_PAGE_RAW_BYTES = 4 * 1024 * 1024
 MAX_ITEM_REVISION_ALIASES = 4_096
 MAX_ITEM_REVISION_RECORDS = 4_096
 MAX_ITEM_REVISION_ALIAS_BYTES = 64 * 1024
@@ -3621,25 +3625,44 @@ class SessionStore:
                     + ")) ORDER BY cursor LIMIT ?")
                 parameters[-1:-1] = pending
             self._sync_events()
-            rows = self._event_rows(query, parameters)
+            rows, has_more = self._event_rows(query, parameters, limit)
             try:
                 events = self._event_page_entries(rows, limit)
             except ValueError:
                 # 事件索引从 events.jsonl 派生，可重建：先修复再重试一次，
                 # 避免一行坏索引让整个回放永久不可用。
                 self._rebuild_event_index()
-                rows = self._event_rows(query, parameters)
+                rows, has_more = self._event_rows(query, parameters, limit)
                 try:
                     events = self._event_page_entries(rows, limit)
                 except ValueError:
                     raise ValueError("事件索引已损坏，事件回放暂不可用") from None
-        page = rows[:limit]
         return {"events": events,
-                "nextCursor": str(page[-1]["cursor"]) if page else str(position), "hasMore": len(rows) > limit}
+                "nextCursor": str(rows[-1]["cursor"]) if rows else str(position), "hasMore": has_more}
 
-    def _event_rows(self, query: str, parameters: list[Any]) -> list[sqlite3.Row]:
+    def _event_rows(self, query: str, parameters: list[Any], limit: int) -> tuple[list[sqlite3.Row], bool]:
+        """读取一页事件索引行，返回 `(行, 是否还有更多)`。
+
+        查询本身已带 `LIMIT limit+1`；这里额外按 `params_json` 原始字节预算
+        逐行读取，避免一次取回 1000 条大事件后在锁内逐行解码。预算之外的行
+        留给下一次翻页。首行即使超过预算也照常返回，保证游标总能推进。
+        """
+        rows: list[sqlite3.Row] = []
+        raw_bytes = 0
         with self._index.connection() as connection:
-            return connection.execute(query, parameters).fetchall()
+            cursor = connection.execute(query, parameters)
+            while True:
+                row = cursor.fetchone()
+                if row is None:
+                    return rows, False
+                if len(rows) >= limit:
+                    return rows, True
+                payload = row["params_json"]
+                size = len(payload) if isinstance(payload, str) else 0
+                if rows and raw_bytes + size > _EVENT_PAGE_RAW_BYTES:
+                    return rows, True
+                rows.append(row)
+                raw_bytes += size
 
     @staticmethod
     def _event_page_entries(rows: list[sqlite3.Row], limit: int) -> list[dict[str, Any]]:
