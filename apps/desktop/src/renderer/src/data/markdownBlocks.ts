@@ -20,12 +20,42 @@ export interface MarkdownBlock {
   content: string;
 }
 
-/** 起始围栏：前缀允许任意文本（与旧实现一致），其后是反引号、可选空白、语言标记与行尾空白；`#` 用于 `c#` / `f#` / `q#`。 */
-const BACKTICK_OPENING_FENCE = /^(.*?)(`{3,})[ \t]*([A-Za-z0-9_+.#-]*)[ \t]*$/;
+/** 起始围栏的语言字符集；`#` 用于 `c#` / `f#` / `q#`。 */
+const LANG_CHAR = /[A-Za-z0-9_+.#-]/;
 /** 波浪号围栏只在行首（最多三个空格）识别；正文里的装饰性 `~~~` 不开启代码块。 */
 const TILDE_OPENING_FENCE = /^([ \t]{0,3})(~{3,})[ \t]*([A-Za-z0-9_+.#-]*)[ \t]*$/;
 /** 结束围栏：整行只有同一种标记与空白。 */
 const CLOSING_FENCE = /^[ \t]*(`{3,}|~{3,})[ \t]*$/;
+
+/** 从围栏标记末尾读出语言：两端允许空格 / Tab，中间只能是语言字符，其余字符判为失败。 */
+function fenceLanguage(line: string, start: number): string | null {
+  let index = start;
+  while (index < line.length && (line[index] === " " || line[index] === "\t")) index += 1;
+  const langStart = index;
+  while (index < line.length && LANG_CHAR.test(line[index]!)) index += 1;
+  const lang = line.slice(langStart, index);
+  while (index < line.length && (line[index] === " " || line[index] === "\t")) index += 1;
+  return index === line.length ? lang : null;
+}
+
+/**
+ * 反引号起始围栏：前缀允许任意文本（与旧实现一致），取第一个能成立的反引号串。
+ *
+ * 旧实现用 `^(.*?)(`{3,})...$`：一行里的长反引号串后跟非法尾字符时，每个起点都尝试到串尾，
+ * 平方级回溯会冻结渲染主线程。这里按反引号串前进，每个串只检查一次尾部，整体线性。
+ */
+function backtickOpeningFence(line: string): { prefixLength: number; run: string; language: string } | null {
+  for (let index = line.indexOf("`"); index !== -1; ) {
+    let end = index;
+    while (end < line.length && line[end] === "`") end += 1;
+    if (end - index >= 3) {
+      const language = fenceLanguage(line, end);
+      if (language !== null) return { prefixLength: index, run: line.slice(index, end), language };
+    }
+    index = line.indexOf("`", end);
+  }
+  return null;
+}
 
 /** CRLF 正文按 Unix 换行显示与复制，避免代码块里混入不可见的 `\r`。 */
 function normalizeCode(value: string): string {
@@ -70,14 +100,17 @@ export function splitMarkdownBlocks(content: string): MarkdownBlock[] {
         textStart = closingStart + closing.length;
       }
     } else {
-      const opening = BACKTICK_OPENING_FENCE.exec(line) ?? TILDE_OPENING_FENCE.exec(line);
-      if (opening) {
-        const [, prefix = "", run = "", marker] = opening;
-        const tilde = run[0] === "~";
+      const backtick = backtickOpeningFence(line);
+      const tilde = backtick ? null : TILDE_OPENING_FENCE.exec(line);
+      if (backtick || tilde) {
+        const prefixLength = backtick ? backtick.prefixLength : (tilde![1] ?? "").length;
+        const run = backtick ? backtick.run : tilde![2]!;
+        const language = backtick ? backtick.language : tilde![3] ?? "";
+        const isTilde = run[0] === "~";
         // 反引号前缀是围栏前的正文，需要保留；波浪号前缀只是行首缩进，属于围栏本身。
-        const fenceStart = offset + (tilde ? 0 : prefix.length);
+        const fenceStart = offset + (isTilde ? 0 : prefixLength);
         if (fenceStart > textStart) blocks.push({ type: "text", content: content.slice(textStart, fenceStart) });
-        fence = { marker: tilde ? "~" : "`", length: run.length, lang: marker || "text" };
+        fence = { marker: isTilde ? "~" : "`", length: run.length, lang: language || "text" };
         codeStart = newline < 0 ? content.length : newline + 1;
       }
     }
