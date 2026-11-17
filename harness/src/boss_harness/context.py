@@ -157,6 +157,10 @@ _WRITE_TOOLS = frozenset({"boss_hr_greet"})
 def tool_execution_status(item: dict[str, Any]) -> dict[str, Any]:
     """Structured execution label of one tool-call item (summary sources and exports); never persisted."""
     state = item.get("executionState") or item.get("status")
+    # 展示状态可能来自被改写的持久记录：非短字符串（深嵌套列表/对象）一律按
+    # 「状态不明」处理，不得原样进入上下文摘要或会话导出。
+    if not isinstance(state, str) or not state or len(state) > 40:
+        state = None
     write = _is_one_of(item.get("toolName"), _WRITE_TOOLS) or "approval" in item
     label = (_EXECUTION_LABELS.get(state, "状态不明，不得视为已执行")
              if isinstance(state, str) else "状态不明，不得视为已执行")

@@ -86,7 +86,10 @@ _URL_USERINFO = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@")
 # Any UPPER_CASE assignment, with or without an underscore, quoted or bare.
 _ENV_ASSIGNMENT = re.compile(r"\b([A-Z][A-Z0-9_]{2,})\s*=\s*(\"[^\"]*\"|'[^']*'|\S+)")
 _SENSITIVE_ENV = re.compile(r"(?i)(key|token|secret|password|passwd|cookie|auth|credential|session)")
-_PATH_SEGMENT = r"[^\s/\\\"'`<>|()\[\]，。；：、！？（）《》“”‘’]+"
+# 路径段允许括号、方括号与撇号（`/Users/a (机密)/b.pdf`、`O'Brien`、`[2024]`），
+# 否则脱敏会在标点处提前结束，把剩余目录与文件名原样留在导出里。
+# 撇号与括号只会让匹配更长（脱敏更保守），不会让既有匹配变短。
+_PATH_SEGMENT = r"[^\s/\\\"`<>|{}，。；：、！？《》“”‘’]+"
 # 常见单段系统根路径。通用分支要求至少两段，避免把正文中的 `/help` 当成路径；
 # 单段根目录（如 `/etc`）单独识别。
 _ROOT_NAMES = ("Applications", "Library", "System", "Users", "Volumes", "bin", "boot",
@@ -96,14 +99,16 @@ _SINGLE_SEGMENT_PATH = re.compile(
     r"(?<![A-Za-z0-9_:/.~-])/(?:" + "|".join(_ROOT_NAMES) + r")(?![A-Za-z0-9_/-])")
 # 中文紧邻路径（`配置见/etc`）也应匹配，因此禁止位只看 ASCII 标识符字符；
 # URL、分数与 `and/or` 这类斜杠词仍由前一位字母或数字挡住。
+_WIN_SEGMENT = r"[^\s\\/:*?\"'<>|]+"
 _ABSOLUTE_PATH = re.compile(
     rf"file://(?:/{_PATH_SEGMENT})+/?"
+    rf"|\\\\{_WIN_SEGMENT}\\{_WIN_SEGMENT}(?:\\{_WIN_SEGMENT})*"
     rf"|(?<![A-Za-z0-9_:/.~-])(?:~|/{_PATH_SEGMENT})(?:/{_PATH_SEGMENT})+/?"
     r"|(?<![A-Za-z0-9_])[A-Za-z]:[\\/](?:[^\s\\/\"'<>|]+[\\/]?)+")
 # 路径可以包含空格；只要后续 token 仍像同一条路径的延续，就一并脱敏，
 # 避免 `Job Search/resume.pdf` 只遮住 `Job` 而泄漏其余部分。
 _MAX_PATH_CONTINUATIONS = 8
-_PATH_TOKEN_STOP = frozenset("\"'`<>|()[]{}\n\r\t，。；：、！？（）《》“”‘’")
+_PATH_TOKEN_STOP = frozenset("\"`<>|{}\n\r\t，。；：、！？《》“”‘’")
 _DOTTED_NAME = re.compile(r"[^./\\\s]+\.[A-Za-z0-9]{1,10}")
 
 
@@ -112,13 +117,30 @@ def _last_path_segment(value: str) -> str:
 
 
 def _continues_path(token: str, *, previous_upper: bool) -> bool:
-    """判断空白后的 token 是否仍是同一条路径，而不是紧邻的普通正文。"""
+    """判断空白后的 token 是否仍是同一条路径，而不是紧邻的普通正文。
+
+    只认三种证据：token 自带路径分隔符、token 形似 `name.ext`、或与 ASCII 大写
+    开头的目录名同级。纯中文正文（`/etc 只是单段根`）不构成延续证据——
+    无条件吞并会把正文误脱敏。
+    """
     if "/" in token or "\\" in token:
         return True
     if _DOTTED_NAME.fullmatch(token) is not None:
         return True
     # `/Users/x/Job Search`：与已匹配末段同为 ASCII 大写开头的目录名。
     return previous_upper and token[:1].isupper()
+
+
+def _short_text(value: Any, limit: int) -> str | None:
+    """持久记录中的短标量：只保留非空字符串并限长，其他类型按缺失处理。"""
+    return value if isinstance(value, str) and value and len(value) <= limit else None
+
+
+def _status_text(value: Any, *, default: str) -> str:
+    """条目状态只接受有界字符串；畸形值显式降级，避免深嵌套对象进入 JSON 编码。"""
+    if isinstance(value, str) and value and len(value) <= 64:
+        return value
+    return default if value is None else "unknown"
 
 
 def _path_end(text: str, start: int, end: int) -> int:
@@ -155,7 +177,9 @@ class Redactor:
         self.paths = sorted({value.rstrip("/\\") for value in paths
                              if isinstance(value, str) and len(value.rstrip("/\\")) > 1}, key=len, reverse=True)
         # A known path prefix swallows the rest of that path so no trailing segment survives.
-        tail = "[/\\\\][^\\s\"'`<>|()\\[\\]，。；：、！？（）《》“”‘’]*"
+        # 尾段与通用路径段使用同一套排除字符：括号、方括号与撇号都是合法路径字符，
+        # 否则前缀会在 `/Users/x/[2024]/` 处提前截断，把文件名留在导出里。
+        tail = "(?:[/\\\\][^\\s/\\\\\"`<>|{}，。；：、！？《》“”‘’]+)*"
         self.path_patterns = [re.compile(re.escape(value) + f"(?:{tail})?") for value in self.paths]
         self.pii_values: list[str] = []
         self.counts = {"secrets": 0, "environment": 0, "paths": 0, "personalInfo": 0}
@@ -534,10 +558,12 @@ class _Exporter:
         result = item.get("result") if isinstance(item.get("result"), dict) else None
         approval = item.get("approval") if isinstance(item.get("approval"), dict) else None
         unit: dict[str, Any] = {
-            "kind": "toolCall", "origin": "platform", "itemId": item.get("id"),
-            "toolName": item.get("toolName"), "status": item.get("status"),
+            "kind": "toolCall", "origin": "platform",
+            "itemId": _short_text(item.get("id"), 200),
+            "toolName": _short_text(item.get("toolName"), 200),
+            "status": _status_text(item.get("status"), default="unknown"),
             "execution": status,
-            "errorCode": item.get("errorCode") if isinstance(item.get("errorCode"), str) else None,
+            "errorCode": _short_text(item.get("errorCode"), 128),
             "recoveryAction": self.redactor.text(item.get("recoveryAction"), limit=600) or None,
             "arguments": self._arguments(item.get("toolArguments")),
         }
@@ -547,8 +573,17 @@ class _Exporter:
                 and status["executed"] is not False):
             unit["durationMs"] = duration
         if approval is not None:
-            record = {"required": True, "decision": approval.get("decision"),
-                      "decidedAt": approval.get("decidedAt"),
+            # 正常写入的 decision 是枚举、decidedAt 是时间戳；外部改写的持久记录
+            # 可能塞入路径或凭据，导出仍按展示口径降级并默认脱敏。
+            decision = approval.get("decision")
+            if decision is not None and not (isinstance(decision, str)
+                                             and decision in _APPROVAL_DECISIONS):
+                decision = "unknown"
+            decided_at = _short_text(approval.get("decidedAt"), 64)
+            if decided_at is not None:
+                decided_at = self.redactor.sensitive(decided_at)
+            record = {"required": True, "decision": decision,
+                      "decidedAt": decided_at,
                       "description": self.redactor.text(approval.get("description"), limit=300)}
             deadline = _deadline_text(approval.get("deadline"))
             if deadline is not None:
@@ -583,15 +618,18 @@ class _Exporter:
         if kind == "userMessage":
             text = item.get("originalInput") if isinstance(item.get("originalInput"), str) else item.get("text")
             attachments = item.get("attachments") if isinstance(item.get("attachments"), list) else []
-            return {"kind": "userInput", "origin": "user", "itemId": item.get("id"),
+            return {"kind": "userInput", "origin": "user",
+                    "itemId": _short_text(item.get("id"), 200),
                     "queued": bool(item.get("queueId")), "text": self.redactor.text(text),
-                    "attachments": [{"mediaType": str(a.get("mediaType", ""))[:80],
+                    "attachments": [{"mediaType": _short_text(a.get("mediaType"), 80) or "",
                                      "bytes": a.get("bytes") if type(a.get("bytes")) is int else None}
                                     for a in attachments[:32] if isinstance(a, dict)]}
         if kind == "agentMessage":
             thinking = item.get("thinking")
-            return {"kind": "modelOutput", "origin": "model", "itemId": item.get("id"),
-                    "status": item.get("status") or "completed", "text": self.redactor.text(item.get("text")),
+            return {"kind": "modelOutput", "origin": "model",
+                    "itemId": _short_text(item.get("id"), 200),
+                    "status": _status_text(item.get("status"), default="completed"),
+                    "text": self.redactor.text(item.get("text")),
                     "thinkingCharacters": len(thinking) if isinstance(thinking, str) else 0}
         if kind == "toolCall":
             return self._tool(item)
@@ -1064,6 +1102,10 @@ def _render_json(meta: dict, units: list[tuple[str, dict]], counts: dict, total_
                 "exportedEntries": len(units), "totalEntries": total_units, "maxBytes": max_bytes}
     try:
         return json.dumps(document, ensure_ascii=False, indent=2, default=str, allow_nan=False) + "\n"
+    except RecursionError:
+        # 标量收敛后仍可能有合法深度的嵌套保留在导出文档里；编码失败时
+        # 返回可读错误，而不是让 -32603 逃逸成不可解释的内部错误。
+        raise ValueError("导出内容嵌套过深，无法编码为 JSON，已停止导出") from None
     except ValueError:
         # 非有限数值会让严格 JSON 解析器拒绝整份文档；宁可返回可读错误，
         # 也不静默产出无法被 jq / JSON.parse 读取的「成功」导出。
