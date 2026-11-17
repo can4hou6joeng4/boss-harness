@@ -258,15 +258,18 @@ def read_result_chunk(thread_id: str, item: dict, *, sha256: str, cursor: str | 
     reference = result_reference(thread_id, str(item["id"]), text)
     if sha256 != reference["sha256"]:
         raise RpcError(-32011, "工具结果已变化，请重新读取条目并确认新结果引用", {"code": "STALE_RESULT"})
+    # 引用已按全文校验过：分块函数复用同一份摘要，不再把整段文本哈希第二遍。
     return read_result_text_chunk(thread_id, str(item["id"]), text, sha256=sha256,
-                                  cursor=cursor, limit=limit)
+                                  cursor=cursor, limit=limit, reference=reference)
 
 
 def read_result_text_chunk(thread_id: str, item_id: str, text: str, *, sha256: str,
-                           cursor: str | None = None, limit: int = DEFAULT_RESULT_CHARS) -> dict:
+                           cursor: str | None = None, limit: int = DEFAULT_RESULT_CHARS,
+                           reference: dict[str, Any] | None = None) -> dict:
     if type(limit) is not int or not 1 <= limit <= MAX_RESULT_CHARS:
         raise ValueError(f"limit 必须是 1 到 {MAX_RESULT_CHARS} 的整数")
-    reference = result_reference(thread_id, item_id, text)
+    if reference is None:
+        reference = result_reference(thread_id, item_id, text)
     if not isinstance(sha256, str) or sha256 != reference["sha256"]:
         raise RpcError(-32011, "工具结果已变化，请重新读取条目并确认新结果引用", {"code": "STALE_RESULT"})
     offset = 0
