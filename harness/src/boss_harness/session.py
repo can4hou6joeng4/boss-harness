@@ -1886,17 +1886,31 @@ class SessionStore:
                                (thread_id,))
             self._index_thread(thread_id, connection)
 
-    def _with_repaired_index(self, read: Callable[[], _T]) -> _T:
-        """metadata_json 损坏时逐个会话重建后重试；源日志错误原样向上。"""
+    def _with_repaired_index(self, read: Callable[[], _T], *, skip: set[str] | None = None) -> _T:
+        """metadata_json 损坏时逐个会话重建后重试；源日志错误原样向上。
+
+        ``skip`` 供聚合读取（会话列表）使用：某个会话的投影与源日志同时损坏时，
+        重建无法完成，按既有「按会话隔离」约定把它记入 ``unreadable_threads``
+        并从这个结果集中跳过，而不是让整次列表读取——进而让内核启动的整体恢复
+        流程——失败。调用方的 ``read`` 必须过滤 ``skip`` 中的会话 id；
+        单会话读取不传 ``skip``，仍以可读 ValueError 报出具体损坏行。
+        """
         repaired: set[str] = set()
         while True:
             try:
                 return read()
             except _IndexedMetadataError as exc:
                 if exc.thread_id in repaired:
+                    # 调用方没有过滤 skip 说明是内部实现错误；给可读错误而非死循环。
                     raise ValueError("会话索引已损坏，请重新打开应用后重试") from None
                 repaired.add(exc.thread_id)
-                self._repair_thread_index(exc.thread_id)
+                try:
+                    self._repair_thread_index(exc.thread_id)
+                except (OSError, ValueError):
+                    if skip is None:
+                        raise
+                    skip.add(exc.thread_id)
+                    self.unreadable_threads.add(exc.thread_id)
 
 
     def _refresh_threads(self) -> None:
@@ -2399,6 +2413,9 @@ class SessionStore:
         with self._lock:
             self._refresh_threads()
             pending = self._pending_deletion_ids()
+            # 投影与源日志同时损坏的会话无法重建：列表按会话隔离跳过，单会话读取
+            # 仍会报告具体损坏行。让列表整体失败会连带阻断内核启动的整体恢复。
+            skip: set[str] = set()
 
             def read() -> list[dict]:
                 with self._index.connection() as connection:
@@ -2407,12 +2424,14 @@ class SessionStore:
                         + " ORDER BY updated_at DESC,id DESC").fetchall()
                 threads = []
                 for row in rows:
+                    if row["id"] in skip:
+                        continue
                     metadata = self._thread_metadata(row)
                     if row["id"] not in pending:
                         threads.append(metadata)
                 return threads
 
-            return self._with_repaired_index(read)
+            return self._with_repaired_index(read, skip=skip)
 
     def unreadable_thread_ids(self) -> list[str]:
         """本进程刷新索引时跳过的会话 id 快照，按字典序排列供运行诊断读取。"""
@@ -2451,10 +2470,14 @@ class SessionStore:
                 parameters.extend(pending)
             query += " ORDER BY updated_at DESC,id DESC LIMIT ?"
             parameters.append(limit + 1)
+            skip: set[str] = set()
 
             def read() -> dict:
                 with self._index.connection() as connection:
                     rows = connection.execute(query, parameters).fetchall()
+                # 与 list_threads 相同的按会话隔离：投影与源日志同时损坏的会话
+                # 无法重建，从分页结果中跳过，不让整页读取失败。
+                rows = [row for row in rows if row["id"] not in skip]
                 page = rows[:limit]
                 for row in page:
                     # 投影列不保证仍是建表时的类型：SQLite 的列亲和性不会阻止外部把
@@ -2467,7 +2490,7 @@ class SessionStore:
                 return {"threads": [self._thread_metadata(row) for row in page],
                         "nextCursor": next_cursor}
 
-            return self._with_repaired_index(read)
+            return self._with_repaired_index(read, skip=skip)
 
     @staticmethod
     def _search_normalized(value: str) -> tuple[str, array.array | None, array.array | None]:
