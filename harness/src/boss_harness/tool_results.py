@@ -179,7 +179,9 @@ def _unavailable_result(item: dict, limit: int, preview: str) -> str:
     }
     code = item.get("errorCode")
     if isinstance(code, str) and code:
-        content["errorCode"] = wire_text(code)
+        # 与 project_item 同限：持久记录可能携带上游整段文本，未截断会让
+        # 单条缺失结果的投影超出模型预算，进而卡住整个上下文检查。
+        content["errorCode"] = wire_text(code[:128])
     preview = preview if isinstance(preview, str) else ""
     if preview:
         content["resultPreview"] = preview
@@ -193,6 +195,10 @@ def _unavailable_result(item: dict, limit: int, preview: str) -> str:
             return json.dumps(content, ensure_ascii=False, allow_nan=False)
         keep //= 2
     content.pop("resultPreview", None)
+    if not _fits(content, limit):
+        # 截断后的结构字段在最小预算内总能放下；仍按同一判据兜底，避免将来
+        # 新增字段悄悄突破预算。
+        content.pop("errorCode", None)
     return json.dumps(content, ensure_ascii=True, allow_nan=False)
 
 
