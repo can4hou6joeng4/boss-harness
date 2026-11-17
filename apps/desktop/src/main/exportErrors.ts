@@ -8,5 +8,6 @@ export function sessionExportWriteError(error: unknown): string {
   const value = error && typeof error === "object" ? error as { code?: unknown; message?: unknown } : null;
   if (typeof value?.code === "string" && value.code) return `无法写入所选文件（${value.code}），请换一个位置重试`;
   if (value?.message === "symlink") return "所选路径是符号链接，请换一个普通文件位置重试";
+  if (value?.message === "targetChanged") return "所选文件在保存期间发生变化，请确认后重试";
   return "无法写入所选文件，请换一个位置重试";
 }
