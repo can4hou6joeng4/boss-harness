@@ -431,10 +431,20 @@ class ApplicationService:
                 page = self.sessions.events_after(cursor, thread["id"], limit=1000)
                 for event in page["events"]:
                     params = event["params"]
-                    item = accumulated.get(params.get("itemId"))
-                    if item is not None and event["method"] in {"agentMessage/delta", "agentThinking/delta"}:
-                        key = "text" if event["method"] == "agentMessage/delta" else "thinking"
-                        item[key] += params.get("delta", "")
+                    # 事件日志可被外部改写：itemId 可能是数组（不可哈希），delta 可能
+                    # 不是文本。损坏增量跳过，其余增量与其它会话照常恢复；一条坏记录
+                    # 不能让内核每次启动都因 TypeError 退出。
+                    event_item_id = params.get("itemId")
+                    if not isinstance(event_item_id, str):
+                        continue
+                    item = accumulated.get(event_item_id)
+                    if item is None or event["method"] not in {"agentMessage/delta", "agentThinking/delta"}:
+                        continue
+                    delta = params.get("delta")
+                    if not isinstance(delta, str):
+                        continue
+                    key = "text" if event["method"] == "agentMessage/delta" else "thinking"
+                    item[key] += delta
                 cursor = page["nextCursor"]
                 if not page["hasMore"]:
                     break
