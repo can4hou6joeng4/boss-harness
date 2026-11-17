@@ -817,7 +817,10 @@ class ContextService:
             result.append({"entryId": entry["id"], "targetTurnId": anchor,
                            "fromTurnId": payload.get("fromTurnId"), "abandonedTurnIds": abandoned,
                            "summaryJobId": payload.get("summaryJobId"), "characters": len(summary.strip()),
-                           "later": frozenset(order[start:]), "message": UserMessage(text=text)})
+                           "later": frozenset(order[start:]), "message": UserMessage(text=text),
+                           # 读取接口需要正文原文；按 id 重新查找会在重复编号时取到别的记录，
+                           # 这里保留通过校验的那份 payload 与时间，调用方不再二次定位。
+                           "payload": payload, "createdAt": entry.get("timestamp")})
         return result, issues
 
     @staticmethod
