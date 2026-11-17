@@ -265,6 +265,14 @@ class SnapshotBuilder:
             if record is None:
                 return
             encoded = json.dumps(record, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+            # 队列 payload 与条目共用同一份内容存储预算：此前只统计 items 表，
+            # 大量或超长的队列记录可以绕过条目上限，直到页数上限才失败。
+            previous = self.connection.execute(
+                "SELECT payload FROM queue_items WHERE queue_id=?", (record["id"],)).fetchone()
+            previous_size = len(previous[0].encode("utf-8")) if previous and isinstance(previous[0], str) else 0
+            self.item_bytes += len(encoded.encode("utf-8")) - previous_size
+            if self.item_bytes > MAX_SNAPSHOT_ITEM_BYTES:
+                raise ValueError("冻结会话超过快照条目存储上限")
             ordinal = self.queue_count
             self.queue_count += 1
             self.connection.execute("""INSERT INTO queue_items(queue_id,ordinal,payload)
