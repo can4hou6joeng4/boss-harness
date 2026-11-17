@@ -383,9 +383,16 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       if (!cancelled || cancelled.jobId !== job.jobId) throw new Error("取消摘要回执与当前任务不一致");
       applyJob(id, cancelled);
     } catch (error) {
+      // 内核明确表示任务不存在时不会再有终态；继续保留 running 会永久阻断切换与新建回合。
+      const detail = rpcDetail(error);
+      if (valid() && detail.code === JOB_NOT_FOUND) {
+        pollFailures.current.delete(id);
+        dropMissingJob(id, job.jobId);
+        return;
+      }
       // 已确认的终态优先于迟到取消失败，不再把完成任务描述为回执未知。
       if (valid() && stateRef.current[id]?.summaryJob?.status === "running") {
-        update(id, { switchError: `取消摘要的回执未知：${rpcDetail(error).text}。请稍后刷新核对。` });
+        update(id, { switchError: `取消摘要的回执未知：${detail.text}。请稍后刷新核对。` });
       }
     } finally {
       if (valid()) {
