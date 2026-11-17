@@ -18,7 +18,7 @@
 - 版本元数据校验复用 SHA-256 同一文件描述符，避免哈希与校验对象不一致（#2089、#2092）。
 - 发布资产按 `pyproject.toml` 核对 wheel / sdist 的 Name 与内部版本，CI 隔离安装后核对 dist-info 版本（#2090、#2094）。
 - 发布清单提升到 `schemaVersion: 2`，`SHA256SUMS.txt` 覆盖清单；发布构建固定从 `git archive` 隔离目录取源码（#2095–#2097）。
-- 修正 RELEASING 的版本归一与构建说明；同步 npm / Python 版本到 `0.2.0-rc.65` / `0.2.0rc65`（#2091、#2093）。
+- 修正 RELEASING 的版本归一与构建说明；同步 npm / Python 版本到 `0.2.0-rc.65` / `0.2.0rc65`（#2091、#2093、#2098）。
 
 升级注意：不改变 JSON-RPC 协议、工具权限、会话持久化格式或存储键；rc.64 源码无需迁移。构建产物 `build-info.json` 的 schemaVersion 从 `1` 提升到 `2`，按该字段分流的发布核对工具需要更新；`SHA256SUMS.txt` 现包含清单自身摘要。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
 
@@ -29,7 +29,7 @@
 - [Issue #2091](https://github.com/can4hou6joeng4/boss-harness/issues/2091)：修正版本归一与构建说明。
 - [Issue #2095](https://github.com/can4hou6joeng4/boss-harness/issues/2095)：统一发布清单契约与摘要覆盖。
 - [Issue #2096](https://github.com/can4hou6joeng4/boss-harness/issues/2096)：发布构建只使用已跟踪源码。
-- [Issue #2097](https://github.com/can4hou6joeng4/boss-harness/issues/2097)：准备 rc.65 源码候选并同步所有版本来源。
+- [PR #2098](https://github.com/can4hou6joeng4/boss-harness/pull/2098)：准备 rc.65 源码候选并同步所有版本来源。
 
 ## 0.2.0-rc.64 - 2026-11-18
 
