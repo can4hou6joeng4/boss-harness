@@ -79,6 +79,19 @@ def _decode_item(payload: object) -> dict:
     return item
 
 
+def _require_item_id(item: dict) -> dict:
+    """条目必须带着非空文本 id，否则读取方按快照损坏处理。
+
+    投影与正文读取会用 id 生成结果引用（tool_results.py:222、
+    item_content.py:121 在 sha256 比较之前），缺 id 时 KeyError 会绕过
+    `_decode_item` 逃逸成 -32603，让整页条目分页与内容读取永久不可用。
+    快照可从会话日志重建，这里给出与其它损坏场景一致的可读提示。
+    """
+    if not isinstance(item.get("id"), str) or not item["id"]:
+        raise ValueError("会话快照已损坏；请重新打开会话")
+    return item
+
+
 def read_source_entries(source: BinaryIO, size: int) -> list[dict]:
     """Decode a pinned rollout prefix once (branch projection needs the whole prefix), then rewind."""
     if size > MAX_SNAPSHOT_SOURCE_BYTES:
@@ -460,7 +473,7 @@ class SnapshotStore:
                     edit = None
                     if isinstance(row[1], str) and row[1] and type(row[2]) is int and row[2] in (0, 1):
                         edit = {"entryId": row[1], "excluded": row[2] == 1}
-                    result.append((_decode_item(payload), edit))
+                    result.append((_require_item_id(_decode_item(payload)), edit))
             finally:
                 connection.close()
             return result, count
@@ -474,7 +487,7 @@ class SnapshotStore:
                 row = connection.execute("SELECT payload FROM items WHERE item_id=?", (item_id,)).fetchone()
             finally:
                 connection.close()
-            return _decode_item(row[0]) if row else None
+            return _require_item_id(_decode_item(row[0])) if row else None
 
     def edit_state(self, snapshot_id: str, thread_id: str, item_id: str) -> dict | None:
         with self._lock:
