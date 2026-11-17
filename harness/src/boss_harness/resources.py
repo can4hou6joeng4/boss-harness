@@ -519,11 +519,11 @@ class AttachmentQuotaExceeded(ValueError):
         super().__init__("附件存储空间或对象数量已达到上限；请清理状态目录或调整内核配置")
 
 
-def _stale_attachment() -> Exception:
+def _stale_attachment(reference: dict) -> Exception:
     from boss_harness.rpc import RpcError
 
     return RpcError(-32011, "附件内容已变化，请重新读取附件并确认新的内容引用",
-                    {"code": "STALE_ATTACHMENT"})
+                    {"code": "STALE_ATTACHMENT", "currentRef": reference})
 
 
 def _attachment_cursor_offset(cursor: Any, reference: dict, length: int) -> int:
@@ -750,7 +750,7 @@ class AttachmentStore:
             if not isinstance(sha256, str) or re.fullmatch(r"[a-f0-9]{64}", sha256) is None:
                 raise ValueError("sha256 必须是附件内容引用中的 64 位小写十六进制摘要")
             if sha256 != item["digest"]:
-                raise _stale_attachment()
+                raise _stale_attachment(reference)
         if cursor is not None:
             offset = _attachment_cursor_offset(cursor, reference, len(text))
         end = min(offset + limit, len(text))

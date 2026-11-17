@@ -127,7 +127,7 @@ def read_item_content(thread_id: str, item: dict, *, part: str, sha256: str,
         raise ValueError("该条目没有可读取的文本或思考内容")
     reference = item_content_reference(thread_id, str(item["id"]), part, text, snapshot_id)
     if reference["sha256"] != sha256:
-        _stale()
+        _stale(reference)
     offset = 0
     if cursor is not None:
         try:
@@ -154,8 +154,8 @@ def read_item_content(thread_id: str, item: dict, *, part: str, sha256: str,
             "contentRef": wire_value(reference)}
 
 
-def _stale() -> None:
+def _stale(reference: dict) -> None:
     from boss_harness.rpc import RpcError
 
     raise RpcError(-32011, "会话内容已变化，请重新读取条目并确认新内容引用",
-                   {"code": "STALE_CONTENT"})
+                   {"code": "STALE_CONTENT", "currentRef": reference})
