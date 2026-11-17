@@ -177,6 +177,8 @@ uv pip install --python .venv/bin/python build packaging
 git diff --check
 ```
 
+以上命令用于开发检查，允许使用工作树中的未提交改动；发布构建必须按 [RELEASING.md](RELEASING.md) 从指定提交的 `git archive` 隔离目录执行，避免未跟踪文件进入资产。
+
 CI 会执行 npm 依赖审计、TypeScript 检查、Electron 源码构建及 Python wheel / sdist 构建，把两者的隔离安装与版本一致性断言、`boss-harness --check --provider none` 启动自检纳入构建作业，并用 `scripts/release_assets.py` 生成 `build-info.json` / `SHA256SUMS.txt` 后上传 `python-dist` 工作流产物；工作流产物不等于已发布资产。真实模型、招聘平台、桌面 UI 和已签名安装包需要分别验收；源码构建不代表这些场景已经通过。贡献时请遵循[贡献与验证](CONTRIBUTING.md)中的提交、PR 和发布约定。
 
 ## 项目导航

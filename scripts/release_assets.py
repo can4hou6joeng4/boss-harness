@@ -39,6 +39,7 @@ CONTROL_PATTERN = re.compile(r"[\u0000-\u001f\u007f]")
 BUILD_INFO_NAME = "build-info.json"
 SUMS_NAME = "SHA256SUMS.txt"
 RESERVED_NAMES = {BUILD_INFO_NAME, SUMS_NAME}
+MANIFEST_SCHEMA_VERSION = 2
 
 
 def fail(message: str) -> None:
@@ -270,7 +271,7 @@ def main() -> int:
         fail(f"资产文件名重复：{', '.join(duplicates)}")
 
     build_info = {
-        "schemaVersion": 1,
+        "schemaVersion": MANIFEST_SCHEMA_VERSION,
         "name": project_name.strip(),
         "version": str(version),
         "sourceCommit": commit,
@@ -278,9 +279,17 @@ def main() -> int:
         "pythonVersion": platform.python_version(),
         "artifacts": records,
     }
+    if (build_info["schemaVersion"] != MANIFEST_SCHEMA_VERSION
+            or any(not isinstance(record.get("name"), str)
+                   or not isinstance(record.get("bytes"), int)
+                   or not isinstance(record.get("sha256"), str)
+                   for record in records)):
+        fail("构建清单契约校验失败")
+    build_info_bytes = (json.dumps(build_info, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     sums = "".join(f"{record['sha256']}  {record['name']}\n" for record in records)
+    sums += f"{hashlib.sha256(build_info_bytes).hexdigest()}  {BUILD_INFO_NAME}\n"
     contents = {
-        BUILD_INFO_NAME: json.dumps(build_info, ensure_ascii=False, indent=2) + "\n",
+        BUILD_INFO_NAME: build_info_bytes.decode("utf-8"),
         SUMS_NAME: sums,
     }
 
