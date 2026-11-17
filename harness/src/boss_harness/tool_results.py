@@ -25,6 +25,38 @@ MAX_PAGE_BYTES = 1024 * 1024
 DEFAULT_RESULT_CHARS = 16_384
 MAX_RESULT_CHARS = 32_768
 MODEL_RESULT_READ_CHARS = 8_192
+TOOL_EXECUTION_STATES = frozenset({
+    "queued", "pending_approval", "approved", "not_approved", "executing",
+    "completed", "failed", "not_executed", "outcome_unknown",
+})
+TOOL_DELIVERY_STATES = frozenset({"not_delivered", "delivery_uncertain", "unknown"})
+TOOL_RETRY_STATES = frozenset({"safe", "unsafe", "unknown"})
+
+
+def tool_execution_state(value: Any) -> str | None:
+    return value if isinstance(value, str) and value in TOOL_EXECUTION_STATES else None
+
+
+def tool_disposition(value: Any) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        return None
+    delivery, retry = value.get("delivery"), value.get("retry")
+    if delivery not in TOOL_DELIVERY_STATES or retry not in TOOL_RETRY_STATES:
+        return None
+    return {"delivery": delivery, "retry": retry}
+
+
+def disposition_for_state(execution_state: str | None, *, write: bool) -> dict[str, str] | None:
+    """Expose retry safety from the execution fact; never infer ``safe`` from an error code."""
+    if execution_state in {"not_executed", "not_approved"}:
+        return {"delivery": "not_delivered", "retry": "safe"}
+    if execution_state == "outcome_unknown":
+        return {"delivery": "delivery_uncertain", "retry": "unsafe"}
+    if execution_state == "failed":
+        if write:
+            return {"delivery": "unknown", "retry": "unknown"}
+        return {"delivery": "not_delivered", "retry": "safe"}
+    return None
 
 
 def result_text(result: Any) -> str:
@@ -93,12 +125,19 @@ def _fit_projection(projected: dict[str, Any], max_bytes: int) -> dict[str, Any]
 
 
 def model_result_content(result: dict, item_id: str | None, *, source: dict | None,
-                         max_bytes: int, preview: str) -> str:
+                         max_bytes: int, preview: str,
+                         execution_state: str | None = None,
+                         disposition: dict[str, str] | None = None) -> str:
     """Keep small results structured; replace oversized model payloads with a verifiable reference."""
     if (type(max_bytes) is not int
             or not MIN_MODEL_TOOL_RESULT_BYTES <= max_bytes <= MAX_MODEL_TOOL_RESULT_BYTES):
         max_bytes = DEFAULT_MODEL_TOOL_RESULT_BYTES
-    payload = {**result, **({"source": source} if source is not None else {})}
+    outcome: dict[str, Any] = {}
+    if execution_state is not None:
+        outcome["executionState"] = execution_state
+    if disposition is not None:
+        outcome["disposition"] = disposition
+    payload = {**result, **outcome, **({"source": source} if source is not None else {})}
     size = _json_size(payload)
     if size is not None and size <= max_bytes:
         return json.dumps(payload, ensure_ascii=False, allow_nan=False)
@@ -107,6 +146,7 @@ def model_result_content(result: dict, item_id: str | None, *, source: dict | No
         "ok": result.get("ok"),
         "command": result.get("command"),
         "resultOmitted": True,
+        **outcome,
     }
     if source is not None:
         projected["source"] = source
@@ -136,6 +176,35 @@ def model_result_content(result: dict, item_id: str | None, *, source: dict | No
         keep //= 2
 
 
+def _merge_outcome(existing: str, execution_state: str | None,
+                   disposition: dict[str, str] | None, limit: int) -> str:
+    """Add outcome fields to a legacy projection without changing records that lack them."""
+    if execution_state is None and disposition is None:
+        return existing
+    try:
+        parsed = json.loads(existing)
+    except (ValueError, TypeError, RecursionError):
+        return existing
+    if not isinstance(parsed, dict):
+        return existing
+    changed = False
+    if execution_state is not None and "executionState" not in parsed:
+        parsed["executionState"] = execution_state
+        changed = True
+    if disposition is not None and "disposition" not in parsed:
+        parsed["disposition"] = disposition
+        changed = True
+    if not changed:
+        return existing
+    try:
+        candidate = json.dumps(parsed, ensure_ascii=False, allow_nan=False)
+        if len(candidate.encode("utf-8")) <= limit:
+            return candidate
+    except (TypeError, ValueError, UnicodeEncodeError, RecursionError):
+        pass
+    return existing
+
+
 def model_result_for_item(item: dict) -> str:
     """Bound legacy history projections without changing their durable source records.
 
@@ -147,12 +216,16 @@ def model_result_for_item(item: dict) -> str:
     limit = item.get("modelResultLimitBytes", DEFAULT_MODEL_TOOL_RESULT_BYTES)
     if type(limit) is not int or not MIN_MODEL_TOOL_RESULT_BYTES <= limit <= MAX_MODEL_TOOL_RESULT_BYTES:
         limit = DEFAULT_MODEL_TOOL_RESULT_BYTES
+    execution_state = tool_execution_state(item.get("executionState"))
+    disposition = tool_disposition(item.get("disposition"))
+    if disposition is None and execution_state in {"not_executed", "not_approved", "outcome_unknown"}:
+        disposition = disposition_for_state(execution_state, write=False)
     existing = item.get("modelResult")
     if isinstance(existing, str):
         existing = wire_text(existing)
         try:
             if len(existing.encode("utf-8")) <= limit:
-                return existing
+                return _merge_outcome(existing, execution_state, disposition, limit)
         except UnicodeEncodeError:
             pass
     summary = item.get("resultSummary")
@@ -162,21 +235,29 @@ def model_result_for_item(item: dict) -> str:
         source = item.get("source")
         return model_result_content(wire_value(result), item["id"],
                                     source=wire_value(source) if isinstance(source, dict) else source,
-                                    max_bytes=limit, preview=preview)
+                                    max_bytes=limit, preview=preview,
+                                    execution_state=execution_state, disposition=disposition)
     # 缺失 result 的结算记录（进程中断后的启动恢复、恢复会话里的审批拒绝/失效）
     # 只有 resultSummary 与 errorCode。沿用 model_result_content({}) 会在预算内
     # 直接返回 "{}"，模型看不到「未执行」「被拒绝」或「结果不确定」，可能把
     # 写操作当成空结果重试。
     text = preview if isinstance(preview, str) and preview else (existing or "")
-    return _unavailable_result(item, limit, text)
+    return _unavailable_result(item, limit, text,
+                               execution_state=execution_state, disposition=disposition)
 
 
-def _unavailable_result(item: dict, limit: int, preview: str) -> str:
+def _unavailable_result(item: dict, limit: int, preview: str, *,
+                        execution_state: str | None = None,
+                        disposition: dict[str, str] | None = None) -> str:
     """缺失结果的预算内投影：保留状态、错误码与持久摘要。"""
     content: dict[str, Any] = {
         "ok": False if item.get("status") == "failed" else None,
         "resultUnavailable": True,
     }
+    if execution_state is not None:
+        content["executionState"] = execution_state
+    if disposition is not None:
+        content["disposition"] = disposition
     code = item.get("errorCode")
     if isinstance(code, str) and code:
         # 与 project_item 同限：持久记录可能携带上游整段文本，未截断会让

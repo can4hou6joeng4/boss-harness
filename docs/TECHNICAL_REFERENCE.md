@@ -134,7 +134,7 @@ token 数默认采用 `characters/2+message-overhead` 分类估算，不是供�
 
 ## 大结果与会话恢复
 
-模型可见工具结果按工具定义的 `max_model_result_bytes` 限制，默认 20 KiB，允许范围为 8 KiB 至 1 MiB。较大结果在模型上下文中显示明确的省略标记、摘要和结果 SHA-256；完整结构化结果继续保存在会话记录中。Harness 提供只读内核工具 `read_session_tool_result`，模型可按 item ID、摘要和游标每次读取至多 8,192 个 Unicode 字符；读取只访问当前会话已保存的数据，不重新调用招聘工具。桌面/RPC 展示使用独立结果引用，超过 64 KiB 时不内联传输；两条读取路径预算不同是职责差异，不是同一上限的两种写法：模型侧只提供受控分段，避免把完整大结果回灌模型上下文；桌面/RPC 侧供人审阅完整结果。
+模型可见工具结果按工具定义的 `max_model_result_bytes` 限制，默认 20 KiB，允许范围为 8 KiB 至 1 MiB。较大结果在模型上下文中显示明确的省略标记、摘要和结果 SHA-256；完整结构化结果继续保存在会话记录中。模型可见结果与历史回放还携带可选的 `executionState` 和 `disposition`：`not_executed` / `not_approved` 标记为 `not_delivered` + `safe`，`outcome_unknown` 标记为 `delivery_uncertain` + `unsafe`，只读工具失败标记为 `not_delivered` + `safe`，写工具失败但无未执行证据标记为 `unknown` + `unknown`；不得仅凭错误码推断可安全重试。Harness 提供只读内核工具 `read_session_tool_result`，模型可按 item ID、摘要和游标每次读取至多 8,192 个 Unicode 字符；读取只访问当前会话已保存的数据，不重新调用招聘工具。桌面/RPC 展示使用独立结果引用，超过 64 KiB 时不内联传输；两条读取路径预算不同是职责差异，不是同一上限的两种写法：模型侧只提供受控分段，避免把完整大结果回灌模型上下文；桌面/RPC 侧供人审阅完整结果。
 
 RPC 客户端可通过 `thread/item/result/read`，传入 `threadId`、`itemId`、引用中的 `sha256` 及可选 `cursor`、`limit` 读取标准 JSON 文本；默认 16,384、最多 32,768 个 Unicode 码点。引用包含该文本的 UTF-8 SHA-256、字节数和码点数，服务端游标绑定会话、条目及版本。结果发生修订时返回 `STALE_RESULT`，错误数据的 `currentRef` 给出当前版本的同形引用；客户端须重新获取并确认引用，不能混用不同版本。
 
