@@ -3830,7 +3830,12 @@ class ApplicationService:
             while not self._approval_expiry_stop.is_set():
                 try:
                     for approval_id in self.sessions.expired_pending_approvals():
-                        result = self.sessions.expire_approval(approval_id)
+                        # 逐项隔离：一条损坏索引行只能失败自己。整批共用一个 try
+                        # 时，坏行之后的全部过期审批会一直排在队首永不结算。
+                        try:
+                            result = self.sessions.expire_approval(approval_id)
+                        except Exception:
+                            continue
                         if result is not None:
                             self._publish_recovered_approval_decision(result)
                     deadline = self.sessions.next_recoverable_approval_deadline()
