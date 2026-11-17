@@ -2,7 +2,7 @@ import type { EventListResponse, ItemContentReference, ItemContentReadResponse, 
 import { safeSlice, stripIpcErrorWrapper } from "@boss-harness/shared";
 import type { HarnessEvent } from "./harnessEvents";
 import { trackCursor } from "./cursorChain";
-import { threadSnapshotOf } from "./snapshotShape";
+import { assertSnapshotRouteFields, threadSnapshotOf } from "./snapshotShape";
 
 interface Api { request<T>(method: string, params?: unknown): Promise<T> }
 /** 单次恢复允许的分页上限：只兜住异常内核造成的无尽翻页，正常会话远达不到。 */
@@ -83,6 +83,7 @@ export class HarnessReplica {
         current();
         if (snapshot.view !== "branch" || !snapshot.branch || snapshot.branch.threadId !== threadId || snapshot.thread?.id !== threadId ||
             typeof snapshot.snapshotId !== "string" || !/^[a-f0-9]{32}$/.test(snapshot.snapshotId)) throw new Error("分支快照响应无效");
+        assertSnapshotRouteFields(snapshot.thread);
         const snapshotId = snapshot.snapshotId;
         const items = await this.readAllItems(
           pageCursor => ({ threadId, snapshotId, view: "branch", cursor: pageCursor, limit: 100 }),

@@ -1,6 +1,26 @@
 import type { ThreadReadResponse } from "@boss-harness/protocol";
 
 const SNAPSHOT_ID_PATTERN = /^[a-f0-9]{32}$/;
+const ROUTE_TEXT_LIMIT = 200;
+
+/**
+ * 会话线路字段：与 `thread/list` 的 `threadSummaryOf` 同一契约。
+ *
+ * 恢复快照的 `thread.provider` / `thread.model` 会写入当前会话并被渲染期
+ * `toLowerCase()` 使用；缺省或 null 合法，出现时必须是可展示的有界字符串。
+ * 对象或其他类型原样放行会让整个应用在渲染时落入错误边界。
+ */
+export function assertSnapshotRouteFields(thread: unknown): void {
+  if (!thread || typeof thread !== "object" || Array.isArray(thread)) throw new Error("会话快照响应无效");
+  const raw = thread as Record<string, unknown>;
+  for (const key of ["provider", "model"]) {
+    const field = raw[key];
+    if (field !== undefined && field !== null
+      && (typeof field !== "string" || field.length > ROUTE_TEXT_LIMIT)) {
+      throw new Error("会话快照线路字段无效");
+    }
+  }
+}
 
 /**
  * `thread/resume` / `thread/read` 快照的身份与基本形状校验。
@@ -15,6 +35,7 @@ export function assertThreadSnapshot(value: unknown, threadId: string): void {
   const thread = snapshot.thread;
   if (!thread || typeof thread !== "object" || Array.isArray(thread)
     || (thread as Record<string, unknown>).id !== threadId) throw new Error("会话快照响应无效");
+  assertSnapshotRouteFields(thread);
   if (snapshot.snapshotId !== undefined
     && (typeof snapshot.snapshotId !== "string" || !SNAPSHOT_ID_PATTERN.test(snapshot.snapshotId))) {
     throw new Error("会话快照标识无效");
