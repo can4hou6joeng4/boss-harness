@@ -9,6 +9,26 @@
 
 当前没有未归入具名候选版本的变更。
 
+## 0.2.0-rc.59 - 2026-11-18
+
+本节汇总第五十九个候选版本的源码与交付内容。相对 rc.58，本候选统一业务 CLI 可用性检查，并同步发布脚本示例与摘要 checkpoint 文档。rc.16 至 rc.59 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 连接检查与工具可用性报告复用同一套可执行路径判定：普通文件与有效符号链接可用，目录、断链和不可执行文件不可用；不带路径的命令名仍由 PATH 查找，不执行业务 CLI（#2051、#2052）。
+- 发布资产脚本的帮助与错误提示同步到当前 Python 版本示例，不改变版本校验或资产计算（#2053、#2054）。
+- 技术参考同步摘要 checkpoint 的目录项同步保证，与当前内核实现一致（#2055、#2056）。
+- 同步 npm / Python 版本到 `0.2.0-rc.59` / `0.2.0rc59`（#2057）。
+
+升级注意：不改变协议、工具权限、持久化格式或存储键；rc.58 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2051](https://github.com/can4hou6joeng4/boss-harness/issues/2051)：统一 `resolve_binary()` 与 `binary_available()` 的业务 CLI 路径判定。
+- [Issue #2053](https://github.com/can4hou6joeng4/boss-harness/issues/2053)：更新发布资产脚本的版本示例。
+- [Issue #2055](https://github.com/can4hou6joeng4/boss-harness/issues/2055)：更新摘要 checkpoint 持久化文档口径。
+- [Issue #2057](https://github.com/can4hou6joeng4/boss-harness/issues/2057)：准备 rc.59 源码候选并同步所有版本来源。
+
 ## 0.2.0-rc.58 - 2026-11-18
 
 本节汇总第五十八个候选版本的源码与交付内容。相对 rc.57，本候选修正浏览器来源空白值处理、业务 CLI 可执行文件查找，并整理大型历史变更记录。rc.16 至 rc.58 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
