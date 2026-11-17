@@ -49,6 +49,19 @@
 - [Issue #2148](https://github.com/can4hou6joeng4/boss-harness/issues/2148)：识别桌面陈旧结果引用提示。
 - [Issue #2151](https://github.com/can4hou6joeng4/boss-harness/issues/2151)：准备 rc.71 源码候选并同步版本来源。
 
+## 未发布
+
+### 本版概览
+
+- 大正文恢复加入有限分页预算，异常内核用超小分段时明确失败（#2169、#2170）。
+- 摘要任务不存在时，取消回执收敛本地 running 状态，不再笼统显示「回执未知」（#2171、#2172）。
+- 用户指南、桌面指南与内核契约同步说明这两类边界。
+
+### 变更
+
+- [Issue #2169](https://github.com/can4hou6joeng4/boss-harness/issues/2169)：限制大正文恢复分页预算。
+- [Issue #2171](https://github.com/can4hou6joeng4/boss-harness/issues/2171)：识别摘要任务已不存在的取消回执。
+
 # 变更记录
 
 ## 0.2.0-rc.70 - 2026-11-18
