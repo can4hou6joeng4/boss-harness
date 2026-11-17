@@ -1984,8 +1984,13 @@ class SessionStore:
                 entries = self.read_entries(thread_id)
                 for item in self._project_items(thread_id, entries):
                     approval = item.get("approval")
+                    # 与 decide_approval / 索引重建 / 启动恢复同一校验：畸形审批没有
+                    # 可持久化的裁决语义，_append_approval_decision 还会在缺 toolName
+                    # 时抛 KeyError（-32603）。归档本身必须完成，坏记录按「不需要结算」
+                    # 跳过，既不中断归档也不写下伪 expired 裁决。
                     if (item.get("executionState") == "pending_approval"
-                            and isinstance(approval, dict) and not approval.get("decision")):
+                            and isinstance(approval, dict) and not approval.get("decision")
+                            and self._valid_approval_item(item, pending_only=False)):
                         self._append_approval_decision(thread_id, item, "expired", live_owner=False)
                 self.append(thread_id, Entry(type="thread_info", parent_id=self.last_entry_id(thread_id),
                                              payload={"archived": True}))
