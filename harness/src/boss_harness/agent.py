@@ -1198,7 +1198,11 @@ class TurnRunner:
                     provider_continuation: dict[str, Any] | None = None,
                     assistant_item_id: str | None = None) -> None:
         for index, call in enumerate(calls):
-            entry = self.start_tool_call(thread_id, call.name, dict(call.arguments), call.id,
+            # 被跳过的调用从未经过 `_prepare_tool`：模型参数里可能有孤立代理项
+            # （JSON 转义 `\ud800`）或非有限浮点（`1e999` → inf），直接落库会让
+            # `SessionStore.append` 抛异常，把 NOT_EXECUTED 结算变成通用回合失败。
+            entry = self.start_tool_call(thread_id, call.name, wire_value(dict(call.arguments)),
+                                         call.id,
                 batch_id=batch_id, provider_continuation=provider_continuation if index == 0 else None,
                 tool_batch_assistant_item_id=assistant_item_id)
             result = ToolResult(ok=False, command=call.name, error=error or {

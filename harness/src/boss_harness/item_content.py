@@ -5,6 +5,7 @@ import base64
 import binascii
 import hashlib
 import json
+import math
 import re
 
 INLINE_ITEM_CONTENT_BYTES = 64 * 1024
@@ -36,11 +37,17 @@ def wire_value(value, _depth: int = 0):
     持久记录可能被外部改写或由旧版本写入任意深度的结构；纯 Python 递归超过
     解释器上限会抛 ``RecursionError``，让 ``thread/read`` 等投影整体返回
     ``-32603``。超过上限的子树按占位文本投影，正常数据逐值不变。
+
+    非有限浮点（``inf``/``nan``）同样无法被会话落库接受（``allow_nan=False``）；
+    模型参数里的 ``1e999`` 解码后就是 ``inf``，这里一并降级为 ``None``，
+    与孤立代理项的降级同一层。
     """
     if _depth > _WIRE_MAX_DEPTH:
         return _WIRE_DEPTH_PLACEHOLDER
     if isinstance(value, str):
         return wire_text(value)
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
     if isinstance(value, list):
         return [wire_value(item, _depth + 1) for item in value]
     if isinstance(value, dict):
