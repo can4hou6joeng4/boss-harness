@@ -134,6 +134,18 @@ export class HarnessClient {
     this.#respond({ jsonrpc: "2.0", id, error });
   }
 
+  /**
+   * 内核静默取消了某个服务器请求（不回帧）时，丢弃本地待答 id 而不写响应。
+   *
+   * 持久审批经 `approval/respond` 正常 RPC 裁决后，内核只在本进程表中取消
+   * server request（rpc.py 的 `cancel_request` 不向客户端发帧）；若宿主继续保留
+   * 该 id，它会计入 256 条待答上限，并在回合终态或计时器到期时向已取消的请求
+   * 写出无收益的 -32001 帧。`forgetServerRequest` 只释放槽位，不产生任何输出。
+   */
+  forgetServerRequest(id: JsonRpcId): void {
+    this.#incoming.delete(id);
+  }
+
   onRequest(listener: (request: JsonRpcRequest) => void): () => void {
     this.#requestListeners.add(listener);
     return () => this.#requestListeners.delete(listener);
