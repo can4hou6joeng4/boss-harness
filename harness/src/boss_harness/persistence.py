@@ -18,6 +18,17 @@ from boss_harness.private_files import ensure_private_directory, open_private_fi
 SCHEMA_VERSION = 2
 
 
+def _decode_text(raw: bytes) -> str:
+    """索引库 TEXT 列的宽容解码；非法 UTF-8 字节按 U+FFFD 替换。
+
+    索引属于持久数据，可能被外部改写或损坏。Python 默认的严格解码会抛
+    ``sqlite3.OperationalError``（不是 ValueError），让内核启动或 ``thread/list``
+    直接变成内部错误；降级后损坏的 JSON 走既有 ``_IndexedMetadataError``
+    重建路径，其它文本列由读取方按陈旧值处理。
+    """
+    return raw.decode("utf-8", "replace")
+
+
 class PersistenceIndex:
     def __init__(self, path: Path) -> None:
         self.path = Path(path).absolute()
@@ -95,6 +106,7 @@ class PersistenceIndex:
     def connection(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(self.path, timeout=10, isolation_level=None)
         connection.row_factory = sqlite3.Row
+        connection.text_factory = _decode_text
         connection.execute("PRAGMA foreign_keys=ON")
         connection.execute("PRAGMA busy_timeout=10000")
         connection.execute("PRAGMA synchronous=FULL")
