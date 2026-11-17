@@ -27,6 +27,7 @@ from boss_harness.models.types import (
 from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, CheckpointCommittedError, Entry, SessionStore,
                                   branch_summary_issue)
 from boss_harness.tool_results import model_result_for_item
+from boss_harness.usage import MAX_REQUEST_TOKENS
 
 
 _FINISHED_TURN_STATUSES = frozenset({"completed", "interrupted", "blocked", "error"})
@@ -250,7 +251,8 @@ def _usage_input_tokens(provider: str, usage: Any) -> int | None:
     if any(type(value) is not int or value < 0 for value in values):
         return None
     total = sum(values)
-    return total if total > 0 else None
+    # 持久 usage 记录不可信：复用单请求 token 上限，避免损坏基线伪造出巨大预算。
+    return total if 0 < total <= MAX_REQUEST_TOKENS else None
 
 
 def _retained_usage_estimate(provider: str, request: ModelRequest, entries: list[dict], *,
