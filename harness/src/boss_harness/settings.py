@@ -16,6 +16,28 @@ from boss_harness.compaction import verified_policy
 CONFIG_FILE = "config.json"
 AUTO_COMPACTION_FIELDS = ("enabled", "triggerPercent", "keepRecentTokens")
 _MAX_CONFIG_BYTES = 256 * 1024
+# 配置只承载少量标量设置；与工具参数、事件载荷同级的嵌套上限。
+_MAX_CONFIG_DEPTH = 64
+
+
+def _within_depth(value: object, limit: int = _MAX_CONFIG_DEPTH) -> bool:
+    """迭代检测嵌套深度，不依赖解析器或编码器的递归余量。
+
+    与自动压缩无关的深层数组也能让 ``json.dumps(indent=2)`` 在纯 Python
+    编码器中抛 ``RecursionError``；迭代检测把这类配置整体按不可读处理。
+    """
+    stack = [(value, 0)]
+    while stack:
+        current, depth = stack.pop()
+        if isinstance(current, dict):
+            if depth >= limit:
+                return False
+            stack.extend((child, depth + 1) for child in current.values())
+        elif isinstance(current, list):
+            if depth >= limit:
+                return False
+            stack.extend((child, depth + 1) for child in current)
+    return True
 
 
 def _read_object(path: Path) -> dict | None:
@@ -27,7 +49,7 @@ def _read_object(path: Path) -> dict | None:
         value = json.loads(raw)
     except (OSError, UnicodeError, ValueError, RecursionError):
         return None
-    return value if isinstance(value, dict) else None
+    return value if isinstance(value, dict) and _within_depth(value) else None
 
 
 def load_auto_compaction(state_dir: Path) -> dict | None:
@@ -52,8 +74,14 @@ def save_auto_compaction(state_dir: Path, fields: dict) -> None:
             raise ValueError("内核配置文件不可读或格式无效，未写入自动压缩设置")
     else:
         current = {}
-    payload = json.dumps({**current, "autoCompaction": verified}, ensure_ascii=False, indent=2) + "\n"
-    if len(payload.encode("utf-8")) > _MAX_CONFIG_BYTES:
+    try:
+        payload = json.dumps({**current, "autoCompaction": verified}, ensure_ascii=False, indent=2) + "\n"
+        encoded = payload.encode("utf-8")
+    except (TypeError, ValueError, RecursionError, UnicodeEncodeError):
+        # 配置可能由外部写入：深层嵌套或孤立代理项会让编码失败。此时尚未写
+        # 任何字节，返回可读中文错误而不是让 RecursionError / codec 信息逃逸。
+        raise ValueError("内核配置文件包含无法保存的内容，未写入自动压缩设置") from None
+    if len(encoded) > _MAX_CONFIG_BYTES:
         raise ValueError("内核配置文件超过大小上限，未写入自动压缩设置")
     state_dir.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=".config-", suffix=".json", dir=state_dir)
