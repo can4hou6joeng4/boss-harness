@@ -310,7 +310,13 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
       if (!cancelled || !manualCompactionJob(cancelled) || cancelled.reason || cancelled.jobId !== job.jobId || cancelled.threadId !== id || cancelled.sourceDigest !== job.sourceDigest) throw new Error("取消回执不属于手动摘要任务");
       applyJob(id, cancelled);
       void refresh(id);
-    } catch (error) { if (alive.current && epoch.current === connectionEpoch) update(id, { cancelRequested: false, error: `取消回执未知：${harnessErrorText(error)}。请核对原任务，尚未确认收尾。` }); }
+    } catch (error) {
+      if (alive.current && epoch.current === connectionEpoch) {
+        update(id, state => rpcResponseError(error) && error.code === -32011
+          ? { ...state, ...missingJobPatch(state), cancelRequested: false }
+          : { ...state, cancelRequested: false, error: `取消回执未知：${harnessErrorText(error)}。请核对原任务，尚未确认收尾。` });
+      }
+    }
     finally {
       cancelFlights.current.delete(job.jobId);
       if (alive.current && epoch.current === connectionEpoch) update(id, { cancelInFlight: false });
