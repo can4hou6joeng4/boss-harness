@@ -120,11 +120,37 @@ export type SkillCatalogState = "unavailable" | "loading" | "ready" | "empty" | 
 /** 工具目录状态：把「还没读到」「读取失败」和「确实没有工具」分开，界面不能把它们混为一谈。 */
 export type ToolCatalogState = "unavailable" | "loading" | "ready" | "empty" | "error";
 
+/** 线路字段会写入默认线路并在渲染期 `toLowerCase()`；与 `thread/list` 的线路契约同一上限。 */
+const MODEL_BRIDGE_TEXT_LIMIT = 200;
+
+/** 内核 initialize 回执的线路字段属于进程边界数据：畸形时按缺失处理，连接与其余状态保留。 */
+function modelBridgeOf(value: unknown): HarnessStatus["modelBridge"] | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const provider = record.provider;
+  const model = record.model;
+  if (typeof provider !== "string" || provider.length > MODEL_BRIDGE_TEXT_LIMIT) return undefined;
+  if (typeof model !== "string" || model.length > MODEL_BRIDGE_TEXT_LIMIT) return undefined;
+  if (typeof record.driven !== "boolean") return undefined;
+  return { provider, model, driven: record.driven };
+}
+
+/** 校验状态回执的基本形状；`running` 是判断连接状态的唯一依据，不能是字符串或数字。 */
+function statusOf(value: unknown): HarnessStatus | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.running !== "boolean") return null;
+  return { ...(value as HarnessStatus), modelBridge: modelBridgeOf(record.modelBridge) };
+}
+
 /** 内核状态。读取失败保留真实原因，调用方要据此提示，而不是把查询失败静默当成「未运行」。 */
 export async function harnessStatus(): Promise<HarnessStatus | null> {
   const api = bridge();
   if (!api) return null;
-  try { return await api.status(); }
+  try {
+    const status = statusOf(await api.status());
+    return status ?? { running: false, repoRoot: "", error: "内核状态回执无法识别。请稍后重试或重新连接。" };
+  }
   catch (cause) { return { running: false, repoRoot: "", error: `内核状态读取失败：${harnessErrorText(cause)}。请稍后重试或重新连接。` }; }
 }
 

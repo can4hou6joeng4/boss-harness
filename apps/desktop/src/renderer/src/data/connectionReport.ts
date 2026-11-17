@@ -7,7 +7,9 @@ const TIME_LIMIT = 64;
 
 const STATES: ReadonlySet<string> = new Set(["unchecked", "checking", "ready", "failed", "blocked", "disabled"]);
 const BROWSER_SOURCES: ReadonlySet<string> = new Set(["inherit", "auto", "existing-browser", "stored-cookie"]);
-const TEXT_FIELDS = ["provider", "model", "authState", "binarySource"] as const;
+/** 内核 `_auth_state()` 的取值集合；设置页把它当普通对象的键查询标签，未知值一律拒绝。 */
+const AUTH_STATES: ReadonlySet<string> = new Set(["complete", "partial", "broken", "missing", "unknown"]);
+const TEXT_FIELDS = ["provider", "model", "binarySource"] as const;
 
 /**
  * `connection/check` 与 `connection/read` 的卡片校验。
@@ -34,6 +36,11 @@ function checkOf(value: unknown): ConnectionCheck | null {
     if (text === undefined) continue;
     if (typeof text !== "string" || text.length > NAME_LIMIT) return null;
     check[field] = text;
+  }
+  // `authState` 只接受内核枚举：`"constructor"` 等值在设置页的普通对象标签表里会命中原型成员。
+  if (raw.authState !== undefined) {
+    if (typeof raw.authState !== "string" || !AUTH_STATES.has(raw.authState)) return null;
+    check.authState = raw.authState;
   }
   if (raw.browserSourcePolicy !== undefined) {
     if (typeof raw.browserSourcePolicy !== "string" || !BROWSER_SOURCES.has(raw.browserSourcePolicy)) return null;

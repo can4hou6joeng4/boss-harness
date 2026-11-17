@@ -69,7 +69,9 @@ export function BranchSummaryJobNotice({ job, cancelInFlight, onCancel, onDismis
   const requests = job.modelRequestCount ? `模型请求 ${job.modelRequestCount} 次` : "";
   const title = running ? "正在为被放弃分支生成摘要…" : job.status === "completed" ? "被放弃分支摘要已生成"
     : job.status === "cancelled" ? "被放弃分支摘要已取消" : "被放弃分支摘要生成失败";
-  const detail = failed ? `${(job.code && FAILURES[job.code]) || job.message || "摘要未写入"}${job.code ? `（${job.code}）` : ""}。分支已切换，不会回滚。` : "";
+  // `job.code` 来自内核回执：普通对象索引会命中 `constructor` 等原型成员，必须先确认是自有键。
+  const failure = failed && job.code && Object.prototype.hasOwnProperty.call(FAILURES, job.code) ? FAILURES[job.code] : undefined;
+  const detail = failed ? `${failure || job.message || "摘要未写入"}${job.code ? `（${job.code}）` : ""}。分支已切换，不会回滚。` : "";
   return <div className={`model-retry-notice branch-summary-job ${running ? "" : failed ? "failed" : "recovered"}`} data-branch-summary-job={job.status}>
     <span className="model-retry-icon" aria-hidden="true">{running ? <IconClock size={13} /> : failed ? <IconClose size={13} /> : <IconCheck size={13} />}</span>
     <div className="model-retry-body">
