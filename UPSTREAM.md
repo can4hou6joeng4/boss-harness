@@ -1145,7 +1145,7 @@ Pi 开放 [PR #9569](https://github.com/earendil-works/pi/pull/9569)（截至 20
 
 本地离线验收覆盖嵌套 object/array、`anyOf`、字符串 union、原始输入不可变、格式/类型拒绝、标量不转换、深度/节点上限及自定义校验器只读语义；合成 `ApplicationService` 与 `TurnRunner` 检查规范化值在策略 hook、审批、持久化与 handler 间一致，错误结构在 hook/handler 前拒绝。Python 3.11 `compileall`、Harness wheel/sdist 构建及 `git diff --check` 通过。探针只使用临时状态和合成 provider，不调用真实模型或招聘 CLI；探针代码仅在本地命令中运行，未提交。
 
-检查 `can4hou6joeng4/boss-harness` 当前 main `641c147648f5ef280cc69f5efb5cf53a8f2bde96`（私有仓库、无开放 Issue；草稿 PR #109 是会话模型线路选择）及业务上游 `jackwener/boss-cli` main `9d38ed1a3a5f6c5c2f37b865b0748454234e7c70`（许可证字段为空）。后者开放 Issue #35/#34 等关于招聘认证与业务操作，开放 PR #37/#29 等关于沟通分页和 recruiter 功能；未发现通用工具 schema 参数规范化需求，不移植其业务逻辑或认证代码。
+当时检查 `can4hou6joeng4/boss-harness` main `641c147648f5ef280cc69f5efb5cf53a8f2bde96`（该时间点的仓库状态记录为私有、无开放 Issue；草稿 PR #109 是会话模型线路选择）及业务上游 `jackwener/boss-cli` main `9d38ed1a3a5f6c5c2f37b865b0748454234e7c70`（许可证字段为空）。后者开放 Issue #35/#34 等关于招聘认证与业务操作，开放 PR #37/#29 等关于沟通分页和 recruiter 功能；未发现通用工具 schema 参数规范化需求，不移植其业务逻辑或认证代码。
 
 ## 第四十八轮：为模型上下文限制大型工具结果
 
@@ -1161,7 +1161,7 @@ Pi 开放 [Issue #11386](https://github.com/earendil-works/pi/issues/11386)（�
 
 参考 Pi 开放 [Issue #11071](https://github.com/earendil-works/pi/issues/11071)（截至 2026-10-28 为 OPEN；Pi main `bb65e3e49710fbd14f10c7792d0eaa6e2b2c5923`；MIT）。该 issue 要求在终态消息边界保留 HTTP 状态、provider error code 和可选 retryability，特别指出临时限流、额度耗尽与 HTTP 200 流内错误不应只剩下自由文本。本项目采用现有 `StreamEvent.error_info`，并独立扩展 terminal `session/error` 事件与持久错误记录；不复制 Pi 的诊断接口或重试逻辑。
 
-同步检查 `jackwener/boss-cli` main `9d38ed1a3a5f6c5c2f37b865b0748454234e7c70`（GitHub license 字段为空）：当前开放 Issue 与 PR 聚焦招聘业务、平台权限和认证，没有可移植的通用 provider 错误契约；本项目当前无开放 Issue，PR #109 是会话模型线路选择。本轮没有改动招聘业务操作或认证边界。
+同步检查 `jackwener/boss-cli` main `9d38ed1a3a5f6c5c2f37b865b0748454234e7c70`（GitHub license 字段为空）：当前开放 Issue 与 PR 聚焦招聘业务、平台权限和认证，没有可移植的通用 provider 错误契约；当时本项目无开放 Issue，PR #109 是会话模型线路选择。本轮没有改动招聘业务操作或认证边界。
 
 终态 `errorInfo` 只包含 provider、来源、有效 HTTP 状态、受限字符集且最长 128 字符的 provider code，以及可选请求级 `retryable`；流内 OpenAI 错误明确保留 HTTP 200。额度耗尽 code 明确为不可重试，已知暂时限流/服务端错误才标记可重试，含义不明的 429 不作猜测；`outputObserved` 独立记录是否已出现输出。自动 OpenAI 重试次数和 Anthropic 重试行为保持不变，`retryable` 不授权重放整回合；仅原有精确 `CONTEXT_OVERFLOW` 分类可触发上下文恢复。响应正文、请求、响应头和凭据不进入错误诊断。
 
@@ -1171,7 +1171,7 @@ Pi 开放 [Issue #11386](https://github.com/earendil-works/pi/issues/11386)（�
 
 参考 Pi 开放 [Issue #11297](https://github.com/earendil-works/pi/issues/11297)（截至 2026-10-28 为 OPEN；Pi main `bb65e3e49710fbd14f10c7792d0eaa6e2b2c5923`；MIT）。该 issue 报告压缩摘要中的 `<read-files>` / `<modified-files>` 路径列表跨压缩无界累积，并进入后续模型上下文。本项目的问题相邻但机制与影响不同，因此只吸收“压缩元数据增长应保持有界”的目标，不移植其文件列表处理。
 
-同步检查 `jackwener/boss-cli` main `9d38ed1a3a5f6c5c2f37b865b0748454234e7c70`（GitHub license 字段为 null）：当前开放 Issue #35、#34 等涉及招聘平台认证、沟通、分页和业务能力，开放 PR #37、#29 等也属于招聘业务；没有可移植到通用会话 checkpoint 的变更。本仓库当前无开放 Issue，草稿 PR #109 是会话模型线路选择，与本轮存储优化无直接关系。
+同步检查 `jackwener/boss-cli` main `9d38ed1a3a5f6c5c2f37b865b0748454234e7c70`（GitHub license 字段为 null）：当前开放 Issue #35、#34 等涉及招聘平台认证、沟通、分页和业务能力，开放 PR #37、#29 等也属于招聘业务；没有可移植到通用会话 checkpoint 的变更。该时间点的本仓库无开放 Issue，草稿 PR #109 是会话模型线路选择，与本轮存储优化无直接关系。
 
 新 checkpoint 只写 `sourceItemCount`；加载时按完整回合投影重建来源 ID，并同时校验覆盖条目数、完整前缀顺序及 checkpoint 写入前的原始来源。旧 `sourceItemIds` checkpoint 继续按原列表校验。传给摘要模型的 `previousCheckpoint` 将旧、新格式统一投影为 `sourceItemCount` 与摘要等必要元数据，避免发送来源 ID 列表；`context/read` 与 `context/compact/plan` 仍返回完整 `sourceItemIds`，保持接口兼容。这将新 checkpoint 的重复来源清单持久化成本从覆盖前缀大小降为常数，也限制了后续摘要请求中的元数据增长，但不会减少原始会话记录、整份 JSONL 读取或 checkpoint 原子复制成本。
 
@@ -1558,7 +1558,7 @@ Pi 参考固定为 `5ba1cbaf3d96d204d847c84ce235c62dae23e0fd` 的 `packages/agen
 | [PR #25](https://github.com/jackwener/boss-cli/pull/25) | OPEN；沟通列表、消息读取与回复状态需分别建模；新增只读能力不连带授权回复或交换联系方式。 |
 | [PR #24](https://github.com/jackwener/boss-cli/pull/24) | OPEN；材料缓存应有来源、保留策略及用户授权，先评估显式导入快照，不整包引入采集流程。 |
 
-本项目远程目标经用户确认为私有仓库 [can4hou6joeng4/boss-harness](https://github.com/can4hou6joeng4/boss-harness)。`boss-agent-cli` 的 Issue / PR 仅作业务参考，不冒充本项目工作项。每轮重新读取本仓库及参考仓库的最新状态，按可复现性、招聘价值和兼容风险排序，并通过本项目 PR 记录采用及未采用理由。
+本项目仓库为公开的 [can4hou6joeng4/boss-harness](https://github.com/can4hou6joeng4/boss-harness)，公开 Issue / PR 是本项目工作项入口。`boss-agent-cli` 的 Issue / PR 仅作业务参考，不冒充本项目工作项。每轮重新读取本仓库及参考仓库的最新状态，按可复现性、招聘价值和兼容风险排序，并通过本项目 PR 记录采用及未采用理由。
 
 
 ## 第四轮：经验、学历集合查询
