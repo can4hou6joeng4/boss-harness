@@ -17,7 +17,7 @@ from boss_harness.private_files import ensure_private_directory, open_private_fi
 from boss_harness.queue_view import (ACTIVE_QUEUE_STATUSES, MAX_QUEUE_VIEW_ITEMS,
                                      MAX_QUEUE_VIEW_TERMINAL_ITEMS, project_queue, queue_record)
 from boss_harness.rpc import RpcError
-from boss_harness.session import MAX_SESSION_LINE_BYTES, _decode_session_record
+from boss_harness.session import MAX_SESSION_LINE_BYTES, _decode_session_record, _fsync_directory
 
 MAX_SNAPSHOT_RECORD_BYTES = MAX_SESSION_LINE_BYTES
 MAX_SNAPSHOT_SOURCE_BYTES = 1024 * 1024 * 1024
@@ -475,6 +475,9 @@ class SnapshotStore:
             count = builder.count
             os.replace(building, final)
             restrict_private_file(final)
+            # `os.replace` 只让新名称对运行中进程可见；目录项尚未落盘时，成功回执后
+            # 掉电会让缓存指向不存在的快照文件。发布后立即同步父目录。
+            _fsync_directory(self.root)
             disk_size = final.stat().st_size
             if disk_size > MAX_SNAPSHOT_BYTES:
                 raise ValueError("冻结会话超过快照磁盘预算")
