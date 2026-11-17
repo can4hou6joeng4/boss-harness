@@ -2118,6 +2118,7 @@ class ApplicationService:
                 job = {key: value for key, value in params.items() if key not in {"eventId", "eventCursor"}}
                 if not self._restored_compaction_job(job, event["method"]):
                     continue
+                job = self._trim_restored_job(job)
                 if event["method"] in {"context/compactionStarted", "context/compactionProgress"}:
                     if job_id not in terminal:
                         active[job_id] = job
@@ -2141,12 +2142,7 @@ class ApplicationService:
             except ValueError:
                 # Session files may be removed independently of the append-only global event log.
                 continue
-            checkpoint_committed = any(
-                entry.get("type") in {"context_checkpoint", BRANCH_SUMMARY_ENTRY_TYPE}
-                and entry.get("payload", {}).get("summaryJobId") == job_id
-                for entry in entries
-            )
-            if checkpoint_committed:
+            if self._checkpoint_committed(thread_id, job_id, entries):
                 job.update(status="completed", code="COMPACTION_RECOVERED_COMMIT",
                            message="摘要检查点已提交；已恢复任务状态，未重放模型请求。")
                 method = "context/compactionCompleted"
@@ -2154,7 +2150,13 @@ class ApplicationService:
                 job.update(status="failed", code="COMPACTION_INTERRUPTED",
                            message="内核在摘要任务完成前退出；模型请求和检查点均未自动重放。请重新读取计划后显式开始新任务。")
                 method = "context/compactionFailed"
-            self.events.emit(method, self._compaction_public(job), publish=False, observe=False)
+            try:
+                self.events.emit(method, self._compaction_public(job), publish=False, observe=False)
+            except Exception:
+                # 恢复通知是派生数据：历史载荷过大或事件日志不可写时只保留内存终态，
+                # 不能让一条损坏记录让内核此后每次启动都以退出码 2 结束。
+                job.update(code="COMPACTION_RESTORE_NOTICE_FAILED",
+                           message="摘要任务的恢复通知无法持久化；任务状态已恢复，重启后不会再重复通知。")
             terminal[job_id] = job
             order.append(job_id)
             while len(order) > MAX_RETAINED_COMPACTION_JOBS:
@@ -2192,6 +2194,63 @@ class ApplicationService:
             return False
         digest = job.get("sourceDigest")
         return isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest) is not None
+
+    #: 恢复载荷里的可选文本字段及其上限。事件来自持久日志，可能被外部改写成
+    #: 任意大小；恢复只保留有界标量，`result` 这类大对象在恢复路径没有可信来源。
+    _RESTORED_TEXT_LIMITS = {
+        "code": 100, "message": 1_000, "reason": 100, "turnId": 128,
+        "fromTurnId": 128, "targetTurnId": 128, "firstKeptItemId": 128,
+        "summaryProvider": 200, "summaryModel": 200, "summaryEffort": 100,
+    }
+    _RESTORED_INT_FIELDS = ("modelRequestCount", "processedCharacters", "totalCharacters",
+                            "retainedItemCount", "estimatedRetainedTokens")
+
+    @classmethod
+    def _trim_restored_job(cls, job: dict) -> dict:
+        """恢复载荷只保留有界标量；超大可选字段丢弃而不是原样带进内存与终态通知。
+
+        恢复会重新发射一条终态事件，载荷若含接近事件行上限的字符串，`append_event`
+        就会抛 `ValueError` 并让内核此后每次启动都失败。正常事件的字段都满足这些
+        上限，裁剪对它们逐项不变。
+        """
+        trimmed = {key: job[key] for key in ("jobId", "threadId", "throughTurnId",
+                                             "sourceDigest", "status") if key in job}
+        for key, limit in cls._RESTORED_TEXT_LIMITS.items():
+            value = job.get(key)
+            if isinstance(value, str) and len(value) <= limit:
+                trimmed[key] = value
+        for key in cls._RESTORED_INT_FIELDS:
+            value = job.get(key)
+            if type(value) is int and 0 <= value <= 2 ** 53 - 1:
+                trimmed[key] = value
+        if type(job.get("requestRejected")) is bool:
+            trimmed["requestRejected"] = job["requestRejected"]
+        if job.get("kind") in {"compaction", "branchSummary"}:
+            trimmed["kind"] = job["kind"]
+        abandoned = job.get("abandonedTurnIds")
+        if (isinstance(abandoned, list) and len(abandoned) <= 200
+                and all(isinstance(item, str) and len(item) <= 128 for item in abandoned)
+                and sum(len(item) for item in abandoned) <= 4_096):
+            trimmed["abandonedTurnIds"] = abandoned
+        return trimmed
+
+    def _checkpoint_committed(self, thread_id: str, job_id: str, entries: list[dict]) -> bool:
+        """恢复只认上下文投影实际生效的检查点。
+
+        仅比较 `summaryJobId` 会把投影判为无效的记录当成已提交：客户端看到
+        「摘要检查点已提交」，而 `context/read` 仍报 `checkpointIssue`，任务状态
+        与真实上下文不一致，也不会提示用户重新压缩。这里复用同一套校验结果。
+        """
+        try:
+            view = self.context.read(thread_id, entries=entries)
+        except Exception:
+            return False
+        checkpoint = view.get("checkpoint")
+        if isinstance(checkpoint, dict) and checkpoint.get("summaryJobId") == job_id:
+            return True
+        summaries = view.get("branchSummaries")
+        return isinstance(summaries, list) and any(
+            isinstance(item, dict) and item.get("summaryJobId") == job_id for item in summaries)
 
     @staticmethod
     def _source_digest(params: dict) -> str | None:
