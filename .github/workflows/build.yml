@@ -52,7 +52,7 @@ jobs:
             venv="$RUNNER_TEMP/venv-$(basename "$artifact" | tr -c 'A-Za-z0-9' '-')"
             python -m venv "$venv"
             "$venv/bin/pip" install --quiet --disable-pip-version-check "$artifact"
-            installed="$("$venv/bin/python" -c 'import boss_harness; print(boss_harness.__version__)')"
+            installed="$("$venv/bin/python" -c 'from importlib.metadata import version; print(version("boss-harness"))')"
             test "$installed" = "$VERSION"
             "$venv/bin/boss-harness" --check --provider none --state-dir "$STATE_DIR" > /dev/null
           done
