@@ -80,7 +80,8 @@ def _wire_assistant(message: AssistantMessage) -> AssistantMessage:
     return message if blocks == message.blocks else replace(message, blocks=blocks)
 
 
-def messages_from_items(items: list[dict]) -> tuple[ChatMessage, ...]:
+def messages_from_items(items: list[dict],
+                        write_tools: frozenset[str] = frozenset({"boss_hr_greet"})) -> tuple[ChatMessage, ...]:
     """把持久条目还原为模型请求。
 
     持久记录可能含孤立代理项（损坏记录、``surrogateescape`` 路径或旧版本写入）。
@@ -106,7 +107,7 @@ def messages_from_items(items: list[dict]) -> tuple[ChatMessage, ...]:
         messages.append(_wire_assistant(assistant_from_tool_batch(items, pending)))
         messages.append(ToolResultsMessage(results=tuple(
             ToolResultItem(tool_call_id=str(p.get("toolCallId") or p["id"]),
-                           content=wire_text(model_result_for_item(p)),
+                           content=wire_text(model_result_for_item(p, write_tools=write_tools)),
                            is_error=p.get("status") == "failed") for p in pending)))
         pending.clear()
 
