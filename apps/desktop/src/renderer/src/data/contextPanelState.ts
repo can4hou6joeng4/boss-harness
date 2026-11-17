@@ -109,3 +109,33 @@ export function unresolvedStartPatch(job: { status: string }, attempt: StartAtte
     error: "上次开始压缩的回执未知，内核也没有保留它对应的任务；旧任务不会再执行，可重新生成计划。",
   };
 }
+
+/** 连续多少次无法核对「摘要正在占用线程」后才解除界面锁。 */
+export const LIFECYCLE_RELEASE_FAILURES = 3;
+
+export interface LifecycleReleasePatch {
+  lifecycleActive: null;
+  error: string;
+}
+
+/**
+ * `context/read.compactionJob` 的引用是运行中任务、但配套详情回执连续无法解析、
+ * 归属不一致或持续 RPC 失败时的界面锁收敛。
+ *
+ * 面板会先按引用写入 `lifecycleActive: true`，`ContextPanel` 的 `blocked` 因此
+ * 挡住计划、开始与保留目标；取消按钮只在 `job` 存在时渲染，`cancel()` 也要求
+ * `state.job`，而 1.5 秒轮询又因 `lifecycleActive === true` 永不停止。渲染进程
+ * 重载后错过 `context/compactionStarted`、或详情回执持续被 `contextJobOf` 拒绝时，
+ * 状态就永久停在 `{ lifecycleActive: true, job: undefined }`，没有任何恢复入口。
+ *
+ * 连续失败达到阈值后把 `lifecycleActive` 降级为「未知」并给出说明：内核仍是并发
+ * 压缩的最终裁决者，`start` 会收到明确拒绝并展示 `startRejection`；计数器在任一
+ * 成功解析后清零，单次瞬断不会解锁。
+ */
+export function lifecycleReleasePatch(failures: number): LifecycleReleasePatch | null {
+  if (!Number.isFinite(failures) || failures < LIFECYCLE_RELEASE_FAILURES) return null;
+  return {
+    lifecycleActive: null,
+    error: "持续无法核对摘要任务的占用状态；已解除界面锁，内核仍会拒绝并发压缩。可稍后刷新预算或重新打开面板。",
+  };
+}

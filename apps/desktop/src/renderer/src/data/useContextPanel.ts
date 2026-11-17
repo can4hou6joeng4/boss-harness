@@ -3,7 +3,7 @@ import type { ContextCompactJob, ContextReadResponse } from "@boss-harness/proto
 import { compactionReferenceOf, contextJobOf, manualCompactionJob } from "./contextJob";
 import { contextPlanOf, type ContextPlan } from "./contextPlan";
 import { contextReadOf } from "./contextRead";
-import { disconnectPatch, missingJobPatch, settleReadFlight, unresolvedStartPatch } from "./contextPanelState";
+import { disconnectPatch, lifecycleReleasePatch, missingJobPatch, settleReadFlight, unresolvedStartPatch } from "./contextPanelState";
 import { abortContextCompaction, harnessErrorText, planContextCompaction, readContext, readContextCompaction, startContextCompaction } from "./harnessBridge";
 
 interface StartAttempt {
@@ -49,6 +49,8 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
   const cancelFlights = useRef(new Set<string>());
   const readVersions = useRef(new Map<string, number>());
   const planVersions = useRef(new Map<string, number>());
+  // 连续无法核对「运行中摘要任务」详情的次数；达到阈值后解除 lifecycleActive 界面锁。
+  const lifecycleFailures = useRef(new Map<string, number>());
   const get = useCallback((id: string) => stateRef.current[id] ?? initial(), []);
   const update = useCallback((id: string, change: Partial<ContextPanelState> | ((state: ContextPanelState) => ContextPanelState)) => {
     if (!alive.current) return;
@@ -99,6 +101,7 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
           return;
         }
         const reference = compactionReferenceOf(budget.compactionJob);
+        if (!reference?.active) lifecycleFailures.current.delete(id);
         update(id, state => ({ ...state, budget, lifecycleActive: reference === undefined ? null : reference?.active ?? false,
           discoveryStopped: reference === undefined && state.unknownStart ? true : state.discoveryStopped,
           error: state.unknownStart || state.unavailableJob ? state.error : "" }));
@@ -115,6 +118,7 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
           const job = contextJobOf(await readContextCompaction(jobId));
           if (!valid()) return;
           if (!job || job.jobId !== jobId || job.threadId !== id) throw new Error("摘要任务响应归属不一致");
+          lifecycleFailures.current.delete(id);
           if ((revisions.current.get(id) ?? 0) !== lifecycleRevision) {
             refreshAgain.current.add(id);
             return;
@@ -142,6 +146,15 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
           if (valid() && rpcResponseError(error) && error.code === -32011) {
             update(id, { unavailableJob: jobId, error: "本地内核已不再保留这个摘要任务；可能由进程重启或记录淘汰造成。不会重放该任务，可基于当前会话重新规划。" });
           } else if (valid()) update(id, { error: `暂时无法核对摘要任务：${harnessErrorText(error)}。原任务编号已保留，可稍后重试。` });
+          if (valid() && reference?.active) {
+            // 引用仍在运行、详情却持续无法解析：先写的 lifecycleActive:true 会永久
+            // 挡住计划与开始，1.5 秒轮询也永不停止。连续失败到阈值后解除界面锁，
+            // 内核仍会拒绝真正的并发压缩，单次瞬断不清零。
+            const failures = (lifecycleFailures.current.get(id) ?? 0) + 1;
+            lifecycleFailures.current.set(id, failures);
+            const patch = lifecycleReleasePatch(failures);
+            if (patch) update(id, state => ({ ...state, ...patch }));
+          }
         }
       } catch (error) {
         if (valid()) update(id, { error: `读取上下文失败：${harnessErrorText(error)}` });
@@ -165,6 +178,7 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
         epoch.current += 1;
         readFlights.current.clear();
         refreshAgain.current.clear();
+        lifecycleFailures.current.clear();
         for (const id of Object.keys(stateRef.current)) update(id, state => ({ ...state, ...disconnectPatch(state) }));
         return;
       }
