@@ -295,8 +295,15 @@ export class HarnessHostConnection {
     const timeoutSeconds = typeof configuredTimeout === "number" && Number.isFinite(configuredTimeout) &&
       configuredTimeout > 0 ? configuredTimeout : 300;
     let deadline = Date.now() + timeoutSeconds * 1_000;
-    if (typeof params.deadline === "string") deadline = Date.parse(params.deadline);
-    if (typeof params.deadline === "number") deadline = params.deadline > 1e12 ? params.deadline : params.deadline * 1_000;
+    // 回执里的 deadline 同样来自外部进程：无法解析的时间串或非有限数字按缺失
+    // 处理，退回初始化回执的默认期限。把损坏值当成「已过期」会让审批被静默
+    // 拒绝；明确的过去时间仍按过期处理。
+    if (typeof params.deadline === "string") {
+      const parsed = Date.parse(params.deadline);
+      if (Number.isFinite(parsed)) deadline = parsed;
+    } else if (typeof params.deadline === "number" && Number.isFinite(params.deadline)) {
+      deadline = params.deadline > 1e12 ? params.deadline : params.deadline * 1_000;
+    }
     if (!Number.isFinite(deadline) || deadline <= Date.now()) {
       client.respondError(request.id, { code: -32001, message: "Approval expired" }); return;
     }
