@@ -2079,6 +2079,8 @@ class ApplicationService:
                 # 事件索引是从 events.jsonl 派生的投影列，可以同源重建，但不能被信任：
                 # 只有记录顺序参与恢复，不要再从持久载荷解析任何数值。
                 job = {key: value for key, value in params.items() if key not in {"eventId", "eventCursor"}}
+                if not self._restored_compaction_job(job, event["method"]):
+                    continue
                 if event["method"] in {"context/compactionStarted", "context/compactionProgress"}:
                     if job_id not in terminal:
                         active[job_id] = job
@@ -2127,6 +2129,32 @@ class ApplicationService:
             self._compaction_jobs[job_id] = job
             self._compaction_terminal_ids.add(job_id)
             self._compaction_terminal_order.append(job_id)
+
+    #: 启动、进度事件必须携带运行中状态；终态事件只接受终态枚举。
+    _RESTORED_ACTIVE_METHODS = frozenset({"context/compactionStarted", "context/compactionProgress"})
+    _RESTORED_TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
+
+    @classmethod
+    def _restored_compaction_job(cls, job: dict, method: str) -> bool:
+        """恢复只接受字段完整的任务载荷；残缺记录按缺失处理跳过。
+
+        `_compaction_public()` 是无条件下标读取：缺 `throughTurnId`/`sourceDigest`
+        的启动事件会让内核在恢复阶段抛 `KeyError` 而无法启动，残缺终态记录会让
+        `context/compact/read|abort` 返回 -32603。事件是派生数据，与其它恢复路径
+        一样按「损坏记录即缺失」处理；正常发射的载荷始终满足这些字段。
+        """
+        status = job.get("status")
+        if method in cls._RESTORED_ACTIVE_METHODS:
+            if not isinstance(status, str) or status != "running":
+                return False
+        elif status not in cls._RESTORED_TERMINAL_STATUSES:
+            return False
+        through_turn_id = job.get("throughTurnId")
+        if "throughTurnId" not in job or (through_turn_id is not None
+                                          and not isinstance(through_turn_id, str)):
+            return False
+        digest = job.get("sourceDigest")
+        return isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest) is not None
 
     @staticmethod
     def _source_digest(params: dict) -> str | None:
