@@ -72,6 +72,9 @@ MAX_COMPACTION_ERROR_CHARACTERS = 2_048
 MAX_TASK_RELATIONS = 256
 MAX_UNREADABLE_THREAD_IDS = 20
 MAX_CONTINUATION_HISTORY_BYTES = 64 * 1024 * 1024
+# 启动恢复把崩溃前的流式增量写回条目；多条合法事件之和可超过会话单行上限，
+# 累加必须有界。恢复文本仅用于展示中断前已产生的部分输出，一百万字符足够。
+MAX_RESTORED_STREAM_CHARS = 1_000_000
 CONTINUATION_WARNING = ("续接会发起新的模型请求，可能重复调用并产生额外费用；已完成工具结果会沿用，"
                         "不会再次执行旧工具，新写操作仍需逐次审批。")
 
@@ -445,14 +448,23 @@ class ApplicationService:
                     if not isinstance(delta, str):
                         continue
                     key = "text" if event["method"] == "agentMessage/delta" else "thinking"
-                    item[key] += delta
+                    remaining = MAX_RESTORED_STREAM_CHARS - len(item["text"]) - len(item["thinking"])
+                    if remaining <= 0:
+                        continue
+                    item[key] += delta[:remaining]
                 cursor = page["nextCursor"]
                 if not page["hasMore"]:
                     break
             for item_id, text in accumulated.items():
-                if any(text.values()):
+                if not any(text.values()):
+                    continue
+                try:
                     self.sessions.append(thread["id"], Entry(type="item", payload={
                         **pending[item_id], **text, "revises": item_id}))
+                except (OSError, ValueError):
+                    # 恢复是尽力而为：单条恢复条目超过会话行上限或写入失败时
+                    # 只跳过该项，其他条目与会话继续启动。
+                    continue
 
     def _new_bridge(self) -> Any:
         with self.runtimes.lock:
