@@ -498,8 +498,19 @@ class AnthropicProvider:
                             raise ValueError("当前内核不支持服务端 fallback 续接块")
                         elif block_type == "tool_use":
                             block = event.content_block
-                            tool_names[index] = str(getattr(block, "name", "") or "")
-                            tool_ids[index] = str(getattr(block, "id", "") or "")
+                            call_id = getattr(block, "id", None)
+                            call_name = getattr(block, "name", None)
+                            # 调用 id 是续接与工具批次匹配的唯一键：缺失、空值或重复
+                            # 一旦落库，历史恢复会永久对不上批次；名称同样必须可用，
+                            # 否则恢复出的 assistant 消息每次都会被上游拒绝。
+                            if (not isinstance(call_id, str) or not call_id
+                                    or len(call_id) > 256 or call_id in tool_ids.values()):
+                                raise ValueError("工具调用标识无效或重复")
+                            if (not isinstance(call_name, str) or not call_name
+                                    or len(call_name) > 256):
+                                raise ValueError("工具调用名称无效")
+                            tool_names[index] = call_name
+                            tool_ids[index] = call_id
                             tool_argument_buffers[index] = []
                             initial = getattr(block, "input", None)
                             if initial not in (None, {}):
