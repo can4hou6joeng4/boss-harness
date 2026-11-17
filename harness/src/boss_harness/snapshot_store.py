@@ -92,9 +92,10 @@ def _require_item_id(item: dict) -> dict:
     return item
 
 
-def read_source_entries(source: BinaryIO, size: int) -> list[dict]:
+def read_source_entries(source: BinaryIO, size: int, *,
+                        maximum: int = MAX_SNAPSHOT_SOURCE_BYTES) -> list[dict]:
     """Decode a pinned rollout prefix once (branch projection needs the whole prefix), then rewind."""
-    if size > MAX_SNAPSHOT_SOURCE_BYTES:
+    if size > maximum:
         raise ValueError("会话文件超过冻结快照读取上限")
     source.seek(0)
     entries: list[dict] = []
