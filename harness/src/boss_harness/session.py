@@ -1274,6 +1274,11 @@ class SessionStore:
                 items[slot] = {**items[slot], **payload, "id": items[slot]["id"], "threadId": thread_id}
                 index_by_id[entry_id] = slot
             else:
+                if entry_id in index_by_id:
+                    # 同一编号的条目重复出现（外部改写或异常写入）：投影只能保留一条，
+                    # 否则编辑、压缩与分叉按编号定位时会同时命中多条消息。保留先出现
+                    # 的记录并跳过后续同编号条目，损坏记录不阻断整段历史。
+                    continue
                 index_by_id[entry_id] = len(items)
                 items.append({**payload, "id": entry_id, "threadId": thread_id})
         return items
@@ -1631,9 +1636,12 @@ class SessionStore:
                     target = _record_id(entry.get("parentId"))
                 explicit = _record_id(payload.get("turnId"))
                 owner = explicit if explicit is not None else owners.get(target) or active
-                owners[entry["id"]] = owner
-                if owner is None:
-                    pending.append(entry["id"])
+                # 与 _project_items 保持一致：重复编号只保留先出现的归属，否则
+                # 同一 id 跨回合时归属检查会与保留的条目对不上，历史永久失败。
+                if entry["id"] not in owners:
+                    owners[entry["id"]] = owner
+                    if owner is None:
+                        pending.append(entry["id"])
             elif entry.get("type") == "turn":
                 turn_id = payload.get("turnId")
                 if not isinstance(turn_id, str) or not _IDENTIFIER.fullmatch(turn_id):
