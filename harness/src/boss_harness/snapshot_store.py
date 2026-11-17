@@ -222,17 +222,20 @@ class SnapshotBuilder:
                                     "ON CONFLICT(alias) DO UPDATE SET ordinal=excluded.ordinal",
                                     (entry_id, ordinal))
         elif entry_type == "context_edit":
+            # 展示快照与实时读取共用宽松契约：损坏的编辑记录跳过，目标按原文保留。
+            # 严格校验只用于构建模型上下文；整次快照构建失败会让 thread/read
+            # （snapshot）、thread/resume 与条目分页一起返回 -32602，用户无法读取历史。
             if (not isinstance(payload, dict) or set(payload) != {"targetItemId", "replacementText"}
                     or not isinstance(payload.get("targetItemId"), str)
                     or self._alias(payload["targetItemId"]) is None):
-                raise ValueError("会话上下文编辑记录无效；已停止生成模型上下文")
+                return
             replacement = payload["replacementText"]
             if (replacement is not None and not isinstance(replacement, str)):
-                raise ValueError("会话上下文编辑记录无效；已停止生成模型上下文")
+                return
             if (isinstance(replacement, str) and
                     (not replacement.strip() or len(replacement) > _CONTEXT_EDIT_MAX_CHARS
                      or len(replacement.encode("utf-8")) > _CONTEXT_EDIT_MAX_BYTES)):
-                raise ValueError("会话上下文编辑记录无效；已停止生成模型上下文")
+                return
             self.connection.execute("INSERT INTO edits(item_id,entry_id,excluded) VALUES(?,?,?) "
                                     "ON CONFLICT(item_id) DO UPDATE SET entry_id=excluded.entry_id,excluded=excluded.excluded",
                                     (payload["targetItemId"], entry_id, int(replacement is None)))

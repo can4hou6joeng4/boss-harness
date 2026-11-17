@@ -394,7 +394,13 @@ class ContextService:
         return self._apply_context_edits(normalized, entries), owners
 
     @staticmethod
-    def _context_edit_entries(entries: list[dict]) -> dict[str, dict]:
+    def _context_edit_entries(entries: list[dict], *, strict: bool = True) -> dict[str, dict]:
+        """Project edit records; ``strict=False`` keeps damaged records out of display reads.
+
+        构建模型上下文必须整体拒绝损坏编辑（否则模型看到的外部改写内容无法察觉）；
+        展示路径相反：一条坏记录不能让 thread/read、条目分页与快照整体失败，
+        跳过它即可让目标消息按原文显示。
+        """
         edits: dict[str, dict] = {}
         seen_items: set[str] = set()
         for entry in entries:
@@ -412,7 +418,9 @@ class ContextService:
                     or (isinstance(replacement, str) and
                         (not replacement.strip() or len(replacement) > _CONTEXT_EDIT_MAX_CHARS
                          or len(replacement.encode("utf-8")) > _CONTEXT_EDIT_MAX_BYTES))):
-                raise ValueError("会话上下文编辑记录无效；已停止生成模型上下文")
+                if strict:
+                    raise ValueError("会话上下文编辑记录无效；已停止生成模型上下文")
+                continue
             edits[target] = {"entryId": entry.get("id"), "replacementText": replacement}
         return edits
 
@@ -458,9 +466,10 @@ class ContextService:
 
     @classmethod
     def context_edit_states(cls, entries: list[dict]) -> dict[str, dict[str, Any]]:
+        # 展示投影：损坏的编辑记录跳过，界面上按原文呈现；严格契约只用于模型上下文。
         return {target: {"entryId": edit["entryId"],
                          "excluded": edit["replacementText"] is None}
-                for target, edit in cls._context_edit_entries(entries).items()}
+                for target, edit in cls._context_edit_entries(entries, strict=False).items()}
 
     def context_edit_read(self, thread_id: str, item_id: str, *,
                           entries: list[dict] | None = None) -> dict[str, Any]:
