@@ -275,7 +275,7 @@ def resolve_source_commit(value: str) -> str:
     if not COMMIT_PATTERN.fullmatch(value):
         fail("--commit 必须是 40 位十六进制提交")
     commit = value.lower()
-    if shutil.which("git") is None:
+    if shutil.which("git") is None or not Path(".git").exists():
         return commit
     try:
         resolved = subprocess.run(
