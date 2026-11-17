@@ -376,7 +376,11 @@ class TurnQueue:
         with self.lock:
             self.settle_pauses(thread_id)
             item = next((q for q in self.list(thread_id) if q["kind"] == kind and q["status"] == "queued"
-                         and (kind != "steering" or q["expectedTurnId"] == turn_id)), None)
+                         # 持久记录不可信：缺失或非字符串 expectedTurnId 的 steering 项
+                         # 无法确定归属回合，按不可领取跳过，而不是让 KeyError 进入回合执行。
+                         and (kind != "steering"
+                              or (isinstance(q.get("expectedTurnId"), str)
+                                  and q["expectedTurnId"] == turn_id))), None)
             return self.transition(thread_id, item["id"], "delivering") if item else None
 
     def pause(self, thread_id: str, *, kind: str | None = None,
