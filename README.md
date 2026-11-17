@@ -59,7 +59,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 
 ## 快速开始
 
-前置条件：Node.js 24+、Python 3.10+（读取 Codex TOML 配置需要 3.11+，开发建议 3.12）以及另行安装的 `boss-agent-cli`。招聘平台登录与可执行文件路径配置见[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)。
+前置条件：Node.js 24+、Python 3.10+（读取 Codex TOML 配置需要 3.11+，开发建议 3.12）、`uv` 以及另行安装的 `boss-agent-cli`。招聘平台登录与可执行文件路径配置见[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)。
 
 ```sh
 uv venv --python 3.12 .venv
@@ -171,8 +171,8 @@ npm ci
 npx install-electron --no
 npm run typecheck
 npm run build
-python3 -m pip install build
-python3 -m build ./harness --outdir dist/python
+uv pip install --python .venv/bin/python build
+.venv/bin/python -m build ./harness --outdir dist/python
 git diff --check
 ```
 
