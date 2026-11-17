@@ -1609,7 +1609,10 @@ class SessionStore:
                 JOIN turns r ON r.thread_id=a.thread_id AND r.turn_id=a.turn_id
                 WHERE a.decision IS NULL AND a.status='running'
                   AND a.execution_state='pending_approval' AND a.deadline<=?
-                  AND t.archived=0 AND r.status='interrupted'""" + exclusion +
+                  AND t.archived=0 AND r.status='interrupted'
+                  AND typeof(a.approval_id)='text' AND typeof(a.thread_id)='text'
+                  AND typeof(a.turn_id)='text' AND typeof(a.item_id)='text'
+                  AND typeof(a.deadline) IN ('integer','real')""" + exclusion +
                 " ORDER BY a.deadline,a.thread_id,a.item_id LIMIT ?", parameters).fetchall()
         return [row["approval_id"] for row in rows]
 
@@ -1628,7 +1631,10 @@ class SessionStore:
                 JOIN turns r ON r.thread_id=a.thread_id AND r.turn_id=a.turn_id
                 WHERE a.decision IS NULL AND a.status='running'
                   AND a.execution_state='pending_approval' AND t.archived=0
-                  AND r.status='interrupted'""" + exclusion, parameters).fetchone()
+                  AND r.status='interrupted'
+                  AND typeof(a.approval_id)='text' AND typeof(a.thread_id)='text'
+                  AND typeof(a.turn_id)='text' AND typeof(a.item_id)='text'
+                  AND typeof(a.deadline) IN ('integer','real')""" + exclusion, parameters).fetchone()
         return row[0] if row and row[0] is not None else None
 
     def expire_approval(self, approval_id: str) -> dict | None:
