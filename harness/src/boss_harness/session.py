@@ -1088,8 +1088,9 @@ class SessionStore:
         """Publish a fully fsynced checkpoint copy on a local filesystem.
 
         The writer transaction covers source validation and publication across
-        store instances. Replacement is the process-visible commit point; this
-        does not add a directory-fsync or power-loss durability guarantee.
+        store instances. Replacement is the process-visible commit point; a
+        successful publication also syncs the session directory so the new
+        inode survives an abrupt power loss.
         """
         if not callable(entry_factory) or (on_committed is not None and not callable(on_committed)):
             raise ValueError("摘要提交回调必须可调用")
@@ -1198,6 +1199,10 @@ class SessionStore:
                             or not stat.S_ISREG(visible.st_mode)):
                         raise CheckpointCommitUncertain(entry.id)
                 committed = True
+                # 候选内容已经 fsync，但替换只改变进程可见的目录项；在事务内同步
+                # 会话目录，避免提交回执成功后掉电又回到旧 inode。此处失败由上层
+                # 按已提交异常处理，不能伪装成未提交后重试。
+                _fsync_directory(path.parent)
                 if on_committed is not None:
                     on_committed()
                 self._index_thread(thread_id, connection)
