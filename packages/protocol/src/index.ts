@@ -318,6 +318,11 @@ export interface ThreadSummary {
   forkedFromTurnId?: string;
 }
 
+export interface ToolDisposition {
+  delivery: "not_delivered" | "delivery_uncertain" | "unknown";
+  retry: "safe" | "unsafe" | "unknown";
+}
+
 export interface ThreadItem {
   id: string;
   threadId: string;
@@ -339,6 +344,8 @@ export interface ThreadItem {
   /** 内核测量的工具执行耗时（毫秒）；只统计获准后实际派发到返回的时间，未执行或旧条目没有该字段。 */
   durationMs?: number;
   executionState?: "queued" | "pending_approval" | "approved" | "not_approved" | "executing" | "completed" | "failed" | "not_executed" | "outcome_unknown";
+  /** 工具错误的投递与重试安全性；只由内核根据执行状态派生，旧条目可能没有。 */
+  disposition?: ToolDisposition;
   result?: { ok: boolean; command: string; data: unknown; pagination?: Record<string, unknown> | null; error: unknown; hints: unknown };
   resultOmitted?: boolean;
   resultRef?: ToolResultReference;

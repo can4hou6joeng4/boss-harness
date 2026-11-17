@@ -53,7 +53,7 @@ from boss_harness.session import (MAX_TOOL_BATCH_CALLS, Entry, SessionStore, Too
                                   approval_parameters_digest)
 from boss_harness.toolkit import ToolResult, snapshot_result
 from boss_harness.tool_results import (
-    model_result_content, model_result_for_item, project_error, project_item,
+    disposition_for_state, model_result_content, model_result_for_item, project_error, project_item,
 )
 from boss_harness.turn_limits import DEFAULT_MAX_MODEL_REQUESTS, model_request_limit
 
@@ -394,6 +394,8 @@ class TurnRunner:
         status = "completed" if result.ok else "failed"
         arguments = dict((entry.payload or {}).get("toolArguments") or {})
         source = tool_source(thread_id, entry, name)
+        final_state = execution_state or status
+        disposition = disposition_for_state(final_state, write=name in self.approval_required)
         payload: dict[str, Any] = {
             "kind": "toolCall",
             "toolName": name,
@@ -405,14 +407,17 @@ class TurnRunner:
             "errorCode": (result.error or {}).get("code"),
             "recoveryAction": (result.error or {}).get("recovery_action"),
             "turnId": self.turn_id,
-            "executionState": execution_state or status,
+            "executionState": final_state,
             "result": {"ok": result.ok, "command": result.command, "data": result.data,
                        "pagination": result.pagination, "error": result.error, "hints": result.hints},
             "source": source,
             "modelResultLimitBytes": self._tool_result_limit(name),
             "modelResult": model_result(result, source=source, item_id=entry.id,
-                                         max_bytes=self._tool_result_limit(name)),
+                                         max_bytes=self._tool_result_limit(name),
+                                         execution_state=final_state, disposition=disposition),
         }
+        if disposition is not None:
+            payload["disposition"] = disposition
         # 只统计获准后实际派发到返回的时间；未执行、拒绝或派发失败的调用不写这个字段。
         if duration_ms is not None:
             payload["durationMs"] = duration_ms
@@ -568,6 +573,7 @@ class TurnRunner:
                 error_code = "NOT_APPROVED" if decision == "deny" else (
                     "CANCELLED" if self.cancelled() else "APPROVAL_EXPIRED")
                 execution_state = "not_approved" if decision == "deny" else "not_executed"
+                disposition = disposition_for_state(execution_state, write=True)
                 denied = ToolResult(
                     ok=False, command=name, error={"code": error_code, "message": message}
                 )
@@ -576,7 +582,8 @@ class TurnRunner:
                 return ToolResultItem(
                     tool_call_id=call_id or entry.id,
                     content=model_result(denied, source=tool_source(thread_id, entry, name),
-                                         item_id=entry.id, max_bytes=self._tool_result_limit(name)),
+                                         item_id=entry.id, max_bytes=self._tool_result_limit(name),
+                                         execution_state=execution_state, disposition=disposition),
                     is_error=True,
                 )
 
@@ -668,6 +675,8 @@ class TurnRunner:
                            or prepared.cancelled_before_dispatch or prepared.invalid is not None
                            or prepared.handler is None
                            else "outcome_unknown" if unknown else None)
+        final_state = execution_state or ("completed" if result.ok else "failed")
+        disposition = disposition_for_state(final_state, write=name in self.approval_required)
         try:
             recovered_persistence = self.finish_tool_call(thread_id, entry, name, result, call_id, approval,
                 execution_state, duration_ms)
@@ -685,12 +694,19 @@ class TurnRunner:
             })
             return ToolResultItem(tool_call_id=call_id or entry.id,
                 content=model_result(result, source=tool_source(thread_id, entry, name),
-                                     item_id=entry.id, max_bytes=self._tool_result_limit(name)),
+                                     item_id=entry.id, max_bytes=self._tool_result_limit(name),
+                                     execution_state=final_state, disposition=disposition),
                 is_error=not result.ok)
         except ToolRevisionPersistenceError as persistence_error:
+            # 派发状态不能由异常类型反推：取消或策略拒绝时结果未送达，仍是可安全重试的 not_executed。
+            uncertain_state = final_state if not dispatched else "outcome_unknown"
+            uncertain_disposition = disposition_for_state(
+                uncertain_state, write=name in self.approval_required)
+            message = ("工具已经派发，但结果无法确认已保存；请先核对外部状态，不要直接重试。"
+                       if dispatched else "工具没有派发，结果无法确认已保存；请先核对会话状态。")
             uncertain = ToolResult(ok=False, command=name, error={
                 "code": "TOOL_RESULT_OUTCOME_UNKNOWN",
-                "message": "工具已经派发，但结果无法确认已保存；请先核对外部状态，不要直接重试。",
+                "message": message,
                 "recovery_action": "检查会话记录与平台状态后，再明确发起下一步。",
             })
             self._blocked = uncertain
@@ -699,10 +715,12 @@ class TurnRunner:
                     self.persistence_fence(thread_id)
                 return ToolResultItem(tool_call_id=call_id or entry.id,
                     content=model_result(uncertain, source=tool_source(thread_id, entry, name),
-                                         max_bytes=self._tool_result_limit(name)), is_error=True)
+                                         item_id=entry.id, max_bytes=self._tool_result_limit(name),
+                                         execution_state=uncertain_state, disposition=uncertain_disposition),
+                    is_error=True)
             try:
                 self.finish_tool_call(thread_id, entry, name, uncertain, call_id, approval,
-                                      "outcome_unknown", duration_ms)
+                                      uncertain_state, duration_ms)
             except ToolCompletionNotificationError:
                 pass
             except ToolRevisionPersistenceError:
@@ -710,11 +728,14 @@ class TurnRunner:
                     self.persistence_fence(thread_id)
             return ToolResultItem(tool_call_id=call_id or entry.id,
                 content=model_result(uncertain, source=tool_source(thread_id, entry, name),
-                                     max_bytes=self._tool_result_limit(name)), is_error=True)
+                                     item_id=entry.id, max_bytes=self._tool_result_limit(name),
+                                     execution_state=uncertain_state, disposition=uncertain_disposition),
+                is_error=True)
         return ToolResultItem(
             tool_call_id=call_id or entry.id,
             content=model_result(result, source=tool_source(thread_id, entry, name),
-                                 item_id=entry.id, max_bytes=self._tool_result_limit(name)),
+                                 item_id=entry.id, max_bytes=self._tool_result_limit(name),
+                                 execution_state=final_state, disposition=disposition),
             is_error=not result.ok,
         )
 
@@ -1475,9 +1496,12 @@ def tool_source(thread_id: str, entry: Entry, name: str) -> dict:
 
 
 def model_result(result: ToolResult, *, source: dict | None = None, item_id: str | None = None,
-                 max_bytes: int = DEFAULT_MODEL_TOOL_RESULT_BYTES) -> str:
+                 max_bytes: int = DEFAULT_MODEL_TOOL_RESULT_BYTES,
+                 execution_state: str | None = None,
+                 disposition: dict[str, str] | None = None) -> str:
     """Bound model-visible tool output while preserving the canonical result in session history."""
     payload = {"ok": result.ok, "command": result.command, "data": result.data,
                "pagination": result.pagination, "error": result.error, "hints": result.hints}
     return model_result_content(payload, item_id, source=source, max_bytes=max_bytes,
-                                preview=summarize_result(result))
+                                preview=summarize_result(result),
+                                execution_state=execution_state, disposition=disposition)
