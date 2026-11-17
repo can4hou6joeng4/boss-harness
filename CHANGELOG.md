@@ -32,6 +32,17 @@
 - [Issue #2148](https://github.com/can4hou6joeng4/boss-harness/issues/2148)：识别桌面陈旧结果引用提示。
 - [Issue #2151](https://github.com/can4hou6joeng4/boss-harness/issues/2151)：准备 rc.71 源码候选并同步版本来源。
 
+## 未发布
+
+### 本版概览
+
+- 桌面结果/正文读取保留结构化 `RPC` 错误并统一解包，恢复合法 `currentRef` 的核对提示（#2160、#2161）。
+- 内核契约同步说明错误通道边界。
+
+### 变更
+
+- [Issue #2160](https://github.com/can4hou6joeng4/boss-harness/issues/2160)：打通陈旧引用错误通道。
+
 # 变更记录
 
 ## 0.2.0-rc.70 - 2026-11-18
