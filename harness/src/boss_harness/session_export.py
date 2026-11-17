@@ -44,6 +44,10 @@ MAX_PII_VALUES = 4_000
 MAX_QUEUE_ITEMS = 20
 MAX_QUEUE_INPUT_CHARS = 800
 EXPORT_SCHEMA = "boss-harness-session-export/1"
+# 持久工具参数/结果可能被外部改写为任意深度；导出清理是纯 Python 递归，
+# 超过解释器上限会让整个导出请求 -32603。与投影路径共用 64 层上限。
+MAX_SCRUB_DEPTH = 64
+DEPTH_MARK = "[嵌套层级超出显示上限]"
 
 SECRET_MARK = "[已脱敏:凭据]"
 ENV_MARK = "[已脱敏:环境变量]"
@@ -506,14 +510,16 @@ class _Exporter:
                 out[name] = f"{OMITTED}（{_describe_value(value)}）"
         return self._scrub_json(out, personal=not self.include)
 
-    def _scrub_json(self, value: Any, *, personal: bool) -> Any:
+    def _scrub_json(self, value: Any, *, personal: bool, _depth: int = 0) -> Any:
+        if _depth > MAX_SCRUB_DEPTH:
+            return DEPTH_MARK
         if isinstance(value, str):
             text = self.redactor.sensitive(value)
             return self.redactor.personal(text) if personal else text
         if isinstance(value, list):
-            return [self._scrub_json(child, personal=personal) for child in value]
+            return [self._scrub_json(child, personal=personal, _depth=_depth + 1) for child in value]
         if isinstance(value, dict):
-            return {self.redactor.sensitive(str(key)): self._scrub_json(child, personal=personal)
+            return {self.redactor.sensitive(str(key)): self._scrub_json(child, personal=personal, _depth=_depth + 1)
                     for key, child in value.items()}
         return value
 

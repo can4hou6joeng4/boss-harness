@@ -23,6 +23,7 @@ from typing import Any
 from boss_harness.context import ContextBudgetExceeded, messages_from_items
 from boss_harness.compaction import ContextCompactionFailed
 from boss_harness.hooks import LifecycleHooks
+from boss_harness.item_content import wire_value
 from boss_harness.request_policy import ModelRequestRejected, check_model_request, record_model_rejection
 from boss_harness.models import (
     AssistantMessage,
@@ -494,6 +495,11 @@ class TurnRunner:
                     arguments = normalized
         except ValueError as exc:
             invalid = ToolResult(ok=False, command=name, error={"code": "INVALID_PARAM", "message": str(exc)})
+        if invalid is not None:
+            # 模型参数可能任意深或任意形状；校验失败后原始值仍会落库供审阅，而条目
+            # 投影与导出清理是纯 Python 递归，超深结构会让 thread/read 等永久
+            # -32603。按投影上限净化后再写入；正常参数逐值不变。
+            arguments = wire_value(arguments)
         policy_denied = False
         if invalid is None and self.lifecycle_hooks is not None:
             decision = self.lifecycle_hooks.before_tool_call({

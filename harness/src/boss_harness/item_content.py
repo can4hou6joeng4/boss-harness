@@ -26,14 +26,25 @@ def wire_text(value: str) -> str:
     return "".join(_REPLACEMENT if 0xD800 <= ord(char) <= 0xDFFF else char for char in value)
 
 
-def wire_value(value):
-    """递归清理投影中的字符串；正常数据原样返回，坏记录降级为可传输文本。"""
+_WIRE_MAX_DEPTH = 64
+_WIRE_DEPTH_PLACEHOLDER = "[嵌套层级超出显示上限]"
+
+
+def wire_value(value, _depth: int = 0):
+    """递归清理投影中的字符串；正常数据原样返回，坏记录降级为可传输文本。
+
+    持久记录可能被外部改写或由旧版本写入任意深度的结构；纯 Python 递归超过
+    解释器上限会抛 ``RecursionError``，让 ``thread/read`` 等投影整体返回
+    ``-32603``。超过上限的子树按占位文本投影，正常数据逐值不变。
+    """
+    if _depth > _WIRE_MAX_DEPTH:
+        return _WIRE_DEPTH_PLACEHOLDER
     if isinstance(value, str):
         return wire_text(value)
     if isinstance(value, list):
-        return [wire_value(item) for item in value]
+        return [wire_value(item, _depth + 1) for item in value]
     if isinstance(value, dict):
-        return {wire_text(key): wire_value(item) for key, item in value.items()}
+        return {wire_text(key): wire_value(item, _depth + 1) for key, item in value.items()}
     return value
 
 
