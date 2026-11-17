@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.2.0-rc.56",
   "license": "MIT",
-  "description": "BOSS Harness：面向招聘任务的 Agent Harness（桌面端）",
+  "description": "BOSS Harness：面向招聘任务的 Agent Harness（Python 内核与 Electron 桌面）",
   "engines": {
     "node": ">=24"
   },
@@ -18,5 +18,13 @@
   },
   "devDependencies": {
     "typescript": "^5.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/can4hou6joeng4/boss-harness.git"
+  },
+  "homepage": "https://github.com/can4hou6joeng4/boss-harness#readme",
+  "bugs": {
+    "url": "https://github.com/can4hou6joeng4/boss-harness/issues"
   }
 }
