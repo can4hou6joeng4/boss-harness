@@ -48,6 +48,20 @@ def _decode_attachment_text(data: bytes) -> str:
         raise ValueError("附件内容不是 UTF-8 文本；请重新添加") from None
 
 
+def _resolved_or_absolute(path: Path) -> Path:
+    """解析符号链接；无法解析（如符号链接环）时退回绝对路径。
+
+    ``Path.resolve()`` 在 Python 3.12 遇到符号链接环会抛 ``RuntimeError``。
+    工作区内容由外部仓库或用户目录决定，一个自环既不能让内核启动失败，也不能
+    让附件请求变成内部错误。退回未解析的绝对路径后，后续目录枚举与文件打开仍
+    走既有 ``OSError`` 处理，给出可读的产品错误。
+    """
+    try:
+        return path.resolve()
+    except (OSError, RuntimeError):
+        return Path(os.path.abspath(path))
+
+
 class SkillCatalog:
     MAX_SKILL_BYTES = 64 * 1024
     MAX_SKILL_DESCRIPTORS = 100
@@ -64,7 +78,7 @@ class SkillCatalog:
 
     def __init__(self, root: Path) -> None:
         # 读取按解析后的真实目录；新建保留原始路径，便于拒绝符号链接目录。
-        self.root = root.resolve()
+        self.root = _resolved_or_absolute(root)
         self.create_root = Path(os.path.abspath(root))
 
     @classmethod
@@ -541,7 +555,8 @@ class AttachmentStore:
 
     def __init__(self, sessions: SessionStore, root: Path, allowed_root: Path,
                  *, limits: AttachmentStorageLimits | None = None) -> None:
-        self.sessions, self.root, self.allowed_root = sessions, root.resolve(), allowed_root.resolve()
+        self.sessions = sessions
+        self.root, self.allowed_root = _resolved_or_absolute(root), _resolved_or_absolute(allowed_root)
         self.limits = limits if limits is not None else self.limits_from_environment()
         if (not isinstance(self.limits, AttachmentStorageLimits)
                 or type(self.limits.max_bytes) is not int or type(self.limits.max_objects) is not int
@@ -639,7 +654,7 @@ class AttachmentStore:
         self.sessions.require_thread(thread_id)
         if not isinstance(path, str) or not path:
             raise ValueError("path 必须是工作区内的文本文件")
-        source = (self.allowed_root / path).resolve()
+        source = _resolved_or_absolute(self.allowed_root / path)
         if (not source.is_relative_to(self.allowed_root) or source.suffix.lower() not in self.EXTENSIONS
                 or any(p in {".git", "node_modules", ".venv", ".boss-cli", ".boss-harness"} or p.startswith(".env")
                        for p in source.relative_to(self.allowed_root).parts)):
