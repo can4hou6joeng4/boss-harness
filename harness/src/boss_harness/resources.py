@@ -574,39 +574,30 @@ class AttachmentStore:
                 or not 1 <= self.limits.max_objects <= _MAX_ATTACHMENT_STORAGE_LIMIT):
             raise ValueError("附件存储上限必须是正整数")
         ensure_private_directory(self.root)
+        used_bytes = used_objects = 0
         for path in self.root.iterdir():
             observed = path.lstat()
             if not stat.S_ISREG(observed.st_mode) or observed.st_nlink != 1:
                 raise ValueError("附件状态必须是普通文件")
             restrict_private_file(path)
+            used_bytes += observed.st_size
+            used_objects += 1
+        # 附件目录由本进程独占增删：启动时全量校验并统计一次，运行期按发布与
+        # 失败清理增量维护，避免每次 add 都重扫全部对象（填满配额时呈平方级）。
+        self._used_bytes = used_bytes
+        self._used_objects = used_objects
         self.sessions.cleanup_attachment_temporaries()
 
     def _storage_usage(self) -> tuple[int, int]:
+        # 目录本身仍每次校验；对象计数来自增量维护，外部改动由下次启动的全量
+        # 校验纠正，读取路径也会按需收紧权限。
         try:
             root_stat = self.root.lstat()
         except FileNotFoundError:
             raise ValueError("附件目录不可用") from None
         if not stat.S_ISDIR(root_stat.st_mode) or root_stat.st_uid != os.getuid():
             raise ValueError("附件目录不可信，写入已停止")
-        used_bytes = used_objects = 0
-        try:
-            entries = os.scandir(self.root)
-        except OSError:
-            raise ValueError("附件目录不可读取，写入已停止") from None
-        with entries:
-            for entry in entries:
-                path = self.root / entry.name
-                try:
-                    observed = path.lstat()
-                except OSError:
-                    raise ValueError("附件目录发生变化，写入已停止") from None
-                if (not stat.S_ISREG(observed.st_mode) or observed.st_uid != os.getuid()
-                        or observed.st_nlink != 1):
-                    raise ValueError("附件文件不可信，写入已停止")
-                restrict_private_file(path)
-                used_bytes += observed.st_size
-                used_objects += 1
-        return used_bytes, used_objects
+        return self._used_bytes, self._used_objects
 
     def _read_object(self, digest: str, expected_bytes: int) -> bytes | None:
         path = self.root / digest
@@ -656,6 +647,9 @@ class AttachmentStore:
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temporary, self.root / digest)
+            # 对象已落盘：先记账再回调；回调失败时由 add 的清理路径回退。
+            self._used_bytes += len(data)
+            self._used_objects += 1
             on_published()
         finally:
             temporary.unlink(missing_ok=True)
@@ -713,6 +707,10 @@ class AttachmentStore:
                     self.sessions.cleanup_unreferenced_attachments([digest])
                 except Exception:
                     pass
+                else:
+                    # 清理成功才回退计数；清理失败时对象可能仍在，留给下次启动校验。
+                    self._used_bytes -= len(data)
+                    self._used_objects -= 1
             raise
         return attachment
 
