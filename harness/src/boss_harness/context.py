@@ -1077,9 +1077,20 @@ class ContextService:
             # 只读诊断：失效摘要不生效，但用户需要知道上下文为何回退到完整原文。
             result["checkpointIssue"] = checkpoint_issue
         if branch_summaries:
-            result["branchSummaries"] = [{key: summary[key] for key in (
-                "entryId", "targetTurnId", "fromTurnId", "abandonedTurnIds", "summaryJobId", "characters")}
-                for summary in branch_summaries]
+            # 投影字段来自持久记录，按列表展示口径收敛：标识超长或非字符串时按缺失
+            # 处理，单条损坏摘要不能把整次读取撑过协议帧上限。
+            def _summary_field(summary: dict, key: str) -> str | None:
+                value = summary.get(key)
+                return value if isinstance(value, str) and len(value) <= 128 else None
+
+            result["branchSummaries"] = [{
+                "entryId": _summary_field(summary, "entryId"),
+                "targetTurnId": _summary_field(summary, "targetTurnId"),
+                "fromTurnId": _summary_field(summary, "fromTurnId"),
+                "abandonedTurnIds": summary["abandonedTurnIds"],
+                "summaryJobId": _summary_field(summary, "summaryJobId"),
+                "characters": summary["characters"],
+            } for summary in branch_summaries]
         if branch_summary_issues:
             # 只读诊断：损坏的摘要不会进入模型上下文，但用户需要知道记录为何失效。
             result["branchSummaryIssues"] = branch_summary_issues[:20]

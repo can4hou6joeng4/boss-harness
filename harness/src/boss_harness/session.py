@@ -166,6 +166,13 @@ def branch_summary_issue(payload: dict, positions: Mapping[str, int]) -> str | N
     if digest is not None and (not isinstance(digest, str)
                                or len(digest) > MAX_BRANCH_SUMMARY_DIGEST_CHARS):
         return "摘要来源摘要无效"
+    # 这些标识会原样进入 context/read 的 branchSummaries 投影；单条数 MiB 的
+    # 值能让读取响应超过 8 MiB 协议帧且没有自愈路径，按损坏摘要处理。
+    for key in ("summaryJobId", "fromTurnId"):
+        value = payload.get(key)
+        if value is not None and (not isinstance(value, str)
+                                  or len(value) > MAX_BRANCH_SUMMARY_TURN_ID_CHARS):
+            return "摘要辅助标识无效"
     return None
 
 
