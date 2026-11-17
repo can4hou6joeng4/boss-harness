@@ -11,19 +11,43 @@ export interface SessionExportFileHandle {
   close(): Promise<void>;
 }
 
-/** 导出保存用到的文件系统操作；注入后可在不写盘的情况下覆盖失败分支。 */
+/** 检查目标身份时需要的元数据；设备号加 inode 足以区分普通文件与其他条目。 */
+export interface SessionExportTargetStat {
+  dev: number;
+  ino: number;
+  /** 同一 inode 被删除重建后也可能复用编号，再核对创建 / 状态变更时间。 */
+  birthtimeMs?: number;
+  ctimeMs?: number;
+  isFile(): boolean;
+  isSymbolicLink(): boolean;
+}
+
+/** 目标身份；`null` 表示路径不存在（首次保存）。 */
+export type SessionExportTargetLookup = (path: string) => Promise<SessionExportTargetStat | null>;
+
+/**
+ * 导出保存用到的文件系统操作；注入后可在不写盘的情况下覆盖失败分支。
+ * 所有路径都由调用方传入；临时文件与目标同目录，确保 `rename` 是原子替换。
+ */
 export interface SessionExportFileSystem {
-  /** 与 `fs.lstat` 相同语义：路径不存在时抛 `ENOENT`。 */
-  lstat(path: string): Promise<{ isSymbolicLink(): boolean }>;
-  /**
-   * 在目标同目录以「唯一新建」方式创建临时文件（`wx`，不跟随符号链接）。
-   * 名字由调用方给出，冲突时以 `EEXIST` 失败，绝不截断已有文件。
-   */
+  /** 与 `fs.lstat` 相同语义：路径不存在时返回 `null`（ENOENT），不跟随符号链接。 */
+  lstat: SessionExportTargetLookup;
   createTemporary(directory: string, name: string, mode: number): Promise<{ path: string; handle: SessionExportFileHandle }>;
-  /** 原子替换：同一文件系统内把临时文件改名为目标路径。 */
   rename(from: string, to: string): Promise<void>;
-  /** 失败路径清理临时文件；调用方吞掉这里的错误。 */
   remove(path: string): Promise<void>;
+}
+
+/** 路径在写入期间被替换成链接或其他文件；不覆盖新 inode。 */
+function targetChangedFailure(): never {
+  throw new Error("targetChanged");
+}
+
+/** 比较两次 `lstat` 的身份；同时核对时间字段，排除同一 inode 被删除重建的复用。 */
+function sameTarget(before: SessionExportTargetStat | null, after: SessionExportTargetStat | null): boolean {
+  if (before === null || after === null) return before === after;
+  return before.dev === after.dev && before.ino === after.ino &&
+    (before.birthtimeMs === undefined || after.birthtimeMs === undefined || before.birthtimeMs === after.birthtimeMs) &&
+    (before.ctimeMs === undefined || after.ctimeMs === undefined || before.ctimeMs === after.ctimeMs);
 }
 
 export interface SessionExportWriteOutcome {
@@ -40,7 +64,15 @@ export interface SessionExportWriteOutcome {
 const NO_FOLLOW = typeof constants.O_NOFOLLOW === "number" ? constants.O_NOFOLLOW : 0;
 
 const nodeFileSystem: SessionExportFileSystem = {
-  lstat: path => lstat(path),
+  lstat: async path => {
+    try {
+      // `lstat` 不跟随链接，且返回设备号、inode 与时间字段供替换检查比对。
+      return await lstat(path) as SessionExportTargetStat;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
+      throw error;
+    }
+  },
   createTemporary: async (directory, name, mode) => {
     const path = join(directory, name);
     const handle = await open(path,
@@ -74,16 +106,14 @@ export function sessionExportTemporaryName(): string {
  * 原子写入导出文件。
  *
  * 覆盖已有导出时绝不能在写入前截断目标：先在同一目录创建唯一临时文件，
- * 写入并 `sync` 后收紧权限，再用 `rename` 替换目标。任何一步失败都清理临时文件
- * 并抛出原始错误，目标文件保持上一次导出的完整内容。
+ * 写入并 `sync` 后收紧权限，关闭时再次核对目标身份，确认未换成链接或其他文件后
+ * 才用 `rename` 替换目标。任何一步失败都清理临时文件并抛出原始错误，目标文件
+ * 保持上一次导出的完整内容。
  * `close` 失败只关闭句柄，不覆盖已经发生的写入错误。
  */
 export async function writeSessionExport(filePath: string, content: string,
                                          ops: SessionExportFileSystem = nodeFileSystem): Promise<SessionExportWriteOutcome> {
-  const existing = await ops.lstat(filePath).catch((error: NodeJS.ErrnoException) => {
-    if (error?.code === "ENOENT") return null;
-    throw error;
-  });
+  const existing = await ops.lstat(filePath);
   if (existing?.isSymbolicLink()) throw new Error("symlink");
   // 临时文件必须与目标同目录，`rename` 才是同一文件系统内的原子替换。
   const temporary = await ops.createTemporary(dirname(filePath), sessionExportTemporaryName(), 0o600).catch(openFailure);
@@ -100,6 +130,9 @@ export async function writeSessionExport(filePath: string, content: string,
     }
     await temporary.handle.close();
     closed = true;
+    // 整个写入期间目标可能被换成链接或别的文件；重命名前重新核对身份。
+    // 临时文件内容已刷新，失败时只需清理它，不动目标文件。
+    if (!sameTarget(existing, await ops.lstat(filePath))) targetChangedFailure();
     try {
       await ops.rename(temporary.path, filePath);
     } catch (error) {
