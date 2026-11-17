@@ -40,8 +40,9 @@ from boss_harness.queue_view import queue_view_record
 from boss_harness.request_identity import resolve_request, valid_client_id
 from boss_harness.request_policy import ModelRequestRejected, check_model_request, record_model_rejection
 from boss_harness.rpc import JsonRpcServer, RpcError
-from boss_harness.runtime import (PAUSE_REASON_COMPACTION_FAILED, PAUSE_REASON_THREAD_ARCHIVED,
-                                  PAUSE_REASON_TURN_NOT_COMPLETED, RuntimeManager, TurnQueue)
+from boss_harness.runtime import (MAX_QUEUE_INPUT_CHARS, PAUSE_REASON_COMPACTION_FAILED,
+                                  PAUSE_REASON_THREAD_ARCHIVED, PAUSE_REASON_TURN_NOT_COMPLETED,
+                                  RuntimeManager, TurnQueue)
 from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, CheckpointCommittedError, CheckpointCommitUncertain, Entry,
                                   ApprovalDecisionError, ItemLookupError, SessionEntriesSnapshot,
                                   SessionSizeLimitExceeded, SessionStore, ThreadNotFound,
@@ -4332,7 +4333,14 @@ class ApplicationService:
 
     def on_queue_get(self, params: dict | None) -> dict:
         # 完整正文仍返回，宽于列表投影的只有正文长度；可选字段与列表同一契约。
-        return {"queueItem": queue_view_record(self.queue.get(_text(params, "threadId"), _text(params, "queueId")))}
+        # 持久记录不可信：单条 input 可以合法接近会话行上限，原样回包会让该记录
+        # 每次请求都超出响应帧上限。超过入队 / 编辑上限时按同一上限截断并标记，
+        # 与 queue/list 的预览口径一致，方法本身不再永久失败。
+        item = queue_view_record(self.queue.get(_text(params, "threadId"), _text(params, "queueId")))
+        if len(item["input"]) > MAX_QUEUE_INPUT_CHARS:
+            item["input"] = item["input"][:MAX_QUEUE_INPUT_CHARS]
+            item["inputTruncated"] = True
+        return {"queueItem": item}
 
     def on_queue_update(self, params: dict | None) -> dict:
         params = params or {}

@@ -19,6 +19,8 @@ from boss_harness.shutdown import TrackedAbort, join_until
 
 MAX_PENDING_QUEUE_ITEMS = 128
 MAX_PENDING_QUEUE_INPUT_BYTES = 4 * 1024 * 1024
+# 入队与编辑的单项正文上限；queue/get 对超限的持久记录按同一上限截断并标记。
+MAX_QUEUE_INPUT_CHARS = 100_000
 # 暂停来源只作为可核对的有限枚举写入队列记录；界面据此提供重试入口，不猜原因。
 PAUSE_REASON_COMPACTION_FAILED = "COMPACTION_FAILED"
 # 归档会暂停全部待处理项（_idle 保证没有运行中的回合或投递），恢复后可安全重新排队。
@@ -303,7 +305,7 @@ class TurnQueue:
             auto_compaction: dict | None = None) -> dict:
         if kind not in {"steering", "followUp"}:
             raise ValueError("kind 必须是 steering 或 followUp")
-        if not isinstance(text, str) or not text.strip() or len(text) > 100_000:
+        if not isinstance(text, str) or not text.strip() or len(text) > MAX_QUEUE_INPUT_CHARS:
             raise ValueError("队列 input 必须是 1 到 100000 字符")
         if client_id is not None and (not isinstance(client_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", client_id)):
             raise ValueError("clientUserMessageId 格式无效")
@@ -340,7 +342,7 @@ class TurnQueue:
 
     def update_input(self, thread_id: str, queue_id: str, text: str) -> dict:
         """Replace the text of an unclaimed queue item without touching its identity."""
-        if not isinstance(text, str) or not text.strip() or len(text) > 100_000:
+        if not isinstance(text, str) or not text.strip() or len(text) > MAX_QUEUE_INPUT_CHARS:
             raise ValueError("队列 input 必须是 1 到 100000 字符")
         with self.lock:
             self.settle_pauses(thread_id)
@@ -443,24 +445,30 @@ class TurnQueue:
                     # A damaged log cannot say which inputs were delivered; leave
                     # that thread untouched and keep recovering the other sessions.
                     continue
-                for item in items:
-                    if item["status"] in {"queued", "delivering"}:
-                        if item["kind"] == "steering":
-                            self.transition(thread_id, item["id"],
-                                            "delivered" if item["id"] in delivered else "paused")
-                            continue
-                        try:
-                            identity = resolve_request(self.sessions, thread_id,
-                                valid_client_id(item.get("clientUserMessageId")), item["input"],
-                                queue_id=item["id"])
-                        except (RpcError, ValueError):
-                            # Inconsistent history is paused, never replayed or
-                            # described as a proven failure before execution.
-                            # A damaged persisted client ID is treated as absent;
-                            # ValueError stays a pause, never a startup crash.
-                            self.transition(thread_id, item["id"], "paused")
-                            continue
-                        if identity.turn is not None:
-                            self._associate_request(thread_id, item["id"], identity)
-                        else:
-                            self.transition(thread_id, item["id"], "paused")
+                try:
+                    for item in items:
+                        if item["status"] in {"queued", "delivering"}:
+                            if item["kind"] == "steering":
+                                self.transition(thread_id, item["id"],
+                                                "delivered" if item["id"] in delivered else "paused")
+                                continue
+                            try:
+                                identity = resolve_request(self.sessions, thread_id,
+                                    valid_client_id(item.get("clientUserMessageId")), item["input"],
+                                    queue_id=item["id"])
+                            except (RpcError, ValueError):
+                                # Inconsistent history is paused, never replayed or
+                                # described as a proven failure before execution.
+                                # A damaged persisted client ID is treated as absent;
+                                # ValueError stays a pause, never a startup crash.
+                                self.transition(thread_id, item["id"], "paused")
+                                continue
+                            if identity.turn is not None:
+                                self._associate_request(thread_id, item["id"], identity)
+                            else:
+                                self.transition(thread_id, item["id"], "paused")
+                except (OSError, ValueError):
+                    # 写回同样可能失败：合法的近上限记录在状态变长后超出单行上限，
+                    # 磁盘错误也走同一路径。恢复必须 best-effort——已写回的状态保留，
+                    # 该会话余下项目留待下次启动继续，其它会话照常恢复。
+                    continue
