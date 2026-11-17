@@ -115,6 +115,11 @@ export class HarnessHostConnection {
       connection.onNotification((notification) => {
         if (!this.#isCurrent(connection, generation)) return;
         if (notification.method === "harness/disconnected") {
+          // 该名称是宿主保留的连接事件：真实断开只由已失败的传输层合成（exit、
+          // 输入输出管道关闭、帧超限与 dispose 都会先置失败再发这一帧）。内核从不
+          // 发送它；把内核或外部注入的同名通知当成断开会让宿主杀掉健康进程、撤销
+          // 审批并发起重连，丢掉正在运行的回合。
+          if (!connection.exited) return;
           const params = object(notification.params) ? notification.params : {};
           this.#disconnected(connection, generation, typeof params.message === "string" ? params.message : "harness disconnected");
           return;
