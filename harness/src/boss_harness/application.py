@@ -884,7 +884,7 @@ class ApplicationService:
         with self.events.lock:
             thread = self.sessions.get_thread(thread_id)
             job = self.runtimes.active.get(thread_id)
-            entries = self.sessions.read_entries(thread_id)
+            entries = self.sessions.read_entries_snapshot(thread_id)
             if branch:
                 entries = self.sessions._active_entries(entries)
                 thread = {**thread, "lastTurn": self.sessions.branch_last_turn(thread_id)}
@@ -1275,7 +1275,7 @@ class ApplicationService:
             items, item_count = self.snapshots.page(snapshot_id, thread_id, offset, limit,
                                                     view="branch" if branch else "log")
         else:
-            entries = self.sessions.read_entries(thread_id)
+            entries = self.sessions.read_entries_snapshot(thread_id)
             if branch:
                 entries = self.sessions._active_entries(entries)
             # 非分支视图也必须复用刚读到的条目：传 None 会让 EventHub 再调用一次
@@ -1624,7 +1624,7 @@ class ApplicationService:
         with self.runtimes.lock:
             # One pinned snapshot keeps the usage rows and the active marker on
             # the same records, and avoids re-reading the full log per RPC.
-            entries = self.sessions.read_entries(thread_id)
+            entries = self.sessions.read_entries_snapshot(thread_id)
             # Only a checkpoint that validates on the active branch counts as
             # active; the usage records themselves never decide this.
             active_job_id = self.context.active_summary_job_id(thread_id, entries=entries)
@@ -1658,7 +1658,7 @@ class ApplicationService:
                    if config.api_key]
         thread_id = _text(params, "threadId")
         with self.runtimes.lock:
-            entries = self.sessions.read_entries(thread_id)
+            entries = self.sessions.read_entries_snapshot(thread_id)
             active_job_id = self.context.active_summary_job_id(thread_id, entries=entries)
             result = export_thread(self.sessions, thread_id, branch=_branch_view(params),
                                    fmt=params.get("format", "markdown"),
@@ -1947,7 +1947,7 @@ class ApplicationService:
                 raise RpcError(-32004, "回合运行中只能读取已准备请求的预算；预览请等待回合结束")
             if job is not None:
                 runner = job["runner"]
-                entries = self.sessions.read_entries(thread_id)
+                entries = self.sessions.read_entries_snapshot(thread_id)
                 metadata = self.context.read(thread_id, entries=entries)
                 if runner.last_preparation is not None:
                     policy = job["compactionPolicy"]
@@ -1968,7 +1968,7 @@ class ApplicationService:
                 prompt = "".join(section["text"] for section in sections)
                 prompt_info = self._system_prompt_info(prompt, sections)
                 tools = model_tool_specs(self.registry.specs(read_only=thread.get("toolPolicy") == "readOnly"))
-                entries = self.sessions.read_entries(thread_id)
+                entries = self.sessions.read_entries_snapshot(thread_id)
             messages = list(self.context.history(thread_id, entries=entries))
             if job is None:
                 attachment_text, _ = self.attachments.context(thread_id, params.get("attachmentIds"))
@@ -2152,7 +2152,7 @@ class ApplicationService:
         for job_id, job in active.items():
             thread_id = job["threadId"]
             try:
-                entries = self.sessions.read_entries(thread_id)
+                entries = self.sessions.read_entries_snapshot(thread_id)
             except ValueError:
                 # Session files may be removed independently of the append-only global event log.
                 continue
@@ -2498,7 +2498,7 @@ class ApplicationService:
         if "keepRecentTokens" in params and (type(keep) is not int or not 1 <= keep <= 1_000_000):
             raise ValueError("keepRecentTokens 必须是 1 到 1000000 之间的整数")
         thread_id = _text(params, "threadId")
-        entries = self.sessions.read_entries(thread_id)
+        entries = self.sessions.read_entries_snapshot(thread_id)
         thread = self.sessions.get_thread(thread_id)
         config = self._model_config(thread, {})
         read_only = thread.get("toolPolicy") == "readOnly"
@@ -3158,7 +3158,7 @@ class ApplicationService:
                 if session_path.stat().st_size > MAX_CONTINUATION_HISTORY_BYTES:
                     return fail("CONTINUATION_HISTORY_LIMIT", "会话历史超过续接读取上限。")
                 # Only the active branch's latest turn may continue after a leaf move.
-                entries = self.sessions._active_entries(self.sessions.read_entries(thread_id))
+                entries = self.sessions._active_entries(self.sessions.read_entries_snapshot(thread_id))
             turns = self.sessions._turns(entries, thread_id)
             if not turns or turns[-1].get("turnId") != source_turn_id:
                 return fail("CONTINUATION_NOT_LATEST", "只有最新回合可以续接。")
@@ -3480,7 +3480,7 @@ class ApplicationService:
                     raise RpcError(-32004, "会话历史超过续接读取上限。",
                                    {"code": "CONTINUATION_HISTORY_LIMIT",
                                     "threadId": thread_id, "sourceTurnId": source_turn_id})
-                entries = self.sessions.read_entries(thread_id)
+                entries = self.sessions.read_entries_snapshot(thread_id)
             turns = self.sessions._turns(entries, thread_id)
             matches = [turn for turn in turns if turn.get("continuationId") == continuation_id]
             if matches:

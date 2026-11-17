@@ -1191,6 +1191,18 @@ class SessionStore:
                     out.append(data)
             return out
 
+    def read_entries_snapshot(self, thread_id: str) -> list[dict]:
+        """Decode one pinned prefix without holding the writer lock while scanning.
+
+        `read_entries` keeps the store lock for the whole decode, so a large
+        rollout blocks every other session's reads and appends for seconds.
+        Callers that only project a display view can pin the prefix under the
+        lock and decode it outside; the returned entries lag at most by appends
+        that land after the pin, exactly like any other point-in-time read.
+        """
+        with self.open_entries_snapshot(thread_id) as snapshot:
+            return list(snapshot)
+
     def open_entries_snapshot(self, thread_id: str) -> SessionEntriesSnapshot:
         """Pin a readable session prefix without holding the writer lock while scanning."""
         with self._lock:
