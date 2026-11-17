@@ -135,9 +135,7 @@ def verify_artifact_identity(handle, name: str, expected_name: str,
                     fail(f"{name} 未包含唯一的 METADATA")
                 dist_info = candidates[0].split("/", 1)[0]
                 actual_name, actual_version = _metadata_identity(archive.read(candidates[0]), name)
-                expected_dist_info = (
-                    f"{expected_name.replace('-', '_')}-{Version(actual_version)}.dist-info"
-                )
+                expected_dist_info = f"{expected_name.replace('-', '_')}-{expected_version}.dist-info"
                 if dist_info.casefold() != expected_dist_info.casefold():
                     fail(f"{name} 的 dist-info 目录 {dist_info} 与元数据不一致")
         elif name.endswith(".tar.gz"):
