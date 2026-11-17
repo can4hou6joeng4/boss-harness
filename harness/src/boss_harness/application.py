@@ -886,7 +886,7 @@ class ApplicationService:
                 entries = self.sessions._active_entries(entries)
                 thread = {**thread, "lastTurn": self.sessions.branch_last_turn(thread_id)}
             canonical_items = [] if exclude else self.events.items(
-                thread_id, entries=entries if branch else None)
+                thread_id, entries=entries)
             edit_states = self.context.context_edit_states(entries)
             items = [project_item(thread_id, item)
                      for item in canonical_items]
