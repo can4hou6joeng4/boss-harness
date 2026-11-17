@@ -128,8 +128,14 @@ def _fit_projection(projected: dict[str, Any], max_bytes: int) -> dict[str, Any]
 def model_result_content(result: dict, item_id: str | None, *, source: dict | None,
                          max_bytes: int, preview: str,
                          execution_state: str | None = None,
-                         disposition: dict[str, str] | None = None) -> str:
-    """Keep small results structured; replace oversized model payloads with a verifiable reference."""
+                         disposition: dict[str, str] | None = None,
+                         reference_text: str | None = None) -> str:
+    """Keep small results structured; replace oversized model payloads with a verifiable reference.
+
+    ``reference_text`` is the canonical durable spelling used by the chunk readers.
+    Model projections may sanitize their inline copy, but the reference must identify
+    the bytes those readers return; never derive it from the sanitized copy.
+    """
     if (type(max_bytes) is not int
             or not MIN_MODEL_TOOL_RESULT_BYTES <= max_bytes <= MAX_MODEL_TOOL_RESULT_BYTES):
         max_bytes = DEFAULT_MODEL_TOOL_RESULT_BYTES
@@ -152,7 +158,7 @@ def model_result_content(result: dict, item_id: str | None, *, source: dict | No
     if source is not None:
         projected["source"] = source
     if item_id is not None:
-        text = result_text(result)
+        text = reference_text if reference_text is not None else result_text(result)
         reference = result_reference("", item_id, text)
         projected["resultRef"] = {key: reference[key] for key in
                                   ("itemId", "sha256", "byteLength", "characterLength")}
@@ -244,10 +250,11 @@ def model_result_for_item(item: dict, write_tools: frozenset[str] = LEGACY_WRITE
     result = item.get("result")
     if isinstance(result, dict) and isinstance(item.get("id"), str):
         source = item.get("source")
-        return model_result_content(wire_value(result), item["id"],
+        return model_result_content(result, item["id"],
                                     source=wire_value(source) if isinstance(source, dict) else source,
                                     max_bytes=limit, preview=preview,
-                                    execution_state=execution_state, disposition=disposition)
+                                    execution_state=execution_state, disposition=disposition,
+                                    reference_text=canonical_result_text(result))
     # 缺失 result 的结算记录（进程中断后的启动恢复、恢复会话里的审批拒绝/失效）
     # 只有 resultSummary 与 errorCode。沿用 model_result_content({}) 会在预算内
     # 直接返回 "{}"，模型看不到「未执行」「被拒绝」或「结果不确定」，可能把
@@ -314,7 +321,7 @@ def project_item(thread_id: str, item: dict, *, snapshot_id: str | None = None) 
     projected = project_item_content(thread_id, projected, snapshot_id=snapshot_id)
     result = item.get("result")
     if isinstance(result, dict):
-        text = result_text(result)
+        text = canonical_result_text(result)
         if len(text.encode("utf-8", "surrogatepass")) > MAX_INLINE_TOOL_RESULT_BYTES:
             projected.pop("result", None)
             projected.update(resultOmitted=True, resultRef=result_reference(thread_id, str(item["id"]), text))
@@ -338,6 +345,15 @@ def _cursor(reference: dict, offset: int) -> str:
     return "tr1_" + base64.urlsafe_b64encode(result_text(data).encode("utf-8")).decode().rstrip("=")
 
 
+def canonical_result_text(result: dict) -> str:
+    """Durable JSON spelling shared by references and both chunk-read routes.
+
+    Damaged legacy records may contain values the strict JSON writer rejects; use
+    the transport-safe projection so every reference is readable by the same rules.
+    """
+    return result_text(wire_value(result))
+
+
 def read_result_chunk(thread_id: str, item: dict, *, sha256: str, cursor: str | None = None,
                       limit: int = DEFAULT_RESULT_CHARS) -> dict:
     if type(limit) is not int or not 1 <= limit <= MAX_RESULT_CHARS:
@@ -346,7 +362,7 @@ def read_result_chunk(thread_id: str, item: dict, *, sha256: str, cursor: str | 
         raise ValueError("该条目没有可读取的完整工具结果")
     if not isinstance(sha256, str) or re.fullmatch(r"[a-f0-9]{64}", sha256) is None:
         raise ValueError("sha256 必须是结果引用中的 64 位小写十六进制摘要")
-    text = result_text(item["result"])
+    text = canonical_result_text(item["result"])
     reference = result_reference(thread_id, str(item["id"]), text)
     if sha256 != reference["sha256"]:
         raise RpcError(-32011, "工具结果已变化，请重新读取条目并确认新结果引用",
