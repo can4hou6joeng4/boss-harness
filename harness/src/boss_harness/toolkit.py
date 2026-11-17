@@ -48,14 +48,23 @@ def snapshot_result(result: object) -> ToolResult:
                 or any(value is not None and type(value) is not dict
                        for value in (result.error, result.hints, result.pagination))):
             raise ValueError
-        if result.error is not None:
-            if (type(result.error.get("code")) is not str or not result.error["code"]
-                    or type(result.error.get("message")) is not str
-                    or ("recovery_action" in result.error
-                        and type(result.error["recovery_action"]) is not str)):
+        error = result.error
+        if error is not None:
+            if (type(error.get("code")) is not str or not error["code"]
+                    or type(error.get("message")) is not str):
                 raise ValueError
+            # 固定上游的 v1 错误信封允许 recovery_action 为 null（JOB_NOT_FOUND、
+            # GREET_LIMIT 等直接登记为 None；search 的平台错误不传恢复动作时也是
+            # null）。null 与字段缺失同义：下游都用 ``or ""`` 读取，若按非法类型
+            # 拒绝，合法平台错误会被替换为 TOOL_ERROR，RATE_LIMITED 等暂停码也会
+            # 失去暂停语义。非字符串、非 null 的值仍视为无效信封。
+            if "recovery_action" in error:
+                if error["recovery_action"] is None:
+                    error = {key: value for key, value in error.items() if key != "recovery_action"}
+                elif type(error["recovery_action"]) is not str:
+                    raise ValueError
         envelope = {"ok": result.ok, "command": result.command, "data": result.data,
-                    "error": result.error, "hints": result.hints, "pagination": result.pagination}
+                    "error": error, "hints": result.hints, "pagination": result.pagination}
         check(envelope)
         copied = json.loads(json.dumps(envelope, ensure_ascii=False, allow_nan=False))
         return ToolResult(**copied, raw=result.raw)
