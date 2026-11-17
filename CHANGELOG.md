@@ -9,6 +9,23 @@
 
 当前没有未归入具名候选版本的变更。
 
+## 0.2.0-rc.67 - 2026-11-18
+
+本节汇总第六十七个候选版本的源码与交付内容。相对 rc.66，本候选把发布清单的 `sourceCommit` 绑定到实际可解析的源码提交，并记录 CI 触发 ref。rc.16 至 rc.67 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 发布清单脚本用 `git rev-parse --verify` 确认 `--commit` 可解析，避免任意十六进制串伪装成来源提交（#2106、#2111）。
+- 可选的 `--source-ref` 记录实际触发来源；CI 传入 `$GITHUB_REF`，发布文档说明 PR 临时 merge ref 的可复现范围与稳定发布要求（#2106、#2111）。
+- 同步 npm / Python 版本到 `0.2.0-rc.67` / `0.2.0rc67`（#2112）。
+
+升级注意：不改变 JSON-RPC 协议、工具权限、会话持久化格式或存储键；rc.66 源码无需迁移。发布清单 schemaVersion 仍为 `2`；无 Git 的离线构建仍只校验提交格式，不能声称已验证提交存在。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2106](https://github.com/can4hou6joeng4/boss-harness/issues/2106)：绑定发布清单来源提交与构建 ref。
+- [Issue #2112](https://github.com/can4hou6joeng4/boss-harness/issues/2112)：准备 rc.67 源码候选并同步所有版本来源。
+
 ## 0.2.0-rc.66 - 2026-11-18
 
 本节汇总第六十六个候选版本的源码与交付内容。相对 rc.65，本候选补齐发布资产身份与清单契约校验，并修正隔离构建文档。rc.16 至 rc.66 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
