@@ -9,6 +9,26 @@
 
 当前没有未归入具名候选版本的变更。
 
+## 0.2.0-rc.61 - 2026-11-18
+
+本节汇总第六十一个候选版本的源码与交付内容。相对 rc.60，本候选修正仓库状态与用户文档口径，并加强发布资产的版本与目录归属校验。rc.16 至 rc.61 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 仓库状态文档改为公开仓库与公开 Issue 入口；MIT 许可证与远程仓库不再列为待确定项，历史回合中的旧状态标为当时快照（#2065、#2066）。
+- 只读会话明确包含 13 个只读招聘工具和 1 个只读内核结果分段读取工具；草稿持久化说明补充首页项目与历史调取前原稿（#2067、#2068）。
+- 发布资产清单按 PEP 440 归一版本，逐一核对 wheel / sdist 元数据并拒绝输出目录外文件；构建流程安装 packaging，RELEASING 要求先清空重建 `dist/python`（#2069、#2070）。
+- 同步 npm / Python 版本到 `0.2.0-rc.61` / `0.2.0rc61`（#2071）。
+
+升级注意：不改变协议、工具权限、持久化格式或存储键；rc.60 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2065](https://github.com/can4hou6joeng4/boss-harness/issues/2065)：更新仓库可见性与许可证状态文档。
+- [Issue #2067](https://github.com/can4hou6joeng4/boss-harness/issues/2067)：修正工具数与草稿恢复范围文档。
+- [Issue #2069](https://github.com/can4hou6joeng4/boss-harness/issues/2069)：校验发布资产版本与目录归属。
+- [Issue #2071](https://github.com/can4hou6joeng4/boss-harness/issues/2071)：准备 rc.61 源码候选并同步所有版本来源。
+
 ## 0.2.0-rc.60 - 2026-11-18
 
 本节汇总第六十个候选版本的源码与交付内容。相对 rc.59，本候选同步缺陷报告模板的版本示例，并把发布脚本与表单示例改为稳定占位，避免每轮候选追改。rc.16 至 rc.60 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
