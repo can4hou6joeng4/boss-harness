@@ -1275,7 +1275,9 @@ class ApplicationService:
             entries = self.sessions.read_entries(thread_id)
             if branch:
                 entries = self.sessions._active_entries(entries)
-            items = self.events.items(thread_id, entries=entries if branch else None)
+            # 非分支视图也必须复用刚读到的条目：传 None 会让 EventHub 再调用一次
+            # read_items()，在会话写锁内把同一份 rollout 解码第二遍。
+            items = self.events.items(thread_id, entries=entries)
             edit_states = self.context.context_edit_states(entries)
         if snapshot_id is None and offset > len(items):
             raise ValueError("条目分页游标超出结果范围")
