@@ -27,6 +27,7 @@ from typing import Any, Iterable
 
 from boss_harness.compaction import verified_policy
 from boss_harness.context import tool_execution_status
+from boss_harness.item_content import wire_text
 from boss_harness.models.secret import redact_secrets
 from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, SessionStore, bounded_skill_ids,
                                   branch_summary_issue)
@@ -1285,7 +1286,10 @@ def _suggested_file_name(thread_id: str, view: str, extension: str) -> str:
 
 
 def _wire_bytes(text: str) -> int:
-    return len(json.dumps(text, ensure_ascii=False).encode("utf-8"))
+    # 会话记录可能含孤立代理项（外部改写或旧版本写入）：JSON-RPC 帧与文件都按
+    # ensure_ascii=False 编码，先按 wire_text 约定降级，否则预算阶段就会抛
+    # UnicodeEncodeError，让整次导出失败。
+    return len(json.dumps(wire_text(text), ensure_ascii=False).encode("utf-8"))
 
 
 def export_thread(sessions: SessionStore, thread_id: str, *, branch: bool, fmt: str,
@@ -1331,7 +1335,7 @@ def export_thread(sessions: SessionStore, thread_id: str, *, branch: bool, fmt: 
             else:
                 high = middle - 1
         keep = low
-    content = render(meta, units[:keep], counts, len(units), max_bytes, queue)
+    content = wire_text(render(meta, units[:keep], counts, len(units), max_bytes, queue))
     if _wire_bytes(content) > max_bytes:
         raise ValueError("会话导出头部超出大小上限")
     exported_turns = sum(1 for _, unit in units[:keep] if unit["kind"] == "turn")
