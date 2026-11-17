@@ -12,6 +12,10 @@ const MAX_CURSOR_LENGTH = 2048;
 const ITEM_ID_LIMIT = 200;
 /** 正文分段读取的最小合理粒度：异常内核用 1 个码点分页时，不能把恢复拖成数百万次请求。 */
 const MIN_CONTENT_CHUNK_CHARS = 1024;
+/** 一次恢复允许的正文分页请求总量：异常内核用大量小条目也能把恢复拖成百万次请求。 */
+const MAX_CONTENT_PAGE_READS = 10_000;
+
+interface ContentReadBudget { pages: number }
 const STALE_CONTENT_RECHECK_NOTICE = "会话内容版本已变化，请重新打开会话并核对当前引用后查看";
 
 type HarnessRpcError = Error & { code?: unknown; data?: unknown; rpcError?: boolean };
@@ -99,7 +103,8 @@ export class HarnessReplica {
    * 分页期间新到的增量只经事件重放应用一次（未分支的会话等同日志快照）。分支指针在分页中移动时
    * 内核返回 SNAPSHOT_LEAF_CHANGED，这里重新取快照，最多重试两次。
    */
-  private async frozenBranchSnapshot(threadId: string, current: () => void): Promise<ThreadReadResponse> {
+  private async frozenBranchSnapshot(threadId: string, current: () => void,
+    budget: ContentReadBudget = { pages: 0 }): Promise<ThreadReadResponse> {
     for (let attempt = 0; ; attempt += 1) {
       try {
         const snapshot = await this.api.request<ThreadReadResponse>("thread/resume", { threadId, excludeTurns: true, snapshot: true, view: "branch" });
@@ -112,7 +117,7 @@ export class HarnessReplica {
           pageCursor => ({ threadId, snapshotId, view: "branch", cursor: pageCursor, limit: 100 }),
           current, snapshotItemCount(snapshot.itemCount));
         const hydrated: ThreadItem[] = [];
-        for (const item of items) { current(); hydrated.push(await this.resolveItemContent(item, threadId, snapshotId, current)); }
+        for (const item of items) { current(); hydrated.push(await this.resolveItemContent(item, threadId, snapshotId, current, budget)); }
         snapshot.items = hydrated;
         return snapshot;
       } catch (error) {
@@ -127,9 +132,10 @@ export class HarnessReplica {
    * 优先用一次性的 thread/read（条目与事件游标同锁读取），响应过大时退回按分支分页读取条目
    * （该兼容路径无冻结切点，运行中打开可能短暂重复流式内容，回合结束后重新读取会纠正）。
    */
-  private async branchSnapshot(threadId: string, current: () => void): Promise<ThreadReadResponse | null> {
+  private async branchSnapshot(threadId: string, current: () => void,
+    budget: ContentReadBudget = { pages: 0 }): Promise<ThreadReadResponse | null> {
     if (!this.branchViews()) return null;
-    if (this.branchSnapshots()) return this.frozenBranchSnapshot(threadId, current);
+    if (this.branchSnapshots()) return this.frozenBranchSnapshot(threadId, current, budget);
     const probe = await this.api.request<ThreadReadResponse>("thread/read", { threadId, excludeTurns: true, view: "branch" });
     current();
     if (probe.view !== "branch" || !probe.branch || probe.branch.threadId !== threadId) throw new Error("分支视图响应无效");
@@ -151,7 +157,7 @@ export class HarnessReplica {
     assertSnapshotRouteFields(snapshot.thread);
     if (!Array.isArray(snapshot.items)) throw new Error("分支视图条目无效");
     const hydrated: ThreadItem[] = [];
-    for (const item of snapshot.items) { current(); hydrated.push(await this.resolveItemContent(item, threadId, undefined, current)); }
+    for (const item of snapshot.items) { current(); hydrated.push(await this.resolveItemContent(item, threadId, undefined, current, budget)); }
     snapshot.items = hydrated;
     return snapshot;
   }
@@ -210,7 +216,8 @@ export class HarnessReplica {
     };
     const flight = Promise.resolve().then(async () => {
       current();
-      const branched = await this.branchSnapshot(threadId, current);
+      const contentBudget: ContentReadBudget = { pages: 0 };
+      const branched = await this.branchSnapshot(threadId, current, contentBudget);
       // 普通路径没有分支投影的 view/branch 字段可核对；回执必须属于请求的会话，
       // 否则消息与线路会被写到另一个会话。
       const snapshot = branched ?? threadSnapshotOf(
@@ -224,14 +231,14 @@ export class HarnessReplica {
           pageCursor => ({ threadId, snapshotId, cursor: pageCursor, limit: 100 }),
           current, snapshotItemCount(snapshot.itemCount));
         const hydrated: ThreadItem[] = [];
-        for (const item of items) { current(); hydrated.push(await this.resolveItemContent(item, threadId, snapshot.snapshotId, current)); }
+        for (const item of items) { current(); hydrated.push(await this.resolveItemContent(item, threadId, snapshot.snapshotId, current, contentBudget)); }
         snapshot.items = hydrated;
       } else {
         // Compatibility with 0.1 servers that do not expose stable snapshot pages.
         const full = threadSnapshotOf(await this.api.request<ThreadReadResponse>("thread/read", { threadId }), threadId);
         current();
         const hydrated: ThreadItem[] = [];
-        for (const item of full.items) { current(); hydrated.push(await this.resolveItemContent(item, threadId, undefined, current)); }
+        for (const item of full.items) { current(); hydrated.push(await this.resolveItemContent(item, threadId, undefined, current, contentBudget)); }
         snapshot.items = hydrated;
       }
       const eventCursor = snapshot.eventCursor;
@@ -338,7 +345,8 @@ export class HarnessReplica {
     this.onEvent({ method: "session/error", params: { threadId, message } });
   }
 
-  private async readContent(reference: ItemContentReference, current: () => void): Promise<string> {
+  private async readContent(reference: ItemContentReference, current: () => void,
+    budget?: ContentReadBudget): Promise<string> {
     current();
     validateContentReference(reference);
     let cursor: string | undefined;
@@ -350,6 +358,10 @@ export class HarnessReplica {
     let pages = 0;
     while (true) {
       if (pages >= pageLimit) throw new Error("会话内容分段过多，未能完整读取");
+      if (budget) {
+        if (budget.pages >= MAX_CONTENT_PAGE_READS) throw new Error("本次恢复的大正文分页过多，未能完整读取");
+        budget.pages += 1;
+      }
       pages += 1;
       const response = throwIfHarnessRpcError(await this.api.request<ItemContentReadResponse>("thread/item/content/read", {
         threadId: reference.threadId, itemId: reference.itemId, part: reference.part,
@@ -390,7 +402,8 @@ export class HarnessReplica {
     return text;
   }
 
-  private async resolveItemContent(item: ThreadItem, threadId: string, snapshotId: string | undefined, current: () => void): Promise<ThreadItem> {
+  private async resolveItemContent(item: ThreadItem, threadId: string, snapshotId: string | undefined,
+    current: () => void, budget?: ContentReadBudget): Promise<ThreadItem> {
     const resolved = { ...item };
     for (const part of ["text", "thinking"] as const) {
       const reference = part === "text" ? item.textRef : item.thinkingRef;
@@ -400,7 +413,7 @@ export class HarnessReplica {
           reference.snapshotId !== snapshotId) {
         throw new Error("会话内容引用归属无效");
       }
-      resolved[part] = await this.readContent(reference, current);
+      resolved[part] = await this.readContent(reference, current, budget);
     }
     return resolved;
   }
