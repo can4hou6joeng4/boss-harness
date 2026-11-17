@@ -163,8 +163,38 @@ def model_result_for_item(item: dict) -> str:
         return model_result_content(wire_value(result), item["id"],
                                     source=wire_value(source) if isinstance(source, dict) else source,
                                     max_bytes=limit, preview=preview)
-    return model_result_content({}, None, source=None, max_bytes=limit,
-                                preview=preview or existing or "")
+    # 缺失 result 的结算记录（进程中断后的启动恢复、恢复会话里的审批拒绝/失效）
+    # 只有 resultSummary 与 errorCode。沿用 model_result_content({}) 会在预算内
+    # 直接返回 "{}"，模型看不到「未执行」「被拒绝」或「结果不确定」，可能把
+    # 写操作当成空结果重试。
+    text = preview if isinstance(preview, str) and preview else (existing or "")
+    return _unavailable_result(item, limit, text)
+
+
+def _unavailable_result(item: dict, limit: int, preview: str) -> str:
+    """缺失结果的预算内投影：保留状态、错误码与持久摘要。"""
+    content: dict[str, Any] = {
+        "ok": False if item.get("status") == "failed" else None,
+        "resultUnavailable": True,
+    }
+    code = item.get("errorCode")
+    if isinstance(code, str) and code:
+        content["errorCode"] = wire_text(code)
+    preview = preview if isinstance(preview, str) else ""
+    if preview:
+        content["resultPreview"] = preview
+    if _fits(content, limit):
+        return json.dumps(content, ensure_ascii=False, allow_nan=False)
+    # 摘要本身可能接近预算：减半重试，仍放不下就只保留结构字段。
+    keep = min(len(preview), max(1, limit // 2))
+    while keep > 1:
+        content["resultPreview"] = preview[:keep]
+        if _fits(content, limit):
+            return json.dumps(content, ensure_ascii=False, allow_nan=False)
+        keep //= 2
+    content.pop("resultPreview", None)
+    return json.dumps(content, ensure_ascii=True, allow_nan=False)
+
 
 
 def project_error(error: dict | None) -> dict | None:
