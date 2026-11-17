@@ -1633,11 +1633,12 @@ class ApplicationService:
         entries = self.sessions.read_active_entries(thread_id)
         listed = next((summary for summary in self.context._branch_summaries(thread_id, entries)
                        if summary["entryId"] == entry_id), None)
-        entry = next((value for value in entries if value.get("id") == entry_id), None) if listed else None
-        if listed is None or entry is None:
+        if listed is None:
             raise RpcError(-32011, "被放弃分支摘要不存在，或不在当前分支上",
                            {"code": "BRANCH_SUMMARY_NOT_FOUND", "threadId": thread_id, "entryId": entry_id})
-        payload = entry["payload"]
+        # 用扫描阶段校验过的那条记录，而不是按 id 重新查找：持久记录可以重复编号，
+        # 线性查找会取到同 id 的普通条目，随后 payload["summary"] 抛 KeyError 变 -32603。
+        payload = listed["payload"]
         result = {"threadId": thread_id, "entryId": entry_id,
                   **{key: listed[key] for key in ("targetTurnId", "fromTurnId", "abandonedTurnIds",
                                                   "summaryJobId", "characters")},
@@ -1645,7 +1646,7 @@ class ApplicationService:
                   "label": "模型生成的被放弃分支摘要",
                   "commonTurnId": payload.get("commonTurnId"),
                   "summaryProvider": payload.get("summaryProvider"), "summaryModel": payload.get("summaryModel"),
-                  "sourceTextDigest": payload.get("sourceTextDigest"), "createdAt": entry.get("timestamp")}
+                  "sourceTextDigest": payload.get("sourceTextDigest"), "createdAt": listed.get("createdAt")}
         self._check_response_budget(result)
         return result
 
