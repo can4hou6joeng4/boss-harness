@@ -460,15 +460,17 @@ def _read_bounded_file(path: Path, *, maximum: int, label: str) -> bytes:
 class SessionEntriesSnapshot:
     """A rewindable, size-pinned view of one append-only session prefix."""
 
-    def __init__(self, source: io.BufferedReader, size: int, mtime_ns: int) -> None:
+    def __init__(self, source: io.BufferedReader, size: int, mtime_ns: int, inode: int) -> None:
         self._source = source
         self._size = size
         self.mtime_ns = mtime_ns
+        self.inode = inode
+        self.line_count = 0
 
     @property
-    def stamp(self) -> tuple[int, int]:
+    def stamp(self) -> tuple[int, int, int]:
         """File identity of the pinned prefix, for cache lookups keyed on later reads."""
-        return self._size, self.mtime_ns
+        return self._size, self.mtime_ns, self.inode
 
     def __enter__(self) -> SessionEntriesSnapshot:
         if self._source.closed:
@@ -485,9 +487,11 @@ class SessionEntriesSnapshot:
         if self._source.closed:
             raise ValueError("会话快照已关闭")
         self._source.seek(0)
+        self.line_count = 0
         for line_number, raw_line in enumerate(_iter_bounded_raw_lines_from_handle(
                 self._source, maximum=MAX_SESSION_LINE_BYTES, label="会话日志",
                 universal_newlines=True, byte_limit=self._size), start=1):
+            self.line_count = line_number
             if not raw_line.strip():
                 continue
             data = _decode_session_record(raw_line, line_number=line_number)
@@ -639,7 +643,7 @@ class SessionStore:
         ensure_private_directory(self.root)
         self.attachments_root = Path(attachments_root or self.root.parent / "attachments").absolute()
         self._lock = threading.RLock()
-        self._entries_cache: dict[str, tuple[tuple[int, int], list[dict]]] = {}
+        self._entries_cache: dict[str, tuple[tuple[int, int, int], int, list[dict]]] = {}
         self.database_path = self.root.parent / "state.sqlite3"
         self.events_path = self.root.parent / "events.jsonl"
         for path in (self.database_path.with_name(self.database_path.name + "-wal"),
@@ -1190,21 +1194,20 @@ class SessionStore:
     def read_entries(self, thread_id: str) -> list[dict]:
         with self._lock:
             self.require_thread(thread_id)
-            stamp = self._entries_stamp(thread_id)
-            cached = self._cached_entries(thread_id, stamp)
-            if cached is not None:
-                return list(cached)
-            out: list[dict] = []
-            for line_number, line in enumerate(_iter_bounded_lines(
-                    self.path_for(thread_id), maximum=MAX_SESSION_LINE_BYTES,
-                    label="会话日志", universal_newlines=True), start=1):
-                if not line.strip():
-                    continue
-                data = _decode_session_record(line, line_number=line_number)
-                if data is not None:
-                    out.append(data)
-            self._store_entries(thread_id, stamp, out)
-            return list(out)
+            with self.path_for(thread_id).open("rb") as handle:
+                stat_result = os.fstat(handle.fileno())
+                stamp = (stat_result.st_size, stat_result.st_mtime_ns, stat_result.st_ino)
+                cached = self._touch_cached_entries(thread_id, stamp)
+                if cached is not None:
+                    return list(cached[2])
+                previous = self._appendable_entries(thread_id, stamp, handle)
+                if previous is not None:
+                    entries, line_count = self._read_appended_entries(handle, previous, stamp)
+                else:
+                    entries, line_count = self._read_all_entries(handle, stamp)
+                if self._line_boundary(handle, stamp[0]):
+                    self._store_entries(thread_id, stamp, line_count, entries)
+                return list(entries)
 
     def read_entries_snapshot(self, thread_id: str) -> list[dict]:
         """Decode one pinned prefix without holding the writer lock while scanning.
@@ -1220,11 +1223,12 @@ class SessionStore:
         with self._lock:
             self.require_thread(thread_id)
             stamp = self._entries_stamp(thread_id)
-            cached = self._cached_entries(thread_id, stamp)
+            cached = self._touch_cached_entries(thread_id, stamp)
             if cached is not None:
-                return list(cached)
+                return list(cached[2])
         with self.open_entries_snapshot(thread_id) as snapshot:
             entries = list(snapshot)
+            line_count = snapshot.line_count
         # 只有解码期间没有新的追加（文件仍是同一前缀）时才挂到该 stamp 下；
         # 否则缓存会以新文件的身份返回旧前缀，下一次命中就掩盖了新条目。
         with self._lock:
@@ -1233,25 +1237,81 @@ class SessionStore:
             except (FileNotFoundError, ValueError):
                 current = None
             if current == snapshot.stamp:
-                self._store_entries(thread_id, current, entries)
+                self._store_entries(thread_id, current, line_count, entries)
         return list(entries)
 
-    def _entries_stamp(self, thread_id: str) -> tuple[int, int]:
+    def _entries_stamp(self, thread_id: str) -> tuple[int, int, int]:
         stat_result = self.path_for(thread_id).stat()
-        return stat_result.st_size, stat_result.st_mtime_ns
+        return stat_result.st_size, stat_result.st_mtime_ns, stat_result.st_ino
 
-    def _cached_entries(self, thread_id: str, stamp: tuple[int, int]) -> list[dict] | None:
+    def _touch_cached_entries(self, thread_id: str, stamp: tuple[int, int, int]):
         cached = self._entries_cache.get(thread_id)
         if cached is None or cached[0] != stamp:
             return None
         # 最近使用排在末尾，超限时淘汰最久未用的会话。
         self._entries_cache.pop(thread_id, None)
         self._entries_cache[thread_id] = cached
-        return cached[1]
+        return cached
 
-    def _store_entries(self, thread_id: str, stamp: tuple[int, int], entries: list[dict]) -> None:
+    def _appendable_entries(self, thread_id: str, stamp: tuple[int, int, int], handle):
+        """Return the cached prefix when only an append separates it from `stamp`.
+
+        缓存必须来自同一 inode、严格更短的前缀，且旧前缀末尾在当前文件上仍是
+        换行边界；外部截断重写会破坏其中一条，按全量重新解码。
+        """
+        cached = self._entries_cache.get(thread_id)
+        if cached is None:
+            return None
+        (size, _, inode), line_count, entries = cached
+        if inode != stamp[2] or not 0 < size < stamp[0]:
+            return None
+        handle.seek(size - 1)
+        if handle.read(1) != b"\n":
+            return None
         self._entries_cache.pop(thread_id, None)
-        self._entries_cache[thread_id] = (stamp, entries)
+        self._entries_cache[thread_id] = cached
+        return size, line_count, entries
+
+    def _read_all_entries(self, handle, stamp: tuple[int, int, int]) -> tuple[list[dict], int]:
+        handle.seek(0)
+        out: list[dict] = []
+        line_count = 0
+        for line_count, line in enumerate(_iter_bounded_raw_lines_from_handle(
+                handle, maximum=MAX_SESSION_LINE_BYTES, label="会话日志",
+                universal_newlines=True, byte_limit=stamp[0]), start=1):
+            if not line.strip():
+                continue
+            data = _decode_session_record(line, line_number=line_count)
+            if data is not None:
+                out.append(data)
+        return out, line_count
+
+    def _read_appended_entries(self, handle, previous: tuple[int, int, list[dict]],
+                               stamp: tuple[int, int, int]) -> tuple[list[dict], int]:
+        size, line_count, entries = previous
+        handle.seek(size)
+        appended: list[dict] = []
+        added = 0
+        for added, line in enumerate(_iter_bounded_raw_lines_from_handle(
+                handle, maximum=MAX_SESSION_LINE_BYTES, label="会话日志",
+                universal_newlines=True, byte_limit=stamp[0] - size), start=1):
+            if not line.strip():
+                continue
+            data = _decode_session_record(line, line_number=line_count + added)
+            if data is not None:
+                appended.append(data)
+        return entries + appended, line_count + added
+
+    def _line_boundary(self, handle, size: int) -> bool:
+        if size <= 0:
+            return False
+        handle.seek(size - 1)
+        return handle.read(1) == b"\n"
+
+    def _store_entries(self, thread_id: str, stamp: tuple[int, int, int], line_count: int,
+                       entries: list[dict]) -> None:
+        self._entries_cache.pop(thread_id, None)
+        self._entries_cache[thread_id] = (stamp, line_count, entries)
         while len(self._entries_cache) > _MAX_ENTRIES_CACHE_THREADS:
             self._entries_cache.pop(next(iter(self._entries_cache)))
 
@@ -1262,7 +1322,8 @@ class SessionStore:
             source = self.path_for(thread_id).open("rb")
             try:
                 stat_result = os.fstat(source.fileno())
-                return SessionEntriesSnapshot(source, stat_result.st_size, stat_result.st_mtime_ns)
+                return SessionEntriesSnapshot(source, stat_result.st_size,
+                                              stat_result.st_mtime_ns, stat_result.st_ino)
             except BaseException:
                 source.close()
                 raise
