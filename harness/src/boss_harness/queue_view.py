@@ -30,6 +30,17 @@ _QUEUE_FLAGS = ("inputPersisted", "deduplicated", "inputTruncated")
 # 与 runtime.PAUSE_REASON_* 保持一致；只有这里列出的来源能进入只读投影。
 _QUEUE_PAUSE_REASONS = frozenset({"COMPACTION_FAILED", "THREAD_ARCHIVED", "TURN_NOT_COMPLETED"})
 _MAX_SAFE_INTEGER = 2 ** 53 - 1
+# 与其它持久标识的读取上限一致；合法队列 id 是 32 位十六进制，超长只可能是损坏记录。
+_MAX_QUEUE_ID_CHARS = 200
+# 可选字符串进入只读投影的长度上限；超长值按缺失处理，损坏记录不能放大响应。
+_MAX_QUEUE_VIEW_STRING_CHARS = 200
+# 只读投影只保留协议声明的字段：未知字段（外部改写或未来版本残留）不能进入
+# 队列列表、会话读取或冻结快照，否则一条记录就能让整次读取超出响应预算。
+_QUEUE_VIEW_FIELDS = frozenset({
+    "id", "kind", "input", "status", "expectedTurnId", "clientUserMessageId",
+    "skillIds", "autoCompaction", "failureCode", "pausedReason",
+    "executionStarted", "turnId", "inputPersisted", "deduplicated", "inputTruncated",
+})
 
 
 def queue_record(value: Any) -> dict | None:
@@ -42,7 +53,8 @@ def queue_record(value: Any) -> dict | None:
     ``thread/resume`` 被误判为响应过大；这里按 ``wire_text`` 约定把代理项
     降级为 U+FFFD，仍然无法编码的记录（如 NaN 或过深嵌套）按坏记录跳过。
     """
-    if not (isinstance(value, dict) and isinstance(value.get("id"), str) and value["id"]
+    if not (isinstance(value, dict) and isinstance(value.get("id"), str)
+            and 0 < len(value["id"]) <= _MAX_QUEUE_ID_CHARS
             and isinstance(value.get("kind"), str) and value["kind"] in QUEUE_KINDS
             and isinstance(value.get("status"), str) and value["status"] in QUEUE_STATUSES
             and isinstance(value.get("input"), str)):
@@ -82,16 +94,19 @@ def queue_view_record(record: dict) -> dict:
     整份列表并清空面板。必填字段已在 ``queue_record`` 校验，这里只删除或收敛
     类型不符合协议的可选字段，不改变条目身份、状态与计数。
     """
-    value = dict(record)
+    value = {key: record[key] for key in _QUEUE_VIEW_FIELDS if key in record}
     for key in _QUEUE_OPTIONAL_STRINGS:
-        if key in value and value[key] is not None and not isinstance(value[key], str):
+        if key in value and value[key] is not None and (
+                not isinstance(value[key], str) or len(value[key]) > _MAX_QUEUE_VIEW_STRING_CHARS):
             del value[key]
-    if "turnId" in value and not isinstance(value["turnId"], str):
+    if "turnId" in value and (not isinstance(value["turnId"], str)
+                              or len(value["turnId"]) > _MAX_QUEUE_VIEW_STRING_CHARS):
         del value["turnId"]
     if "skillIds" in value:
         ids = value["skillIds"]
         if (isinstance(ids, list) and len(ids) <= MAX_QUEUE_SKILL_IDS
-                and all(isinstance(item, str) and item for item in ids)):
+                and all(isinstance(item, str) and 0 < len(item) <= _MAX_QUEUE_VIEW_STRING_CHARS
+                        for item in ids)):
             value["skillIds"] = list(dict.fromkeys(ids))
         else:
             del value["skillIds"]
