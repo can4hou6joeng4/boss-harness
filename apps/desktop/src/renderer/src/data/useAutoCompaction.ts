@@ -4,12 +4,38 @@ import { harnessErrorText, readConfig } from "./harnessBridge";
 import { DEFAULT_AUTO_COMPACTION_DRAFT, autoCompactionDraftFrom as draftFrom, resetAutoCompactionDraft, type AutoCompactionDraft } from "./compactionDraft";
 
 export type { AutoCompactionDraft } from "./compactionDraft";
-const policyValue = (value: unknown): AutoCompactionPolicy | null => {
-  const policy = value as AutoCompactionPolicy | undefined;
-  if (!policy || typeof policy.enabled !== "boolean" ||
-    !Number.isSafeInteger(policy.triggerPercent) || policy.triggerPercent < 1 || policy.triggerPercent > 100 ||
-    !Number.isSafeInteger(policy.keepRecentTokens) || policy.keepRecentTokens < 1 || policy.keepRecentTokens > 1_000_000) return null;
-  return policy;
+const _POLICY_TEXT_LIMIT = 200;
+const policyText = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed && trimmed.length <= _POLICY_TEXT_LIMIT ? trimmed : null;
+};
+/**
+ * 自动压缩默认值的自读校验。
+ *
+ * `config/read` 的回执属于外部输入：`ContextPanel` 把 `defaults.provider` /
+ * `model` / `effort` 直接作为 React 子节点渲染，对象、数组或数字不会走 `??`
+ * 回退，渲染期抛「Objects are not valid as a React child」；`ContextPanel` 位于
+ * 应用级错误边界之下，整个桌面界面会被错误页替换，重试后再次打开面板又会崩溃。
+ * 这里与 cockpitData 的同一回执消费方保持一致：线路字段只接受收敛后的非空文本，
+ * 其余按「未提供」处理；核心数值字段不合法时整体按默认值缺失处理。
+ */
+export const autoCompactionPolicyValue = (value: unknown): AutoCompactionPolicy | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const policy = value as Record<string, unknown>;
+  const triggerPercent = policy.triggerPercent, keepRecentTokens = policy.keepRecentTokens;
+  if (typeof policy.enabled !== "boolean"
+    || typeof triggerPercent !== "number" || !Number.isSafeInteger(triggerPercent) || triggerPercent < 1 || triggerPercent > 100
+    || typeof keepRecentTokens !== "number" || !Number.isSafeInteger(keepRecentTokens)
+    || keepRecentTokens < 1 || keepRecentTokens > 1_000_000) return null;
+  return {
+    enabled: policy.enabled,
+    triggerPercent,
+    keepRecentTokens,
+    provider: policyText(policy.provider),
+    model: policyText(policy.model),
+    effort: policyText(policy.effort),
+  };
 };
 
 /**
@@ -57,7 +83,7 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
     setReading(true);
     readConfig().then(config => {
       if (cancelled) return;
-      const policy = policyValue(config.autoCompaction);
+      const policy = autoCompactionPolicyValue(config.autoCompaction);
       if (!policy) {
         setError("当前内核未返回自动压缩默认值；仍可显式设置本回合覆盖。");
         return;
