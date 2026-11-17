@@ -515,11 +515,17 @@ class AnthropicProvider:
                         delta = getattr(event, "delta", None)
                         delta_type = getattr(delta, "type", "")
                         if delta_type == "text_delta":
+                            # 增量类型必须与活动块类型一致：错置文本会被写入助手消息，
+                            # 却不进入续接描述符，恢复时让整个分支永久失败。
+                            if block_types.get(index) != "text" or index in closed_blocks:
+                                raise ValueError("文本增量没有对应的活动文本块")
                             text = str(getattr(delta, "text", ""))
                             text_budget.account(index, text)
                             buffers.setdefault(index, []).append(text)
                             yield StreamEvent(type="text_delta", content_index=index, delta=text)
                         elif delta_type == "thinking_delta":
+                            if block_types.get(index) != "thinking" or index in closed_blocks:
+                                raise ValueError("思考增量没有对应的活动思考块")
                             text = str(getattr(delta, "thinking", ""))
                             text_budget.account(index, text)
                             buffers.setdefault(index, []).append(text)
@@ -558,8 +564,13 @@ class AnthropicProvider:
                         closed_blocks.add(index)
                         joined = "".join(buffers.get(index, []))
                         if joined:
-                            end_type = "thinking_end" if block_types.get(index) == "thinking" else "text_end"
-                            yield StreamEvent(type=end_type, content_index=index, text=joined)
+                            block_type = block_types.get(index)
+                            if block_type == "thinking":
+                                yield StreamEvent(type="thinking_end", content_index=index, text=joined)
+                            elif block_type == "text":
+                                yield StreamEvent(type="text_end", content_index=index, text=joined)
+                            else:
+                                raise ValueError("内容块增量与块类型不一致")
                         if index in tool_argument_buffers:
                             closed_tool_blocks.add(index)
                 if not saw_message_stop:
