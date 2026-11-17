@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { app, dialog, ipcMain, Notification, BrowserWindow, type IpcMainInvokeEvent, type MessageBoxReturnValue } from "electron";
 import { HarnessHostManager, HarnessRpcError, type HarnessConnectionStatus, type HarnessHostConnection } from "@boss-harness/app-client";
@@ -20,7 +20,17 @@ import { StartupDiagnostics, runStartupCheck } from "./startupCheck";
 function findRepoRoot(start: string): string {
   let current = resolve(start);
   for (let depth = 0; depth < 6; depth += 1) {
-    if (existsSync(resolve(current, "pnpm-workspace.yaml"))) return current;
+    const manifest = resolve(current, "package.json");
+    if (existsSync(manifest) && existsSync(resolve(current, "package-lock.json"))) {
+      try {
+        const pkg = JSON.parse(readFileSync(manifest, "utf8")) as {
+          name?: unknown; workspaces?: unknown;
+        };
+        if (pkg.name === "boss-harness" && Array.isArray(pkg.workspaces)) return current;
+      } catch {
+        // 清单损坏时继续向上查找，而不是按可疑的目录名猜根目录。
+      }
+    }
     const parent = resolve(current, "..");
     if (parent === current) break;
     current = parent;
