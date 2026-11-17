@@ -19,6 +19,7 @@ import uuid
 from typing import Any, Callable
 
 from boss_harness.item_content import wire_text
+from boss_harness.settings import _fsync_directory
 from boss_harness.private_files import ensure_private_directory, open_private_file, restrict_private_file
 from boss_harness.session import Entry, SessionStore
 from boss_harness.tool_bundle import ToolDefinition, ToolRegistry as _ToolRegistry
@@ -307,15 +308,16 @@ class SkillCatalog:
         return {**skill, "content": source, "limitBytes": self.MAX_SKILL_BYTES, "bytes": byte_length}
 
     @staticmethod
-    def _ensure_directory(path: Path) -> None:
-        """按需创建普通目录；已存在但不是普通目录（含符号链接）时拒绝。"""
+    def _ensure_directory(path: Path) -> bool:
+        """按需创建普通目录；返回本次是否新建，已存在但类型错误时拒绝。"""
         try:
             observed = os.lstat(path)
         except FileNotFoundError:
             os.mkdir(path, 0o755)
-            return
+            return True
         if not stat.S_ISDIR(observed.st_mode) or os.path.islink(path):
             raise OSError("技能目录必须是普通目录")
+        return False
 
     @classmethod
     def _existing_id(cls, skill_id: Any) -> str:
@@ -348,6 +350,7 @@ class SkillCatalog:
                 os.fsync(handle.fileno())
             os.chmod(temporary, 0o644)
             os.replace(temporary, directory / "SKILL.md")
+            _fsync_directory(directory)
         except BaseException:
             try:
                 os.unlink(temporary)
@@ -370,8 +373,8 @@ class SkillCatalog:
         if not data.strip():
             raise ValueError("技能正文不能为空")
         try:
-            self._ensure_directory(self.create_root.parent)
-            self._ensure_directory(self.create_root)
+            parent_created = self._ensure_directory(self.create_root.parent)
+            root_created = self._ensure_directory(self.create_root)
             target = self.create_root / skill_id
             try:
                 os.mkdir(target, 0o755)
@@ -379,6 +382,12 @@ class SkillCatalog:
                 raise ValueError("同名技能已存在，不会覆盖") from None
             try:
                 self._write_atomic(target, data)
+                # 新建目录的目录项也要落盘：先技能目录（_write_atomic），再技能
+                # 根目录与父目录；顺序保证崩溃时不会留下空壳技能。
+                if root_created:
+                    _fsync_directory(self.create_root)
+                if parent_created:
+                    _fsync_directory(self.create_root.parent)
             except BaseException:
                 try:
                     os.rmdir(target)
