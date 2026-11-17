@@ -39,8 +39,11 @@ export class PlatformLogin {
 
   async open(parent: BrowserWindow, threadId: string): Promise<PlatformLoginStatus> {
     if (["opening", "waiting", "saving"].includes(this.status.state)) {
-      if (this.parent !== parent || this.status.threadId !== threadId) throw new Error("another thread owns this login");
-      return this.read();
+      // 只有仍由窗口托管的进行中登录才占用；父窗口已释放说明上次异常退出留下了
+      // 残留状态，不应把同一线程的再次打开挡成「另一个窗口占用」。
+      if (this.parent && (this.parent !== parent || this.status.threadId !== threadId))
+        throw new Error("another thread owns this login");
+      if (this.parent) return this.read();
     }
     this.closeBrowser();
     this.parent = parent;
@@ -99,7 +102,18 @@ export class PlatformLogin {
         this.poll(generation);
         return this.read();
       }
-      if (attempt.state !== "waiting" || !attempt.id) { this.update(attempt); this.closeBrowser(); return this.read(); }
+      if (attempt.state !== "waiting" || !attempt.id) {
+        if (["opening", "waiting", "saving"].includes(attempt.state)) {
+          // 回执照样是进行中的登录，但缺少推进所需的 attempt id：写入状态机会
+          // 把界面锁在等待/保存，浏览器却已关闭，之后 open() 只会被占用判定拒绝，
+          // control(cancel) 也因父窗口为空被忽略。按失败结束本次尝试。
+          this.update({ state: "failed", code: "LOGIN_OPEN_FAILED",
+            summary: "官方登录页回执缺少登录尝试编号，请检查本机连接与内核版本后重试" });
+          this.closeBrowser();
+          return this.read();
+        }
+        this.update(attempt); this.closeBrowser(); return this.read();
+      }
       this.attempt = attempt.id;
       this.update(attempt);
       this.createBrowser(parent, generation);
