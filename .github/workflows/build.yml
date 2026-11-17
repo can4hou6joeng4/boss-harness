@@ -41,6 +41,7 @@ jobs:
           python scripts/release_assets.py \
             --version "$VERSION" \
             --commit "$GITHUB_SHA" \
+            --source-ref "$GITHUB_REF" \
             --out-dir dist/python \
             dist/python/*.whl dist/python/*.tar.gz
       - name: Verify release asset manifest

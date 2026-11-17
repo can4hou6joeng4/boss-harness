@@ -57,7 +57,7 @@ rm -rf dist/python
 .venv/bin/python -m build ./harness --outdir dist/python
 ```
 
-`git archive` 只包含提交中的已跟踪文件；不要直接从普通工作树构建发布资产，也不要给构建后端传入额外文件或目录。Source build 在 wheel / sdist 之后运行 `scripts/release_assets.py`，生成 `build-info.json` 与 `SHA256SUMS.txt`，并把整个目录作为 `python-dist` 工作流产物上传。本地复现使用同一入口，且 `--commit "$COMMIT"` 必须与构建输入一致：
+`git archive` 只包含提交中的已跟踪文件；不要直接从普通工作树构建发布资产，也不要给构建后端传入额外文件或目录。Source build 在 wheel / sdist 之后运行 `scripts/release_assets.py`，生成 `build-info.json` 与 `SHA256SUMS.txt`，并把整个目录作为 `python-dist` 工作流产物上传。本地复现使用同一入口，`--commit "$COMMIT"` 必须是构建输入的完整提交；在 Git 仓库中脚本会用 `git rev-parse --verify` 确认该提交可解析。需要标明触发来源时传 `--source-ref`（例如 CI 的 `$GITHUB_REF`），否则清单不包含该字段：
 
 ```sh
 cd "$SOURCE_DIR"
@@ -65,11 +65,12 @@ VERSION="$(.venv/bin/python -c 'import pathlib, tomllib; print(tomllib.loads(pat
 .venv/bin/python scripts/release_assets.py \
   --version "$VERSION" \
   --commit "$COMMIT" \
+  --source-ref "refs/heads/main" \
   --out-dir dist/python \
   dist/python/*.whl dist/python/*.tar.gz
 ```
 
-需要固定构建时间以便复核时，追加 `--built-at 2026-11-16T04:30:00Z`。脚本只处理输出目录内显式列出的普通文件，拒绝符号链接、目录、重复文件名与保留输出名；保留名和重复名按大小写不敏感比较。包名与版本按 `pyproject.toml` 和 PEP 440 归一后，与 wheel / sdist 文件名、sdist 根目录、wheel `METADATA`、sdist `PKG-INFO` 及 sdist 根 `pyproject.toml` 逐一核对，源 `harness/pyproject.toml` 的版本也必须与 `--version` 一致，不一致即失败。摘要按块流式计算，两个清单先写临时文件再原子替换。`build-info.json` 的 `schemaVersion` 为 `2`，记录项目名、Python 版本、源码提交、`builtAt`、构建用 Python 版本与每个资产的 `name` / `bytes` / `sha256`；已发布 rc.15 的 `schemaVersion: 1` 使用 `release`、`source`（含 `commit` / `tree`）、`versions`（npm / python / protocol）、`build`、`assets[]`（`name` / `size` / `sha256`）、`license`、`verification`，两者结构不同，解析时必须按 schemaVersion 分流。`SHA256SUMS.txt` 覆盖 wheel、sdist 与最终 `build-info.json` 的摘要，不包含自身；生成后应执行 `sha256sum -c SHA256SUMS.txt`（macOS 可用 `shasum -a 256 -c SHA256SUMS.txt`）复核。工作流产物用于审阅与核对，不等于 GitHub Release 资产；实际发布仍须从 tag 提交重新构建、复核哈希后上传。
+需要固定构建时间以便复核时，追加 `--built-at 2026-11-16T04:30:00Z`。脚本只处理输出目录内显式列出的普通文件，拒绝符号链接、目录、重复文件名与保留输出名；保留名和重复名按大小写不敏感比较。包名与版本按 `pyproject.toml` 和 PEP 440 归一后，与 wheel / sdist 文件名、sdist 根目录、wheel `METADATA`、sdist `PKG-INFO` 及 sdist 根 `pyproject.toml` 逐一核对，源 `harness/pyproject.toml` 的版本也必须与 `--version` 一致，不一致即失败。摘要按块流式计算，两个清单先写临时文件再原子替换。`build-info.json` 的 `schemaVersion` 为 `2`，记录项目名、Python 版本、已验证的源码提交、可选的 `sourceRef`、`builtAt`、构建用 Python 版本与每个资产的 `name` / `bytes` / `sha256`；`sourceRef` 只描述触发来源，不能替代提交。CI 的 `pull_request` 构建把临时 merge commit 记为 `sourceCommit`，同时用 `sourceRef: refs/pull/N/merge` 标明其可复现范围；该类产物不能当作已合并的稳定发布输入，实际发布须从最终 tag 提交重新构建。已发布 rc.15 的 `schemaVersion: 1` 使用 `release`、`source`（含 `commit` / `tree`）、`versions`（npm / python / protocol）、`build`、`assets[]`（`name` / `size` / `sha256`）、`license`、`verification`，两者结构不同，解析时必须按 schemaVersion 分流。`SHA256SUMS.txt` 覆盖 wheel、sdist 与最终 `build-info.json` 的摘要，不包含自身；生成后应执行 `sha256sum -c SHA256SUMS.txt`（macOS 可用 `shasum -a 256 -c SHA256SUMS.txt`）复核。工作流产物用于审阅与核对，不等于 GitHub Release 资产；实际发布仍须从 tag 提交重新构建、复核哈希后上传。
 
 按本次变更补充适用的真实 Electron 离线验收；使用临时 HOME、userData、工作区与内核目录，隔离凭据和真实会话。`none` 仅表示不调用模型，部分命令仍可调用招聘 CLI，不能把它当成平台网络隔离；验收应独立阻断并核对模型、真实回合、招聘工具与平台网络尝试。
 

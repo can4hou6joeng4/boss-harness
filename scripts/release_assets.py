@@ -14,7 +14,9 @@ import json
 import os
 import platform
 import re
+import shutil
 import stat
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -261,11 +263,38 @@ def stage_outputs(out_dir: Path, contents: dict[str, str]) -> None:
         raise
 
 
+def parse_source_ref(value: str | None) -> str | None:
+    if value is None:
+        return None
+    if not value.strip() or len(value) > 255 or CONTROL_PATTERN.search(value) or "\\" in value:
+        fail("--source-ref 必须是长度不超过 255 且无控制字符的有效 ref")
+    return value
+
+
+def resolve_source_commit(value: str) -> str:
+    if not COMMIT_PATTERN.fullmatch(value):
+        fail("--commit 必须是 40 位十六进制提交")
+    commit = value.lower()
+    if shutil.which("git") is None:
+        return commit
+    try:
+        resolved = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{commit}^{{commit}}"],
+            capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        return commit
+    if resolved.returncode != 0:
+        fail("--commit 必须存在于当前 Git 仓库")
+    return resolved.stdout.strip().lower()
+
+
 def verify_manifest(build_info: dict[str, object], records: list[dict[str, object]]) -> None:
     """独立核对清单结构，避免只验证刚构造的字面量。"""
-    if set(build_info) != {
-            "schemaVersion", "name", "version", "sourceCommit", "builtAt",
-            "pythonVersion", "artifacts"}:
+    required = {"schemaVersion", "name", "version", "sourceCommit", "builtAt",
+                "pythonVersion", "artifacts"}
+    optional = {"sourceRef"}
+    if not required <= set(build_info) or set(build_info) - required - optional:
         fail("构建清单顶层字段不完整")
     if type(build_info["schemaVersion"]) is not int or build_info["schemaVersion"] != MANIFEST_SCHEMA_VERSION:
         fail("构建清单 schemaVersion 不符合当前版本")
@@ -275,6 +304,11 @@ def verify_manifest(build_info: dict[str, object], records: list[dict[str, objec
             fail(f"构建清单字段 {key} 必须是非空字符串")
     if not COMMIT_PATTERN.fullmatch(str(build_info["sourceCommit"])):
         fail("构建清单 sourceCommit 必须是 40 位十六进制提交")
+    if "sourceRef" in build_info:
+        ref = build_info["sourceRef"]
+        if (not isinstance(ref, str) or not ref.strip() or len(ref) > 255
+                or CONTROL_PATTERN.search(ref) or "\\" in ref):
+            fail("构建清单 sourceRef 无效")
     if not BUILT_AT_PATTERN.fullmatch(str(build_info["builtAt"])):
         fail("构建清单 builtAt 必须是 UTC 时间")
     if not isinstance(build_info["artifacts"], list) or not records:
@@ -297,6 +331,7 @@ def main() -> int:
     parser.add_argument("--version", required=True, help="Python 包版本，如 0.2.0rcN")
     parser.add_argument("--commit", required=True, help="40 位十六进制源码提交")
     parser.add_argument("--out-dir", required=True, help="已存在且用于写入清单的目录")
+    parser.add_argument("--source-ref", help="实际构建来源 ref，如 refs/pull/N/merge")
     parser.add_argument("--built-at", help="固定构建时间（UTC），用于复核")
     parser.add_argument("artifacts", nargs="+", help="参与清单的 wheel / sdist 等普通文件")
     args = parser.parse_args()
@@ -324,7 +359,8 @@ def main() -> int:
         fail(f"harness/pyproject.toml 的 project.name 无效：{project_name!r}（{exc}）")
     if not COMMIT_PATTERN.fullmatch(args.commit):
         fail("--commit 必须是 40 位十六进制提交")
-    commit = args.commit.lower()
+    commit = resolve_source_commit(args.commit)
+    source_ref = parse_source_ref(args.source_ref)
     built_at = parse_built_at(args.built_at)
 
     out_dir = Path(args.out_dir)
@@ -353,6 +389,8 @@ def main() -> int:
         "pythonVersion": platform.python_version(),
         "artifacts": records,
     }
+    if source_ref is not None:
+        build_info["sourceRef"] = source_ref
     verify_manifest(build_info, records)
     build_info_bytes = (json.dumps(build_info, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     sums = "".join(f"{record['sha256']}  {record['name']}\n" for record in records)
