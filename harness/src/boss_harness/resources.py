@@ -78,8 +78,16 @@ class SkillCatalog:
 
     def __init__(self, root: Path) -> None:
         # 读取按解析后的真实目录；新建保留原始路径，便于拒绝符号链接目录。
-        self.root = _resolved_or_absolute(root)
-        self.create_root = Path(os.path.abspath(root))
+        absolute = Path(os.path.abspath(root))
+        # 根目录本身是符号链接时，解析后的真实目录可能在工作区外：子目录与 SKILL.md
+        # 都按「不跟随符号链接」读取，但根这一跳会把整个目录带到界外。记录后由
+        # `_candidate_paths()` 拒绝，按「不可读的技能目录」上报。
+        try:
+            self._root_is_symlink = os.path.islink(absolute)
+        except OSError:
+            self._root_is_symlink = False
+        self.root = absolute if self._root_is_symlink else _resolved_or_absolute(absolute)
+        self.create_root = absolute
 
     @classmethod
     def _read_bounded(cls, path: Path) -> tuple[str, int, str] | None:
@@ -117,6 +125,8 @@ class SkillCatalog:
         """
         # 缺失的根目录是首次使用，按「没有技能」处理；存在但读不了则必须如实报错，
         # 否则界面会把权限问题或同名文件当成空工作区。
+        if self._root_is_symlink:
+            raise ValueError("技能目录不能是符号链接；请改为工作区内的普通目录")
         try:
             observed = os.stat(self.root)
         except FileNotFoundError:
