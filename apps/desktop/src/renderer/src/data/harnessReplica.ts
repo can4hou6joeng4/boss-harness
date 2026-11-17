@@ -9,6 +9,26 @@ interface Api { request<T>(method: string, params?: unknown): Promise<T> }
 const MAX_PAGE_COUNT = 10_000;
 const MAX_CURSOR_LENGTH = 2048;
 const ITEM_ID_LIMIT = 200;
+const STALE_CONTENT_RECHECK_NOTICE = "会话内容版本已变化，请重新打开会话并核对当前引用后查看";
+
+type HarnessRpcError = Error & { code?: unknown; data?: unknown; rpcError?: boolean };
+
+function staleContentError(error: unknown): string | null {
+  const rpc = error as HarnessRpcError;
+  if (!rpc || rpc.rpcError !== true || rpc.code !== -32011) return null;
+  const data = rpc.data;
+  if (!data || typeof data !== "object") return null;
+  const record = data as Record<string, unknown>;
+  if (record.code !== "STALE_CONTENT") return null;
+  const ref = record.currentRef;
+  if (!ref || typeof ref !== "object") return null;
+  try {
+    validateContentReference(ref as ItemContentReference);
+  } catch {
+    return null;
+  }
+  return STALE_CONTENT_RECHECK_NOTICE;
+}
 
 /** 分页条目必须带可用于定位与合并的标识；原始值、数组与空 id 都不能进入快照。 */
 function threadItemId(value: unknown): string | null {
@@ -308,7 +328,8 @@ export class HarnessReplica {
 
   private reportFailure(threadId: string, error: unknown): void {
     // 非保留错误码的方法会由主进程抛出，Electron 在渲染层拼接 IPC 包装；提示只保留真实原因。
-    const detail = error instanceof Error ? safeSlice(stripIpcErrorWrapper(error.message), 300) : "响应无效";
+    const stale = staleContentError(error);
+    const detail = stale ?? (error instanceof Error ? safeSlice(stripIpcErrorWrapper(error.message), 300) : "响应无效");
     const message = `读取会话内容失败：${detail}。已保留当前内容，请重新打开会话重试。`;
     if (threadId) this.failures.set(threadId, message);
     this.onEvent({ method: "session/error", params: { threadId, message } });
