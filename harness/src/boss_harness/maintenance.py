@@ -71,6 +71,7 @@ def repair_index(root: Path) -> dict:
         return summary
     except Exception:
         # Keep the failed candidate as well as the original database set.
+        moved_failed = False
         if rebuilding:
             failed = backup / "failed-candidate"
             ensure_private_directory(failed)
@@ -82,8 +83,16 @@ def repair_index(root: Path) -> dict:
                     continue
                 restrict_private_file(source)
                 os.replace(source, failed / name)
+                moved_failed = True
         for name in moved:
             os.replace(backup / name, root / name)
+        # 回滚也改变了目录项：先同步新候选目录与备份目录，最后同步状态根目录。
+        # 与成功路径相同的顺序保证崩溃时最多留下重复副本，不会让根目录先看见
+        # 已删除的库文件；同步失败继续沿用原异常路径上报。
+        if moved_failed:
+            _fsync_directory(failed)
+        _fsync_directory(backup)
+        _fsync_directory(root)
         raise
     finally:
         owner.close()
