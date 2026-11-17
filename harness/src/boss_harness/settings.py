@@ -52,6 +52,19 @@ def _read_object(path: Path) -> dict | None:
     return value if isinstance(value, dict) and _within_depth(value) else None
 
 
+def _fsync_directory(path: Path) -> None:
+    """目录项落盘：``os.replace`` 只保证新名称对运行中的进程可见，掉电后仍可能回退。
+
+    会话追加、附件发布与索引修复备份都把目录 ``fsync`` 当作持久边界；设置保存
+    同样需要，否则 ``config/autoCompaction/set`` 返回成功后崩溃会让旧配置复活。
+    """
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 def load_auto_compaction(state_dir: Path) -> dict | None:
     """Valid persisted auto-compaction fields; invalid values are treated as absent."""
     stored = _read_object(state_dir / CONFIG_FILE)
@@ -91,6 +104,7 @@ def save_auto_compaction(state_dir: Path, fields: dict) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
+        _fsync_directory(state_dir)
     except BaseException:
         try:
             os.unlink(temporary)
