@@ -105,6 +105,13 @@ def assistant_from_tool_batch(items: list[dict], pending: list[dict]) -> Assista
     linked_assistant = None
     if linked_assistant_id is not None:
         linked_assistant = next((item for item in items if item.get("id") == linked_assistant_id), None)
+        if linked_assistant is not None and linked_assistant.get("kind") != "agentMessage":
+            linked_assistant = None
+        if linked_assistant is None:
+            # 引用缺失或被重复编号遮蔽：助手正文与签名都无法恢复，但工具调用与
+            # 结果仍能组成普通批次。损坏引用不能让该分支每个回合都失败；真正的
+            # 字段错配（回合、批次或状态不符）仍在下方如实报错。
+            return _plain_batch(None, tool_calls)
         failed_batch_is_settled = all(
             isinstance(item.get("status"), str) and item.get("status") in {"completed", "failed"}
             and isinstance(item.get("executionState"), str)
@@ -113,8 +120,7 @@ def assistant_from_tool_batch(items: list[dict], pending: list[dict]) -> Assista
             }
             for item in pending
         )
-        if (linked_assistant is None or linked_assistant.get("kind") != "agentMessage"
-                or linked_assistant.get("turnId") != pending[0].get("turnId")
+        if (linked_assistant.get("turnId") != pending[0].get("turnId")
                 or linked_assistant.get("toolBatchId") != pending[0].get("toolBatchId")
                 or (linked_assistant.get("status") != "completed"
                     and not (linked_assistant.get("status") == "failed" and failed_batch_is_settled))):
