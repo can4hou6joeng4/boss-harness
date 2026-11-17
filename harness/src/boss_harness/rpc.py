@@ -183,9 +183,10 @@ class JsonRpcServer:
         data = {"code": "RESPONSE_TOO_LARGE"}
         try:
             self.respond_error(request_id, -32010, message, data)
-        except FrameTooLargeError:
-            # An unusually long client ID can itself fill a frame. No bytes have
-            # been sent, so the bounded protocol error must omit that invalid ID.
+        except (FrameTooLargeError, UnicodeEncodeError):
+            # An unusually long client ID can itself fill a frame; a string ID may
+            # also carry a lone surrogate. No bytes have been sent, so the bounded
+            # protocol error must omit that invalid ID.
             self.respond_error(None, -32010, message, data)
 
     def _respond_invalid(self, request_id: Any) -> None:
@@ -280,10 +281,10 @@ class JsonRpcServer:
             if has_id:
                 try:
                     self.respond_error(request_id, -32602, "params 必须是对象")
-                except FrameTooLargeError:
-                    # 请求 id 本身接近帧上限，错误帧不能再带它；回退无 id 的协议
-                    # 错误。_dispatch 位于 serve_forever 的捕获范围之外，异常逃逸
-                    # 会让内核因一帧坏请求直接退出。
+                except (FrameTooLargeError, UnicodeEncodeError):
+                    # 请求 id 本身接近帧上限、或文本 id 带孤立代理项时，错误帧不能再带它；
+                    # 回退无 id 的协议错误。_dispatch 位于 serve_forever 的捕获范围之外，
+                    # 异常逃逸会让内核因一帧坏请求直接退出。
                     self.respond_error(None, -32602, "params 必须是对象")
             return
         handler = self._methods.get(method)
@@ -295,13 +296,23 @@ class JsonRpcServer:
             result = handler(message.get("params"))
         except Exception as exc:
             safe_message = redact_secrets(str(exc))
-            print(f"[harness] {method}: {safe_message}", file=sys.stderr)
+            try:
+                # 诊断行与响应帧共用同一文本：异常消息可能带孤立代理项，终端编码
+                # 失败也只能丢掉这一行诊断，不能让异常从 _dispatch 逃逸退出内核。
+                print(f"[harness] {method}: {safe_message}", file=sys.stderr)
+            except (UnicodeEncodeError, OSError, ValueError):
+                pass
             if has_id:
                 code = exc.code if isinstance(exc, RpcError) else (-32602 if isinstance(exc, ValueError) else -32603)
                 try:
                     self.respond_error(request_id, code, safe_message, exc.data if isinstance(exc, RpcError) else None)
                 except FrameTooLargeError:
                     self._respond_too_large(request_id)
+                except (RecursionError, TypeError, UnicodeEncodeError, ValueError):
+                    # 错误帧与其 data 同样来自处理函数：NaN/Infinity、不可序列化对象
+                    # 或孤立代理项会让编码失败。与成功分支一致，降级为有界的
+                    # RESPONSE_INVALID，绝不让内核因构造错误帧而退出。
+                    self._respond_invalid(request_id)
             return
         if has_id:
             try:
