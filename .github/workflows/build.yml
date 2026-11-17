@@ -43,6 +43,9 @@ jobs:
             --commit "$GITHUB_SHA" \
             --out-dir dist/python \
             dist/python/*.whl dist/python/*.tar.gz
+      - name: Verify release asset manifest
+        working-directory: dist/python
+        run: sha256sum -c SHA256SUMS.txt
       - name: Verify distributions install and start
         shell: bash
         run: |

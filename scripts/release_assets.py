@@ -25,10 +25,16 @@ from email.parser import Parser
 from pathlib import Path
 
 try:
-    from packaging.utils import canonicalize_name
+    from packaging.utils import (
+        canonicalize_name,
+        parse_sdist_filename,
+        parse_wheel_filename,
+    )
     from packaging.version import InvalidVersion, Version
 except ImportError:  # pragma: no cover - packaging 来自构建环境
     canonicalize_name = None  # type: ignore[assignment]
+    parse_sdist_filename = None  # type: ignore[assignment]
+    parse_wheel_filename = None  # type: ignore[assignment]
     InvalidVersion = None  # type: ignore[assignment]
     Version = None  # type: ignore[assignment]
 
@@ -86,49 +92,80 @@ def _verify_identity(actual_name: str, actual_version: str, name: str,
         fail(f"{name} 的版本元数据无效：{actual_version!r}")
 
 
-def _project_version_from_pyproject(data: bytes, name: str) -> str:
+def _project_identity_from_pyproject(data: bytes, name: str) -> tuple[str, str]:
     try:
         project = tomllib.loads(data.decode("utf-8")).get("project")
         if not isinstance(project, dict):
             fail(f"{name} 的 pyproject.toml 缺少 project 表")
+        project_name = project.get("name")
         version = project.get("version")
+        if not isinstance(project_name, str) or not project_name.strip():
+            fail(f"{name} 的 pyproject.toml 缺少 project.name")
         if not isinstance(version, str) or not version.strip():
             fail(f"{name} 的 pyproject.toml 缺少 project.version")
-        return version.strip()
+        return project_name.strip(), version.strip()
     except (UnicodeError, tomllib.TOMLDecodeError) as exc:
         fail(f"无法解析 {name} 的 pyproject.toml：{exc}")
+
+
+def _verify_filename(name: str, expected_name: str, expected_version: Version) -> None:
+    """文件名也是发布身份的一部分，不能只信内部元数据。"""
+    try:
+        if name.endswith(".whl"):
+            parsed_name, parsed_version, _, _ = parse_wheel_filename(name)
+        elif name.endswith(".tar.gz"):
+            parsed_name, parsed_version = parse_sdist_filename(name)
+        else:
+            return
+    except (ValueError, TypeError) as exc:
+        fail(f"{name} 的文件名无法解析：{exc}")
+    if canonicalize_name(parsed_name) != expected_name or parsed_version != expected_version:
+        fail(f"{name} 的文件名身份与 {expected_name} {expected_version} 不一致")
 
 
 def verify_artifact_identity(handle, name: str, expected_name: str,
                              expected_version: Version) -> None:
     """核对与 SHA-256 同一文件描述符中的包名和版本元数据。"""
+    _verify_filename(name, expected_name, expected_version)
     try:
         if name.endswith(".whl"):
             with zipfile.ZipFile(handle) as archive:
                 candidates = [n for n in archive.namelist() if n.endswith(".dist-info/METADATA")]
                 if len(candidates) != 1:
                     fail(f"{name} 未包含唯一的 METADATA")
+                dist_info = candidates[0].split("/", 1)[0]
                 actual_name, actual_version = _metadata_identity(archive.read(candidates[0]), name)
+                expected_dist_info = (
+                    f"{expected_name.replace('-', '_')}-{Version(actual_version)}.dist-info"
+                )
+                if dist_info.casefold() != expected_dist_info.casefold():
+                    fail(f"{name} 的 dist-info 目录 {dist_info} 与元数据不一致")
         elif name.endswith(".tar.gz"):
             with tarfile.open(fileobj=handle, mode="r:gz") as archive:
-                candidates = [m for m in archive.getmembers()
-                              if m.isfile() and m.name.endswith("/PKG-INFO")]
+                members = archive.getmembers()
+                roots = {m.name.split("/", 1)[0] for m in members if "/" in m.name}
+                if len(roots) != 1:
+                    fail(f"{name} 必须包含唯一的 sdist 根目录")
+                root = roots.pop()
+                if root != name[:-len(".tar.gz")]:
+                    fail(f"{name} 的 sdist 根目录 {root} 与文件名不一致")
+                candidates = [m for m in members if m.isfile() and m.name == f"{root}/PKG-INFO"]
                 if len(candidates) != 1:
-                    fail(f"{name} 未包含唯一的 PKG-INFO")
+                    fail(f"{name} 未包含根目录 PKG-INFO")
                 pkg_info = archive.extractfile(candidates[0])
                 if pkg_info is None:
                     fail(f"{name} 无法读取 PKG-INFO")
                 with pkg_info:
                     actual_name, actual_version = _metadata_identity(pkg_info.read(), name)
-                pyprojects = [m for m in archive.getmembers()
-                              if m.isfile() and m.name.split("/")[-1] == "pyproject.toml"]
+                pyprojects = [m for m in members if m.isfile() and m.name == f"{root}/pyproject.toml"]
                 if len(pyprojects) != 1:
-                    fail(f"{name} 未包含唯一的 pyproject.toml")
+                    fail(f"{name} 未包含根目录 pyproject.toml")
                 pyproject = archive.extractfile(pyprojects[0])
                 if pyproject is None:
                     fail(f"{name} 无法读取 pyproject.toml")
                 with pyproject:
-                    project_version = _project_version_from_pyproject(pyproject.read(), name)
+                    project_name, project_version = _project_identity_from_pyproject(
+                        pyproject.read(), name)
         else:
             return
     except (OSError, UnicodeError, zipfile.BadZipFile, tarfile.TarError) as exc:
@@ -136,6 +173,8 @@ def verify_artifact_identity(handle, name: str, expected_name: str,
     _verify_identity(actual_name, actual_version, name, expected_name, expected_version)
     if name.endswith(".tar.gz"):
         try:
+            if canonicalize_name(project_name) != expected_name:
+                fail(f"{name} 的 pyproject.toml 包名 {project_name} 与 {expected_name} 不一致")
             if Version(project_version) != expected_version:
                 fail(f"{name} 的 pyproject.toml 版本 {project_version} 与 --version {expected_version} 不一致")
         except InvalidVersion:
@@ -147,7 +186,7 @@ def artifact_record(path: Path, out_dir: Path, package_name: str,
     name = path.name
     if not name:
         fail("资产路径缺少文件名")
-    if name in RESERVED_NAMES:
+    if name.casefold() in {reserved.casefold() for reserved in RESERVED_NAMES}:
         fail(f"资产文件名与输出文件冲突：{name}")
     if CONTROL_PATTERN.search(name):
         fail(f"资产文件名包含控制字符：{name!r}")
@@ -224,6 +263,35 @@ def stage_outputs(out_dir: Path, contents: dict[str, str]) -> None:
         raise
 
 
+def verify_manifest(build_info: dict[str, object], records: list[dict[str, object]]) -> None:
+    """独立核对清单结构，避免只验证刚构造的字面量。"""
+    if set(build_info) != {
+            "schemaVersion", "name", "version", "sourceCommit", "builtAt",
+            "pythonVersion", "artifacts"}:
+        fail("构建清单顶层字段不完整")
+    if type(build_info["schemaVersion"]) is not int or build_info["schemaVersion"] != MANIFEST_SCHEMA_VERSION:
+        fail("构建清单 schemaVersion 不符合当前版本")
+    for key in ("name", "version", "sourceCommit", "builtAt", "pythonVersion"):
+        value = build_info[key]
+        if not isinstance(value, str) or not value.strip():
+            fail(f"构建清单字段 {key} 必须是非空字符串")
+    if not COMMIT_PATTERN.fullmatch(str(build_info["sourceCommit"])):
+        fail("构建清单 sourceCommit 必须是 40 位十六进制提交")
+    if not BUILT_AT_PATTERN.fullmatch(str(build_info["builtAt"])):
+        fail("构建清单 builtAt 必须是 UTC 时间")
+    if not isinstance(build_info["artifacts"], list) or not records:
+        fail("构建清单必须包含至少一个资产")
+    for record in records:
+        if set(record) != {"name", "bytes", "sha256"}:
+            fail("构建清单资产字段不完整")
+        if not isinstance(record["name"], str) or not record["name"].strip():
+            fail("构建清单资产 name 必须是非空字符串")
+        if type(record["bytes"]) is not int or record["bytes"] < 0:
+            fail("构建清单资产 bytes 必须是非负整数")
+        if not isinstance(record["sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", record["sha256"]):
+            fail("构建清单资产 sha256 必须是 64 位小写十六进制")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="生成内核发布资产清单 build-info.json 与 SHA256SUMS.txt"
@@ -235,18 +303,25 @@ def main() -> int:
     parser.add_argument("artifacts", nargs="+", help="参与清单的 wheel / sdist 等普通文件")
     args = parser.parse_args()
 
-    if Version is None or InvalidVersion is None or canonicalize_name is None:
+    if (Version is None or InvalidVersion is None or canonicalize_name is None
+            or parse_sdist_filename is None or parse_wheel_filename is None):
         fail("缺少 packaging 依赖；请在构建环境中安装 packaging")
     try:
         version = Version(args.version)
     except InvalidVersion:
         fail("--version 不是有效版本，如 0.2.0rcN")
-    patch = tomllib.loads(Path("harness/pyproject.toml").read_text(encoding="utf-8")).get("project")
-    project_name = patch.get("name") if isinstance(patch, dict) else None
-    if not isinstance(project_name, str) or not project_name.strip():
-        fail("harness/pyproject.toml 缺少 project.name")
     try:
-        package_name = canonicalize_name(project_name.strip(), validate=True)
+        project_name, project_version = _project_identity_from_pyproject(
+            Path("harness/pyproject.toml").read_bytes(), "harness/pyproject.toml")
+    except OSError as exc:
+        fail(f"无法读取 harness/pyproject.toml：{exc.strerror or exc}")
+    try:
+        if Version(project_version) != version:
+            fail(f"harness/pyproject.toml 的版本 {project_version} 与 --version {version} 不一致")
+    except InvalidVersion:
+        fail(f"harness/pyproject.toml 的版本无效：{project_version!r}")
+    try:
+        package_name = canonicalize_name(project_name, validate=True)
     except Exception as exc:
         fail(f"harness/pyproject.toml 的 project.name 无效：{project_name!r}（{exc}）")
     if not COMMIT_PATTERN.fullmatch(args.commit):
@@ -266,25 +341,21 @@ def main() -> int:
                for value in args.artifacts]
     records.sort(key=lambda record: str(record["name"]))
     names = [str(record["name"]) for record in records]
-    duplicates = sorted({name for name in names if names.count(name) > 1})
+    folded = [name.casefold() for name in names]
+    duplicates = sorted({names[index] for index, key in enumerate(folded) if folded.count(key) > 1})
     if duplicates:
         fail(f"资产文件名重复：{', '.join(duplicates)}")
 
     build_info = {
         "schemaVersion": MANIFEST_SCHEMA_VERSION,
-        "name": project_name.strip(),
+        "name": project_name,
         "version": str(version),
         "sourceCommit": commit,
         "builtAt": built_at,
         "pythonVersion": platform.python_version(),
         "artifacts": records,
     }
-    if (build_info["schemaVersion"] != MANIFEST_SCHEMA_VERSION
-            or any(not isinstance(record.get("name"), str)
-                   or not isinstance(record.get("bytes"), int)
-                   or not isinstance(record.get("sha256"), str)
-                   for record in records)):
-        fail("构建清单契约校验失败")
+    verify_manifest(build_info, records)
     build_info_bytes = (json.dumps(build_info, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     sums = "".join(f"{record['sha256']}  {record['name']}\n" for record in records)
     sums += f"{hashlib.sha256(build_info_bytes).hexdigest()}  {BUILD_INFO_NAME}\n"
