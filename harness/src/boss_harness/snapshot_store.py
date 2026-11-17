@@ -510,11 +510,9 @@ class SnapshotStore:
 
     def metadata(self, snapshot_id: str, thread_id: str) -> tuple[Path, int]:
         with self._lock:
-            self._prune_locked(time.monotonic())
-            value = self._snapshots.get(snapshot_id)
-            if value is None or value[0] != thread_id:
-                raise ValueError("会话快照已过期；请重新 resume")
-            return value[1], value[3]
+            # 与 page/item/edit_state/queue 共用校验：分支叶变动后的快照必须报同一
+            # 可读错误，不能只有元数据仍把它当作当前快照。
+            return self._metadata_locked(snapshot_id, thread_id)
 
     def page(self, snapshot_id: str, thread_id: str, offset: int, limit: int,
              max_payload_bytes: int = 2 * 1024 * 1024, *,
