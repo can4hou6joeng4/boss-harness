@@ -1,4 +1,5 @@
 import { ClientMethods, type ToolResultReadResponse, type ToolResultReference } from "@boss-harness/protocol";
+import { throwIfHarnessRpcError } from "./harnessRpcErrors";
 
 export type Requester = <T>(method: string, params: unknown) => Promise<T>;
 const CHUNK_LIMIT = 16384;
@@ -41,9 +42,9 @@ export async function readToolResultChunk(
 ): Promise<ToolResultReadResponse> {
   let response: ToolResultReadResponse;
   try {
-    response = await requester<ToolResultReadResponse>(ClientMethods.threadItemResultRead, {
+    response = throwIfHarnessRpcError(await requester<ToolResultReadResponse>(ClientMethods.threadItemResultRead, {
       threadId: ref.threadId, itemId: ref.itemId, sha256: ref.sha256, cursor, limit: CHUNK_LIMIT,
-    });
+    }));
   } catch (error) {
     throw staleResultError(error) ?? error;
   }

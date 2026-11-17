@@ -70,6 +70,7 @@ import {
   type StartupDiagnosis,
 } from "@boss-harness/protocol";
 import { formatRelativeTime, safeSlice, stripIpcErrorWrapper } from "@boss-harness/shared";
+import { throwIfHarnessRpcError } from "./harnessRpcErrors";
 import { isQueueItem, queuePageOf, threadQueueCountsOf, type QueuePage } from "./queueMapping";
 import { TURN_SKILL_PAGE_LIMIT, turnSkillPageOf } from "./turnSkills";
 import { approvalDeadlineMs, mapPendingApprovals, type PendingApprovalList } from "./pendingApprovals";
@@ -182,20 +183,7 @@ export function harnessErrorText(error: unknown): string {
 function contextRequest<T>(method: string, params: unknown): Promise<T> {
   const api = bridge();
   if (!api) return Promise.reject(new Error("本地 Harness 未连接"));
-  return api.request<unknown>(method, params).then(response => {
-    if (response && typeof response === "object" && "__harnessRpcError" in response) {
-      const rpc = (response as { __harnessRpcError?: { code?: unknown; message?: unknown; data?: unknown } }).__harnessRpcError;
-      if (rpc && typeof rpc.code === "number" && typeof rpc.message === "string") {
-        const error = new Error(rpc.message) as Error & { code: number; data: unknown; rpcError: true };
-        error.name = "HarnessRpcError";
-        error.code = rpc.code;
-        error.data = rpc.data;
-        error.rpcError = true;
-        throw error;
-      }
-    }
-    return response as T;
-  });
+  return api.request<unknown>(method, params).then(response => throwIfHarnessRpcError(response) as T);
 }
 
 export const readContext = (threadId: string): Promise<ContextReadResponse> => contextRequest(ClientMethods.contextRead, { threadId });

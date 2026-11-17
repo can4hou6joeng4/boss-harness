@@ -1,5 +1,6 @@
 import type { EventListResponse, ItemContentReference, ItemContentReadResponse, ItemListResponse, ThreadItem, ThreadReadResponse } from "@boss-harness/protocol";
 import { safeSlice, stripIpcErrorWrapper } from "@boss-harness/shared";
+import { throwIfHarnessRpcError } from "./harnessRpcErrors";
 import type { HarnessEvent } from "./harnessEvents";
 import { trackCursor } from "./cursorChain";
 import { assertSnapshotRouteFields, threadSnapshotOf } from "./snapshotShape";
@@ -343,10 +344,10 @@ export class HarnessReplica {
     let byteLength = 0;
     let text = "";
     while (true) {
-      const response = await this.api.request<ItemContentReadResponse>("thread/item/content/read", {
+      const response = throwIfHarnessRpcError(await this.api.request<ItemContentReadResponse>("thread/item/content/read", {
         threadId: reference.threadId, itemId: reference.itemId, part: reference.part,
         sha256: reference.sha256, snapshotId: reference.snapshotId, cursor, limit: 16384,
-      });
+      }));
       current();
       const actual = response.contentRef;
       if (!actual || (["threadId", "itemId", "part", "encoding", "sha256", "byteLength", "characterLength", "snapshotId"] as const)
