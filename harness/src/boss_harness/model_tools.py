@@ -74,9 +74,12 @@ def read_model_tool_result(sessions: SessionStore, thread_id: str, arguments: di
                           error={"code": exc.code, "message": str(exc)})
     except RpcError as exc:
         code = exc.data.get("code") if isinstance(exc.data, dict) else None
-        return ToolResult(ok=False, command=MODEL_RESULT_READ_TOOL,
-                          error={"code": code if isinstance(code, str) else "RESULT_READ_FAILED",
-                                 "message": str(exc)})
+        error = {"code": code if isinstance(code, str) else "RESULT_READ_FAILED",
+                 "message": str(exc)}
+        current_ref = exc.data.get("currentRef") if isinstance(exc.data, dict) else None
+        if isinstance(current_ref, dict):
+            error["currentRef"] = current_ref
+        return ToolResult(ok=False, command=MODEL_RESULT_READ_TOOL, error=error)
     except ValueError as exc:
         return ToolResult(ok=False, command=MODEL_RESULT_READ_TOOL,
                           error={"code": "INVALID_RESULT_REFERENCE", "message": str(exc)})

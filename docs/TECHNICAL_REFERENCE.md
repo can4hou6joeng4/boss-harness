@@ -136,9 +136,9 @@ token 数默认采用 `characters/2+message-overhead` 分类估算，不是供�
 
 模型可见工具结果按工具定义的 `max_model_result_bytes` 限制，默认 20 KiB，允许范围为 8 KiB 至 1 MiB。较大结果在模型上下文中显示明确的省略标记、摘要和结果 SHA-256；完整结构化结果继续保存在会话记录中。Harness 提供只读内核工具 `read_session_tool_result`，模型可按 item ID、摘要和游标每次读取至多 8,192 个 Unicode 字符；读取只访问当前会话已保存的数据，不重新调用招聘工具。桌面/RPC 展示使用独立结果引用，超过 64 KiB 时不内联传输；两条读取路径预算不同是职责差异，不是同一上限的两种写法：模型侧只提供受控分段，避免把完整大结果回灌模型上下文；桌面/RPC 侧供人审阅完整结果。
 
-RPC 客户端可通过 `thread/item/result/read`，传入 `threadId`、`itemId`、引用中的 `sha256` 及可选 `cursor`、`limit` 读取标准 JSON 文本；默认 16,384、最多 32,768 个 Unicode 码点。引用包含该文本的 UTF-8 SHA-256、字节数和码点数，服务端游标绑定会话、条目及版本。结果发生修订时返回 `STALE_RESULT`，客户端须重新获取并确认引用，不能混用不同版本。
+RPC 客户端可通过 `thread/item/result/read`，传入 `threadId`、`itemId`、引用中的 `sha256` 及可选 `cursor`、`limit` 读取标准 JSON 文本；默认 16,384、最多 32,768 个 Unicode 码点。引用包含该文本的 UTF-8 SHA-256、字节数和码点数，服务端游标绑定会话、条目及版本。结果发生修订时返回 `STALE_RESULT`，错误数据的 `currentRef` 给出当前版本的同形引用；客户端须重新获取并确认引用，不能混用不同版本。
 
-超过 64 KiB 的 Agent 文本与思考字段在条目读取和持久完成事件中改为 `textRef` / `thinkingRef`，原文仍保留在会话。`thread/item/content/read` 按 `part`（`text` 或 `thinking`）、会话、条目及 SHA-256 读取，默认 16,384、最多 32,768 个 Unicode 码点；游标绑定字段与内容版本，变更返回 `STALE_CONTENT`。冻结快照的引用还绑定 `snapshotId`，在快照有效期内始终读取该版本。桌面恢复时逐段校验长度与摘要，再展示快照；冻结快照还会核对声明的 `itemCount`，分页结束后实际条目数必须一致，且每个条目必须带非空、唯一的字符串 `id`，少读、多读、缺标识或重复都整体失败，不展示部分快照。每个历史字段自动恢复上限为 16 MiB，超过时明确报错，原文仍可由该接口分段读取。恢复失败不重放招聘动作。新方法保持协议版本 `0.2.0`；自定义客户端需支持内容引用，才能完整恢复大字段。
+超过 64 KiB 的 Agent 文本与思考字段在条目读取和持久完成事件中改为 `textRef` / `thinkingRef`，原文仍保留在会话。`thread/item/content/read` 按 `part`（`text` 或 `thinking`）、会话、条目及 SHA-256 读取，默认 16,384、最多 32,768 个 Unicode 码点；游标绑定字段与内容版本，变更返回 `STALE_CONTENT`，错误数据的 `currentRef` 给出当前版本的同形引用。冻结快照的引用还绑定 `snapshotId`，在快照有效期内始终读取该版本。桌面恢复时逐段校验长度与摘要，再展示快照；冻结快照还会核对声明的 `itemCount`，分页结束后实际条目数必须一致，且每个条目必须带非空、唯一的字符串 `id`，少读、多读、缺标识或重复都整体失败，不展示部分快照。每个历史字段自动恢复上限为 16 MiB，超过时明确报错，原文仍可由该接口分段读取。恢复失败不重放招聘动作。新方法保持协议版本 `0.2.0`；自定义客户端需支持内容引用，才能完整恢复大字段。
 
 会话条目和事件回放还按约 1 MiB 响应预算分页，游标只推进到实际返回的数据。非分页读取或单条记录无法传输时会返回明确的 `RESPONSE_TOO_LARGE` 错误，连接继续可用；支持快照的客户端应通过 `thread/resume` 的冻结分页恢复。原始记录不被裁剪，读取不触发招聘工具。
 
@@ -154,7 +154,7 @@ RPC 客户端可通过 `thread/item/result/read`，传入 `threadId`、`itemId`�
 
 附件准入、对象发布及会话引用追加共用 SQLite 写事务，与会话删除的引用扫描和清理串行。发布前流式校验目标会话的完整日志；发现既有损坏时保留原日志和对象目录，不追加附件引用。写入失败后会在同一写锁下检查所有会话引用，再清理新发布且未引用的对象。对象目录中出现符号链接、非普通文件、非当前用户文件、额外硬链接或目标摘要与内容不符时，相关操作会 fail closed。容量拒绝通过 `attachment/add` 返回 JSON-RPC `-32005`，错误数据包含 `code=ATTACHMENT_STORAGE_LIMIT`、当前用量、限制和本次请求量；容量拒绝不会写入会话引用或部分附件。
 
-正文读取按与工具结果相同的口径收敛：省略 `cursor`、`limit` 与 `sha256` 时整份返回 `{"attachment": {..., "content": ...}}`，整份回执超过约 1 MiB 单页预算返回 `-32010 / RESPONSE_TOO_LARGE`，数据含 `recoveryMethod=attachment/read`、`attachmentId`、`totalCharacters` 与 `suggestedLimit`，不再靠 8 MiB 帧上限兜底。显式给出三者任一即走分段：`limit` 默认 16384、最多 32768 个 Unicode 码点，回执为 `text`、`offset`、`nextCursor` 与 `contentRef`（绑定 `threadId`、`attachmentId`、名称、摘要、字节数与码点数）；游标前缀 `at1_` 绑定会话、附件与摘要，续读时传 `sha256` 与附件不符会返回 `STALE_ATTACHMENT`。未知参数、非法游标与越界 `limit` 返回 `-32602`，附件不存在或不属于会话仍按原错误文本拒绝。读取不触发招聘工具，也不改写附件记录。握手能力 `capabilities.attachmentReadPaging` 为真表示内核支持这组分页参数；旧客户端省略新参数时行为与之前一致。
+正文读取按与工具结果相同的口径收敛：省略 `cursor`、`limit` 与 `sha256` 时整份返回 `{"attachment": {..., "content": ...}}`，整份回执超过约 1 MiB 单页预算返回 `-32010 / RESPONSE_TOO_LARGE`，数据含 `recoveryMethod=attachment/read`、`attachmentId`、`totalCharacters` 与 `suggestedLimit`，不再靠 8 MiB 帧上限兜底。显式给出三者任一即走分段：`limit` 默认 16384、最多 32768 个 Unicode 码点，回执为 `text`、`offset`、`nextCursor` 与 `contentRef`（绑定 `threadId`、`attachmentId`、名称、摘要、字节数与码点数）；游标前缀 `at1_` 绑定会话、附件与摘要，续读时传 `sha256` 与附件不符会返回 `STALE_ATTACHMENT`，错误数据的 `currentRef` 给出当前附件的同形引用。未知参数、非法游标与越界 `limit` 返回 `-32602`，附件不存在或不属于会话仍按原错误文本拒绝。读取不触发招聘工具，也不改写附件记录。握手能力 `capabilities.attachmentReadPaging` 为真表示内核支持这组分页参数；旧客户端省略新参数时行为与之前一致。
 
 ## 模块边界
 
