@@ -9,6 +9,26 @@
 
 当前没有未归入具名候选版本的变更。
 
+## 0.2.0-rc.62 - 2026-11-18
+
+本节汇总第六十二个候选版本的源码与交付内容。相对 rc.61，本候选仅补齐浏览器来源、工具结果读取与 CLI 信封校验的文档口径。rc.16 至 rc.62 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 浏览器来源环境变量的取值规范化规则写入使用指南与技术参考（#2073、#2074）。
+- 技术参考补充模型侧与桌面/RPC 侧工具结果读取预算不同的职责边界（#2075、#2076）。
+- 合并技术参考中重复的 `boss-agent-cli --json` 校验说明，避免后续单处修改造成契约冲突（#2077、#2078）。
+- 同步 npm / Python 版本到 `0.2.0-rc.62` / `0.2.0rc62`（#2079）。
+
+升级注意：不改变协议、工具权限、持久化格式或存储键；rc.61 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2073](https://github.com/can4hou6joeng4/boss-harness/issues/2073)：说明浏览器来源取值规范化。
+- [Issue #2075](https://github.com/can4hou6joeng4/boss-harness/issues/2075)：说明工具结果读取边界。
+- [Issue #2077](https://github.com/can4hou6joeng4/boss-harness/issues/2077)：合并重复的 CLI JSON 校验说明。
+- [Issue #2079](https://github.com/can4hou6joeng4/boss-harness/issues/2079)：准备 rc.62 源码候选并同步所有版本来源。
+
 ## 0.2.0-rc.61 - 2026-11-18
 
 本节汇总第六十一个候选版本的源码与交付内容。相对 rc.60，本候选修正仓库状态与用户文档口径，并加强发布资产的版本与目录归属校验。rc.16 至 rc.61 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
