@@ -3,7 +3,7 @@ import type { ContextCompactJob, ContextReadResponse } from "@boss-harness/proto
 import { compactionReferenceOf, contextJobOf, manualCompactionJob } from "./contextJob";
 import { contextPlanOf, type ContextPlan } from "./contextPlan";
 import { contextReadOf } from "./contextRead";
-import { disconnectPatch, missingJobPatch, settleReadFlight } from "./contextPanelState";
+import { disconnectPatch, missingJobPatch, settleReadFlight, unresolvedStartPatch } from "./contextPanelState";
 import { abortContextCompaction, harnessErrorText, planContextCompaction, readContext, readContextCompaction, startContextCompaction } from "./harnessBridge";
 
 interface StartAttempt {
@@ -125,6 +125,13 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
           const manual = manualCompactionJob(job);
           if (reference && compatible && manual) applyJob(id, manual, true);
           else if (knownJob?.jobId === jobId && manual) applyJob(id, manual);
+          else if (reference && attempt) {
+            // 终态引用不是本次开始产生的（旧 jobId 或来源不同）：applyJob 的
+            // compatible 判定不会命中，unknownStart 在这里无人清理，计划与开始
+            // 按钮会永久禁用。终态任务说明本次开始不可能仍在执行，降级为可读说明。
+            const patch = unresolvedStartPatch(job, attempt);
+            if (patch) update(id, state => ({ ...state, ...patch }));
+          }
           // result.compactionJob is a historical snapshot; only this independent read owns liveness.
           if ((revisions.current.get(id) ?? 0) !== lifecycleRevision) {
             refreshAgain.current.add(id);
