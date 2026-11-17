@@ -9,6 +9,22 @@
 
 当前没有未归入具名候选版本的变更。
 
+## 0.2.0-rc.63 - 2026-11-18
+
+本节汇总第六十三个候选版本的源码与交付内容。相对 rc.62，本候选仅明确包注册表的实际分发状态，不改变发布流程或产物。rc.16 至 rc.63 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- RELEASING 明确 npm / PyPI 当前未实际发布，仅作为需单独授权的可选渠道；GitHub Releases 是实际发布资产的权威入口（#2081、#2082）。
+- 同步 npm / Python 版本到 `0.2.0-rc.63` / `0.2.0rc63`（#2083）。
+
+升级注意：不改变协议、工具权限、持久化格式或存储键；rc.62 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2081](https://github.com/can4hou6joeng4/boss-harness/issues/2081)：明确注册表分发状态。
+- [Issue #2083](https://github.com/can4hou6joeng4/boss-harness/issues/2083)：准备 rc.63 源码候选并同步所有版本来源。
+
 ## 0.2.0-rc.62 - 2026-11-18
 
 本节汇总第六十二个候选版本的源码与交付内容。相对 rc.61，本候选仅补齐浏览器来源、工具结果读取与 CLI 信封校验的文档口径。rc.16 至 rc.62 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
