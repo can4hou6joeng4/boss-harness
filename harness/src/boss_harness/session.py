@@ -3531,6 +3531,11 @@ class SessionStore:
                 raise ValueError("事件索引已损坏") from None
             if not isinstance(params, dict):
                 raise ValueError("事件索引已损坏")
+            # 索引行必须与它自己的游标列一致。params_json 被改写、缺 key 或指向别的游标时，
+            # 按索引损坏处理走既有重建路径；否则 event/list 读取 params["eventCursor"]
+            # 会抛 KeyError（-32603），重建重试永远不可达。
+            if params.get("eventCursor") != str(row["cursor"]):
+                raise ValueError("事件索引已损坏")
             entries.append({"method": row["method"], "params": params})
         return entries
 
