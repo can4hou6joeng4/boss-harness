@@ -7,7 +7,7 @@ from boss_harness.models.types import ToolSpec
 from boss_harness.rpc import RpcError
 from boss_harness.session import ItemLookupError, SessionStore
 from boss_harness.tool_results import (
-    MODEL_RESULT_READ_CHARS, read_result_text_chunk, result_text,
+    MODEL_RESULT_READ_CHARS, canonical_result_text, read_result_text_chunk,
 )
 from boss_harness.tool_schema import canonical_schema, validated_arguments
 from boss_harness.toolkit import ToolResult
@@ -65,7 +65,7 @@ def read_model_tool_result(sessions: SessionStore, thread_id: str, arguments: di
                               error={"code": "INVALID_RESULT_REFERENCE", "message": "结果不存在或不属于当前会话"})
         if item.get("kind") != "toolCall" or not isinstance(item.get("result"), dict):
             raise ValueError("该条目没有可读取的完整工具结果")
-        text = result_text(item["result"])
+        text = canonical_result_text(item["result"])
         chunk = read_result_text_chunk(thread_id, item_id, text, sha256=arguments["sha256"],
                                        cursor=arguments.get("cursor"),
                                        limit=arguments.get("limit", MODEL_RESULT_READ_CHARS))
