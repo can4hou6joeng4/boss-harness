@@ -281,7 +281,13 @@ export class HarnessHostConnection {
       client.respondError(request.id, { code: -32602, message: "Invalid approval request" }); return;
     }
     const approvalId = params.approvalId;
-    let deadline = Date.now() + (this.#initialized?.approval?.timeoutSeconds ?? 300) * 1_000;
+    // 初始化回执来自外部进程：畸形 timeoutSeconds（字符串、NaN、负数）会让
+    // 截止时间变成 NaN 或过去时间，宿主把审批静默回成 -32001，内核把工具记为
+    // 未执行。非正有限数一律按默认 300 秒处理。
+    const configuredTimeout = this.#initialized?.approval?.timeoutSeconds;
+    const timeoutSeconds = typeof configuredTimeout === "number" && Number.isFinite(configuredTimeout) &&
+      configuredTimeout > 0 ? configuredTimeout : 300;
+    let deadline = Date.now() + timeoutSeconds * 1_000;
     if (typeof params.deadline === "string") deadline = Date.parse(params.deadline);
     if (typeof params.deadline === "number") deadline = params.deadline > 1e12 ? params.deadline : params.deadline * 1_000;
     if (!Number.isFinite(deadline) || deadline <= Date.now()) {
