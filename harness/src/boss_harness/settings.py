@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import tempfile
 from pathlib import Path
 
 from boss_harness.compaction import verified_policy
+from boss_harness.private_files import open_private_file
 
 CONFIG_FILE = "config.json"
 AUTO_COMPACTION_FIELDS = ("enabled", "triggerPercent", "keepRecentTokens")
@@ -41,14 +43,39 @@ def _within_depth(value: object, limit: int = _MAX_CONFIG_DEPTH) -> bool:
 
 
 def _read_object(path: Path) -> dict | None:
-    """Return the stored JSON object, or None when absent / unreadable / not an object."""
+    """Return the stored JSON object, or None when absent / unreadable / not an object.
+
+    大小判定必须来自实际读取的那个描述符：先对路径 ``stat`` 再按路径 ``read_text``，
+    两次解析之间文件可被截断或替换，让 256 KiB 上限按旧大小误判；描述符也不跟随
+    符号链接，并确认是普通文件，避免从其他状态路径读入配置。
+    """
     try:
-        if path.stat().st_size > _MAX_CONFIG_BYTES:
+        descriptor = open_private_file(path, os.O_RDONLY)
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError):
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             return None
-        raw = path.read_text(encoding="utf-8")
-        value = json.loads(raw)
+        chunks: list[bytes] = []
+        remaining = _MAX_CONFIG_BYTES + 1
+        with os.fdopen(os.dup(descriptor), "rb") as handle:
+            while remaining > 0:
+                chunk = handle.read(min(remaining, 64 * 1024))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+        # 只读到上限 + 1 字节；多出的一字节说明文件超限，不再解码半截内容。
+        if remaining == 0:
+            return None
+        raw = b"".join(chunks)
+        value = json.loads(raw.decode("utf-8"))
     except (OSError, UnicodeError, ValueError, RecursionError):
         return None
+    finally:
+        os.close(descriptor)
     return value if isinstance(value, dict) and _within_depth(value) else None
 
 
