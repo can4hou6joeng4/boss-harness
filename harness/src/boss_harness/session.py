@@ -1857,6 +1857,16 @@ class SessionStore:
         # 让内核每次启动都失败。按索引损坏处理，走既有重建路径。
         if metadata.get("id") != row["id"]:
             raise _IndexedMetadataError(row["id"])
+        # 投影行还必须满足协议的字段类型：createdAt / title 是必需字符串，
+        # sessionId 可选字符串，projectId 可选字符串或 null。外部改写可能留下
+        # NaN 时间或对象标题——NaN 会让 JSON-RPC 帧编码失败（整次 thread/list
+        # 变成 RESPONSE_INVALID），对象标题会让桌面拒绝整份会话列表。按索引损坏
+        # 处理，走既有重建；_index_thread 会把这些字段归一为合法值。
+        if not isinstance(metadata.get("createdAt"), str) or not isinstance(metadata.get("title"), str):
+            raise _IndexedMetadataError(row["id"])
+        if any(metadata.get(key) is not None and not isinstance(metadata[key], str)
+               for key in ("sessionId", "projectId")):
+            raise _IndexedMetadataError(row["id"])
         # 旧版本没有长度上限，历史会话头可能留着超长标识或标题。原始记录不改写，
         # 投影固定截断到同一上限并标记，使这类会话重新可读。
         project_id = metadata.get("projectId")
