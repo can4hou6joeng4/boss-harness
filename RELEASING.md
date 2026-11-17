@@ -56,7 +56,7 @@ VERSION="$(.venv/bin/python -c 'import pathlib, tomllib; print(tomllib.loads(pat
   dist/python/*.whl dist/python/*.tar.gz
 ```
 
-需要固定构建时间以便复核时，追加 `--built-at 2026-11-16T04:30:00Z`。脚本只处理输出目录内显式列出的普通文件，拒绝符号链接、目录、重复文件名与保留输出名；版本经 PEP 440 归一后与 wheel `METADATA` 或 sdist `PKG-INFO` 逐一核对，不一致即失败。摘要按块流式计算，两个清单先写临时文件再原子替换。`build-info.json` 记录 `schemaVersion`、项目名、Python 版本、源码提交、`builtAt`、构建用 Python 版本与每个资产的 `name` / `bytes` / `sha256`。工作流产物用于审阅与核对，不等于 GitHub Release 资产；实际发布仍须从 tag 提交重新构建、复核哈希后上传。
+需要固定构建时间以便复核时，追加 `--built-at 2026-11-16T04:30:00Z`。脚本只处理输出目录内显式列出的普通文件，拒绝符号链接、目录、重复文件名与保留输出名；包名与版本按 `pyproject.toml` 和 PEP 440 归一后，与 wheel `METADATA` 或 sdist `PKG-INFO` 逐一核对。sdist 还核对内部 `pyproject.toml` 的版本，不一致即失败。摘要按块流式计算，两个清单先写临时文件再原子替换。`build-info.json` 记录 `schemaVersion`、项目名、Python 版本、源码提交、`builtAt`、构建用 Python 版本与每个资产的 `name` / `bytes` / `sha256`。工作流产物用于审阅与核对，不等于 GitHub Release 资产；实际发布仍须从 tag 提交重新构建、复核哈希后上传。
 
 按本次变更补充适用的真实 Electron 离线验收；使用临时 HOME、userData、工作区与内核目录，隔离凭据和真实会话。`none` 仅表示不调用模型，部分命令仍可调用招聘 CLI，不能把它当成平台网络隔离；验收应独立阻断并核对模型、真实回合、招聘工具与平台网络尝试。
 
