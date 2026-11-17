@@ -32,6 +32,31 @@ from boss_harness.usage import MAX_REQUEST_TOKENS
 
 _FINISHED_TURN_STATUSES = frozenset({"completed", "interrupted", "blocked", "error"})
 
+# context/read 的公开检查点只保留内核写入的字段。持久记录不可信：未知键可能
+# 携带数 MB 负载，让响应超过协议帧限制，而检查点自身仍然有效、压缩入口又因
+# 已覆盖全部条目而拒绝，读取路径会永久失败。字符串逐项限长，整数只接受安全范围。
+_PUBLIC_CHECKPOINT_TEXT_LIMITS = {
+    "summary": 32_000, "throughTurnId": 128, "sourceDigest": 64,
+    "checkpointDigest": 64, "origin": 16, "summaryJobId": 128,
+    "summaryProvider": 64, "summaryModel": 200, "summaryEffort": 64,
+    "sourceTextDigest": 64,
+}
+_PUBLIC_CHECKPOINT_INT_FIELDS = frozenset({"digestVersion", "modelRequestCount", "sourceCharacters"})
+_MAX_PUBLIC_CHECKPOINT_INT = 2 ** 53 - 1
+
+
+def _public_checkpoint(checkpoint: dict[str, Any]) -> dict[str, Any]:
+    public: dict[str, Any] = {}
+    for key, limit in _PUBLIC_CHECKPOINT_TEXT_LIMITS.items():
+        value = checkpoint.get(key)
+        if isinstance(value, str) and len(value) <= limit:
+            public[key] = value
+    for key in _PUBLIC_CHECKPOINT_INT_FIELDS:
+        value = checkpoint.get(key)
+        if type(value) is int and 0 <= value <= _MAX_PUBLIC_CHECKPOINT_INT:
+            public[key] = value
+    return public
+
 
 def _is_one_of(value: Any, choices: frozenset[str] | set[str]) -> bool:
     """持久记录可能带任意 JSON 值；只有字符串能作为集合成员参与比较。"""
@@ -1038,8 +1063,7 @@ class ContextService:
         last_budget = next((e["payload"] for e in reversed(entries) if e["type"] == "context_budget"), None)
         public_checkpoint = None
         if checkpoint is not None:
-            public_checkpoint = {key: value for key, value in checkpoint.items()
-                                 if key != "sourceItemCount"}
+            public_checkpoint = _public_checkpoint(checkpoint)
             public_checkpoint["sourceItemIds"] = self._checkpoint_source_item_ids(checkpoint, items)
         result = {"threadId": thread_id, **budget, "checkpoint": public_checkpoint,
                   "usage": usage[-1] if usage else None,
