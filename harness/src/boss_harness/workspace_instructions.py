@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import stat
 import tempfile
+from boss_harness.settings import _fsync_directory
 from typing import Any
 
 MAX_INSTRUCTIONS_BYTES = 8 * 1024
@@ -170,6 +171,7 @@ class WorkspaceInstructions:
             raise ValueError(f"工作区说明超过 {MAX_INSTRUCTIONS_BYTES} 字节上限")
         target = self.workspace / _PREFERRED
         directory = target.parent
+        created_directory = False
         try:
             if not self.workspace.is_dir():
                 raise OSError("工作区目录不存在")
@@ -177,6 +179,7 @@ class WorkspaceInstructions:
                 existing_dir = os.lstat(directory)
             except FileNotFoundError:
                 os.mkdir(directory, 0o755)
+                created_directory = True
             else:
                 if not stat.S_ISDIR(existing_dir.st_mode) or os.path.islink(directory):
                     raise OSError("目标目录不是普通目录")
@@ -194,6 +197,11 @@ class WorkspaceInstructions:
                     os.fsync(handle.fileno())
                 os.chmod(temporary, stat.S_IMODE(existing_file.st_mode) if existing_file is not None else 0o644)
                 os.replace(temporary, target)
+                # 目录项要等 fsync 后才落盘：先同步新建的说明目录，再同步工作区
+                # 中的目录项；覆盖已有文件时只需同步说明目录。
+                _fsync_directory(directory)
+                if created_directory:
+                    _fsync_directory(self.workspace)
             except BaseException:
                 try:
                     os.unlink(temporary)
