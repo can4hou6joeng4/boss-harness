@@ -1236,7 +1236,8 @@ export function App(): JSX.Element {
   const branchState = branchTarget ? sessionBranches.threadControl(branchTarget.threadId).state : activeBranchState;
   const branchSummaryRunning = Boolean(contextThreadId && activeBranchState.summaryJob?.status === "running");
   const compacting = branchSummaryRunning || contextPanel.state.lifecycleActive === true
-    || (contextPanel.state.job?.status === "running" && contextPanel.state.lifecycleActive !== false);
+    || (contextPanel.state.job?.status === "running" && contextPanel.state.lifecycleActive !== false
+      && !contextPanel.state.lifecycleReleased);
   const branchBlock = contextThreadId ? branchSwitchBlock({ connected: harnessUp, archived: activeSession?.archived === true,
     running: runningThreadIds.has(contextThreadId), queueItems, compacting, switching: activeBranchState.switching }) : null;
   const sessionProvider = activeSession?.provider ?? defaultModel?.provider;
