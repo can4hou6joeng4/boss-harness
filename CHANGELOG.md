@@ -15,6 +15,17 @@
 - [Issue #2148](https://github.com/can4hou6joeng4/boss-harness/issues/2148)：识别桌面陈旧结果引用提示。
 - [Issue #2151](https://github.com/can4hou6joeng4/boss-harness/issues/2151)：准备 rc.71 源码候选并同步版本来源。
 
+## 未发布
+
+### 本版概览
+
+- 桌面恢复识别 `STALE_CONTENT` 且含合法 `currentRef` 的错误，提示重新打开会话并核对当前引用；非法引用数据仍按通用错误展示（#2154、#2155）。
+- 桌面指南同步说明陈旧正文引用提示边界。
+
+### 变更
+
+- [Issue #2154](https://github.com/can4hou6joeng4/boss-harness/issues/2154)：明确大正文陈旧内容引用提示。
+
 # 变更记录
 
 ## 0.2.0-rc.70 - 2026-11-18
