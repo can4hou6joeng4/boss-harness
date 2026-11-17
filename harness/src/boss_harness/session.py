@@ -2797,7 +2797,11 @@ class SessionStore:
                 target = payload.get("targetId") if isinstance(payload, dict) else None
                 if target is not None and (not isinstance(target, str) or target not in records
                                            or records[target].get("type") != "turn"):
-                    raise ValueError("会话分支指针指向未知或无效的条目")
+                    # 持久叶记录可被外部改写或由崩溃留下半写状态：损坏指针按缺失
+                    # 处理，继续使用上一个有效叶。整段 raise 会让分支读取、分支
+                    # 列表、导出、fork、上下文读取与所有模型回合一起失败，会话既
+                    # 无法查看也无法恢复。
+                    continue
                 tail = target
                 continue
             if entry["id"] in records:
