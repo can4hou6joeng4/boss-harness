@@ -698,9 +698,15 @@ class TurnRunner:
                                      execution_state=final_state, disposition=disposition),
                 is_error=not result.ok)
         except ToolRevisionPersistenceError as persistence_error:
+            # 派发状态不能由异常类型反推：取消或策略拒绝时结果未送达，仍是可安全重试的 not_executed。
+            uncertain_state = final_state if not dispatched else "outcome_unknown"
+            uncertain_disposition = disposition_for_state(
+                uncertain_state, write=name in self.approval_required)
+            message = ("工具已经派发，但结果无法确认已保存；请先核对外部状态，不要直接重试。"
+                       if dispatched else "工具没有派发，结果无法确认已保存；请先核对会话状态。")
             uncertain = ToolResult(ok=False, command=name, error={
                 "code": "TOOL_RESULT_OUTCOME_UNKNOWN",
-                "message": "工具已经派发，但结果无法确认已保存；请先核对外部状态，不要直接重试。",
+                "message": message,
                 "recovery_action": "检查会话记录与平台状态后，再明确发起下一步。",
             })
             self._blocked = uncertain
@@ -709,14 +715,12 @@ class TurnRunner:
                     self.persistence_fence(thread_id)
                 return ToolResultItem(tool_call_id=call_id or entry.id,
                     content=model_result(uncertain, source=tool_source(thread_id, entry, name),
-                                         max_bytes=self._tool_result_limit(name),
-                                         execution_state="outcome_unknown",
-                                         disposition=disposition_for_state(
-                                             "outcome_unknown", write=name in self.approval_required)),
+                                         item_id=entry.id, max_bytes=self._tool_result_limit(name),
+                                         execution_state=uncertain_state, disposition=uncertain_disposition),
                     is_error=True)
             try:
                 self.finish_tool_call(thread_id, entry, name, uncertain, call_id, approval,
-                                      "outcome_unknown", duration_ms)
+                                      uncertain_state, duration_ms)
             except ToolCompletionNotificationError:
                 pass
             except ToolRevisionPersistenceError:
@@ -724,10 +728,8 @@ class TurnRunner:
                     self.persistence_fence(thread_id)
             return ToolResultItem(tool_call_id=call_id or entry.id,
                 content=model_result(uncertain, source=tool_source(thread_id, entry, name),
-                                     max_bytes=self._tool_result_limit(name),
-                                     execution_state="outcome_unknown",
-                                     disposition=disposition_for_state(
-                                         "outcome_unknown", write=name in self.approval_required)),
+                                     item_id=entry.id, max_bytes=self._tool_result_limit(name),
+                                     execution_state=uncertain_state, disposition=uncertain_disposition),
                 is_error=True)
         return ToolResultItem(
             tool_call_id=call_id or entry.id,

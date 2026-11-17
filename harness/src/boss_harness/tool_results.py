@@ -41,7 +41,8 @@ def tool_disposition(value: Any) -> dict[str, str] | None:
     if not isinstance(value, dict):
         return None
     delivery, retry = value.get("delivery"), value.get("retry")
-    if delivery not in TOOL_DELIVERY_STATES or retry not in TOOL_RETRY_STATES:
+    if (not isinstance(delivery, str) or not isinstance(retry, str)
+            or delivery not in TOOL_DELIVERY_STATES or retry not in TOOL_RETRY_STATES):
         return None
     return {"delivery": delivery, "retry": retry}
 
@@ -177,21 +178,21 @@ def model_result_content(result: dict, item_id: str | None, *, source: dict | No
 
 
 def _merge_outcome(existing: str, execution_state: str | None,
-                   disposition: dict[str, str] | None, limit: int) -> str:
-    """Add outcome fields to a legacy projection without changing records that lack them."""
+                   disposition: dict[str, str] | None, limit: int) -> str | None:
+    """Add outcome fields to a legacy projection; None means re-project from the source."""
     if execution_state is None and disposition is None:
         return existing
     try:
         parsed = json.loads(existing)
     except (ValueError, TypeError, RecursionError):
-        return existing
+        return None
     if not isinstance(parsed, dict):
-        return existing
+        return None
     changed = False
-    if execution_state is not None and "executionState" not in parsed:
+    if execution_state is not None and parsed.get("executionState") != execution_state:
         parsed["executionState"] = execution_state
         changed = True
-    if disposition is not None and "disposition" not in parsed:
+    if disposition is not None and parsed.get("disposition") != disposition:
         parsed["disposition"] = disposition
         changed = True
     if not changed:
@@ -202,7 +203,7 @@ def _merge_outcome(existing: str, execution_state: str | None,
             return candidate
     except (TypeError, ValueError, UnicodeEncodeError, RecursionError):
         pass
-    return existing
+    return None
 
 
 def model_result_for_item(item: dict) -> str:
@@ -218,6 +219,12 @@ def model_result_for_item(item: dict) -> str:
         limit = DEFAULT_MODEL_TOOL_RESULT_BYTES
     execution_state = tool_execution_state(item.get("executionState"))
     disposition = tool_disposition(item.get("disposition"))
+    # 旧版失败条目没有 disposition；只有原始写工具审批记录（非通知元数据）才按写工具处理。
+    if disposition is None and execution_state == "failed":
+        approval = item.get("approval")
+        write = (isinstance(approval, dict)
+                 and not any(key in approval for key in ("status", "decision", "requiredTools")))
+        disposition = disposition_for_state("failed", write=write)
     if disposition is None and execution_state in {"not_executed", "not_approved", "outcome_unknown"}:
         disposition = disposition_for_state(execution_state, write=False)
     existing = item.get("modelResult")
@@ -225,7 +232,9 @@ def model_result_for_item(item: dict) -> str:
         existing = wire_text(existing)
         try:
             if len(existing.encode("utf-8")) <= limit:
-                return _merge_outcome(existing, execution_state, disposition, limit)
+                merged = _merge_outcome(existing, execution_state, disposition, limit)
+                if merged is not None:
+                    return merged
         except UnicodeEncodeError:
             pass
     summary = item.get("resultSummary")
