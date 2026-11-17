@@ -1433,7 +1433,10 @@ class SessionStore:
                       AND typeof(a.approval_id)='text' AND typeof(a.thread_id)='text'
                       AND typeof(a.turn_id)='text' AND typeof(a.item_id)='text'
                       AND typeof(a.tool_name)='text' AND typeof(a.params_digest)='text'
-                      AND typeof(a.deadline) IN ('integer','real')"""
+                      AND typeof(a.deadline) IN ('integer','real')
+                      AND a.approval_id<>'' AND a.thread_id<>'' AND a.turn_id<>''
+                      AND a.item_id<>'' AND a.tool_name<>'' AND a.params_digest<>''
+                      AND a.deadline BETWEEN 0 AND 1e15"""
         parameters: list[Any] = [time.time()]
         if thread_id is not None:
             where += " AND a.thread_id=?"
