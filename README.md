@@ -32,6 +32,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 | 交付项 | 当前范围 |
 | --- | --- |
 | 源码候选版本 | `0.2.0-rc.56`，Python 内核为 `0.2.0rc56`；stdio JSON-RPC 协议为 `0.2.0`。 |
+| 候选序号规则 | 候选序号不设位数上限：`0.2.0-rc.101`（npm）与 `0.2.0rc101`（Python）同样有效，跨过两位后继续按同一规则递增；发布脚本与桌面都把版本当作不透明字符串处理。 |
 | 已发布版本 | 最新候选预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)（2026-11-14 发布，UTC 为 2026-11-13T18:35:01Z）。tag 固定到源码提交 `560c86e2593592f86c61bdeddf0be099ec9d1272`。 |
 | 本机运行 | 从源码启动 Electron 桌面端，使用本机 Python 内核与另行安装的 `boss-agent-cli`。 |
 | 发布资产 | Python 内核 wheel / sdist、`build-info.json` 与 `SHA256SUMS.txt`；Electron main / preload / renderer 需从源码构建，当前没有独立桌面安装包或签名发行流程。 |
