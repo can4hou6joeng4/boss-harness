@@ -2730,6 +2730,13 @@ class SessionStore:
                         (thread_id,)).fetchall()
             selected = []
             for row in rows:
+                # 投影列不保证仍是建表时的类型：SQLite 的列亲和性不会阻止外部把
+                # first_ordinal 改写成文本。与游标整数比较会抛 TypeError，绕过只捕获
+                # _IndexedMetadataError 的重建重试，把 -32603 送给调用方。按索引损坏
+                # 处理，由既有重建路径从会话日志恢复行类型；放在成员判断之前，
+                # 否则非文本 turn_id 只会让该回合从分页里静默消失。
+                if type(row["first_ordinal"]) is not int or not isinstance(row["turn_id"], str):
+                    raise _IndexedMetadataError(thread_id)
                 if row["turn_id"] not in active_ids:
                     continue
                 if key is not None and (row["first_ordinal"], row["turn_id"]) <= (key[0], key[1]):
