@@ -9,6 +9,24 @@
 
 当前没有未归入具名候选版本的变更。
 
+## 0.2.0-rc.60 - 2026-11-18
+
+本节汇总第六十个候选版本的源码与交付内容。相对 rc.59，本候选同步缺陷报告模板的版本示例，并把发布脚本与表单示例改为稳定占位，避免每轮候选追改。rc.16 至 rc.60 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 缺陷报告模板的版本示例同步到当前候选，并在 RELEASING 的版本同步步骤明确检查社区模板（#2059、#2060）。
+- 发布资产脚本和缺陷模板改用稳定版本占位，RELEASING 明确稳定示例不随候选号修改（#2061、#2062）。
+- 同步 npm / Python 版本到 `0.2.0-rc.60` / `0.2.0rc60`（#2063）。
+
+升级注意：不改变协议、工具权限、持久化格式或存储键；rc.59 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2059](https://github.com/can4hou6joeng4/boss-harness/issues/2059)：同步缺陷报告模板版本示例。
+- [Issue #2061](https://github.com/can4hou6joeng4/boss-harness/issues/2061)：改用稳定的版本示例文案。
+- [Issue #2063](https://github.com/can4hou6joeng4/boss-harness/issues/2063)：准备 rc.60 源码候选并同步所有版本来源。
+
 ## 0.2.0-rc.59 - 2026-11-18
 
 本节汇总第五十九个候选版本的源码与交付内容。相对 rc.58，本候选统一业务 CLI 可用性检查，并同步发布脚本示例与摘要 checkpoint 文档。rc.16 至 rc.59 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
