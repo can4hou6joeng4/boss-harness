@@ -64,16 +64,17 @@ def _metadata_version(data: bytes, name: str) -> str:
     return value.strip()
 
 
-def verify_artifact_version(path: Path, name: str, version: Version) -> None:
+def verify_artifact_version(handle, name: str, version: Version) -> None:
+    """核对与 SHA-256 同一文件描述符中的版本元数据。"""
     try:
         if name.endswith(".whl"):
-            with zipfile.ZipFile(path) as archive:
+            with zipfile.ZipFile(handle) as archive:
                 candidates = [n for n in archive.namelist() if n.endswith(".dist-info/METADATA")]
                 if len(candidates) != 1:
                     fail(f"{name} 未包含唯一的 METADATA")
                 actual = _metadata_version(archive.read(candidates[0]), name)
         elif name.endswith(".tar.gz"):
-            with tarfile.open(path, "r:gz") as archive:
+            with tarfile.open(fileobj=handle, mode="r:gz") as archive:
                 candidates = [m for m in archive.getmembers()
                               if m.isfile() and m.name.endswith("/PKG-INFO")]
                 if len(candidates) != 1:
@@ -133,7 +134,8 @@ def artifact_record(path: Path, out_dir: Path, version: Version) -> dict[str, ob
             while chunk := handle.read(CHUNK_BYTES):
                 digest.update(chunk)
                 size += len(chunk)
-        verify_artifact_version(path, name, version)
+            handle.seek(0)
+            verify_artifact_version(handle, name, version)
     except OSError as exc:
         fail(f"无法读取 {name}：{exc.strerror or exc}")
     finally:
