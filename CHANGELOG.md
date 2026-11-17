@@ -9,6 +9,28 @@
 
 当前没有未归入具名候选版本的变更。
 
+## 0.2.0-rc.66 - 2026-11-18
+
+本节汇总第六十六个候选版本的源码与交付内容。相对 rc.65，本候选补齐发布资产身份与清单契约校验，并修正隔离构建文档。rc.16 至 rc.66 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 发布资产校验覆盖 wheel / sdist 文件名、sdist 根目录、内部 `pyproject.toml` 的包名与版本、源版本一致性，以及大小写不敏感的保留名冲突；CI 生成清单后校验摘要（#2102、#2104）。
+- 隔离构建文档使用 `set -euo pipefail`、显式进入 `git archive` 目录并断言关键文件；补全 rc.15 与 schemaVersion 2 的清单字段差异（#2103、#2105）。
+- 修正 rc.65 变更记录中把 PR #2097 标成 Issue 的链接（#2100、#2101）。
+- 非法 METADATA 版本改为返回 `release-assets:` 可读错误，不再抛出未处理异常（#2107、#2108）。
+- 同步 npm / Python 版本到 `0.2.0-rc.66` / `0.2.0rc66`（#2109）。
+
+升级注意：不改变 JSON-RPC 协议、工具权限、会话持久化格式或存储键；rc.65 源码无需迁移。发布清单的 schemaVersion 仍为 `2`，`SHA256SUMS.txt` 仍覆盖清单自身。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2100](https://github.com/can4hou6joeng4/boss-harness/issues/2100)：修正 rc.65 版本准备链接。
+- [Issue #2102](https://github.com/can4hou6joeng4/boss-harness/issues/2102)：完整校验发布资产身份与清单契约。
+- [Issue #2103](https://github.com/can4hou6joeng4/boss-harness/issues/2103)：修正隔离构建命令与清单字段说明。
+- [Issue #2107](https://github.com/can4hou6joeng4/boss-harness/issues/2107)：非法元数据版本返回可读错误。
+- [Issue #2109](https://github.com/can4hou6joeng4/boss-harness/issues/2109)：准备 rc.66 源码候选并同步所有版本来源。
+
 ## 0.2.0-rc.65 - 2026-11-18
 
 本节汇总第六十五个候选版本的源码与交付内容。相对 rc.64，本候选补齐发布资产归属、安装版本、清单契约与构建来源校验。rc.16 至 rc.65 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
