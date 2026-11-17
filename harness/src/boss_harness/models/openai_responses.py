@@ -423,6 +423,10 @@ class OpenAIResponsesProvider:
         #: 流中曾出现、但终态已撤回的块不能继续落入最终 AssistantMessage，
         #: 否则调用方会把已撤回的工具调用交给执行器。
         terminal_indexes: set[int] | None = None
+        #: output_index -> 已声明的输出项类型；同一 index 只属于一个输出项。
+        output_item_types: dict[int, str] = {}
+        #: 已被 output_item.done 关闭的 output_index。
+        closed_output_indexes: set[int] = set()
 
         def function_call_identity(item: object) -> tuple[str | None, str, str]:
             raw_item_id = getattr(item, "id", None)
@@ -433,6 +437,10 @@ class OpenAIResponsesProvider:
             )
             if not all(identity[1:]):
                 raise ValueError("工具调用缺少 call_id 或工具名")
+            # 与 record_tool_batch 的调用 id 规则一致：超限标识在落库前就要拒绝，
+            # 否则批次记录会在助手条目产出后才抛错，回合以未捕获异常结束。
+            if len(identity[1]) > 256 or len(identity[2]) > 256:
+                raise ValueError("工具调用标识或名称超过长度上限")
             return identity
 
         def require_function_call_identity(index: int, item: object) -> tuple[str | None, str, str]:
@@ -501,6 +509,13 @@ class OpenAIResponsesProvider:
                             if item_id in item_ids:
                                 raise ValueError("响应重复使用输出项标识")
                             item_ids[item_id] = index
+                        if item_type in ("reasoning", "message", "function_call"):
+                            claimed = output_item_types.get(index)
+                            if claimed is not None and claimed != item_type:
+                                raise ValueError("响应重复使用输出项索引")
+                            if index in closed_output_indexes:
+                                raise ValueError("输出项关闭后仍收到起始事件")
+                            output_item_types[index] = item_type
                         if item_type == "reasoning":
                             # 每个 reasoning 项自成一段：不清零的话，上一项遗留的待分隔标记会被
                             # 下一项的首个增量吃掉，凭空插进一个空行。
@@ -527,6 +542,8 @@ class OpenAIResponsesProvider:
                             )
                             if not all(identity[1:]):
                                 raise ValueError("工具调用初始项缺少 call_id 或工具名")
+                            if len(identity[1]) > 256 or len(identity[2]) > 256:
+                                raise ValueError("工具调用初始项标识或名称超过长度上限")
                             if identity[1] in call_id_indexes:
                                 raise ValueError("响应重复使用工具调用 call_id")
                             call_id_indexes[identity[1]] = index
@@ -542,6 +559,11 @@ class OpenAIResponsesProvider:
                     elif kind in _THINKING_DELTA_EVENTS:
                         delta = str(getattr(event, "delta", "") or "")
                         if delta:
+                            # 增量必须属于同类活动输出项：错置思考会被并进助手消息，
+                            # 与终态响应不一致，且没有任何恢复路径能纠正。
+                            claimed = output_item_types.get(index)
+                            if claimed not in (None, "reasoning") or index in closed_output_indexes:
+                                raise ValueError("思考增量没有对应的活动思考项")
                             if pending_break:
                                 pending_break = False
                                 text_budget.account(("thinking", index), "\n\n")
@@ -563,6 +585,9 @@ class OpenAIResponsesProvider:
                     elif kind in _TEXT_DELTA_EVENTS:
                         delta = str(getattr(event, "delta", "") or "")
                         if delta:
+                            claimed = output_item_types.get(index)
+                            if claimed not in (None, "message") or index in closed_output_indexes:
+                                raise ValueError("文本增量没有对应的活动消息项")
                             text_budget.account(("text", index), delta)
                             text_buffers.setdefault(index, []).append(delta)
                             yield StreamEvent(type="text_delta", content_index=index, delta=delta)
@@ -607,6 +632,14 @@ class OpenAIResponsesProvider:
                         item_type = str(getattr(item, "type", "") or "")
                         item_id = str(getattr(item, "id", "") or "")
                         item_index = item_ids.get(item_id, index) if item_id else index
+                        if item_type in ("reasoning", "message", "function_call"):
+                            claimed = output_item_types.get(item_index)
+                            if claimed is not None and claimed != item_type:
+                                raise ValueError("响应输出项类型与起始事件不一致")
+                            if item_index in closed_output_indexes:
+                                raise ValueError("响应重复关闭输出项")
+                            output_item_types[item_index] = item_type
+                            closed_output_indexes.add(item_index)
                         if item_type == "reasoning":
                             text = _reasoning_text(item, text_budget, item_index)
                             thinking_buffers[item_index] = [text]
@@ -697,6 +730,11 @@ class OpenAIResponsesProvider:
                                 item_index = mapped_index
                             if item_index in terminal_indexes:
                                 raise ValueError("响应终态重复使用输出项索引")
+                            claimed = output_item_types.get(item_index)
+                            if claimed is not None and claimed != item_type:
+                                # 流事件已把该 index 声明成另一种输出项；终态若照常
+                                # 保留 index，早期块会被后续类型静默顶掉。
+                                raise ValueError("响应终态输出项类型与流事件不一致")
                             terminal_indexes.add(item_index)
                             if item_type == "reasoning":
                                 text = _reasoning_text(item, text_budget, item_index)
