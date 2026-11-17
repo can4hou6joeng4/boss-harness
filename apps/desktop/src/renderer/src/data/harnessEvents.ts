@@ -4,7 +4,7 @@ import { toApproval, toMessage, type ApprovalDelivery } from "./harnessBridge";
 import { approvalDeadlineMs } from "./pendingApprovals";
 import { toolDurationMs } from "./toolTiming";
 import {
-  itemResultRef, itemSource, itemText, itemToolName, plainRecord, toolExecutionState, toolStatus,
+  itemResultRef, itemSource, itemText, itemToolName, plainRecord, toolExecutionState, toolStatus, turnIdOf,
 } from "./itemFields";
 
 export interface HarnessEvent {
@@ -58,11 +58,14 @@ export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent,
   // "[object Object]"；对象 approvalId 会让不同审批共用同一张卡。
   const itemId = typeof params.itemId === "string" && params.itemId ? params.itemId : undefined;
   const approvalId = typeof params.approvalId === "string" && params.approvalId ? params.approvalId : undefined;
+  // 回合标识同样只接受非空字符串：对象 turnId 写进卡片后，分支入口会渲染成
+  // "[object Object]" 并把对象当作目标回合发给内核，用量弹窗也会把它当成回合键。
+  const turnId = turnIdOf(params.turnId);
   const id = itemId ?? (approvalId ? `approval-${approvalId}` : undefined);
   if (!id) return previous;
   const index = previous.findIndex(item => item.id === id || item.id === params.clientUserMessageId || (approvalId && item.approval?.approvalId === approvalId));
   const before = index >= 0 ? previous[index] : undefined;
-  let item: MessageItem = before ?? { id, turnId: params.turnId, role: "agent", paragraphs: [] };
+  let item: MessageItem = before ?? { id, ...(turnId !== undefined ? { turnId } : {}), role: "agent", paragraphs: [] };
   switch (event.method) {
     case "agentMessage/delta":
       item = { ...item, paragraphs: [(item.paragraphs?.join("") ?? "") + (itemText(params.delta) ?? "")] };
@@ -72,7 +75,7 @@ export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent,
       break;
     case "item/completed": {
       if (params.kind !== "agentMessage" && params.kind !== "userMessage") return previous;
-      const message = toMessage({ id, threadId: params.threadId ?? "", turnId: params.turnId,
+      const message = toMessage({ id, threadId: params.threadId ?? "", turnId,
         kind: params.kind, text: itemText(params.text) ?? before?.paragraphs?.join(""),
         thinking: itemText(params.thinking) ?? before?.thinkingContent });
       item = { ...item, ...message };

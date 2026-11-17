@@ -25,6 +25,16 @@ export function itemText(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/**
+ * 回合标识只接受非空字符串。
+ *
+ * 事件归属过滤、分支入口与用量分组都按这个标识做相等比较：对象等畸形值进来后，
+ * 正常字符串事件会被判定成其它回合并被静默丢弃，分支入口还会把对象发给内核。
+ */
+export function turnIdOf(value: unknown): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
+}
+
 /** 工具名必须是非空字符串，否则卡片标题回退到占位名。 */
 export function itemToolName(value: unknown): string {
   return typeof value === "string" && value ? value : "tool";
