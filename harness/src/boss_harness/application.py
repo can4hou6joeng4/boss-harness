@@ -2915,8 +2915,15 @@ class ApplicationService:
                              *, required: bool,
                              retention_request: ModelRequest | None = None) -> ModelRequest | None:
         runner, thread_id = turn["runner"], turn["threadId"]
-        config = self._compaction_model_config(turn["compactionPolicy"], runner.config,
-                                               session_effort=request.effort)
+        try:
+            config = self._compaction_model_config(turn["compactionPolicy"], runner.config,
+                                                   session_effort=request.effort)
+        except RpcError as exc:
+            data = exc.data if isinstance(exc.data, dict) else {}
+            code = data.get("code")
+            raise ContextCompactionFailed(
+                code if isinstance(code, str) and code else "COMPACTION_FAILED",
+                runner.safe_error(exc)) from None
         job: dict | None = None
         replacement: ModelRequest | None = None
 
