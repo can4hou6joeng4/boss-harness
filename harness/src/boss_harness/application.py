@@ -36,6 +36,7 @@ from boss_harness.models.types import AssistantMessage, ModelRecoveryBudget, Mod
 from boss_harness.model_tools import MODEL_RESULT_READ_TOOL, model_tool_specs
 from boss_harness.ownership import StateDirectoryOwner
 from boss_harness.resources import AttachmentQuotaExceeded, AttachmentStore, SkillCatalog, ToolRegistry
+from boss_harness.queue_view import queue_view_record
 from boss_harness.request_identity import resolve_request, valid_client_id
 from boss_harness.request_policy import ModelRequestRejected, check_model_request, record_model_rejection
 from boss_harness.rpc import JsonRpcServer, RpcError
@@ -4172,7 +4173,7 @@ class ApplicationService:
                                   client_id=params.get("clientUserMessageId"))
         # The steering item is durable; a failed observation must not reject it.
         self._emit_queue_updated(thread_id, item["id"])
-        return {"accepted": True, "queueItem": item}
+        return {"accepted": True, "queueItem": queue_view_record(item)}
 
     def on_queue_add(self, params: dict | None) -> dict:
         params = params or {}
@@ -4221,7 +4222,9 @@ class ApplicationService:
                 self._publish_receipt_notice(notice, finish=False)
             if item["status"] == "queued":
                 self._start_follow_up(thread_id)
-            return {"queueItem": self.queue.get(thread_id, item["id"])}
+            # 幂等命中可能复用外部改写过的旧记录：单项回执与 queue/list 共用
+            # 只读投影，畸形可选字段不能让桌面整份拒绝这条消息。
+            return {"queueItem": queue_view_record(self.queue.get(thread_id, item["id"]))}
         finally:
             self._finish_receipt_notice(notice)
 
@@ -4229,7 +4232,8 @@ class ApplicationService:
         return self.queue.view(_text(params, "threadId"))
 
     def on_queue_get(self, params: dict | None) -> dict:
-        return {"queueItem": self.queue.get(_text(params, "threadId"), _text(params, "queueId"))}
+        # 完整正文仍返回，宽于列表投影的只有正文长度；可选字段与列表同一契约。
+        return {"queueItem": queue_view_record(self.queue.get(_text(params, "threadId"), _text(params, "queueId")))}
 
     def on_queue_update(self, params: dict | None) -> dict:
         params = params or {}
@@ -4245,7 +4249,7 @@ class ApplicationService:
             item = self.queue.update_input(thread_id, queue_id, text)
         # The new text is durable; a failed observation must not report failure.
         self._emit_queue_updated(thread_id, item["id"])
-        return {"queueItem": item}
+        return {"queueItem": queue_view_record(item)}
 
     def on_queue_remove(self, params: dict | None) -> dict:
         thread_id = _text(params, "threadId")
@@ -4256,7 +4260,7 @@ class ApplicationService:
                 self._forget_capacity_waiter_locked(thread_id)
         # The cancellation is durable; a failed observation must not reject it.
         self._emit_queue_updated(thread_id, item["id"])
-        return {"queueItem": item}
+        return {"queueItem": queue_view_record(item)}
 
     def _start_follow_up(self, thread_id: str) -> None:
         with self._follow_up_admission_lock:
