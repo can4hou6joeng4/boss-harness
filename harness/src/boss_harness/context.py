@@ -564,9 +564,13 @@ class ContextService:
         checkpoint = {"id": entries[index]["id"], "payload": entries[index]["payload"]}
         payload = checkpoint["payload"]
         if (not isinstance(payload.get("summary"), str) or not payload["summary"].strip()
-                or len(payload["summary"]) > 32_000
-                or not isinstance(payload.get("sourceDigest"), str) or not payload["sourceDigest"]):
+                or len(payload["summary"]) > 32_000):
             raise ValueError("已有摘要的来源记录无效")
+        # 摘要会原样进入模型上下文：来源摘要必须是规范 SHA-256，与事件路径同一口径。
+        # 缺失或任意长字符串不能作为检查点依据，否则一段损坏记录就能永久撑爆预算。
+        if not isinstance(payload.get("sourceDigest"), str) or re.fullmatch(
+                r"[a-f0-9]{64}", payload["sourceDigest"]) is None:
+            raise ValueError("已有摘要的来源记录摘要无效")
         turns = self.sessions._turns(entries, thread_id) if turns is None else turns
         positions = {turn["turnId"]: position for position, turn in enumerate(turns)}
         through = payload.get("throughTurnId")
