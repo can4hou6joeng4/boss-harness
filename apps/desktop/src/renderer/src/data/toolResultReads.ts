@@ -2,6 +2,32 @@ import { ClientMethods, type ToolResultReadResponse, type ToolResultReference } 
 
 export type Requester = <T>(method: string, params: unknown) => Promise<T>;
 const CHUNK_LIMIT = 16384;
+export const STALE_RESULT_RECHECK_NOTICE = "结果版本已变化，请重新打开聊天并核对当前引用后查看";
+
+type HarnessRpcError = Error & { code?: unknown; data?: unknown; rpcError?: boolean };
+
+function isToolResultReference(value: unknown): value is ToolResultReference {
+  if (!value || typeof value !== "object") return false;
+  const ref = value as Record<string, unknown>;
+  return ref.encoding === "json"
+    && typeof ref.threadId === "string"
+    && typeof ref.itemId === "string"
+    && typeof ref.sha256 === "string"
+    && /^[a-f0-9]{64}$/.test(ref.sha256)
+    && Number.isSafeInteger(ref.byteLength)
+    && Number.isSafeInteger(ref.characterLength);
+}
+
+function staleResultError(error: unknown): Error | null {
+  const rpc = error as HarnessRpcError;
+  if (!rpc || rpc.rpcError !== true || rpc.code !== -32011) return null;
+  const data = rpc.data;
+  if (!data || typeof data !== "object") return null;
+  const code = (data as Record<string, unknown>).code;
+  if (code !== "STALE_RESULT") return null;
+  return isToolResultReference((data as Record<string, unknown>).currentRef)
+    ? new Error(STALE_RESULT_RECHECK_NOTICE) : null;
+}
 /** 整体复制的字符上限；超过时不发起任何读取，避免长时间 RPC 与大段剪贴板内容。 */
 export const MAX_WHOLE_RESULT_CHARS = 1_000_000;
 /** 整体读取时允许的最小分段（内核按 16,384 字符返回，这里留出容错并防止异常内核用超小分段拖住请求）。 */
@@ -13,9 +39,14 @@ export async function readToolResultChunk(
   cursor?: string,
   requester: Requester = (method, params) => window.boss.request(method, params),
 ): Promise<ToolResultReadResponse> {
-  const response = await requester<ToolResultReadResponse>(ClientMethods.threadItemResultRead, {
-    threadId: ref.threadId, itemId: ref.itemId, sha256: ref.sha256, cursor, limit: CHUNK_LIMIT,
-  });
+  let response: ToolResultReadResponse;
+  try {
+    response = await requester<ToolResultReadResponse>(ClientMethods.threadItemResultRead, {
+      threadId: ref.threadId, itemId: ref.itemId, sha256: ref.sha256, cursor, limit: CHUNK_LIMIT,
+    });
+  } catch (error) {
+    throw staleResultError(error) ?? error;
+  }
   const actual = response?.resultRef;
   if (!actual || (["threadId", "itemId", "encoding", "sha256", "byteLength", "characterLength"] as const)
     .some(key => actual[key] !== ref[key])) throw new Error("结果版本已变化，请重新打开聊天后查看");
