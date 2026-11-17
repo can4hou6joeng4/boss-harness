@@ -71,6 +71,20 @@ function rpcDetail(error: unknown): { rpc: boolean; code: number | null; text: s
 /** 内核没有这个摘要任务：可能随进程重启丢失，或被任务记录保留窗口淘汰。 */
 const JOB_NOT_FOUND = -32011;
 
+/**
+ * `context/read` 明确报告同一任务已不再活动（`active: false`），但任务详情回执无法
+ * 解析时的结算判定。持久任务记录与外部回执都不可信：继续保留本地 running 会让
+ * 分支切换与新建回合永久被拒，而 2 秒轮询对同一坏回执永远不会收敛。只有同一
+ * 任务编号的明确终态引用才能结算；旧内核缺发现信息时不猜测。
+ */
+export function unreadableJobSettlement(
+  reference: { jobId: string; active: boolean } | null | undefined,
+  jobId: string,
+  parsed: unknown,
+): boolean {
+  return Boolean(reference && reference.active === false && reference.jobId === jobId && !parsed);
+}
+
 /** 切换前的界面侧阻断原因；与内核 thread/leaf/set 的 -32004 拒绝条件对应。 */
 export function branchSwitchBlock(options: { connected: boolean; archived: boolean; running: boolean; queueItems: QueueItem[]; compacting: boolean; switching: boolean }): string | null {
   if (!options.connected) return "本地内核未连接，暂不能切换分支。";
@@ -121,6 +135,16 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
           summaryPollError: "本地内核已不再保留这个摘要任务：可能随进程重启丢失，或被任务记录淘汰；不会自动重放。已清除过期状态，可重新生成摘要。" }
       : state);
   }, [update]);
+  /**
+   * 内核已报告任务不再活动，但详情回执无法识别：结束本地 running，停止无意义的轮询。
+   * 事件推送仍可上报新任务；这里只清除无法核对的旧状态。
+   */
+  const settleUnreadableJob = useCallback((id: string, jobId: string) => {
+    update(id, state => state.summaryJob?.jobId === jobId && state.summaryJob.status === "running"
+      ? { ...state, summaryJob: undefined, cancelInFlight: false,
+          summaryPollError: "摘要任务已结束，但状态回执无法识别；已停止轮询并恢复分支切换与新建回合。可重新读取分支或生成新摘要。" }
+      : state);
+  }, [update]);
 
   const refresh = useCallback(async (id: string): Promise<void> => {
     if (!current.current.connected || !current.current.support) return;
@@ -162,6 +186,7 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       let summaryIssueCount = 0;
       let summaryError = "";
       let jobId: string | undefined;
+      let jobReference: ReturnType<typeof compactionReferenceOf>;
       try {
         const context = await readContext(id);
         if (!valid()) return;
@@ -180,6 +205,7 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
           summaryIssueCount = typeof total === "number" && Number.isSafeInteger(total) && total >= summaryIssues.length
             ? total : summaryIssues.length;
           const reference = compactionReferenceOf(context.compactionJob);
+          jobReference = reference;
           if (reference?.active) jobId = reference.jobId;
         }
       } catch (error) {
@@ -201,6 +227,11 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
           const job = await readContextCompaction(watch);
           const parsed = branchJobOf(job, id);
           if (valid() && parsed) applyJob(id, parsed);
+          else if (valid() && unreadableJobSettlement(jobReference, watch, parsed)) {
+            // context/read 明确报告同一任务已结束，详情回执却无法识别：以引用为准结算，
+            // 否则缓存的 running 会永久阻断切换与新建回合。
+            settleUnreadableJob(id, watch);
+          }
         } catch (error) {
           const detail = rpcDetail(error);
           if (!valid()) return;
@@ -218,7 +249,7 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
     } catch (error) {
       if (valid()) update(id, { loading: false, error: `读取分支失败：${rpcDetail(error).text}` });
     }
-  }, [applyJob, dropMissingJob, update]);
+  }, [applyJob, dropMissingJob, settleUnreadableJob, update]);
 
   useEffect(() => {
     alive.current = true;
@@ -255,7 +286,15 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
           && stateRef.current[id]?.summaryJob?.jobId === job?.jobId && stateRef.current[id]?.summaryJob?.status === "running";
         if (job?.status === "running") void readContextCompaction(job.jobId).then(next => {
           const parsed = branchJobOf(next, id);
-          if (!valid() || !parsed || parsed.jobId !== job.jobId) return;
+          if (!valid()) return;
+          if (!parsed || parsed.jobId !== job.jobId) {
+            // 回执可读但无法识别：旧代码直接返回，坏回执让 2 秒轮询永不收敛，
+            // 缓存的 running 永久阻断切换与新建回合。连续 3 次后结算。
+            const failures = (pollFailures.current.get(id) ?? 0) + 1;
+            pollFailures.current.set(id, failures);
+            if (failures >= 3) settleUnreadableJob(id, job.jobId);
+            return;
+          }
           applyJob(id, parsed);
           if (parsed.status !== "running") void refresh(id);
           pollFailures.current.delete(id);
@@ -279,7 +318,7 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       }
     }, 2000);
     return () => { alive.current = false; unsubscribe?.(); clearInterval(timer); };
-  }, [applyJob, dropMissingJob, refresh, update]);
+  }, [applyJob, dropMissingJob, refresh, settleUnreadableJob, update]);
   useEffect(() => { if (threadId && connected && support) void refresh(threadId); }, [threadId, connected, support, refresh]);
 
   const switchTo = useCallback(async (turnId: string | null, summarize: boolean): Promise<boolean> => {
