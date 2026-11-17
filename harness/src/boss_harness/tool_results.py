@@ -206,7 +206,10 @@ def _merge_outcome(existing: str, execution_state: str | None,
     return None
 
 
-def model_result_for_item(item: dict) -> str:
+LEGACY_WRITE_TOOLS = frozenset({"boss_hr_greet"})
+
+
+def model_result_for_item(item: dict, write_tools: frozenset[str] = LEGACY_WRITE_TOOLS) -> str:
     """Bound legacy history projections without changing their durable source records.
 
     持久记录可能含孤立代理项（损坏记录、``surrogateescape`` 路径或旧版本写入）。
@@ -219,12 +222,11 @@ def model_result_for_item(item: dict) -> str:
         limit = DEFAULT_MODEL_TOOL_RESULT_BYTES
     execution_state = tool_execution_state(item.get("executionState"))
     disposition = tool_disposition(item.get("disposition"))
-    # 旧版失败条目没有 disposition；只有原始写工具审批记录（非通知元数据）才按写工具处理。
+    # 旧版失败条目没有 disposition；工具名是最强证据，不能从审批对象形态猜测重试安全。
     if disposition is None and execution_state == "failed":
-        approval = item.get("approval")
-        write = (isinstance(approval, dict)
-                 and not any(key in approval for key in ("status", "decision", "requiredTools")))
-        disposition = disposition_for_state("failed", write=write)
+        tool_name = item.get("toolName")
+        write = isinstance(tool_name, str) and tool_name in write_tools
+        disposition = {"delivery": "unknown", "retry": "unknown"} if write else None
     if disposition is None and execution_state in {"not_executed", "not_approved", "outcome_unknown"}:
         disposition = disposition_for_state(execution_state, write=False)
     existing = item.get("modelResult")

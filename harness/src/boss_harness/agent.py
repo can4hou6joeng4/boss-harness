@@ -906,7 +906,8 @@ class TurnRunner:
         """
         if self.history_provider is not None:
             return self.history_provider(thread_id)
-        return messages_from_items(self.sessions.read_items(thread_id))
+        return messages_from_items(self.sessions.read_items(thread_id),
+                                   write_tools=frozenset(self.approval_required))
 
     # ---------- 运行 ----------
 
