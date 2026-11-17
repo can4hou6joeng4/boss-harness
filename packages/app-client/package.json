@@ -1,6 +1,6 @@
 {
   "name": "@boss-harness/app-client",
-  "version": "0.2.0-rc.66",
+  "version": "0.2.0-rc.67",
   "private": true,
   "license": "MIT",
   "type": "module",
