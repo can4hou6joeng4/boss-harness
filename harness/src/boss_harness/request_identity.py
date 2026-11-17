@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import hashlib
 import re
 
+from boss_harness.queue_view import queue_record
 from boss_harness.rpc import RpcError
 from boss_harness.session import SessionStore
 
@@ -77,8 +78,17 @@ def resolve_request(sessions: SessionStore, thread_id: str, client_id: str | Non
     items = sessions._project_items(thread_id, entries)
     owners = sessions._item_owners(entries)
     turns = {turn["turnId"]: turn for turn in sessions._turns(entries, thread_id)}
-    queues = {entry["payload"]["id"]: dict(entry["payload"]) for entry in entries
-              if entry["type"] == "queue" and isinstance(entry["payload"].get("id"), str)}
+    # 持久队列记录不可信：身份映射与 queue/list、快照共用同一结构契约。缺 id/kind/
+    # status/input 的记录在这里按缺失处理，否则 queue/add 与 turn/start 命中后读取
+    # item["status"] 会抛 KeyError，经 rpc 映射成 -32603；而同一记录在 queue/list
+    # 里本来就被 queue_record 过滤掉，无法核对或删除。
+    queues: dict[str, dict] = {}
+    for entry in entries:
+        if entry.get("type") != "queue":
+            continue
+        record = queue_record(entry.get("payload"))
+        if record is not None:
+            queues[record["id"]] = dict(record)
     matched_queues = {key for key, item in queues.items()
                       if key == queue_id or (client_id is not None and item.get("clientUserMessageId") == client_id)}
     matched_users = [item for item in items if item.get("kind") == "userMessage"
