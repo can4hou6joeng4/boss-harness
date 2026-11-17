@@ -1,3 +1,20 @@
+## 0.2.0-rc.73 - 2026-11-18
+
+本节汇总第七十三个候选版本的源码与交付内容。相对 rc.72，本候选打通陈旧引用错误通道并补齐契约说明。rc.16 至 rc.73 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 桌面结果/正文读取保留结构化 `RPC` 错误并统一解包，合法 `currentRef` 的核对提示真正可达；非法引用仍按通用错误展示（#2160、#2161）。
+- 内核契约同步说明错误通道边界。
+- 同步 npm / Python 版本到 `0.2.0-rc.73` / `0.2.0rc73`（#2166）。
+
+升级注意：不改变 JSON-RPC 协议、工具权限、会话持久化格式或存储键；rc.72 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2160](https://github.com/can4hou6joeng4/boss-harness/issues/2160)：打通陈旧引用错误通道。
+- [Issue #2166](https://github.com/can4hou6joeng4/boss-harness/issues/2166)：准备 rc.73 源码候选并同步版本来源。
+
 ## 0.2.0-rc.72 - 2026-11-18
 
 本节汇总第七十二个候选版本的源码与交付内容。相对 rc.71，本候选补齐桌面陈旧正文引用提示。rc.16 至 rc.72 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
@@ -31,17 +48,6 @@
 
 - [Issue #2148](https://github.com/can4hou6joeng4/boss-harness/issues/2148)：识别桌面陈旧结果引用提示。
 - [Issue #2151](https://github.com/can4hou6joeng4/boss-harness/issues/2151)：准备 rc.71 源码候选并同步版本来源。
-
-## 未发布
-
-### 本版概览
-
-- 桌面结果/正文读取保留结构化 `RPC` 错误并统一解包，恢复合法 `currentRef` 的核对提示（#2160、#2161）。
-- 内核契约同步说明错误通道边界。
-
-### 变更
-
-- [Issue #2160](https://github.com/can4hou6joeng4/boss-harness/issues/2160)：打通陈旧引用错误通道。
 
 # 变更记录
 
