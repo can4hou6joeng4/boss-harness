@@ -80,3 +80,32 @@ export function missingJobPatch(state: DisconnectState): MissingJobPatch {
         : state.error,
   };
 }
+
+export interface StartAttemptLike {
+  sourceDigest: string;
+  throughTurnId: string;
+  priorJobId?: string;
+}
+
+/**
+ * 「开始回执未知」遇到内核保留的终态任务时的收敛。
+ *
+ * `context/read.compactionJob` 在无活动任务时回退到该会话最近一条终态任务，
+ * 因此 `reference` 通常非 null，`missingJobPatch` 的清理分支不会命中。若那条
+ * 终态任务不是本次开始产生的（同一 jobId 是 priorJobId，或来源摘要/回合不同），
+ * `applyJob` 的 compatible 判定恒为 false，`unknownStart` 就此无人清理：
+ * 计划与开始按钮永久禁用、`discoveryStopped` 也不再置位，用户没有恢复入口。
+ *
+ * 终态任务说明这次开始不可能仍在执行：旧任务已结束，本次请求要么没被内核接受，
+ * 要么它的记录已被淘汰。这里降级为可读说明并允许重新计划，不会重复开始。
+ * 仍为 `running` 的任务（可能是别的来源在跑）保持现状，不猜归属。
+ */
+export function unresolvedStartPatch(job: { status: string }, attempt: StartAttemptLike | undefined): MissingJobPatch | null {
+  if (!attempt || job.status === "running") return null;
+  return {
+    unknownStart: undefined,
+    starting: false,
+    discoveryStopped: false,
+    error: "上次开始压缩的回执未知，内核也没有保留它对应的任务；旧任务不会再执行，可重新生成计划。",
+  };
+}
