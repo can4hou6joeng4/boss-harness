@@ -271,10 +271,22 @@ export class HarnessClient {
     if (message.jsonrpc !== "2.0") return;
     if ("id" in message && validId(message.id) && !("method" in message)) {
       const pending = this.#pending.get(message.id);
-      if (!pending || ("result" in message) === ("error" in message)) return;
+      if (!pending) return;
+      // 回包必须恰好带 result 或 error 之一。两者同时存在、都缺失或 error 形状
+      // 非法都是协议错误：丢弃后再等 30 秒超时，调用方只会看到「内核无响应」，
+      // 无法区分内核崩溃与坏帧。已存在的请求立即按协议错误结算。
+      if (("result" in message) === ("error" in message)) {
+        this.#pending.delete(message.id); clearTimeout(pending.timer);
+        pending.reject(new HarnessRpcError({ code: -32603, message: "invalid harness response frame" }));
+        return;
+      }
       if ("error" in message && (!message.error || typeof message.error !== "object" ||
         typeof (message.error as JsonRpcError).message !== "string" ||
-        typeof (message.error as JsonRpcError).code !== "number")) return;
+        typeof (message.error as JsonRpcError).code !== "number")) {
+        this.#pending.delete(message.id); clearTimeout(pending.timer);
+        pending.reject(new HarnessRpcError({ code: -32603, message: "invalid harness error frame" }));
+        return;
+      }
       this.#pending.delete(message.id); clearTimeout(pending.timer);
       if (message.error) pending.reject(new HarnessRpcError(message.error as JsonRpcError));
       else pending.resolve(message.result);
