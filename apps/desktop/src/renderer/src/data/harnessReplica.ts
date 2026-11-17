@@ -10,6 +10,8 @@ interface Api { request<T>(method: string, params?: unknown): Promise<T> }
 const MAX_PAGE_COUNT = 10_000;
 const MAX_CURSOR_LENGTH = 2048;
 const ITEM_ID_LIMIT = 200;
+/** 正文分段读取的最小合理粒度：异常内核用 1 个码点分页时，不能把恢复拖成数百万次请求。 */
+const MIN_CONTENT_CHUNK_CHARS = 1024;
 const STALE_CONTENT_RECHECK_NOTICE = "会话内容版本已变化，请重新打开会话并核对当前引用后查看";
 
 type HarnessRpcError = Error & { code?: unknown; data?: unknown; rpcError?: boolean };
@@ -343,7 +345,12 @@ export class HarnessReplica {
     let offset = 0;
     let byteLength = 0;
     let text = "";
+    const pageLimit = Math.min(MAX_PAGE_COUNT,
+      Math.ceil(reference.characterLength / MIN_CONTENT_CHUNK_CHARS) + 8);
+    let pages = 0;
     while (true) {
+      if (pages >= pageLimit) throw new Error("会话内容分段过多，未能完整读取");
+      pages += 1;
       const response = throwIfHarnessRpcError(await this.api.request<ItemContentReadResponse>("thread/item/content/read", {
         threadId: reference.threadId, itemId: reference.itemId, part: reference.part,
         sha256: reference.sha256, snapshotId: reference.snapshotId, cursor, limit: 16384,
