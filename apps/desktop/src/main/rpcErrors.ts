@@ -15,6 +15,8 @@ const PRESERVED: ReadonlySet<string> = new Set([
   "queue/remove",
   "task/read",
   "thread/branchSummary/read",
+  "thread/item/content/read",
+  "thread/item/result/read",
   "thread/branches/list",
   "thread/delete",
   "thread/leaf/read",
