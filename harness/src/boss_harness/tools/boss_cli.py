@@ -187,7 +187,7 @@ def resolve_binary(explicit: str | None = None) -> BinaryChoice:
 
 def binary_available(binary: str) -> bool:
     """只读核对本地可执行文件，不运行 CLI。"""
-    return (Path(binary).is_file() and os.access(binary, os.X_OK)) if "/" in binary else which(binary) is not None
+    return _executable_path(binary) if "/" in binary else which(binary) is not None
 
 
 class BossCliTool:
