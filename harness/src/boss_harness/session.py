@@ -208,6 +208,9 @@ MAX_SESSION_HEADER_BYTES = 8 * 1024 * 1024
 # before its JSON shape is checked.
 MAX_DELETE_INTENT_BYTES = 1024 * 1024
 MAX_REPAIR_MANIFEST_BYTES = 1024 * 1024
+# 条目投影缓存按（大小, mtime_ns）绑定，只用于没有新追加的重复读取。
+# 会话条目可能较大，只保留最近使用的少数会话，避免缓存本身占用大量内存。
+_MAX_ENTRIES_CACHE_THREADS = 4
 
 
 def _now() -> str:
@@ -457,9 +460,15 @@ def _read_bounded_file(path: Path, *, maximum: int, label: str) -> bytes:
 class SessionEntriesSnapshot:
     """A rewindable, size-pinned view of one append-only session prefix."""
 
-    def __init__(self, source: io.BufferedReader, size: int) -> None:
+    def __init__(self, source: io.BufferedReader, size: int, mtime_ns: int) -> None:
         self._source = source
         self._size = size
+        self.mtime_ns = mtime_ns
+
+    @property
+    def stamp(self) -> tuple[int, int]:
+        """File identity of the pinned prefix, for cache lookups keyed on later reads."""
+        return self._size, self.mtime_ns
 
     def __enter__(self) -> SessionEntriesSnapshot:
         if self._source.closed:
@@ -630,6 +639,7 @@ class SessionStore:
         ensure_private_directory(self.root)
         self.attachments_root = Path(attachments_root or self.root.parent / "attachments").absolute()
         self._lock = threading.RLock()
+        self._entries_cache: dict[str, tuple[tuple[int, int], list[dict]]] = {}
         self.database_path = self.root.parent / "state.sqlite3"
         self.events_path = self.root.parent / "events.jsonl"
         for path in (self.database_path.with_name(self.database_path.name + "-wal"),
@@ -1180,6 +1190,10 @@ class SessionStore:
     def read_entries(self, thread_id: str) -> list[dict]:
         with self._lock:
             self.require_thread(thread_id)
+            stamp = self._entries_stamp(thread_id)
+            cached = self._cached_entries(thread_id, stamp)
+            if cached is not None:
+                return list(cached)
             out: list[dict] = []
             for line_number, line in enumerate(_iter_bounded_lines(
                     self.path_for(thread_id), maximum=MAX_SESSION_LINE_BYTES,
@@ -1189,7 +1203,8 @@ class SessionStore:
                 data = _decode_session_record(line, line_number=line_number)
                 if data is not None:
                     out.append(data)
-            return out
+            self._store_entries(thread_id, stamp, out)
+            return list(out)
 
     def read_entries_snapshot(self, thread_id: str) -> list[dict]:
         """Decode one pinned prefix without holding the writer lock while scanning.
@@ -1199,9 +1214,46 @@ class SessionStore:
         Callers that only project a display view can pin the prefix under the
         lock and decode it outside; the returned entries lag at most by appends
         that land after the pin, exactly like any other point-in-time read.
+        Repeated reads without an append reuse the bounded entry cache instead
+        of decoding the same rollout again.
         """
+        with self._lock:
+            self.require_thread(thread_id)
+            stamp = self._entries_stamp(thread_id)
+            cached = self._cached_entries(thread_id, stamp)
+            if cached is not None:
+                return list(cached)
         with self.open_entries_snapshot(thread_id) as snapshot:
-            return list(snapshot)
+            entries = list(snapshot)
+        # 只有解码期间没有新的追加（文件仍是同一前缀）时才挂到该 stamp 下；
+        # 否则缓存会以新文件的身份返回旧前缀，下一次命中就掩盖了新条目。
+        with self._lock:
+            try:
+                current = self._entries_stamp(thread_id)
+            except (FileNotFoundError, ValueError):
+                current = None
+            if current == snapshot.stamp:
+                self._store_entries(thread_id, current, entries)
+        return list(entries)
+
+    def _entries_stamp(self, thread_id: str) -> tuple[int, int]:
+        stat_result = self.path_for(thread_id).stat()
+        return stat_result.st_size, stat_result.st_mtime_ns
+
+    def _cached_entries(self, thread_id: str, stamp: tuple[int, int]) -> list[dict] | None:
+        cached = self._entries_cache.get(thread_id)
+        if cached is None or cached[0] != stamp:
+            return None
+        # 最近使用排在末尾，超限时淘汰最久未用的会话。
+        self._entries_cache.pop(thread_id, None)
+        self._entries_cache[thread_id] = cached
+        return cached[1]
+
+    def _store_entries(self, thread_id: str, stamp: tuple[int, int], entries: list[dict]) -> None:
+        self._entries_cache.pop(thread_id, None)
+        self._entries_cache[thread_id] = (stamp, entries)
+        while len(self._entries_cache) > _MAX_ENTRIES_CACHE_THREADS:
+            self._entries_cache.pop(next(iter(self._entries_cache)))
 
     def open_entries_snapshot(self, thread_id: str) -> SessionEntriesSnapshot:
         """Pin a readable session prefix without holding the writer lock while scanning."""
@@ -1209,8 +1261,8 @@ class SessionStore:
             self.require_thread(thread_id)
             source = self.path_for(thread_id).open("rb")
             try:
-                size = os.fstat(source.fileno()).st_size
-                return SessionEntriesSnapshot(source, size)
+                stat_result = os.fstat(source.fileno())
+                return SessionEntriesSnapshot(source, stat_result.st_size, stat_result.st_mtime_ns)
             except BaseException:
                 source.close()
                 raise
@@ -2119,6 +2171,8 @@ class SessionStore:
             self._index_events(connection)
             event = self._rewrite_events_for_deletion(connection, intent)
             self._remove_thread_files(thread_id)
+            # 删除后缓存不能再持有整份条目投影（大会话可能占用大量内存）。
+            self._entries_cache.pop(thread_id, None)
             self._purge_unreferenced_attachments(intent["attachmentDigests"])
             self._purge_repair_backups(thread_id)
             connection.execute("DELETE FROM events")
