@@ -4,6 +4,7 @@ interface DisconnectState {
   unknownStart?: unknown;
   job?: ContextCompactJob;
   error: string;
+  lifecycleReleased?: boolean;
 }
 
 export interface DisconnectPatch {
@@ -13,6 +14,7 @@ export interface DisconnectPatch {
   starting: false;
   cancelInFlight: false;
   turnActive: false;
+  lifecycleReleased: false;
   error: string;
 }
 
@@ -43,7 +45,7 @@ export function settleReadFlight<T>(
 export function disconnectPatch(state: DisconnectState): DisconnectPatch {
   return {
     plan: undefined, reading: false, planning: false, starting: false, cancelInFlight: false,
-    turnActive: false,
+    turnActive: false, lifecycleReleased: false,
     error: state.unknownStart ? "开始压缩的回执未知。重连后只核对原任务，不会重复开始。"
       : state.job?.status === "running" ? "连接已断开，摘要任务状态待核对。" : state.error,
   };
@@ -54,6 +56,7 @@ export interface MissingJobPatch {
   starting: false;
   discoveryStopped: false;
   unavailableJob?: string;
+  lifecycleReleased?: false;
   error: string;
 }
 
@@ -72,6 +75,7 @@ export function missingJobPatch(state: DisconnectState): MissingJobPatch {
     unknownStart: undefined,
     starting: false,
     discoveryStopped: false,
+    lifecycleReleased: false,
     ...(state.job?.status === "running" ? { unavailableJob: state.job.jobId } : {}),
     error: state.unknownStart
       ? "本机内核没有保留上次开始压缩对应的任务（可能随进程重启丢失）；旧任务不会再执行，可重新生成计划。"
@@ -115,6 +119,7 @@ export const LIFECYCLE_RELEASE_FAILURES = 3;
 
 export interface LifecycleReleasePatch {
   lifecycleActive: null;
+  lifecycleReleased: true;
   error: string;
 }
 
@@ -136,6 +141,25 @@ export function lifecycleReleasePatch(failures: number): LifecycleReleasePatch |
   if (!Number.isFinite(failures) || failures < LIFECYCLE_RELEASE_FAILURES) return null;
   return {
     lifecycleActive: null,
+    lifecycleReleased: true,
     error: "持续无法核对摘要任务的占用状态；已解除界面锁，内核仍会拒绝并发压缩。可稍后刷新预算或重新打开面板。",
+  };
+}
+
+/**
+ * 终态引用存在、但详情回执无法识别时的收敛。
+ *
+ * 引用已明确 `active:false`，任务不可能仍在执行；详情形状不合法只表示无法展示
+ * 细节，不能继续让 `unknownStart` 或缓存 running 状态锁住计划与轮询。清除未知
+ * 开始并停止跟踪旧 running 缓存，新任务仍可由事件或下一次读取上报。
+ */
+export function terminalDetailPatch(state: DisconnectState): MissingJobPatch {
+  return {
+    unknownStart: undefined,
+    starting: false,
+    discoveryStopped: false,
+    lifecycleReleased: false,
+    ...(state.job?.status === "running" ? { unavailableJob: state.job.jobId } : {}),
+    error: "内核报告摘要任务已结束，但详情无法识别；已停止跟踪并解除界面锁，可重新生成计划。",
   };
 }

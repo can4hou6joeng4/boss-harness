@@ -56,7 +56,7 @@ export function ContextPanel(props: ContextPanelProps) {
   useEffect(() => { if (!props.isOpen) { setEditingInstructions(false); setInstructionsDirty(false); setInstructionsSaving(false); setSavingCloseBlocked(false); setConfirmClose(false); } }, [props.isOpen]);
   if (!props.isOpen) return null;
   const { state, connected, busy } = props, budget = state.budget, job = state.job, plan = state.plan, auto = props.autoCompaction;
-  const activeJob = job?.status === "running" && state.lifecycleActive !== false;
+  const activeJob = job?.status === "running" && state.lifecycleActive !== false && !state.lifecycleReleased;
   const blocked = !connected || !props.threadId || busy || state.starting || Boolean(state.unknownStart) || state.lifecycleActive === true || activeJob || budget?.requestSource === "active";
   const noSummaryProvider = budget?.summaryAvailable === undefined
     ? budget?.provider === "none"

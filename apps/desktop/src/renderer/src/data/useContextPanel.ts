@@ -3,7 +3,7 @@ import type { ContextCompactJob, ContextReadResponse } from "@boss-harness/proto
 import { compactionReferenceOf, contextJobOf, manualCompactionJob } from "./contextJob";
 import { contextPlanOf, type ContextPlan } from "./contextPlan";
 import { contextReadOf } from "./contextRead";
-import { disconnectPatch, lifecycleReleasePatch, missingJobPatch, settleReadFlight, unresolvedStartPatch } from "./contextPanelState";
+import { disconnectPatch, lifecycleReleasePatch, missingJobPatch, settleReadFlight, terminalDetailPatch, unresolvedStartPatch } from "./contextPanelState";
 import { abortContextCompaction, harnessErrorText, planContextCompaction, readContext, readContextCompaction, startContextCompaction } from "./harnessBridge";
 
 interface StartAttempt {
@@ -17,6 +17,8 @@ export interface ContextPanelState {
   plan?: ContextPlan;
   job?: ContextCompactJob;
   lifecycleActive: boolean | null;
+  /** 连续无法核对详情后已解除 activeJob 锁；任务仍可展示与取消，但不再阻止新计划。 */
+  lifecycleReleased?: boolean;
   reading: boolean;
   planning: boolean;
   starting: boolean;
@@ -75,7 +77,7 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
       if (!adopt && state.job && state.job.jobId !== job.jobId && !matched) return state;
       return { ...state, job, plan: undefined, unavailableJob: undefined,
         unknownStart: matched ? undefined : state.unknownStart, starting: matched ? false : state.starting,
-        lifecycleActive: true,
+        lifecycleActive: true, lifecycleReleased: false,
         cancelRequested: terminal(job) ? false : state.cancelRequested,
         cancelInFlight: terminal(job) ? false : state.cancelInFlight,
         error: matched ? "" : state.error };
@@ -128,22 +130,28 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
             && job.sourceDigest === attempt.sourceDigest && job.throughTurnId === attempt.throughTurnId);
           const manual = manualCompactionJob(job);
           if (reference && compatible && manual) applyJob(id, manual, true);
-          else if (knownJob?.jobId === jobId && manual) applyJob(id, manual);
-          else if (reference && attempt) {
+          else {
             // 终态引用不是本次开始产生的（旧 jobId 或来源不同）：applyJob 的
             // compatible 判定不会命中，unknownStart 在这里无人清理，计划与开始
             // 按钮会永久禁用。终态任务说明本次开始不可能仍在执行，降级为可读说明。
-            const patch = unresolvedStartPatch(job, attempt);
-            if (patch) update(id, state => ({ ...state, ...patch }));
+            if (reference && attempt) {
+              const patch = unresolvedStartPatch(job, attempt);
+              if (patch) update(id, state => ({ ...state, ...patch }));
+            }
+            // 已知任务仍需继续展示；放在结算之后，避免它抢先跳过未知开始的清理。
+            if (knownJob?.jobId === jobId && manual) applyJob(id, manual);
           }
           // result.compactionJob is a historical snapshot; only this independent read owns liveness.
           if ((revisions.current.get(id) ?? 0) !== lifecycleRevision) {
             refreshAgain.current.add(id);
             return;
           }
-          update(id, { lifecycleActive: reference === undefined ? null : reference.active });
+          update(id, { lifecycleActive: reference === undefined ? null : reference.active, lifecycleReleased: false });
         } catch (error) {
-          if (valid() && rpcResponseError(error) && error.code === -32011) {
+          if (valid() && reference && !reference.active) {
+            // 引用已明确终态：详情坏掉不应继续锁住计划或轮询旧 running 缓存。
+            update(id, state => ({ ...state, ...terminalDetailPatch(state) }));
+          } else if (valid() && rpcResponseError(error) && error.code === -32011) {
             update(id, { unavailableJob: jobId, error: "本地内核已不再保留这个摘要任务；可能由进程重启或记录淘汰造成。不会重放该任务，可基于当前会话重新规划。" });
           } else if (valid()) update(id, { error: `暂时无法核对摘要任务：${harnessErrorText(error)}。原任务编号已保留，可稍后重试。` });
           if (valid() && reference?.active) {
@@ -220,7 +228,8 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
     const timer = setInterval(() => {
       if (!current.current.connected) return;
       for (const [id, state] of Object.entries(stateRef.current)) {
-        if ((state.unknownStart && !state.discoveryStopped) || state.lifecycleActive === true || (state.job?.status === "running" && !state.unavailableJob)) void refresh(id);
+        if ((state.unknownStart && !state.discoveryStopped) || state.lifecycleActive === true
+          || (state.job?.status === "running" && !state.unavailableJob && !state.lifecycleReleased)) void refresh(id);
       }
     }, 1500);
     return () => { alive.current = false; unsubscribe?.(); clearInterval(timer); };
@@ -245,7 +254,7 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
     const { threadId: id, connected: available, runningThreads: running } = current.current;
     if (!id || !available) return;
     const state = get(id), keepRecentTokens = Number(state.keepRecentTokens);
-    const activeJob = state.job?.status === "running" && state.lifecycleActive !== false;
+    const activeJob = state.job?.status === "running" && state.lifecycleActive !== false && !state.lifecycleReleased;
     if (state.planning || state.starting || state.unknownStart || activeJob || state.lifecycleActive === true || state.turnActive || running.has(id) || state.budget?.requestSource === "active") return;
     if (!Number.isSafeInteger(keepRecentTokens) || keepRecentTokens <= 0) { update(id, { error: "近期保留目标必须是正整数" }); return; }
     const connectionEpoch = epoch.current, revision = revisions.current.get(id) ?? 0;
@@ -266,7 +275,7 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
     const { threadId: id, connected: available, runningThreads: running } = current.current;
     if (!id || !available) return;
     const state = get(id), selected = state.plan;
-    if (!selected || state.starting || state.unknownStart || (state.job?.status === "running" && state.lifecycleActive !== false) || state.lifecycleActive === true || state.turnActive || running.has(id) || state.budget?.requestSource === "active") return;
+    if (!selected || state.starting || state.unknownStart || (state.job?.status === "running" && state.lifecycleActive !== false && !state.lifecycleReleased) || state.lifecycleActive === true || state.turnActive || running.has(id) || state.budget?.requestSource === "active") return;
     const connectionEpoch = epoch.current;
     const attempt = { sourceDigest: selected.sourceDigest, throughTurnId: selected.throughTurnId, priorJobId: state.budget?.compactionJob?.jobId ?? state.job?.jobId };
     update(id, { starting: true, unknownStart: attempt, discoveryStopped: false, plan: undefined, cancelRequested: false, error: "", startRejection: undefined });
