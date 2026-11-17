@@ -59,9 +59,10 @@ def _validate_json_value(value: Any, *, depth: int = 0) -> None:
 
 
 def _enable_surrogateescape_stdin() -> None:
-    """让 stdin 按字节级 surrogateescape 解码，坏字节只影响单帧。
+    """让 stdin 固定按 UTF-8 + surrogateescape 解码，坏字节只影响单帧。
 
-    默认文本流使用 strict 错误策略，帧内非法 UTF-8 字节会让 ``readline`` 抛
+    协议帧按 UTF-8 编码；若 stdin 跟随 locale，多字节字符会被错误解码。
+    默认文本流又使用 strict 错误策略，帧内非法 UTF-8 字节会让 ``readline`` 抛
     ``UnicodeDecodeError`` 并终止读取循环。surrogateescape 保留原始字节，
     随后逐帧用 ``encode("utf-8", "surrogateescape")`` 还原、再严格解码，
     非法 UTF-8 帧便降级为 ``-32700``；LF 是 ASCII，分帧不受影响。
@@ -70,7 +71,7 @@ def _enable_surrogateescape_stdin() -> None:
     if reconfigure is None:
         return
     try:
-        reconfigure(errors="surrogateescape")
+        reconfigure(encoding="utf-8", errors="surrogateescape")
     except (AttributeError, OSError, ValueError):
         # 被替换或已关闭的流可能不支持重配置；读取处仍会兜住解码失败。
         pass
@@ -202,13 +203,30 @@ class JsonRpcServer:
 
     def _write(self, frame: dict[str, Any]) -> None:
         encoded = json.dumps(frame, ensure_ascii=False, allow_nan=False) + "\n"
-        if len(encoded.encode("utf-8")) > MAX_FRAME_BYTES:
+        raw = encoded.encode("utf-8")
+        if len(raw) > MAX_FRAME_BYTES:
             raise FrameTooLargeError("协议帧超过大小限制")
         with self._write_lock:
             if self._closed:
                 raise ConnectionError("连接已关闭")
-            self._out.write(encoded)
-            self._out.flush()
+            # 协议帧固定按 UTF-8 写出：stdout 的文本编码跟随 locale /
+            # PYTHONIOENCODING，非 UTF-8 时中文成功帧编码失败会零字节回包，
+            # 协议错误帧更会让内核退出。字节流可用时绕过文本层，同时避免
+            # 平台换行转换；注入的纯文本流（测试）仍走原路径。
+            buffer = getattr(self._out, "buffer", None)
+            if buffer is not None:
+                buffer.write(raw)
+                buffer.flush()
+            else:
+                self._out.write(encoded)
+                self._out.flush()
+
+    def _protocol_error(self, code: int, message: str) -> None:
+        """固定中文协议错误帧：输出流无法编码时也不让异常终止读取循环。"""
+        try:
+            self.respond_error(None, code, message)
+        except UnicodeEncodeError:
+            pass
 
     def serve_forever(self) -> None:
         _enable_surrogateescape_stdin()
@@ -219,29 +237,29 @@ class JsonRpcServer:
                 except UnicodeDecodeError:
                     # 无法重配置的流仍可能在分帧前解码失败；此时缓冲状态不可信，
                     # 回一帧错误后有序停止，避免未捕获异常让进程整体崩溃。
-                    self.respond_error(None, -32700, "无效的 JSON 帧")
+                    self._protocol_error(-32700, "无效的 JSON 帧")
                     break
                 if not raw:
                     break
                 try:
                     encoded = raw.encode("utf-8", errors="surrogateescape")
                 except UnicodeEncodeError:
-                    self.respond_error(None, -32700, "无效的 JSON 帧")
+                    self._protocol_error(-32700, "无效的 JSON 帧")
                     break
                 if len(encoded) > MAX_FRAME_BYTES or not raw.endswith("\n"):
-                    self.respond_error(None, -32600, "协议帧过大或缺少 LF 终止符")
+                    self._protocol_error(-32600, "协议帧过大或缺少 LF 终止符")
                     break
                 try:
                     raw = encoded.decode("utf-8")
                 except UnicodeDecodeError:
-                    self.respond_error(None, -32700, "无效的 JSON 帧")
+                    self._protocol_error(-32700, "无效的 JSON 帧")
                     continue
                 if not raw.strip():
                     continue
                 try:
                     message = _decode_json_frame(raw)
                 except ValueError:
-                    self.respond_error(None, -32700, "无效的 JSON 帧")
+                    self._protocol_error(-32700, "无效的 JSON 帧")
                     continue
                 self._dispatch(message)
         finally:
