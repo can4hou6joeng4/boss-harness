@@ -278,7 +278,13 @@ class JsonRpcServer:
             return
         if message.get("params") is not None and not isinstance(message["params"], dict):
             if has_id:
-                self.respond_error(request_id, -32602, "params 必须是对象")
+                try:
+                    self.respond_error(request_id, -32602, "params 必须是对象")
+                except FrameTooLargeError:
+                    # 请求 id 本身接近帧上限，错误帧不能再带它；回退无 id 的协议
+                    # 错误。_dispatch 位于 serve_forever 的捕获范围之外，异常逃逸
+                    # 会让内核因一帧坏请求直接退出。
+                    self.respond_error(None, -32602, "params 必须是对象")
             return
         handler = self._methods.get(method)
         try:
