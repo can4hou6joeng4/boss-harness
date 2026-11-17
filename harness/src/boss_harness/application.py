@@ -48,7 +48,7 @@ from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, CheckpointCommitted
                                   SessionSizeLimitExceeded, SessionStore, ThreadNotFound,
                                   ToolRevisionPersistenceError,
                                   MAX_TOOL_BATCH_CALLS)
-from boss_harness.snapshot_store import MAX_SNAPSHOT_BYTES, SnapshotStore, read_source_entries
+from boss_harness.snapshot_store import MAX_SNAPSHOT_BYTES, SnapshotStore, read_projection_entries
 from boss_harness.tool_results import MAX_PAGE_BYTES, project_item, read_result_chunk, wire_size
 from boss_harness.tool_bundle import ToolBundle
 from boss_harness.summary import BRANCH_SUMMARY_SYSTEM, SUMMARY_MAX_REQUESTS, SummaryPlanner
@@ -842,9 +842,12 @@ class ApplicationService:
                                        {"code": "RESPONSE_TOO_LARGE", "recoveryMethod": "thread.resume",
                                         "snapshot": True, "view": "log"})
                     # The leaf projection needs the whole pinned prefix; it is computed
-                    # outside the writer lock from the same inode/size as the build.
+                    # outside the writer lock from the same inode/size as the build.  The
+                    # first pass keeps only the fields the projection reads, so item text
+                    # and tool results are not materialised a second time (#1978).
                     projection = self.sessions.branch_snapshot_projection(
-                        thread_id, read_source_entries(source, source_size, maximum=MAX_SNAPSHOT_BYTES),
+                        thread_id,
+                        read_projection_entries(source, source_size, maximum=MAX_SNAPSHOT_BYTES),
                         max_turn_bytes=MAX_PAGE_BYTES)
                     if not exclude and projection["turnsTooLarge"]:
                         raise RpcError(-32010, "会话响应过大，请用 thread/resume snapshot=true 后分页读取条目",

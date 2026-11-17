@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Callable
 import json
 import os
 from pathlib import Path
@@ -92,9 +93,8 @@ def _require_item_id(item: dict) -> dict:
     return item
 
 
-def read_source_entries(source: BinaryIO, size: int, *,
-                        maximum: int = MAX_SNAPSHOT_SOURCE_BYTES) -> list[dict]:
-    """Decode a pinned rollout prefix once (branch projection needs the whole prefix), then rewind."""
+def _read_source_entries(source: BinaryIO, size: int, *, maximum: int,
+                         transform: Callable[[dict], dict] | None = None) -> list[dict]:
     if size > maximum:
         raise ValueError("会话文件超过冻结快照读取上限")
     source.seek(0)
@@ -105,10 +105,60 @@ def read_source_entries(source: BinaryIO, size: int, *,
                 continue
             entry = _decode_session_record(raw, line_number=line_number)
             if entry is not None:
-                entries.append(entry)
+                entries.append(transform(entry) if transform is not None else entry)
     finally:
         source.seek(0)
     return entries
+
+
+def read_source_entries(source: BinaryIO, size: int, *,
+                        maximum: int = MAX_SNAPSHOT_SOURCE_BYTES) -> list[dict]:
+    """Decode a pinned rollout prefix once (branch projection needs the whole prefix), then rewind."""
+    return _read_source_entries(source, size, maximum=maximum)
+
+
+# 分支投影只需这些持久字段：条目正文、工具结果等大载荷不参与 `keepIds`、`leaf`
+# 与 `turns` 的计算。`_active_entries` / `_item_owners` / `_turns` 若新增读取字段，
+# 必须同步扩展此表；探针会比较轻量投影与完整条目的投影结果逐字段一致。
+_PROJECTION_PAYLOAD_KEYS = {
+    "item": ("revises", "kind", "status", "turnId"),
+    "task_phase": ("taskId", "turnId", "ownerKind", "phase", "status", "attempt",
+                   "restartLimit", "recoveryReason", "resumePolicy"),
+    "tool_batch": ("turnId", "taskId"),
+    "context_edit": ("targetItemId",),
+    "context_checkpoint": ("throughTurnId",),
+    "leaf": ("targetId",),
+}
+
+
+def _projection_entry(record: dict) -> dict:
+    kind = record.get("type")
+    payload = record.get("payload")
+    if kind == "turn":
+        # 公共回合元数据取 turn 载荷的全部非内部字段；回合记录数远小于条目数，
+        # 保留完整载荷换取与完整投影一致的 turns 页。
+        reduced = payload
+    else:
+        keys = _PROJECTION_PAYLOAD_KEYS.get(kind, ())
+        reduced = {key: payload[key] for key in keys if key in payload}
+    entry = {"id": record["id"], "type": kind, "payload": reduced}
+    parent_id = record.get("parentId")
+    if parent_id is not None:
+        entry["parentId"] = parent_id
+    if kind == "turn":
+        entry["timestamp"] = record.get("timestamp", "")
+    return entry
+
+
+def read_projection_entries(source: BinaryIO, size: int, *,
+                            maximum: int = MAX_SNAPSHOT_SOURCE_BYTES) -> list[dict]:
+    """Decode a pinned prefix once, keeping only the fields the branch projection reads.
+
+    完整 `list[dict]` 让常驻内存相对源大小放大数倍（#1978）；条目正文与工具
+    结果不参与分支投影，第一遍只保留判定字段，第二遍由 `SnapshotBuilder.build`
+    流式读取原始文件写入快照。
+    """
+    return _read_source_entries(source, size, maximum=maximum, transform=_projection_entry)
 
 
 class SnapshotBuild:
