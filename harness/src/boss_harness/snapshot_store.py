@@ -434,8 +434,13 @@ class SnapshotStore:
                     payload_bytes += len(payload.encode("utf-8"))
                     if result and payload_bytes > max_payload_bytes:
                         break
-                    result.append((_decode_item(payload), {"entryId": row[1], "excluded": bool(row[2])}
-                                   if row[1] is not None else None))
+                    # 编辑状态列与条目一样来自持久库：entry_id 必须是非空字符串，
+                    # excluded 必须是 0 / 1。损坏行按「没有编辑状态」处理，条目照常返回，
+                    # 不让 BLOB 标识让整页响应无法编码。
+                    edit = None
+                    if isinstance(row[1], str) and row[1] and type(row[2]) is int and row[2] in (0, 1):
+                        edit = {"entryId": row[1], "excluded": row[2] == 1}
+                    result.append((_decode_item(payload), edit))
             finally:
                 connection.close()
             return result, count
@@ -459,7 +464,11 @@ class SnapshotStore:
                 row = connection.execute("SELECT entry_id,excluded FROM edits WHERE item_id=?", (item_id,)).fetchone()
             finally:
                 connection.close()
-            return {"entryId": row[0], "excluded": bool(row[1])} if row else None
+            # 与 page() 同一契约：标识或排除标记损坏时按「没有编辑状态」处理。
+            if (not row or not isinstance(row[0], str) or not row[0]
+                    or type(row[1]) is not int or row[1] not in (0, 1)):
+                return None
+            return {"entryId": row[0], "excluded": row[1] == 1}
 
     def queue(self, snapshot_id: str, thread_id: str) -> dict:
         """Bounded queue projection; terminal history is windowed, not truncated by bytes."""
