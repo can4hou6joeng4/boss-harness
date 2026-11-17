@@ -80,7 +80,9 @@ export function parseComposerDraftStore(value: unknown): PersistedComposerDraftS
   if (!value || typeof value !== "object" || Array.isArray(value)) return empty;
   const record = value as { version?: unknown; home?: unknown; sessions?: unknown };
   if (record.version !== STORE_VERSION) return empty;
-  const sessions: Record<string, PersistedComposerDraft> = {};
+  // 外部键可能包含 `__proto__`：普通对象作累加器会触发原型 setter，草稿被静默丢弃并污染原型；
+  // 无原型对象把任意键都建成自有属性，后续 `Object.fromEntries` 也不再经过 setter。
+  const sessions: Record<string, PersistedComposerDraft> = Object.create(null);
   if (record.sessions && typeof record.sessions === "object" && !Array.isArray(record.sessions)) {
     for (const [id, raw] of Object.entries(record.sessions)) {
       if (!id.trim()) continue;
@@ -131,7 +133,7 @@ export function saveComposerDrafts(
   if (!storage) return;
   try {
     const previous = loadComposerDraftStore(storage);
-    const next: PersistedComposerDraftStore = { sessions: {} };
+    const next: PersistedComposerDraftStore = { sessions: Object.create(null) as Record<string, PersistedComposerDraft> };
     const add = (id: string | null, draft: ComposerDraft | undefined, previousEntry: PersistedComposerDraft | undefined) => {
       const current = collectDraft(draft);
       // 只有项目没有正文与技能的草稿不需要单独保存，避免为一次项目点选写入空草稿。

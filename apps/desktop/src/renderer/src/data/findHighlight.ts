@@ -1,4 +1,6 @@
+import { codePointLength } from "@boss-harness/shared";
 import { kernelSearchText, kernelSearchTextWithMap, searchText, searchTextWithMap, type MappedSearchText } from "./searchText";
+import { MESSAGE_SEARCH_MAX_LENGTH } from "./searchStatus";
 
 /**
  * 会话内查找保留的高亮区间总数上限。
@@ -81,15 +83,20 @@ export function splitKernelHighlight(text: string, query: string, limit = 50): T
  * 按空白拆分查询并逐个关键词收集区间，排序后合并重叠或相邻的命中。
  * 搜索弹窗的会话过滤按空白拆分关键词逐词匹配，标注必须用同一组关键词；
  * 按完整查询做子串比对时，「张 招聘」这类查询在单行文本里找不到连续命中。
+ *
+ * `mapped` 由调用方归一化一次后传进来：早期实现对每个关键词各归一化一次整段文本，
+ * 关键词多、结果行多时会在每次击键的渲染里重复做整串字素切分与 NFKC。
  */
 function keywordRanges(
-  text: string,
   query: string,
-  scan: (text: string, query: string, limit: number) => TextRange[],
+  mapped: MappedSearchText,
+  normalize: (value: string) => string,
   limit: number,
 ): TextRange[] {
   const ranges = query.trim().split(/\s+/).filter(Boolean)
-    .flatMap(keyword => scan(text, keyword, limit))
+    .map(keyword => normalize(keyword).trim())
+    .filter(Boolean)
+    .flatMap(needle => scanRanges(mapped, needle, limit))
     .sort((left, right) => left.start - right.start || left.end - right.end);
   const merged: TextRange[] = [];
   for (const range of ranges) {
@@ -103,9 +110,12 @@ function keywordRanges(
 /**
  * 搜索弹窗标题与项目名的关键词标注：与会话过滤共用整串 NFKC 小写归一化，
  * 每个空白分隔的关键词单独标注，重叠部分合并。
+ * 超过 `MESSAGE_SEARCH_MAX_LENGTH` 的查询不再标注（消息搜索同样按该上限拒绝），
+ * 避免超长查询在渲染期重复归一化整段文本。
  */
 export function splitQueryHighlight(text: string, query: string, limit = 50): TextSegment[] {
-  return splitByRanges(text, keywordRanges(text, query, findTextRanges, limit));
+  if (codePointLength(query) > MESSAGE_SEARCH_MAX_LENGTH) return splitByRanges(text, []);
+  return splitByRanges(text, keywordRanges(query, searchTextWithMap(text), searchText, limit));
 }
 
 /**
@@ -113,7 +123,8 @@ export function splitQueryHighlight(text: string, query: string, limit = 50): Te
  * 归一化，避免 `ß` / `STRASSE` 这类差异让片段命中却标不出来。
  */
 export function splitKernelQueryHighlight(text: string, query: string, limit = 50): TextSegment[] {
-  return splitByRanges(text, keywordRanges(text, query, findKernelTextRanges, limit));
+  if (codePointLength(query) > MESSAGE_SEARCH_MAX_LENGTH) return splitByRanges(text, []);
+  return splitByRanges(text, keywordRanges(query, kernelSearchTextWithMap(text), kernelSearchText, limit));
 }
 
 /**

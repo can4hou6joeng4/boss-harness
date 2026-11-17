@@ -1241,7 +1241,7 @@ export function App(): JSX.Element {
     running: runningThreadIds.has(contextThreadId), queueItems, compacting, switching: activeBranchState.switching }) : null;
   const sessionProvider = activeSession?.provider ?? defaultModel?.provider;
   const branchSummaryUnavailable = !harnessUp ? "本地内核未连接。"
-    : sessionProvider?.toLowerCase() === "none" ? "当前会话的模型线路为 none（未配置模型），无法生成摘要。" : null;
+    : typeof sessionProvider === "string" && sessionProvider.toLowerCase() === "none" ? "当前会话的模型线路为 none（未配置模型），无法生成摘要。" : null;
   const branchesVisible = Boolean(branchCapability && contextThreadId && !preview
     && (activeBranchState.turnCount > 0 || messages.some(message => message.turnId)));
   // 目标不在前台时无法旁路读取它的队列与压缩状态：界面只固定归档 / 运行 / 切换中，切换前由 switchTo 重新核对队列。
