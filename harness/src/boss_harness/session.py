@@ -3596,6 +3596,11 @@ class SessionStore:
             # 会抛 KeyError（-32603），重建重试永远不可达。
             if params.get("eventCursor") != str(row["cursor"]):
                 raise ValueError("事件索引已损坏")
+            # method 列同样来自持久库：外部可把它改写成 BLOB，返回帧随后在
+            # wire_size / json.dumps 处抛 TypeError（-32603）。按索引损坏处理，
+            # 由 events_after 的既有重建重试从 events.jsonl 恢复。
+            if not isinstance(row["method"], str) or not row["method"]:
+                raise ValueError("事件索引已损坏")
             entries.append({"method": row["method"], "params": params})
         return entries
 
