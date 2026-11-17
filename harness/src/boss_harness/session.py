@@ -293,6 +293,27 @@ def _read_exactly_at(descriptor: int, offset: int, length: int) -> bytes:
     return b"".join(chunks)
 
 
+def _complete_record_limit(handle: io.BufferedReader, size: int) -> int:
+    """把快照的固定读取范围收敛到最后一个完整记录边界内。
+
+    追加在发现末尾残段（无换行）时会先截掉残段再写入完整记录，这会改写残段覆盖的
+    字节。快照在写锁内固定范围、在锁外解码，若范围把残段包含在内，截断后的文件会
+    短于固定范围：条目快照读到 EOF 抛「会话日志快照读取不完整」，而快照构建器静默
+    提前结束，还会把固定范围之外新追加的记录当成固定前缀的一部分。收敛到换行边界
+    后，追加只会改写边界之后的字节，锁外读取看到的前缀不再被改写。
+    """
+    if size <= 0:
+        return 0
+    handle.seek(size - 1)
+    if handle.read(1) == b"\n":
+        return size
+    window = min(size, MAX_SESSION_LINE_BYTES + 1)
+    handle.seek(size - window)
+    boundary = handle.read(window).rfind(b"\n")
+    # 窗口内没有换行说明文件里没有完整记录（会话头也以换行结尾），按空前缀固定。
+    return 0 if boundary < 0 else size - window + boundary + 1
+
+
 def _truncate_partial_record_tail(descriptor: int, start: int) -> int:
     """截掉末尾没有换行的不完整记录，返回新的文件长度。
 
@@ -1322,7 +1343,8 @@ class SessionStore:
             source = self.path_for(thread_id).open("rb")
             try:
                 stat_result = os.fstat(source.fileno())
-                return SessionEntriesSnapshot(source, stat_result.st_size,
+                size = _complete_record_limit(source, stat_result.st_size)
+                return SessionEntriesSnapshot(source, size,
                                               stat_result.st_mtime_ns, stat_result.st_ino)
             except BaseException:
                 source.close()
@@ -1346,7 +1368,9 @@ class SessionStore:
                     "SELECT COALESCE(MAX(cursor),0) FROM events").fetchone()[0])
             source = self.path_for(thread_id).open("rb")
             try:
-                size = os.fstat(source.fileno()).st_size
+                # 固定范围同样收敛到完整记录边界；快照构建从当前游标顺序读取，读回起点。
+                size = _complete_record_limit(source, os.fstat(source.fileno()).st_size)
+                source.seek(0)
                 return source, size, cursor
             except BaseException:
                 source.close()
