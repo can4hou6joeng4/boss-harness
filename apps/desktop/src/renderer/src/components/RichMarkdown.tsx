@@ -36,8 +36,39 @@ function linkDestinationEnds(text: string): Map<number, number> {
   return ends;
 }
 
-export const RichMarkdown: React.FC<RichMarkdownProps> = ({ content }) => {
-  const { feedback, copy } = useClipboardCopy();
+type InlineToken = { kind: "link" | "code" | "bold"; index: number; text: string; end: number };
+
+/**
+ * 从 `from` 起找下一个行内标记：`[text](`、`` `code` `` 或 `**bold**`。
+ *
+ * 旧实现用一条全局正则反复 `exec`：未闭合的 `[`、反引号或 `**` 会让每个起点都搜索整段后文，
+ * 合法但很长的一行（模型输出常见）因此平方级回溯、冻结渲染主线程。这里为三种闭合符缓存
+ * 「下一个出现位置」，起点只前进不后退，整体一次扫描。
+ */
+function nextInlineToken(text: string, from: number): InlineToken | null {
+  // -2 = 尚未搜索；-1 = 后续不存在。
+  let bracket = -2, tick = -2, star = -2;
+  for (let index = from; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "[") {
+      if (bracket === -2 || (bracket !== -1 && bracket < index + 1)) bracket = text.indexOf("]", index + 1);
+      if (bracket > index + 1 && text[bracket + 1] === "(") {
+        return { kind: "link", index, text: text.slice(index + 1, bracket), end: bracket + 2 };
+      }
+    } else if (character === "`") {
+      if (tick === -2 || (tick !== -1 && tick < index + 1)) tick = text.indexOf("`", index + 1);
+      if (tick > index + 1) return { kind: "code", index, text: text.slice(index + 1, tick), end: tick + 1 };
+    } else if (character === "*" && text[index + 1] === "*") {
+      if (star === -2 || (star !== -1 && star < index + 2)) star = text.indexOf("*", index + 2);
+      if (star > index + 2 && text[star + 1] === "*") {
+        return { kind: "bold", index, text: text.slice(index + 2, star), end: star + 2 };
+      }
+    }
+  }
+  return null;
+}
+
+export const RichMarkdown: React.FC<RichMarkdownProps> = ({ content }) => {  const { feedback, copy } = useClipboardCopy();
 
   const handleCopyCode = (code: string, index: number) => {
     // 只有写入成功才显示「已复制」；失败时给出原因，避免用户粘贴出旧内容才发现。
@@ -54,37 +85,37 @@ export const RichMarkdown: React.FC<RichMarkdownProps> = ({ content }) => {
     // 1. [text]( -> 链接开头，目标终点由圆括号配对表确定
     // 2. `code` -> 行内代码
     // 3. **bold** -> 粗体
-    const tokenRegex = /(\[([^\]]+)\]\(|`([^`]+)`|\*\*([^*]+)\*\*)/g;
     const linkEnds = linkDestinationEnds(text);
 
     const elements: React.ReactNode[] = [];
     let currentIdx = 0;
-    let inlineMatch: RegExpExecArray | null;
+    let token = nextInlineToken(text, currentIdx);
 
-    while ((inlineMatch = tokenRegex.exec(text)) !== null) {
-      if (inlineMatch.index > currentIdx) {
-        elements.push(text.slice(currentIdx, inlineMatch.index));
+    while (token !== null) {
+      if (token.index > currentIdx) {
+        elements.push(text.slice(currentIdx, token.index));
       }
 
-      if (inlineMatch[1]?.startsWith("[")) {
-        const linkText = inlineMatch[2] ?? "";
-        const opening = tokenRegex.lastIndex - 1;
+      if (token.kind === "link") {
+        const linkText = token.text;
+        const opening = token.end - 1;
         const closing = linkEnds.get(opening);
         if (closing === undefined || closing === opening + 1) {
           // 流式输出尚未闭合时保留原文，不把地址的一部分变成可点击链接。
-          elements.push(inlineMatch[0]);
-          currentIdx = tokenRegex.lastIndex;
+          elements.push(text.slice(token.index, token.end));
+          currentIdx = token.end;
+          token = nextInlineToken(text, currentIdx);
           continue;
         }
         const linkUrl = text.slice(opening + 1, closing).replace(/\\([\\()])/g, "$1");
-        tokenRegex.lastIndex = closing + 1;
+        currentIdx = closing + 1;
         const target = externalTarget(linkUrl);
         const isCitation = linkText.startsWith("来源") || /^\d+$/.test(linkText) || linkText.includes("↗") || linkText.includes("GitHub");
 
         if (isCitation) {
           elements.push(
             <a
-              key={inlineMatch.index}
+              key={token.index}
               href={linkUrl}
               target="_blank"
               rel="noreferrer"
@@ -102,7 +133,7 @@ export const RichMarkdown: React.FC<RichMarkdownProps> = ({ content }) => {
         } else {
           elements.push(
             <a
-              key={inlineMatch.index}
+              key={token.index}
               href={linkUrl}
               className="chat-inline-link"
               title={target ? target : `${linkUrl}（该链接协议不会打开）`}
@@ -116,23 +147,25 @@ export const RichMarkdown: React.FC<RichMarkdownProps> = ({ content }) => {
             </a>
           );
         }
-      } else if (inlineMatch[3]) {
+      } else if (token.kind === "code") {
         // 行内代码 `code`
         elements.push(
-          <code key={inlineMatch.index} className="chat-inline-code">
-            {inlineMatch[3]}
+          <code key={token.index} className="chat-inline-code">
+            {token.text}
           </code>
         );
-      } else if (inlineMatch[4]) {
+        currentIdx = token.end;
+      } else {
         // 粗体 **bold**
         elements.push(
-          <strong key={inlineMatch.index} style={{ fontWeight: 600, color: "var(--text-main)" }}>
-            {inlineMatch[4]}
+          <strong key={token.index} style={{ fontWeight: 600, color: "var(--text-main)" }}>
+            {token.text}
           </strong>
         );
+        currentIdx = token.end;
       }
 
-      currentIdx = tokenRegex.lastIndex;
+      token = nextInlineToken(text, currentIdx);
     }
 
     if (currentIdx < text.length) {

@@ -123,6 +123,10 @@ export class HarnessReplica {
     }
     current();
     if (snapshot.view !== "branch" || snapshot.thread?.id !== threadId) throw new Error("分支视图响应无效");
+    // 与 `thread/resume` 普通路径同一契约：线路字段会被渲染期展示与 `toLowerCase()` 使用，
+    // 条目必须可枚举；畸形回执让该会话显示恢复失败，而不是在渲染时落入应用级错误边界。
+    assertSnapshotRouteFields(snapshot.thread);
+    if (!Array.isArray(snapshot.items)) throw new Error("分支视图条目无效");
     const hydrated: ThreadItem[] = [];
     for (const item of snapshot.items) { current(); hydrated.push(await this.resolveItemContent(item, threadId, undefined, current)); }
     snapshot.items = hydrated;
