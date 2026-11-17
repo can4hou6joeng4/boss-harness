@@ -15,7 +15,7 @@ from boss_harness.private_files import (
     restrict_private_file,
 )
 from boss_harness.ownership import StateDirectoryOwner
-from boss_harness.session import SessionStore
+from boss_harness.session import SessionStore, _fsync_directory
 
 
 def _sha256_file(path: Path) -> str:
@@ -54,6 +54,10 @@ def repair_index(root: Path) -> dict:
             output.write((json.dumps(manifest, indent=2) + "\n").encode())
             output.flush()
             os.fsync(output.fileno())
+        # 目录项要等目录 fsync 后才落盘：先备份目录（移入的文件与清单），再状态根目录
+        # （库文件的移除）。顺序保证崩溃时最多留下重复副本，不会出现根目录已删而备份缺失。
+        _fsync_directory(backup)
+        _fsync_directory(root)
         rebuilding = True
         store = SessionStore(root / "sessions")
         count = len(store.list_threads(include_archived=True))
