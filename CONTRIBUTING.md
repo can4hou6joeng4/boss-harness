@@ -18,7 +18,7 @@ npx install-electron --no
 npm run typecheck
 npm run build
 uv venv --python 3.12 .venv
-uv pip install --python .venv/bin/python -e ./harness build
+uv pip install --python .venv/bin/python -e ./harness build packaging
 .venv/bin/python -m build ./harness --outdir dist/python
 git diff --check
 ```
