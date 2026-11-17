@@ -177,6 +177,14 @@ export class HarnessClient {
     this.#incoming.delete(response.id);
   }
 
+  /** 错误回包是尽力而为：内核帧的 id 没有长度上限，带同样 id 的回包可能超限。 */
+  #rejectServerRequest(id: JsonRpcId, error: JsonRpcError): void {
+    // #enqueue 抛错时不能让异常从 stdout 数据回调逃逸，否则一帧坏请求就能
+    // 终止主进程。回包失败只记录诊断；连接状态仍由既有传输故障路径管理。
+    try { this.respondError(id, error); }
+    catch { this.#diagnostic("failed to answer server request"); }
+  }
+
   #enqueue(payload: JsonRpcMessage, id?: JsonRpcId): void {
     if (this.#failure || !this.#child?.stdin.writable) throw this.#failure ?? new Error("harness is not running");
     const frame = `${JSON.stringify(payload)}\n`;
@@ -279,12 +287,12 @@ export class HarnessClient {
     this.#incoming.add(message.id);
     const request = value as JsonRpcRequest;
     if (!this.#requestListeners.size) {
-      this.respondError(request.id, { code: -32601, message: "Method not found" }); return;
+      this.#rejectServerRequest(request.id, { code: -32601, message: "Method not found" }); return;
     }
     for (const listener of this.#requestListeners) {
       try { listener(request); }
       catch {
-        if (this.#incoming.has(request.id)) this.respondError(request.id, { code: -32603, message: "Client request handler failed" });
+        if (this.#incoming.has(request.id)) this.#rejectServerRequest(request.id, { code: -32603, message: "Client request handler failed" });
       }
     }
   }
