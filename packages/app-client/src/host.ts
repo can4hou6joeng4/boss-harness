@@ -60,6 +60,7 @@ export class HarnessHostConnection {
   #initialized: InitializeResponse | undefined;
   #error: string | undefined;
   #listeners = new Set<(notification: JsonRpcNotification) => void>();
+  #statusListeners = new Set<(notification: JsonRpcNotification) => void>();
   #approvals = new Map<string, ApprovalRoute>();
   #retryTimer: ReturnType<typeof setTimeout> | null = null;
   #retryAt: number | undefined;
@@ -91,6 +92,12 @@ export class HarnessHostConnection {
   onNotification(listener: (notification: JsonRpcNotification) => void): () => void {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
+  }
+
+  /** 宿主自身的连接状态事件；内核通知不会进入这条通道，消费者无需信任帧内容。 */
+  onStatus(listener: (notification: JsonRpcNotification) => void): () => void {
+    this.#statusListeners.add(listener);
+    return () => this.#statusListeners.delete(listener);
   }
 
   /** All callers share the same initialize -> initialized handshake. */
@@ -330,7 +337,15 @@ export class HarnessHostConnection {
   }
 
   #setState(state: HarnessConnectionState): void { this.#state = state; this.#broadcastStatus(); }
-  #broadcastStatus(): void { this.#emit({ jsonrpc: "2.0", method: "harness/connectionStatus", params: this.status() }); }
+  #broadcastStatus(): void {
+    const notification: JsonRpcNotification = {
+      jsonrpc: "2.0", method: "harness/connectionStatus", params: this.status(),
+    };
+    this.#emit(notification);
+    for (const listener of this.#statusListeners) {
+      try { listener(notification); } catch { /* A detached window cannot break the host. */ }
+    }
+  }
   #emit(notification: JsonRpcNotification): void {
     for (const listener of this.#listeners) {
       try { listener(notification); } catch { /* A detached window cannot break the host. */ }

@@ -207,10 +207,17 @@ function createHost(): HarnessHostConnection {
       for (const window of windows) send(window, status);
     },
   );
-  connection.onNotification((notification) => {
+  // 连接状态只从宿主的状态通道接收：内核（Python 侧从不发送这个通知）或注入的
+  // 同名帧不能让主进程清空运行中回合、触发启动自检或让界面显示已断开。
+  connection.onStatus((notification) => {
     forgetTurnsOnDisconnect(notification);
     const outgoing = withStartupDiagnosis(notification);
     for (const window of windows) send(window, outgoing);
+  });
+  connection.onNotification((notification) => {
+    // 状态帧只走宿主通道；内核通知流里的同名帧丢弃，不转发也不影响回合跟踪。
+    if (notification.method === "harness/connectionStatus") return;
+    for (const window of windows) send(window, notification);
     notifyApproval(notification);
     notifyTurn(notification);
   });
