@@ -310,8 +310,13 @@ def _complete_record_limit(handle: io.BufferedReader, size: int) -> int:
     window = min(size, MAX_SESSION_LINE_BYTES + 1)
     handle.seek(size - window)
     boundary = handle.read(window).rfind(b"\n")
-    # 窗口内没有换行说明文件里没有完整记录（会话头也以换行结尾），按空前缀固定。
-    return 0 if boundary < 0 else size - window + boundary + 1
+    if boundary < 0:
+        # 整个文件都没有换行时按空前缀固定（与读取端丢弃残段一致）；超过单行窗口仍
+        # 找不到边界说明残段本身超出任何合法记录，与追加端使用同一可读错误。
+        if size > window:
+            raise ValueError("会话日志末尾缺少完整记录边界")
+        return 0
+    return size - window + boundary + 1
 
 
 def _truncate_partial_record_tail(descriptor: int, start: int) -> int:
