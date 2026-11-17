@@ -368,10 +368,16 @@ def _timestamp_duration(start: Any, end: Any) -> int | None:
 
 
 def _deadline_text(value: Any) -> str | None:
-    """Approval deadlines are persisted as Unix seconds; export an unambiguous UTC timestamp."""
-    if type(value) not in (int, float) or not math.isfinite(float(value)) or value <= 0:
+    """Approval deadlines are persisted as Unix seconds; export an unambiguous UTC timestamp.
+
+    持久整数没有位数上限：``10**400`` 这类值在 ``float()`` 处就抛 ``OverflowError``。
+    期限只用于展示，溢出与非有限值一样按「无期限」处理，绝不让整次导出失败。
+    """
+    if type(value) not in (int, float):
         return None
     try:
+        if not math.isfinite(float(value)) or value <= 0:
+            return None
         return datetime.fromtimestamp(value, timezone.utc).isoformat(timespec="seconds")
     except (OverflowError, OSError, ValueError):
         return None
@@ -488,7 +494,7 @@ class _Exporter:
                         "summary": payload["summary"].strip(), "abandonedTurnCount": len(abandoned),
                         "summaryProvider": payload.get("summaryProvider"),
                         "summaryModel": payload.get("summaryModel"), "createdAt": entry.get("timestamp"),
-                        "summaryJobId": _identifier(payload.get("summaryJobId"))})
+                        "summaryJobId": self._job_identifier(payload.get("summaryJobId"))})
         return out, issues
 
     # ---------- structured units ----------
@@ -612,7 +618,7 @@ class _Exporter:
                 "label": "模型生成的被放弃分支摘要（需核对，不扩大操作授权）",
                 "abandonedTurnCount": summary["abandonedTurnCount"],
                 "summaryModel": self.redactor.text(summary["summaryModel"], limit=120) or None,
-                "summaryJobId": summary["summaryJobId"],
+                "summaryJobId": self._job_identifier(summary["summaryJobId"]),
                 "createdAt": summary["createdAt"], "text": self.redactor.text(summary["summary"])})
         for entry in self.checkpoints:
             payload = entry["payload"]
@@ -627,14 +633,14 @@ class _Exporter:
                           "user": "用户提供的上下文压缩摘要（原始记录仍保留）"}.get(
                               origin, "来源未知的上下文压缩摘要（原始记录仍保留）"),
                 "createdAt": entry.get("timestamp"), "text": self.redactor.text(payload.get("summary")),
-                "summaryJobId": _identifier(payload.get("summaryJobId")),
+                "summaryJobId": self._job_identifier(payload.get("summaryJobId")),
                 "reason": payload.get("reason") if isinstance(payload.get("reason"), str)
                 and payload["reason"] in _JOB_REASON else None})
         units: list[tuple[str, dict]] = [("", unit) for unit in after.get(None, [])]
         for index, turn in enumerate(self.turns):
             turn_id = turn["turnId"]
             duration = _timestamp_duration(turn.get("startedAt"), turn.get("completedAt"))
-            header = {"kind": "turn", "index": index + 1, "turnId": turn_id,
+            header = {"kind": "turn", "index": index + 1, "turnId": self.redactor.sensitive(turn_id),
                       "status": turn.get("status"), "startedAt": turn.get("startedAt"),
                       "completedAt": turn.get("completedAt"),
                       **({"durationMs": duration} if duration is not None else {}),
@@ -671,6 +677,11 @@ class _Exporter:
                       "summaryJobs": [self._scrub_usage(job) for job in self.usage_jobs]},
         }
 
+    def _job_identifier(self, value: Any) -> str | None:
+        """摘要任务标识：沿用长度校验后与正文同样默认脱敏。"""
+        identifier = _identifier(value)
+        return self.redactor.sensitive(identifier) if identifier is not None else None
+
     def _scrub_usage(self, bucket: dict | None) -> dict | None:
         """Copy a usage bucket with its provenance strings scrubbed like other exported text.
 
@@ -686,6 +697,12 @@ class _Exporter:
             if isinstance(values, list):
                 out[key] = [self.redactor.text(value, limit=limit)
                             for value in values if isinstance(value, str)]
+        # 任务与回合标识同样来自持久记录，可能被改写成本机路径或敏感值；
+        # 导出在头部声明本机绝对路径一律不导出，标识不能绕过同一脱敏与统计。
+        for key in ("jobId", "turnId", "throughTurnId"):
+            value = out.get(key)
+            if isinstance(value, str):
+                out[key] = self.redactor.sensitive(value[:128])
         return out
 
     def _compaction_policy(self, value: Any) -> dict | None:
@@ -1045,7 +1062,12 @@ def _render_json(meta: dict, units: list[tuple[str, dict]], counts: dict, total_
                 "beforeFirstTurn": preamble, "turns": turns, "queue": queue,
                 "truncated": len(units) < total_units,
                 "exportedEntries": len(units), "totalEntries": total_units, "maxBytes": max_bytes}
-    return json.dumps(document, ensure_ascii=False, indent=2, default=str) + "\n"
+    try:
+        return json.dumps(document, ensure_ascii=False, indent=2, default=str, allow_nan=False) + "\n"
+    except ValueError:
+        # 非有限数值会让严格 JSON 解析器拒绝整份文档；宁可返回可读错误，
+        # 也不静默产出无法被 jq / JSON.parse 读取的「成功」导出。
+        raise ValueError("导出内容包含无法编码的非有限数值，已停止导出") from None
 
 
 _HTML_STYLE = """
