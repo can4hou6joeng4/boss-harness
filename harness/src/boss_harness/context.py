@@ -933,8 +933,16 @@ class ContextService:
             plan["threadId"], plan["throughTurnId"], _active_turn_id=_active_turn_id)
         if current["sourceDigest"] != plan.get("sourceDigest"):
             raise ValueError("压缩来源已变化，请重新读取压缩计划")
-        summaries = self._within(self._branch_summaries(plan["threadId"], self._entries(plan["threadId"], None)),
-                                 {item.get("turnId") for item in selected})
+        entries = self._entries(plan["threadId"], None)
+        turns = self.sessions._turns(entries, plan["threadId"])
+        positions = {turn["turnId"]: index for index, turn in enumerate(turns)}
+        through_index = positions.get(current["throughTurnId"])
+        # 摘要的覆盖范围按回合顺序计算：空回合（续接或准入失败留下的零条目回合）
+        # 没有任何 item，只按 selected 的 item turnId 过滤会把它锚定的摘要整体丢掉，
+        # 而常规历史投影仍会在之后第一个可见回合前注入该摘要，前缀比对因此恒失败。
+        covered_turn_ids = ({turn["turnId"] for turn in turns[:through_index + 1]}
+                            if through_index is not None else {item.get("turnId") for item in selected})
+        summaries = self._within(self._branch_summaries(plan["threadId"], entries), covered_turn_ids)
         expected = self._history_projection(selected, previous["payload"] if previous else None, summaries)
         if tuple(request.messages[:len(expected)]) != expected:
             raise ValueError("模型请求前缀与压缩来源不一致，无法安全替换上下文")
