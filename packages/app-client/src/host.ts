@@ -188,6 +188,18 @@ export class HarnessHostConnection {
           client.respond(route.requestId, { approved: params.approved });
           return { accepted: true } as T;
         }
+        // 持久审批走普通 RPC：内核接受裁决后会静默取消对应的服务器请求
+        // （不向客户端发帧，application.py 的 cancel_request）。成功后必须由
+        // 宿主主动释放路由、截止计时器与客户端待答槽位，否则它们要等到回合终态
+        // 才清理；同一回合大量审批会把 server-... id 累计到客户端的 256 条上限，
+        // 触发断连并丢掉正在运行的回合。
+        const result = await client.request<T>(method, params);
+        if (this.#client === client) {
+          clearTimeout(route.timer);
+          this.#approvals.delete(params.approvalId);
+          client.forgetServerRequest(route.requestId);
+        }
+        return result;
       }
       if (this.#initialized?.capabilities?.durableApprovals !== true &&
           this.#initialized?.protocolVersion !== "0.1.0") throw new Error("approval is no longer pending");
@@ -335,7 +347,18 @@ export class HarnessHostConnection {
         // 条目撤销本会话仍在等待的审批。旧内核不带 threadId 时保持原匹配。
         (params.threadId === undefined || params.threadId === route.threadId) &&
         (params.itemId === route.itemId || (object(params.item) && params.item.id === route.itemId));
-      if (!completedTurn && !completedItem) continue;
+      // 内核的 item/completed 只用于消息条目；工具调用的终态是 toolCall/completed，
+      // 审批裁决另有 approval/decided。两者都携带 threadId 与 itemId（审批还带
+      // approval id），对应 server request 已被内核静默取消，路由与计时器应在此
+      // 释放，而不是等到回合终态。
+      const completedToolCall = notification.method === "toolCall/completed" &&
+        (params.threadId === undefined || params.threadId === route.threadId) &&
+        params.itemId === route.itemId;
+      const decidedApproval = notification.method === "approval/decided" &&
+        (params.threadId === undefined || params.threadId === route.threadId) &&
+        ((object(params.approval) && params.approval.approvalId === approvalId) ||
+          params.itemId === route.itemId);
+      if (!completedTurn && !completedItem && !completedToolCall && !decidedApproval) continue;
       clearTimeout(route.timer); this.#approvals.delete(approvalId);
       try { client.respondError(route.requestId, { code: -32001, message: "Approval no longer active" }); } catch {}
     }
