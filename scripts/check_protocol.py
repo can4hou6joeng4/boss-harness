@@ -19,6 +19,7 @@ APP_CLIENT = "packages/app-client/src"
 DESKTOP_ROOT = "apps/desktop/src"
 EMITTERS = frozenset({"emit", "emit_until", "_emit_committed", "notify"})
 METHOD_LITERAL = re.compile(r'method\s*(?:[!=]==?|:)\s*"([^"]+/[^"]*)"')
+PROTOCOL_DEFAULT = re.compile(r'protocolVersion\s*\?\?\s*"(\d+\.\d+\.\d+)"')
 # 内核经变量或元组发送、静态扫描无法识别的通知。新增此类路径时在此显式登记。
 DYNAMIC_KERNEL_NOTIFICATIONS = frozenset({"thread/deleted", "turn/completed"})
 # 经协议暴露、但只允许主进程调用的方法。新增此类方法时在此显式登记。
@@ -267,6 +268,21 @@ def _desktop_method_literals() -> set[str]:
     return literals
 
 
+def _default_protocol_versions() -> list[tuple[str, str]]:
+    """宿主与桌面不得为握手默认值另立协议版本字面量。"""
+    found: list[tuple[str, str]] = []
+    try:
+        paths = [*sorted((ROOT / APP_CLIENT).rglob("*.ts")),
+                 *sorted((ROOT / DESKTOP_ROOT).rglob("*.ts")),
+                 *sorted((ROOT / DESKTOP_ROOT).rglob("*.tsx"))]
+        for path in paths:
+            for literal in PROTOCOL_DEFAULT.findall(path.read_text(encoding="utf-8")):
+                found.append((path.relative_to(ROOT).as_posix(), literal))
+    except OSError:
+        raise ValueError("无法读取宿主或桌面源码") from None
+    return found
+
+
 def _describe(missing: set[str], extra: set[str]) -> str:
     parts = []
     if missing:
@@ -285,6 +301,10 @@ def check_protocol() -> tuple[str, int, int, int, int, int, int]:
     for relative in (APPLICATION, EXPORT):
         if re.search(r'PROTOCOL_VERSION\s*=\s*"', _read(relative)):
             raise ValueError(f"{relative} 不得重复定义 PROTOCOL_VERSION")
+    defaults = _default_protocol_versions()
+    if defaults:
+        raise ValueError("协议版本默认值必须引用 PROTOCOL_VERSION：" + "、".join(
+            f'{path} 的 "{literal}"' for path, literal in defaults))
 
     client = _protocol_constants(protocol, "ClientMethods")
     registered = _registered_methods()
