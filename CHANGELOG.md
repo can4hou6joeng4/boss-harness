@@ -1,3 +1,10 @@
+## 0.2.0-rc.188 - 2026-11-18
+
+rc.188 文档候选重排 README 的 CI 检查说明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- README「开发与验证」把数百字的单行检查说明拆成导语、四组列表（版本与发布元数据、协议与传输、内核工具与本地资源、工作流 / 搜索 / 文档）和可复制的逐项命令，保留全部检查事实。[Issue #2500](https://github.com/can4hou6joeng4/boss-harness/issues/2500)
+- 不改变任何检查脚本或 CI 行为；文档链接检查通过；版本推进到 npm `0.2.0-rc.188` / Python `0.2.0rc188`。
+
 ## 0.2.0-rc.187 - 2026-11-18
 
 rc.187 源码候选核对附件读取分页与存储配额。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
