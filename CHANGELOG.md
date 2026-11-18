@@ -1,3 +1,10 @@
+## 0.2.0-rc.183 - 2026-11-18
+
+rc.183 源码候选固定内核私有状态文件边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_private_files.py`：核对 `private_files.py` 的 `0o700` / `0o600` 模式、`O_NOFOLLOW`、uid / inode 校验与 ACL 清理，7 个状态模块的关键调用点，并禁止这些模块直接 `open(..., "w"/"a")`、`write_text(` 或 `write_bytes(` 写盘。[Issue #2490](https://github.com/can4hou6joeng4/boss-harness/issues/2490)
+- CI 接入后覆盖 9 个检查脚本；放宽文件模式、删除启动核对与注入 `write_text` 三个负向探针均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.183` / Python `0.2.0rc183`。
+
 ## 0.2.0-rc.182 - 2026-11-18
 
 rc.182 源码候选核对发布元数据与 LICENSE 的 MIT 声明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
