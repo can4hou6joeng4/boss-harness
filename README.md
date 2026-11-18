@@ -25,7 +25,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 - **Execution**: streaming turns, steering / follow-up queues, per-action approvals and stop, append-only JSONL history with SQLite indexing, context budgets and compaction tasks, durable restore, and branch-aware session state.
 - **Safety boundary**: 14 allowlisted tools (13 read-only plus one greeting action that requires approval on every call); capability discovery never grants permissions, and the renderer never receives platform cookies.
 - **Model routes**: OpenAI Responses (Codex or an explicit endpoint), Anthropic Messages, or `none`, sharing the same turn and tool contract.
-- **Desktop**: host-validated IPC, an isolated browser partition for platform login, sanitized session export, and an offline `--check` preflight.
+- **Desktop**: a single `boss` preload bridge over host-validated IPC; the renderer reaches the main process only through `window.boss` (no `ipcRenderer` / Electron / Node imports, no HTML sinks, CSP limited to local sources with no remote origins); platform login uses an isolated browser partition; session export is sanitized on write; an offline `--check` preflight is included.
 - **Design notes**: the kernel follows Pi's agent-harness / durable design ideas but implements this project's recruiting safety contract independently. A read-only review log of external reference repositories is kept in [UPSTREAM.md](UPSTREAM.md); those projects are not upstreams and their links do not imply endorsement.
 - **Status**: source candidates on `main` are not releases; [project status](docs/STATUS.md) lists implemented, pending and non-goal boundaries.
 

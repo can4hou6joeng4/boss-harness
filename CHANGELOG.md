@@ -1,3 +1,10 @@
+## 0.2.0-rc.155 - 2026-11-18
+
+rc.155 源码候选刷新英文概览与工程检查描述。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- README 英文概览的 Desktop 条目覆盖单一 `boss` 桥接、渲染层仅经 `window.boss` 与仅本地来源 CSP；`docs/STATUS.md` 的工程检查条目列出桌面安全与 CI 工作流安全的具体守卫范围。[Issue #2434](https://github.com/can4hou6joeng4/boss-harness/issues/2434)
+- 文档刷新不改变运行行为；版本推进到 npm `0.2.0-rc.155` / Python `0.2.0rc155`。
+
 ## 0.2.0-rc.154 - 2026-11-18
 
 rc.154 源码候选禁止渲染层 CSP 引用远程来源。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
