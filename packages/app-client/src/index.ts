@@ -77,6 +77,7 @@ export class HarnessClient {
     if (this.#child || this.#failure) throw new Error("harness client cannot be started twice");
     const child = spawn(this.options.command, this.options.args, {
       cwd: this.options.cwd, env: { ...process.env, ...this.options.env }, stdio: ["pipe", "pipe", "pipe"],
+      shell: false,
     });
     this.#child = child;
     // Split bytes only on LF: U+2028 and U+2029 remain valid string content.

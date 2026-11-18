@@ -401,6 +401,8 @@ PROCESS_MAIN_FORBIDDEN = (
     ("debugger", "主进程不得挂载调试器或保留 debugger 语句"),
 )
 SPAWN_OWNER = "startupCheck.ts"
+APP_CLIENT = ROOT / "packages/app-client/src"
+APP_CLIENT_SPAWN_OWNER = "index.ts"
 PRELOAD_FORBIDDEN = (
     ("process.env", "preload 不得读取环境变量"),
     ("process.exit", "preload 不得退出进程"),
@@ -437,20 +439,27 @@ def _check_process_boundaries() -> int:
     )
 
 
-def _check_process_spawn() -> int:
+def _check_spawn(area: Path, owner: str, label: str, display: str) -> int:
     callers = [
         path.name
-        for path in sorted(MAIN.rglob("*.ts"))
+        for path in sorted(area.rglob("*.ts"))
         if "spawn(" in path.read_text(encoding="utf-8")
     ]
-    if callers != [SPAWN_OWNER]:
+    if callers != [owner]:
         raise ValueError(
-            "主进程只允许 startupCheck.ts 调用 spawn："
-            + ("、".join(callers) or "无")
+            f"{label}只允许 {owner} 调用 spawn：" + ("、".join(callers) or "无")
         )
-    if "shell: false" not in (MAIN / SPAWN_OWNER).read_text(encoding="utf-8"):
-        raise ValueError("startupCheck.ts 的 spawn 必须显式设置 shell: false")
+    if "shell: false" not in (area / owner).read_text(encoding="utf-8"):
+        raise ValueError(f"{display}/{owner} 的 spawn 必须显式设置 shell: false")
     return 2
+
+
+def _check_process_spawn() -> int:
+    return _check_spawn(
+        MAIN, SPAWN_OWNER, "主进程", "apps/desktop/src/main"
+    ) + _check_spawn(
+        APP_CLIENT, APP_CLIENT_SPAWN_OWNER, "app-client", "packages/app-client/src"
+    )
 
 
 def _check_session_export() -> int:
