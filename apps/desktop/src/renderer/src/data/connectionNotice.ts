@@ -195,3 +195,24 @@ export function startupCheckRows(diagnosis: StartupDiagnosis | undefined): Start
     code: check.code,
   })).sort((left, right) => STATUS_ORDER[left.status] - STATUS_ORDER[right.status]);
 }
+
+/**
+ * 复制用纯文本：只汇总界面已展示的自检字段。
+ * 不读取内核 stderr、异常原文、端点、凭据、本机路径或会话内容。
+ */
+export function startupDiagnostics(
+  notice: ConnectionNoticeParts,
+  diagnosis: StartupDiagnosis | undefined,
+  meta: string,
+  mismatch: string,
+): string {
+  const lines = ["BOSS Harness 启动自检", notice.headline];
+  if (meta) lines.push(`自检报告：${meta}`);
+  if (mismatch) lines.push(mismatch);
+  if (notice.diagnosis) lines.push(notice.diagnosis);
+  for (const row of startupCheckRows(diagnosis)) {
+    lines.push(`- ${row.label} ${row.title}：${row.text}（${row.code}）`);
+  }
+  if (notice.recovery) lines.push(`处理建议：${notice.recovery}`);
+  return lines.join("\n");
+}

@@ -1,3 +1,10 @@
+## 0.2.0-rc.138 - 2026-11-18
+
+rc.138 源码候选支持复制启动自检结果。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 启动自检区域新增「复制自检结果」，复制标题、版本信息、协议不一致提示、逐项状态/说明/检查码与处理建议；只使用界面已展示的静态字段，不包含 stderr、异常原文、端点、凭据、本机路径或会话内容。[Issue #2400](https://github.com/can4hou6joeng4/boss-harness/issues/2400)
+- 写入成功与失败都有回执；新的自检结论会作废旧回执，迟到结果不覆盖当前报告。用户指南与桌面指南同步；版本推进到 npm `0.2.0-rc.138` / Python `0.2.0rc138`。
+
 ## 0.2.0-rc.137 - 2026-11-18
 
 rc.137 源码候选核对外部链接协议白名单双端一致。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
