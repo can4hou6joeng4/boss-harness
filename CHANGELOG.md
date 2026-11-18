@@ -1,3 +1,10 @@
+## 0.2.0-rc.146 - 2026-11-18
+
+rc.146 源码候选禁止渲染层直接引用 `ipcRenderer`。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 扫描 `apps/desktop/src/renderer` 下的 `.ts` / `.tsx`，出现 `ipcRenderer` 即失败；渲染层只能经 `window.boss` 使用桥接 API。[Issue #2416](https://github.com/can4hou6joeng4/boss-harness/issues/2416)
+- 负向探针在 `env.d.ts` 临时加入该标识符触发失败；`docs/STATUS.md` 启动自检条目补「结果复制」；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.146` / Python `0.2.0rc146`。
+
 ## 0.2.0-rc.145 - 2026-11-18
 
 rc.145 源码候选固定主窗口权限判定实现。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

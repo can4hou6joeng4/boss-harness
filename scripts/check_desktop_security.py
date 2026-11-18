@@ -323,6 +323,16 @@ def _channel_diff(label: str, expected: set[str], actual: set[str]) -> str:
             + "；多出：" + ("、".join(extra) or "无"))
 
 
+def _check_renderer_boundary() -> int:
+    renderer = ROOT / "apps/desktop/src/renderer"
+    for path in sorted(renderer.rglob("*")):
+        if not path.is_file() or path.suffix not in {".ts", ".tsx"}:
+            continue
+        if "ipcRenderer" in path.read_text(encoding="utf-8"):
+            raise ValueError(f"渲染层不得引用 ipcRenderer：{path.relative_to(ROOT).as_posix()}")
+    return 1
+
+
 def _check_ipc_channels() -> int:
     relative = "apps/desktop/src/preload/index.ts"
     text = (ROOT / relative).read_text(encoding="utf-8")
@@ -426,10 +436,11 @@ def check_desktop_security() -> tuple[int, int, int]:
     external = _check_external_links()
     preload = _check_preload_bridge()
     ipc = _check_ipc_channels()
+    boundary = _check_renderer_boundary()
     trusted = _check_trusted_sender()
     origins = _check_origin_policies()
     return (len(EXPECTED), checked,
-            allowlist + handlers + navigation + external + preload + ipc + trusted + origins)
+            allowlist + handlers + navigation + external + preload + ipc + boundary + trusted + origins)
 
 
 def main() -> int:
@@ -438,7 +449,7 @@ def main() -> int:
     except (OSError, ValueError) as error:
         print(f"桌面安全配置核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"桌面安全配置一致：{blocks} 个 webPreferences 块、{checked} 项布尔值、{guards} 项权限、导航与桥接防护")
+    print(f"桌面安全配置一致：{blocks} 个 webPreferences 块、{checked} 项布尔值、{guards} 项权限、导航、桥接与渲染层隔离防护")
     return 0
 
 
