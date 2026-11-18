@@ -108,7 +108,7 @@ def _check_changelog(npm_version: str) -> None:
             )
 
 
-def _check_license(root: dict) -> None:
+def _manifest_paths(root: dict) -> list[str]:
     manifests = ["package.json"]
     patterns = root.get("workspaces")
     if not isinstance(patterns, list) or not patterns:
@@ -121,6 +121,74 @@ def _check_license(root: dict) -> None:
             for path in sorted(ROOT.glob(pattern))
             if (path / "package.json").is_file()
         )
+    return manifests
+
+
+def _check_metadata(root: dict, manifests: list[str]) -> None:
+    repository = root.get("repository")
+    bugs = root.get("bugs")
+    engines = root.get("engines")
+    expected_url = "https://github.com/can4hou6joeng4/boss-harness.git"
+    if root.get("private") is not True:
+        raise ValueError("根 package.json 必须保持 private")
+    if not isinstance(root.get("description"), str) or not root["description"].strip():
+        raise ValueError("根 package.json 缺少非空 description")
+    if (not isinstance(repository, dict) or repository.get("type") != "git"
+            or repository.get("url") != expected_url):
+        raise ValueError("根 package.json 的 repository 必须是项目 Git 地址")
+    if root.get("homepage") != "https://github.com/can4hou6joeng4/boss-harness#readme":
+        raise ValueError("根 package.json 的 homepage 必须指向项目 README")
+    if not isinstance(bugs, dict) or bugs.get("url") != "https://github.com/can4hou6joeng4/boss-harness/issues":
+        raise ValueError("根 package.json 的 bugs.url 必须指向项目 issues")
+    if not isinstance(engines, dict) or engines.get("node") != ">=24":
+        raise ValueError("根 package.json 的 engines.node 必须为 >=24")
+    for relative in manifests[1:]:
+        manifest = _read(relative, json.loads)
+        if not isinstance(manifest, dict):
+            raise ValueError(f"{relative} 必须是 JSON 对象")
+        if manifest.get("private") is not True:
+            raise ValueError(f"{relative} 必须保持 private")
+        if not isinstance(manifest.get("description"), str) or not manifest["description"].strip():
+            raise ValueError(f"{relative} 缺少非空 description")
+
+    config = _read("harness/pyproject.toml", tomllib.loads)
+    project = config.get("project") if isinstance(config, dict) else None
+    if not isinstance(project, dict):
+        raise ValueError("harness/pyproject.toml 缺少 project")
+    if project.get("readme") != "README.md":
+        raise ValueError("harness/pyproject.toml 的 readme 必须是 README.md")
+    if project.get("requires-python") != ">=3.10":
+        raise ValueError("harness/pyproject.toml 的 requires-python 必须是 >=3.10")
+    keywords = project.get("keywords")
+    if (not isinstance(keywords, list) or not keywords
+            or any(not isinstance(value, str) or not value.strip() for value in keywords)):
+        raise ValueError("harness/pyproject.toml 的 keywords 必须是非空字符串列表")
+    urls = project.get("urls")
+    expected_urls = {
+        "Homepage": "https://github.com/can4hou6joeng4/boss-harness",
+        "Repository": "https://github.com/can4hou6joeng4/boss-harness",
+        "Issues": "https://github.com/can4hou6joeng4/boss-harness/issues",
+        "Changelog": "https://github.com/can4hou6joeng4/boss-harness/blob/main/CHANGELOG.md",
+    }
+    if not isinstance(urls, dict) or any(urls.get(key) != value for key, value in expected_urls.items()):
+        raise ValueError("harness/pyproject.toml 的 project.urls 必须指向项目主页 / 仓库 / issues / 变更记录")
+    scripts = project.get("scripts")
+    if not isinstance(scripts, dict) or scripts.get("boss-harness") != "boss_harness.__main__:main":
+        raise ValueError("harness/pyproject.toml 的 boss-harness 入口必须是 boss_harness.__main__:main")
+    build = config.get("build-system") if isinstance(config, dict) else None
+    if not isinstance(build, dict) or "hatchling>=1.27" not in build.get("requires", []):
+        raise ValueError("harness/pyproject.toml 的构建依赖必须包含 hatchling>=1.27")
+    if build.get("build-backend") != "hatchling.build":
+        raise ValueError("harness/pyproject.toml 的 build-backend 必须是 hatchling.build")
+    tool = config.get("tool") if isinstance(config, dict) else None
+    hatch = tool.get("hatch") if isinstance(tool, dict) else None
+    wheel = hatch.get("build", {}).get("targets", {}).get("wheel") if isinstance(hatch, dict) else None
+    if not isinstance(wheel, dict) or wheel.get("packages") != ["src/boss_harness"]:
+        raise ValueError("harness/pyproject.toml 的 wheel 包路径必须是 src/boss_harness")
+
+
+def _check_license(root: dict) -> None:
+    manifests = _manifest_paths(root)
     for relative in manifests:
         manifest = _read(relative, json.loads)
         license_value = manifest.get("license") if isinstance(manifest, dict) else None
@@ -153,6 +221,7 @@ def check_versions() -> str:
     release, candidate = match.groups()
     python_version = release if candidate is None else f"{release}rc{candidate}"
     _check_license(root)
+    _check_metadata(root, _manifest_paths(root))
 
     lock = _read("package-lock.json", json.loads)
     packages = lock.get("packages") if isinstance(lock, dict) else None

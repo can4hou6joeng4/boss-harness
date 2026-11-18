@@ -1,3 +1,10 @@
+## 0.2.0-rc.194 - 2026-11-18
+
+rc.194 源码候选核对包发布元数据与私有边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_versions.py` 扩展包元数据核对：根包描述 / 仓库 / issues / Node 版本、全部工作区 `private` 与非空描述、Python readme / requires-python / keywords / project.urls / 入口脚本 / hatchling wheel 路径。[Issue #2512](https://github.com/can4hou6joeng4/boss-harness/issues/2512)
+- 补齐 `@boss-harness/*` 三个内部包的描述；负向探针均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.194` / Python `0.2.0rc194`。不执行发布动作。
+
 ## 0.2.0-rc.193 - 2026-11-18
 
 rc.193 源码候选核对发布资产清单守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
