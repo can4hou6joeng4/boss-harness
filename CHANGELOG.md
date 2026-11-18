@@ -1,3 +1,10 @@
+## 0.2.0-rc.179 - 2026-11-18
+
+rc.179 源码候选核对会话导出字节上限。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_export_privacy.py` 解析三个字节常量，要求 `MIN_EXPORT_BYTES ≤ DEFAULT_EXPORT_BYTES ≤ MAX_EXPORT_BYTES` 且最大值低于 1 MiB 传输单页上限。[Issue #2482](https://github.com/can4hou6joeng4/boss-harness/issues/2482)
+- 最大值抬到 2 MiB、默认值抬到最大值之上两个负向探针均触发对应错误；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.179` / Python `0.2.0rc179`。
+
 ## 0.2.0-rc.178 - 2026-11-18
 
 rc.178 源码候选新增会话导出默认脱敏核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

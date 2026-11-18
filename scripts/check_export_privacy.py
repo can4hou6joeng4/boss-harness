@@ -48,6 +48,14 @@ def _module_assignment(tree: ast.Module, name: str) -> ast.AST:
     raise ValueError(f"session_export.py 缺少 {name}")
 
 
+def _int_constant(node: ast.AST, name: str) -> int:
+    if isinstance(node, ast.Constant) and type(node.value) is int and node.value > 0:
+        return node.value
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mult):
+        return _int_constant(node.left, name) * _int_constant(node.right, name)
+    raise ValueError(f"session_export.py 的 {name} 必须是正整数常量表达式")
+
+
 def check_export_privacy() -> int:
     export_text = EXPORT_SOURCE.read_text(encoding="utf-8")
     application_text = APPLICATION_SOURCE.read_text(encoding="utf-8")
@@ -70,6 +78,21 @@ def check_export_privacy() -> int:
         raise ValueError(
             "session_export.py 的 EXPORT_FORMATS 应恰为 markdown / json / html"
         )
+    minimum = _int_constant(
+        _module_assignment(tree, "MIN_EXPORT_BYTES"), "MIN_EXPORT_BYTES"
+    )
+    default = _int_constant(
+        _module_assignment(tree, "DEFAULT_EXPORT_BYTES"), "DEFAULT_EXPORT_BYTES"
+    )
+    maximum = _int_constant(
+        _module_assignment(tree, "MAX_EXPORT_BYTES"), "MAX_EXPORT_BYTES"
+    )
+    if not minimum <= default <= maximum:
+        raise ValueError(
+            "会话导出字节上限必须满足 MIN_EXPORT_BYTES ≤ DEFAULT_EXPORT_BYTES ≤ MAX_EXPORT_BYTES"
+        )
+    if maximum >= 1024 * 1024:
+        raise ValueError("会话导出 MAX_EXPORT_BYTES 必须低于传输单页上限 1 MiB")
     if REQUEST_BOUNDARY not in application_text:
         raise ValueError("thread/export 的请求字段白名单缺失或被改动")
     if DEFAULT_REDACTION not in application_text:
@@ -82,7 +105,7 @@ def check_export_privacy() -> int:
     writes = [token for token in FORBIDDEN_WRITES if token in export_text]
     if writes:
         raise ValueError("session_export.py 不得触碰目标文件：" + "、".join(writes))
-    return 4
+    return 5
 
 
 def main() -> int:
@@ -93,7 +116,7 @@ def main() -> int:
         return 2
     print(
         "会话导出隐私边界一致：3 种格式、请求字段与默认脱敏、"
-        f"4 个脱敏标记、导出模块不写盘（{guards} 项）"
+        f"4 个脱敏标记、字节上限有序且低于 1 MiB、导出模块不写盘（{guards} 项）"
     )
     return 0
 
