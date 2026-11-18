@@ -1,3 +1,10 @@
+## 0.2.0-rc.137 - 2026-11-18
+
+rc.137 源码候选核对外部链接协议白名单双端一致。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 解析渲染层 `EXTERNAL_SCHEMES` 与主进程 `isAllowedExternalUrl` 的协议列表，要求非空且集合一致；并核对 `openExternal` 先经 `isAllowedExternalUrl` 判定再调用 `shell.openExternal`，`setWindowOpenHandler` 调用该封装。[Issue #2398](https://github.com/can4hou6joeng4/boss-harness/issues/2398)
+- 负向探针在任一侧增删协议或移除守卫时均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.137` / Python `0.2.0rc137`。
+
 ## 0.2.0-rc.136 - 2026-11-18
 
 rc.136 源码候选把导航与卸载拦截处理器纳入桌面静态安全检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
