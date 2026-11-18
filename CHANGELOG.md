@@ -1,3 +1,10 @@
+## 0.2.0-rc.149 - 2026-11-18
+
+rc.149 源码候选禁止渲染层直接写入 HTML。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 的渲染层边界增加三条规则：`dangerouslySetInnerHTML`、`innerHTML`、`outerHTML` / `insertAdjacentHTML`，命中即失败。[Issue #2422](https://github.com/can4hou6joeng4/boss-harness/issues/2422)
+- 三类负向探针分别触发对应失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.149` / Python `0.2.0rc149`。
+
 ## 0.2.0-rc.148 - 2026-11-18
 
 rc.148 源码候选核对渲染层 CSP 与内联脚本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

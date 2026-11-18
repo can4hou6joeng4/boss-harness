@@ -333,6 +333,9 @@ RENDERER_BOUNDARY: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r'(?:from\s+|import\s*\(\s*)["\']electron["\']'), "不得直接导入 electron"),
     (re.compile(r"\brequire\s*\("), "不得使用 CommonJS require"),
     (re.compile(r'(?:from\s+|import\s*\(\s*)["\']node:'), "不得直接导入 node: 内置模块"),
+    (re.compile(r"\bdangerouslySetInnerHTML\b"), "不得使用 dangerouslySetInnerHTML"),
+    (re.compile(r"\binnerHTML\b"), "不得直接读写 innerHTML"),
+    (re.compile(r"\b(?:outerHTML|insertAdjacentHTML)\b"), "不得直接写入 HTML"),
 )
 
 
