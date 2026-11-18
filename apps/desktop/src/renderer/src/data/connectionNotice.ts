@@ -73,7 +73,13 @@ function diagnosisOf(value: unknown): StartupDiagnosis | undefined {
     if (!entry) return undefined;
     checks.push(entry);
   }
-  return { kind: "report", ok: raw.ok, checks };
+  const version = typeof raw.version === "string" && raw.version ? raw.version : undefined;
+  const protocolVersion = typeof raw.protocolVersion === "string" && raw.protocolVersion ? raw.protocolVersion : undefined;
+  return {
+    kind: "report", ok: raw.ok, checks,
+    ...(version ? { version } : {}),
+    ...(protocolVersion ? { protocolVersion } : {}),
+  };
 }
 
 /** 从连接状态或状态通知的载荷取出提示字段；没有连接状态的载荷（如状态读取失败）返回 null。 */

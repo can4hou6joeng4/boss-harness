@@ -1,3 +1,11 @@
+## 0.2.0-rc.130 - 2026-11-18
+
+rc.130 源码候选在桌面启动自检中展示内核与协议版本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `StartupDiagnosis` 报告分支增加可选 `version` / `protocolVersion`；主进程解析器对两者做有界单行校验，不合规时整份报告作废。[Issue #2384](https://github.com/can4hou6joeng4/boss-harness/issues/2384)
+- 「设置 → 模型与连接」在自检明细前显示「自检报告：内核 … · 协议 …」；旧内核缺少字段时不显示。
+- 用户指南与技术参考同步；版本推进到 npm `0.2.0-rc.130` / Python `0.2.0rc130`。
+
 ## 0.2.0-rc.129 - 2026-11-18
 
 rc.129 源码候选核对工作区源码的协议包依赖声明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
