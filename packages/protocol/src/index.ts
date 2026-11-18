@@ -209,6 +209,8 @@ export const ServerNotifications = {
   contextCompactionFailed: "context/compactionFailed",
   contextEdited: "context/edited",
   kernelHookError: "kernel/hookError",
+  /** 仅在宿主注入事件观察 hook、且关闭期限仍有余量时发送；客户端不得依赖它判断进程已退出。 */
+  kernelShutdown: "kernel/shutdown",
   modelRetryStarted: "model/retryStarted",
   modelRetryEnded: "model/retryEnded",
 } as const;
