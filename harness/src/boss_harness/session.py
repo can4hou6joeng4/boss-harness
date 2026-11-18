@@ -30,6 +30,7 @@ from typing import Any, TypeVar
 
 from boss_harness.persistence import PersistenceIndex, SCHEMA_VERSION
 from boss_harness.private_files import ensure_private_directory, open_private_file, restrict_private_file
+from boss_harness.tool_results import MAX_PAGE_BYTES, wire_size
 from boss_harness.queue_view import ACTIVE_QUEUE_STATUSES, queue_record
 from boss_harness.search_unicode import (GRAPHEME_V_EXTRA, extra_combining_class, is_grapheme_extend,
                                           needs_extra, search_normalize)
@@ -3279,11 +3280,8 @@ class SessionStore:
             skill_ids = bounded_skill_ids(record.get("skillIds"))
             if skill_ids:
                 turn["skillIds"] = skill_ids
-        page = turns[offset:offset + limit]
-        next_cursor = (_page_cursor("usage", scope, [offset + limit])
-                       if offset + limit < len(turns) else None)
         out = {"threadId": thread_id, "view": scope["view"], "source": SOURCE, "costAvailable": False,
-               "turnCount": len(turns), "turns": page, "nextCursor": next_cursor,
+               "turnCount": len(turns), "turns": [], "nextCursor": None,
                "summaryTasks": result["summaryTasks"], "totals": result["totals"],
                "summaryJobs": result["summaryJobs"], "summaryJobCount": result["summaryJobCount"],
                "summaryJobsTruncated": result["summaryJobsTruncated"]}
@@ -3292,6 +3290,30 @@ class SessionStore:
             out["cacheWaste"] = result["cacheWaste"]
         if leaf is not None:
             out["branch"] = leaf
+        try:
+            fixed_size = wire_size(out)
+        except (TypeError, ValueError):
+            fixed_size = MAX_PAGE_BYTES + 1
+        if fixed_size > MAX_PAGE_BYTES or offset > len(turns):
+            return out
+        page: list[dict] = []
+        end = min(offset + limit, len(turns))
+        position = offset
+        while position < end:
+            candidate = page + [turns[position]]
+            out["turns"] = candidate
+            out["nextCursor"] = (_page_cursor("usage", scope, [position + 1])
+                                 if position + 1 < len(turns) else None)
+            if wire_size(out) > MAX_PAGE_BYTES:
+                if not page:
+                    break
+                out["turns"] = page
+                out["nextCursor"] = (_page_cursor("usage", scope, [position])
+                                     if position < len(turns) else None)
+                return out
+            page = candidate
+            position += 1
+        out["turns"] = page
         return out
 
     def read_leaf(self, thread_id: str) -> dict:
