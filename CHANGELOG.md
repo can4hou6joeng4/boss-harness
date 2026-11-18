@@ -1,3 +1,11 @@
+## 0.2.0-rc.113 - 2026-11-18
+
+rc.113 源码候选把文档检查扩展到页内锚点。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_docs_links.py` 按 GitHub 风格从 ATX 标题生成锚点，解码百分号编码并校验同文件与跨 Markdown 文件的页内锚点，重复标题追加 `-1` 后缀；当前 141 个链接、63 个页内锚点与 4 篇文档索引通过。[Issue #2349](https://github.com/can4hou6joeng4/boss-harness/issues/2349)
+- 外链、代码块、行内代码以及非 Markdown 目标不参与锚点匹配；失败时列出文件与目标并以退出码 2 结束。
+- README、CONTRIBUTING、发布约定与技术参考同步检查范围。候选版本号和使用指南同步为 npm `0.2.0-rc.113` / Python `0.2.0rc113`。
+
 ## 0.2.0-rc.112 - 2026-11-18
 
 rc.112 源码候选修正只读工具表述并扩展文档检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

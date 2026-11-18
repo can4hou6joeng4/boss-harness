@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""核对面向用户与贡献者的 Markdown 相对链接。"""
+"""核对面向用户与贡献者的 Markdown 相对链接与页内锚点。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,11 @@ SOURCES = (
 INDEX = "docs/README.md"
 LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 DEFINITION = re.compile(r"^\[[^\]]+\]:\s*(\S+)", re.MULTILINE)
-EXTERNAL = ("http://", "https://", "mailto:", "tel:", "#")
+EXTERNAL = ("http://", "https://", "mailto:", "tel:")
+HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)[ \t]*$", re.MULTILINE)
+CLOSING_HASHES = re.compile(r"[ \t]+#+$")
+HTML_TAG = re.compile(r"<[^>]+>")
+LINK_TEXT = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
 
 
 def _links(path: Path) -> list[str]:
@@ -30,6 +34,36 @@ def _links(path: Path) -> list[str]:
     text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
     text = re.sub(r"`[^`\n]*`", "", text)
     return LINK.findall(text) + DEFINITION.findall(text)
+
+
+def _slug(text: str) -> str:
+    """按 GitHub 标题锚点的常用规则生成 slug。"""
+    text = CLOSING_HASHES.sub("", text)
+    text = HTML_TAG.sub("", text)
+    text = LINK_TEXT.sub(r"\1", text)
+    text = text.replace("`", "").lower().strip()
+    # 保留字母、数字、空格、连字符与下划线；其余标点与符号不进入锚点。
+    text = "".join(character for character in text
+                   if character.isalnum() or character in " _-")
+    return text.replace(" ", "-")
+
+
+def _headings(path: Path) -> set[str]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        raise ValueError(f"无法读取 {path.relative_to(ROOT).as_posix()}") from None
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+    slugs: set[str] = set()
+    seen: dict[str, int] = {}
+    for match in HEADING.finditer(text):
+        base = _slug(match.group(1))
+        if not base:
+            continue
+        count = seen.get(base, 0)
+        seen[base] = count + 1
+        slugs.add(base if count == 0 else f"{base}-{count}")
+    return slugs
 
 
 def _check_index() -> int:
@@ -49,9 +83,11 @@ def _check_index() -> int:
     return len(documents) - 1
 
 
-def check_docs_links() -> tuple[int, int]:
+def check_docs_links() -> tuple[int, int, int]:
     broken: list[str] = []
+    bad_anchors: list[str] = []
     checked = 0
+    anchors = 0
     for relative in SOURCES:
         path = ROOT / relative
         if not path.is_file():
@@ -60,24 +96,33 @@ def check_docs_links() -> tuple[int, int]:
             target = raw.strip()
             if not target or target.startswith(EXTERNAL):
                 continue
-            target = unquote(target.split("#", 1)[0])
-            if not target:
-                continue
+            path_part, _, fragment = unquote(target).partition("#")
             checked += 1
-            if not (path.parent / target).exists():
-                broken.append(f"{relative} -> {target}")
+            destination = path.parent / path_part if path_part else path
+            if path_part and not destination.exists():
+                broken.append(f"{relative} -> {path_part}")
+                continue
+            if not fragment:
+                continue
+            anchors += 1
+            if destination.suffix.lower() != ".md" or not destination.is_file():
+                continue
+            if fragment not in _headings(destination):
+                bad_anchors.append(f"{relative} -> {target}")
     if broken:
         raise ValueError("相对链接不存在：" + "；".join(sorted(broken)))
-    return checked, _check_index()
+    if bad_anchors:
+        raise ValueError("页内锚点不存在：" + "；".join(sorted(bad_anchors)))
+    return checked, anchors, _check_index()
 
 
 def main() -> int:
     try:
-        checked, indexed = check_docs_links()
+        checked, anchors, indexed = check_docs_links()
     except ValueError as error:
         print(f"文档链接核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"文档相对链接一致：{checked} 个链接；索引覆盖 {indexed} 篇文档")
+    print(f"文档相对链接一致：{checked} 个链接、{anchors} 个页内锚点；索引覆盖 {indexed} 篇文档")
     return 0
 
 
