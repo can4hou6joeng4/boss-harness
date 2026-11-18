@@ -55,6 +55,7 @@ from boss_harness.summary import BRANCH_SUMMARY_SYSTEM, SUMMARY_MAX_REQUESTS, Su
 from boss_harness.compaction import CompactionPolicy, ContextCompactionFailed
 from boss_harness.settings import load_auto_compaction, save_auto_compaction
 from boss_harness.context import NoCompactionSource
+from boss_harness.protocol import PROTOCOL_VERSION
 from boss_harness.shutdown import TrackedAbort, join_until
 from boss_harness.hooks import HookFailure, LifecycleHooks
 from boss_harness.item_content import read_item_content
@@ -64,7 +65,6 @@ from boss_harness.task_ownership import (queue_snapshot, recovery_policy,
 from boss_harness.turn_limits import model_request_limit, model_request_limit_from_environment
 from boss_harness.workspace_instructions import WorkspaceInstructions
 
-PROTOCOL_VERSION = "0.2.0"
 DEFAULT_APPROVAL_TIMEOUT_SECONDS = 300.0
 MAX_RETAINED_COMPACTION_JOBS = 64
 MAX_RUNTIME_RESOURCE_WAITERS = 32

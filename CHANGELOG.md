@@ -1,3 +1,10 @@
+## 0.2.0-rc.99 - 2026-11-18
+
+rc.99 源码候选统一内核协议版本来源。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `harness/src/boss_harness/protocol.py`；`application.py` 与 `session_export.py` 共用 `PROTOCOL_VERSION`，导出元数据不再硬编码 `0.2.0`。[Issue #2321](https://github.com/can4hou6joeng4/boss-harness/issues/2321)
+- `scripts/check_protocol.py` 核对内核与协议包常量，并拒绝在 `application.py` / `session_export.py` 重复定义。候选版本号和使用指南同步为 npm `0.2.0-rc.99` / Python `0.2.0rc99`。
+
 ## 0.2.0-rc.98 - 2026-11-18
 
 rc.98 源码候选把桌面方法白名单纳入协议检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

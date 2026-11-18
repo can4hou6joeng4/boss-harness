@@ -10,7 +10,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = "packages/protocol/src/index.ts"
+PROTOCOL_PY = "harness/src/boss_harness/protocol.py"
 APPLICATION = "harness/src/boss_harness/application.py"
+EXPORT = "harness/src/boss_harness/session_export.py"
 SECURITY = "apps/desktop/src/main/security.ts"
 SOURCE_ROOT = "harness/src/boss_harness"
 EMITTERS = frozenset({"emit", "emit_until", "_emit_committed", "notify"})
@@ -66,6 +68,34 @@ def _check_desktop(client: set[str]) -> tuple[int, int]:
     if stray:
         raise ValueError("THREAD_METHODS 含未暴露给渲染层的方法：" + "、".join(sorted(stray)))
     return len(renderer), len(thread)
+
+
+def _python_protocol_version() -> str:
+    try:
+        tree = ast.parse(_read(PROTOCOL_PY))
+    except SyntaxError:
+        raise ValueError(f"无法解析 {PROTOCOL_PY}") from None
+    values = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if any(isinstance(target, ast.Name) and target.id == "PROTOCOL_VERSION" for target in targets):
+            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                values.append(node.value.value)
+    if len(values) == 1 and values[0]:
+        return values[0]
+    raise ValueError(f"{PROTOCOL_PY} 必须包含唯一的顶层 PROTOCOL_VERSION 字符串声明")
+
+
+def _typescript_protocol_version(text: str) -> str:
+    match = re.search(r'export const PROTOCOL_VERSION = "([^"]+)";', text)
+    if match is None:
+        raise ValueError(f"{PROTOCOL} 缺少 PROTOCOL_VERSION")
+    return match.group(1)
 
 
 def _registered_methods() -> set[str]:
@@ -160,8 +190,16 @@ def _describe(missing: set[str], extra: set[str]) -> str:
     return "；".join(parts)
 
 
-def check_protocol() -> tuple[int, int, int, int, int]:
+def check_protocol() -> tuple[str, int, int, int, int, int]:
     protocol = _read(PROTOCOL)
+    python_protocol = _python_protocol_version()
+    typescript_protocol = _typescript_protocol_version(protocol)
+    if python_protocol != typescript_protocol:
+        raise ValueError(f"内核协议版本 {python_protocol} 与协议包 {typescript_protocol} 不一致")
+    for relative in (APPLICATION, EXPORT):
+        if re.search(r'PROTOCOL_VERSION\s*=\s*"', _read(relative)):
+            raise ValueError(f"{relative} 不得重复定义 PROTOCOL_VERSION")
+
     client = _protocol_constants(protocol, "ClientMethods")
     registered = _registered_methods()
     if client != registered:
@@ -177,16 +215,16 @@ def check_protocol() -> tuple[int, int, int, int, int]:
     if missing_requests:
         raise ValueError("ServerRequests 缺少内核发送的请求：" + "、".join(sorted(missing_requests)))
     renderer, thread = _check_desktop(client)
-    return len(client), len(notifications), len(requests), renderer, thread
+    return python_protocol, len(client), len(notifications), len(requests), renderer, thread
 
 
 def main() -> int:
     try:
-        methods, notifications, requests, renderer, thread = check_protocol()
+        version, methods, notifications, requests, renderer, thread = check_protocol()
     except ValueError as error:
         print(f"协议常量核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"{methods} 个方法、{notifications} 个通知、{requests} 个服务端请求、"
+    print(f"协议 {version}、{methods} 个方法、{notifications} 个通知、{requests} 个服务端请求、"
           f"{renderer} 个渲染层方法、{thread} 个线程方法")
     return 0
 
