@@ -1,3 +1,10 @@
+## 0.2.0-rc.125 - 2026-11-18
+
+rc.125 源码候选收紧 CI 工作流权限的静态检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_workflows.py` 只允许顶层 `permissions`：job 或 step 中另写的 `permissions` 一律使检查失败，避免私有 job 级写权限绕过 `contents: read` 约定。[Issue #2374](https://github.com/can4hou6joeng4/boss-harness/issues/2374)
+- README、技术参考与发布约定同步说明；版本推进到 npm `0.2.0-rc.125` / Python `0.2.0rc125`。
+
 ## 0.2.0-rc.124 - 2026-11-18
 
 rc.124 源码候选修正公开状态页对桌面能力的描述。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

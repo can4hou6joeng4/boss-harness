@@ -12,6 +12,7 @@ WORKFLOWS = ROOT / ".github/workflows"
 CHECKOUT = "actions/checkout@"
 STEP = re.compile(r"^ {6}- ")
 USES = re.compile(r"(?m)^\s*(?:-\s*)?uses:\s*(\S+)\s*$")
+PERMISSIONS = re.compile(r"(?m)^( *)permissions:\s*(.*)$")
 
 
 def _steps(text: str) -> list[str]:
@@ -45,6 +46,8 @@ def _check_workflow(path: Path) -> tuple[int, int]:
         raise ValueError(f"{name} 的 permissions 缺少 contents: read")
     if re.search(r"(?m)^ {2}\S.*:\s*write\s*$", block):
         raise ValueError(f"{name} 的 permissions 含 write 权限")
+    if any(match.group(1) for match in PERMISSIONS.finditer(text)):
+        raise ValueError(f"{name} 只允许顶层 permissions，不得在 job 或 step 中声明")
     if (re.search(r"(?m)^concurrency:\s*$", text) is None
             or "cancel-in-progress: true" not in text):
         raise ValueError(f"{name} 的 concurrency 应启用 cancel-in-progress: true")
