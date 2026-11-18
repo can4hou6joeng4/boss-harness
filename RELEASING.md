@@ -10,16 +10,16 @@
 - 距上次发布满 7 天，且有新的已合并变化。
 - 主要能力、兼容边界或安装方式发生变化，或用户要求交付版本。
 
-这是准备候选版本的触发条件；实际发布仍需要对应授权。一次聚合版本可以包含多项修复，不为每个小修复单独增加候选号。没有新变化时不空发版，构建或验收失败时记录阻碍与下一步，不标为已发布。
+这是准备实际预发布的触发条件；发布仍需要对应授权。`main` 上的源码候选号随每个合入的交付 PR 递增并写入 CHANGELOG（见[贡献与交付约定](CONTRIBUTING.md#版本与发布)），它只标识一次合入，不代表已发布。一次实际发布聚合自上次发布以来的全部源码候选，tag 与发布提交的版本号一致，因此已发布的候选序号之间可以不连续。没有新变化时不空发版，构建或验收失败时记录阻碍与下一步，不标为已发布。
 
 ## 版本与文档一起准备
 
 1. 从最新 `origin/main` 列出上次实际发布 tag 之后的提交与关联 PR，区分能力、修复、兼容变化和文档。以远程 tag / Release 为依据，不能只看主干中的版本字符串。
 2. 建立发布 Issue，记录拟发布版本、基线、包含范围、验收、产物与未完成事项；已有待处理 release PR 时先核对其基线和变更范围，不直接沿用过期分支。
 3. 按 SemVer 判断兼容影响。候选版本的 npm 拼写形如 `0.2.0-rc.N`，Python 使用对应的 PEP 440 拼写 `0.2.0rcN`；序号不设位数上限（`0.2.0-rc.101` 与 `0.2.0rc101` 同样有效）。桌面版本展示按不透明字符串处理；Python 发布脚本用 `packaging.version.Version` 解析并按 PEP 440 归一写入清单，因此 `--version` 应使用 `pyproject.toml` 的 Python 拼写。JSON-RPC 协议版本独立管理，不随候选号机械改变。
-4. 在独立 release 分支同步根包、桌面包、各工作区包、锁文件与 Python 包的版本来源。用 Node.js 24+ 和 Python 3.11+ 运行 `python scripts/check_versions.py`，核对 npm 实际发现的工作区、锁文件、`pyproject.toml`、内核 `__version__`、`CHANGELOG.md` 首条版本、全部版本条目严格递减与日期合法非递增、使用指南的源码版本行，以及根包与全部 npm 工作区、`pyproject.toml` 的 MIT 声明和 `LICENSE` 正文；同一脚本还核对根包描述 / 仓库 / issues / Node 版本、全部工作区保持 `private` 且描述非空、Python 的 readme / requires-python / keywords / project.urls / 入口脚本 / wheel 路径。协议方法、通知或能力有变化时，再运行 `python scripts/check_protocol.py` 核对 `ClientMethods`、`ServerNotifications`（含宿主通知与动态发送登记）、`ServerRequests`、`InitializeResponse.capabilities`、桌面方法字面量、宿主与桌面的协议版本默认值、工作区协议依赖以及 `RENDERER_METHODS` / `THREAD_METHODS` 白名单，并核对内核 `MAX_FRAME_BYTES` 与 app-client 默认帧上限相等、默认队列上限不小于帧上限。桌面主进程的 `webPreferences`、权限白名单、来源判定或导航处理器有变化时，运行 `python scripts/check_desktop_security.py` 核对主窗口与登录视图的安全开关、权限判定与处理器语义、导航与卸载拦截、两个来源判定函数的保留条件、登录会话隔离、preload 桥接暴露面、暴露全局与导入来源、共享 `BossBridge` 类型、IPC 通道字面量与受信发送方入口校验、会话导出处理器不变量、进程导入方向、IPC 角色符号、主进程脚本 / 调试器入口、主进程与 app-client 的子进程启动位置及 `shell: false`、`node:child_process` 仅具名导入 `spawn` 与类型且不得调用 `exec` / `execFile` / `execSync` / `execFileSync` / `spawnSync` / `fork`、preload 进程能力面、渲染层 IPC 与模块隔离、入口 CSP（含远程来源）、模块脚本、嵌入元素与远程资源、HTML 注入点与动态代码、会话恢复分页预算与内容引用校验、外部链接协议白名单双端一致、两侧判定函数保留与 `shell.openExternal` 唯一调用。内核默认工具清单或审批标记有变化时，运行 `python scripts/check_harness_tools.py` 核对 14 个工具名、13 个只读工具、仅 `boss_hr_greet` 需批准，以及每个 `input_schema` 的 `type` / `additionalProperties` / `required` 边界，并核对 `context.py` 的 `_WRITE_TOOLS`、`write_tools` 默认值与 `tool_results.py` 的 `LEGACY_WRITE_TOOLS` 三处写工具集合一致，并核对 `tools/bundle.py` 从 `TOOLS` 与 `approval_required_tools()` 投影名称、描述、schema 与审批标记，以及 `tools/boss_cli.py` 的 `Popen` 显式 `shell=False`、内核源码不出现 `shell=True` / `create_subprocess_shell` / `os.system` / `os.popen`。执行循环的重复调用提醒有变化时，运行 `python scripts/check_loop_guard.py` 核对 `loop_guard.py` 的阈值、规范化参数摘要、字节上限与无法序列化时的回退，以及 `agent.py` 仅在工具结果之后、仍有下一次模型请求时追加合成用户消息；提醒不得写入会话条目、不得阻断执行、不得携带参数或结果，并在 steering 注入时重置。连接检查、取消或空闲回收逻辑有变化时，运行 `python scripts/check_connection_lifecycle.py` 核对模型检查的取消 / 中止线程所有权、超时与状态迁移、桥接释放、空闲通知与关闭等待顺序。 连接报告字段或桌面解析器有变化时，运行 `python scripts/check_connection_report.py` 核对三卡来源、协议字段、状态 / 认证 / 浏览器来源白名单与有界文本投影。 审批裁决或过期回收有变化时，运行 `python scripts/check_approval.py` 核对请求字段白名单、活动 runner 归属与持久回调、会话层重复 / 归档 / 过期决策约束和启动回收。 搜索片段或桌面高亮有变化时，运行 `python scripts/check_search_snippet.py` 核对命中区间原样保留、两侧折叠、预算收窄和内核归一化高亮调用链。浏览器来源覆盖有变化时，运行 `python scripts/check_browser_source.py` 核对环境变量白名单、空值回退与规范化、`--browser-source` 显式参数构造、启动自检码，以及连接检查 / 桌面报告的策略投影。队列投递或 steering 转换有变化时，运行 `python scripts/check_queue_steer.py` 核对 `queue/steer` 仅在 active turn 与 `expectedTurnId` 匹配时受理、只转换 `queued` 的 follow-up、经 `_save` 保留原队列项身份，并拒绝带技能或自动压缩覆盖的项；同时核对协议、主进程白名单 / 参数校验、RPC 错误保留与桌面按钮边界。会话导出格式、请求字段或脱敏逻辑有变化时，运行 `python scripts/check_export_privacy.py` 核对 markdown / json / html 三种格式、`thread/export` 请求字段白名单、`includeToolResults` 默认 `False`、三个字节上限满足 `MIN_EXPORT_BYTES ≤ DEFAULT_EXPORT_BYTES ≤ MAX_EXPORT_BYTES` 且最大值低于 1 MiB、主进程 `EXPORT_MAX_BYTES` 与内核一致、四个脱敏标记与 `redact_secrets(` 保留、`sensitive()` / `personal()` 的脱敏步骤与顺序、个人信息按长度降序打码、工具参数 / 结果投影边界，以及导出模块不包含写盘 API。状态目录或私有文件权限逻辑有变化时，运行 `python scripts/check_private_files.py` 核对目录 / 文件模式、`O_NOFOLLOW`、所有者与 inode 校验、关键调用点，以及状态模块不直接写盘。附件读取分页或存储配额有变化时，运行 `python scripts/check_attachments.py` 核对默认 / 最大分段、单页守卫、恢复信息与配额环境变量名。工具结果分页或引用逻辑有变化时，运行 `python scripts/check_tool_results.py` 核对内联 / 单页 / 码点 / 模型读取预算及其大小关系、请求字段白名单、摘要与游标归属、`STALE_RESULT` 恢复信息，以及模型工具的 schema 边界。工具参数校验或注册表投影有变化时，运行 `python scripts/check_tool_schema.py` 核对关键字 / 类型白名单、字节 / 节点 / 深度上限、结构化字符串解码、结果预算与只读投影。发布资产清单或工作流构建步骤有变化时，运行 `python scripts/check_release_assets.py` 核对清单 schema、资产身份 / 摘要校验、安全读取与原样保留的构建 / 校验命令。工作区技能加载逻辑有变化时，运行 `python scripts/check_skills.py` 核对技能常量关系、`O_NOFOLLOW` / inode 校验、`scandir` 枚举、符号链接目录拒绝与列表投影截断。CI 工作流有变化时，运行 `python scripts/check_workflows.py` 核对顶层权限（仅 `contents: read`、禁止 job 级 `permissions`）、并发、禁用 `pull_request_target` / `workflow_run` 触发器、作业正整数 `timeout-minutes`、checkout 凭据设置、action 引用固定到 `v<主版本>`、依赖审计命令保留与检查脚本接入完整性。搜索归一化的映射表、Node 运行时或最低 Python 版本有变化时，运行 `python scripts/check_search_unicode.py` 对照全部 Unicode 码点；CI 在 Python 3.10–3.14 上分别执行该检查并编译内核与脚本源码。移动或新增用户文档后，运行 `python scripts/check_docs_links.py` 核对相对链接、页内锚点、docs 索引，以及根目录、`docs/`、`harness/` 与 `.github/` 下 Markdown 的覆盖完整性。脚本成功时输出 Python 版本，Source build 复用该结果生成资产清单和核对隔离安装。运行时和关于页的版本展示另行核对。
-5. 把待发布内容从 CHANGELOG 的「未发布」整理为具名版本，保留链接、兼容影响与验证限制；未被本次版本包含的内容留在「未发布」。
-6. 同步 README 的简短版本状态、首次启动步骤与文档入口：首页只保留当前源码/发布关系的稳定事实，不追加批次修复清单或候选自检细节。首页写用户得到的行为，完整问题历史保留在 CHANGELOG、GitHub Release 与关联 PR。
+4. 在独立 release 分支同步根包、桌面包、各工作区包、锁文件与 Python 包的版本来源，然后用 Node.js 24+ 和 Python 3.11+ 运行 `npm run check`。其中 `scripts/check_versions.py` 核对 npm 实际发现的工作区、锁文件、`pyproject.toml`、内核 `__version__`、`CHANGELOG.md` 首条版本与版本链、使用指南的源码版本行，以及许可证与包元数据；脚本成功时输出 Python 版本，Source build 复用该结果生成资产清单和核对隔离安装。其余脚本分别守护协议、桌面安全、工具与审批、本地资源、连接、搜索、工作流和文档链接，各自的核对范围只在[构建前静态检查](docs/TECHNICAL_REFERENCE.md#构建前静态检查)维护；发布准备时运行全部脚本，不按改动范围挑选。运行时和关于页的版本展示另行核对。
+5. 核对 CHANGELOG：它不设「未发布」小节，每个源码候选合入时已写入对应条目。逐条确认自上次实际发布以来各条目的链接、兼容影响与验证限制仍然准确，再把它们汇总进 Release 正文；不回头改写已合入条目的版本号或日期。
+6. 核对 README 的定位、首次启动步骤与文档入口仍然准确：首页不写具体版本号，也不追加批次修复清单或候选自检细节。已发布版本状态写在[项目状态](docs/STATUS.md)，完整问题历史保留在 CHANGELOG、GitHub Release 与关联 PR。
 7. 准备 Release 正文：定位、重点变化、升级方式、交付资产、来源、验证与限制。尚未执行的检查写为待执行，不能预先宣称通过。
 
 版本文件清单应从当前源码核实；新增组件或动态版本来源后同步更新本次发布清单。不要把协议常量、上游 CLI 版本和历史 CHANGELOG 中的旧版本一起替换。
@@ -104,11 +104,11 @@ release PR 的最新 head 必须通过全部约定检查。核对审查意见、
 
 使用明确的合并提交创建 annotated tag，推送后核对 tag 指向。GitHub Release 使用已存在的 tag，不依赖工具自动创建轻量 tag；候选版本标为 prerelease。发布完成后再次读取远程 Release，核对 tag、提交、正文、资产名与哈希。连接中断或结果未知时先核对远端实际状态，不重复创建或覆盖。
 
-记录实际 Release 链接，并同步 README 的已发布版本状态；候选修复清单和验证细节留在 CHANGELOG 与 Release 正文。未提供独立安装包时保留源码启动说明；不能用 Electron 的 `out/` 目录宣称已经支持独立安装。发布新版本不等于更改仓库可见性或选定开源许可证。
+记录实际 Release 链接，并同步[项目状态](docs/STATUS.md)的已发布版本状态；README 的发布徽章与 Releases 链接不随版本修改。候选修复清单和验证细节留在 CHANGELOG 与 Release 正文。未提供独立安装包时保留源码启动说明；不能用 Electron 的 `out/` 目录宣称已经支持独立安装。发布新版本不等于更改仓库可见性或选定开源许可证。
 
 ## 对外介绍
 
-每次准备候选版本时同时准备短介绍，内容优先包含：
+每次准备实际预发布时同时准备短介绍，内容优先包含：
 
 - 项目解决的具体问题，以及 Electron 工作台、Python Harness 和招聘 CLI 的职责边界。
 - 可核实的当前版本、源码与 Release 链接、安装范围和许可证状态。

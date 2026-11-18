@@ -13,23 +13,20 @@
 使用 Node.js 24+ 与 `uv`；Python 内核声明支持 3.10+，完整显式模型配置可独立运行，读取 Codex TOML 配置需要 3.11+，开发建议 3.12。配置来源与优先级见[使用指南](docs/USER_GUIDE.md#模型配置来源)。
 
 ```sh
-npm ci
-npx install-electron --no
-npm run typecheck
-npm run build
 uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python -e ./harness build packaging
-.venv/bin/python scripts/check_versions.py
-.venv/bin/python scripts/check_protocol.py
-.venv/bin/python scripts/check_desktop_security.py
-.venv/bin/python scripts/check_workflows.py
-.venv/bin/python scripts/check_search_unicode.py
-.venv/bin/python scripts/check_docs_links.py
+npm ci
+npx install-electron --no
+npm run check
+npm run typecheck
+npm run build
 .venv/bin/python -m build ./harness --outdir dist/python
 git diff --check
 ```
 
-以上命令用于开发检查，允许使用工作树中的未提交改动；发布构建必须按 [RELEASING.md](RELEASING.md) 从指定提交的 `git archive` 隔离目录执行，避免未跟踪文件进入资产。六个检查脚本与 CI 在安装依赖前运行的版本检查、协议检查、桌面安全配置检查、工作流安全检查、搜索归一化检查与文档链接及锚点检查一致；Python 3.10–3.14 的独立矩阵 job 另分别核对搜索归一化并编译内核与脚本源码。
+以上命令用于开发检查，允许使用工作树中的未提交改动；发布构建必须按 [RELEASING.md](RELEASING.md) 从指定提交的 `git archive` 隔离目录执行，避免未跟踪文件进入资产。
+
+`npm run check` 依次运行全部 `scripts/check_*.py`，与 CI 的 Source build 在安装依赖前运行的是同一组脚本；各脚本的核对范围、解释器选择与运行条件只在[构建前静态检查](docs/TECHNICAL_REFERENCE.md#构建前静态检查)维护，其他文档链接到那里，不再抄写清单。新增检查脚本时接入 `.github/workflows/build.yml` 并在该节补充同名小节。CI 随后执行 npm 依赖审计、TypeScript 检查、Electron 源码构建与 Python wheel / sdist 构建，生成构建清单与 SHA-256 摘要，隔离安装两个 Python 包并运行 `boss-harness --check --provider none`，最后把 `python-dist` 作为工作流产物上传；Python 3.10–3.14 的独立矩阵 job 另分别核对搜索归一化并编译内核与脚本源码。
 
 变更还需完成适用的工具契约、执行状态、中断、审批、异常恢复和上游兼容验证。离线验证使用模拟工具、脱敏数据和独立临时目录，避免调用真实平台或读取真实会话。
 
@@ -55,15 +52,18 @@ Harness 的暂停门禁约束可见的最终错误及已支持的部分停止元
 - 每个 commit 只有单行主题，无正文、尾注、署名或 AI 标注。
 - 显式暂存生产文件，逐项核对 `git diff --cached --name-status` 和 `git diff --cached --check`，排除测试、凭据、真实个人信息及本地研究材料。
 - PR 标题使用单行 `type(scope): 中文描述`，正文用单独一行 `Closes #N` 关联 Issue，并说明场景、行为变化、来源、上游兼容、验证结果及尚未完成事项。新功能及接口变化同步更新文档和变更记录。
-- 每个用户可见变更核对 README 与使用指南中的入口、操作步骤、限制和当前能力；影响首次使用或主要流程时在同一 PR 更新相应段落。纯内部修复可不改 README，但 PR 应说明文档影响，不能只向 CHANGELOG 追加记录而长期遗漏使用说明。
+- 每个用户可见变更核对 README 与使用指南中的入口、操作步骤、限制和当前能力；影响首次使用或主要流程时在同一 PR 更新相应段落。README 只写定位、入口、启动步骤、安全边界与文档导航等稳定事实，不写具体版本号、批次修复清单或逐项检查细节；数值上限、错误码与逐项行为写进使用指南、桌面交互指南或技术参考，版本变化写进 CHANGELOG。纯内部修复可不改 README，但 PR 应说明文档影响，不能只向 CHANGELOG 追加记录而长期遗漏使用说明。
 - 合并前确认 PR 的最新提交已通过必需检查、审查意见已处理；保留仓库保护规则，不用管理员绕过。采用仓库允许的合并方式；最终提交主题仍须满足上述约定。
 - 不改写已有公开历史或已发布 tag。旧分支清理限定为本轮创建且已合并的分支。
 
 ## 版本与发布
 
-功能、修复和兼容影响按 SemVer 选择版本；同步所有受影响组件的版本和锁文件，更新 [CHANGELOG.md](CHANGELOG.md)。通过独立 release PR 交付版本变更，使用可追溯的 annotated tag 和对应 GitHub Release；发布说明记录来源、验证及已知限制。具体步骤见 [发布约定](RELEASING.md)。
+版本分两层管理，功能、修复和兼容影响按 SemVer 选择版本：
 
-候选期每轮交付同时核对版本与文档：累计至少 5 个影响使用者的 PR，或距上次发布满 7 天且有新交付时，准备一次候选版本；较大的新增能力、兼容变化或用户要求也可提前触发。先汇总已合并变化、README 与验收范围，再开独立 release PR，不逐个修复机械升版。发布准备不能长期让位于缺陷选题；实际 tag、Release 与注册表发布仍须有对应授权。
+- **源码候选号**标识 `main` 上的一次合入。每个合入的交付 PR（含文档与工程检查改动）把候选号递增一次，同步根包、各工作区包、锁文件、Python 包与使用指南的版本行，并在 [CHANGELOG.md](CHANGELOG.md) 顶部写入一条条目，记录关联 Issue、行为变化与验证范围。CHANGELOG 不设「未发布」小节；版本一致性由 `scripts/check_versions.py` 核对。
+- **实际预发布**指 annotated tag、对应的 GitHub Release 及其资产，聚合自上次发布以来的全部源码候选。它通过独立 release PR 准备，发布说明记录来源、验证及已知限制，具体步骤见[发布约定](RELEASING.md)。
+
+源码候选号递增不等于发布。累计至少 5 个影响使用者的 PR，或距上次发布满 7 天且有新交付时，准备一次实际预发布；较大的新增能力、兼容变化或用户要求也可提前触发。先汇总已合并变化、README 与验收范围，再开独立 release PR。发布准备不能长期让位于缺陷选题；实际 tag、Release 与注册表发布仍须有对应授权。
 
 发布前从干净 Git 树构建并检查最终内容，确保测试材料、本地状态、凭据和研究资料未进入产物。核对远程 tag、合并 commit、发布资产及哈希；如发布包到注册表，还须独立安装并验证入口与版本。失败不得标记为已发布，也不得通过替换公开 tag 掩盖问题。
 
@@ -71,7 +71,7 @@ Harness 的暂停门禁约束可见的最终错误及已支持的部分停止元
 
 ## 项目介绍与社区协作
 
-准备候选版本时，只检查项目首页的定位、启动方式、简短版本状态、许可证与安装范围是否准确；详细交互行为维护在使用指南与桌面交互指南，逐批修复记录留在 CHANGELOG 与 Release。不要把近期进展重新追加到 README。同时准备一份可复用的简短介绍。外部介绍优先使用对方明确提供的 showcase、项目展示或集成讨论入口；普通 bug Issue 不承载推广内容。只写可验证能力、具体版本、来源与限制，不暗示参考项目官方背书，不把本地离线验证说成真实平台验收。
+准备实际预发布时，只检查项目首页的定位、启动方式、发布状态说明、许可证与安装范围是否准确；详细交互行为维护在使用指南与桌面交互指南，逐批修复记录留在 CHANGELOG 与 Release。不要把近期进展或版本更新说明追加到 README。同时准备一份可复用的简短介绍。外部介绍优先使用对方明确提供的 showcase、项目展示或集成讨论入口；普通 bug Issue 不承载推广内容。只写可验证能力、具体版本、来源与限制，不暗示参考项目官方背书，不把本地离线验证说成真实平台验收。
 
 向第三方仓库发布 Issue、Discussion、PR 或评论前，确认具体目标、内容与发送授权；有持续授权时按其范围执行，避免重复联系或批量撒发。源码可见、MIT 许可证授权与稳定产品分别描述；对外介绍按 [LICENSE](LICENSE) 说明源码采用 MIT。外部发布后记录实际链接与反馈，后续只在有新版本、集成进展或维护者回应时更新。详见 [发布约定](RELEASING.md#对外介绍)。
 

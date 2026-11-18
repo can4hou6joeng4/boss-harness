@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.210` / Python `0.2.0rc210` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.211` / Python `0.2.0rc211` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -173,12 +173,14 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 | `BOSS_HARNESS_RETRY_BASE_MS` | 自动重试的退避基数（毫秒），每次重试翻倍。 | 500；非负整数。 | 不是整数时使用默认值；负数按 0 处理。 |
 | `BOSS_HARNESS_APPROVAL_TIMEOUT` | 需审批的工具调用等待裁决的期限（秒），到期后该审批按过期处理，不执行调用。 | 300；正数，可带小数。 | 不是数字、非有限值或不大于 0 时使用默认值。 |
 | `BOSS_HARNESS_PYTHON` | 桌面应用启动内核与运行自检所用的 Python 解释器，需为 3.10 及以上并已安装内核。 | 仓库根目录的 `.venv/bin/python`，不存在则为 `python3`。 | 解释器无法启动时桌面提示未能启动 Python 解释器。 |
+| `BOSS_HARNESS_STEERING_MODE` | 回合运行中排队的转向消息如何进入当前回合：`all` 在每个投递点注入全部排队转向，`one-at-a-time` 每次只注入最早一条。 | `all`；未设置或为空时取默认值，取值区分大小写且不去除空白。 | 启动失败，自检报 `STEERING_MODE_INVALID`。 |
+| `BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_BYTES`、`BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_OBJECTS` | 状态目录中持久附件的总字节数与文件对象数上限；降低上限不影响读取已有附件，只拒绝新增的唯一内容。 | 512 MiB、4096 个对象；1 至 `2^63-1` 的十进制整数，未设置时取默认值。 | 启动失败，自检报 `ATTACHMENT_STORAGE_LIMIT_INVALID`；设为空值同样无效。 |
 
-自动重试的单次等待最长 8 秒；模型服务返回建议等待时间时以其为准，同样不超过 8 秒。重试只发生在向会话产出首个内容之前，并受回合内共享的模型恢复预算约束，与[单次模型请求期限](#单次模型请求期限)相互独立。实际生效的审批期限可在握手结果的 `approval.timeoutSeconds` 中核对。
+自动重试的单次等待最长 8 秒；模型服务返回建议等待时间时以其为准，同样不超过 8 秒。重试只发生在向会话产出首个内容之前，并受回合内共享的模型恢复预算约束，与[单次模型请求期限](#单次模型请求期限)相互独立。实际生效的审批期限可在握手结果的 `approval.timeoutSeconds` 中核对；转向模式与附件存储上限的生效值由 `config/read` 的 `steeringMode`、`maxAttachmentStorageBytes` 与 `maxAttachmentStorageObjects` 返回，附件存储的计量与拒绝行为见[内核与业务契约参考](TECHNICAL_REFERENCE.md#持久附件存储)。
 
 桌面根据内核通知显示重试等待与结束状态；兼容路径缺少回合状态时仍保留等待提示，收到明确中断时显示「已停止」，不会把缺省状态当成重试已结束。自动重试策略不变。
 
-表中标为「使用默认值」或「收敛」的三项不会让启动失败，也不在[本地配置自检](#本地配置自检)的范围内：配置看似未生效时，请先核对取值是否符合上表。转向模式、附件存储上限、模型容量与自动压缩等其余变量见 README 的配置表与自检检查码表。
+表中标为「使用默认值」或「收敛」的三项不会让启动失败，也不在[本地配置自检](#本地配置自检)的范围内：配置看似未生效时，请先核对取值是否符合上表。模型线路与凭据见[模型配置来源](#模型配置来源)，请求期限见[单次模型请求期限](#单次模型请求期限)，浏览器来源与两类状态目录见[上游 CLI 设置](#上游-cli-设置)；模型容量 `BOSS_HARNESS_MODEL_LIMITS` 与自动压缩 `BOSS_HARNESS_COMPACTION` 的 JSON 格式分别见技术参考的[模型容量与请求预算](TECHNICAL_REFERENCE.md#模型容量与请求预算)和[自动压缩与溢出恢复](TECHNICAL_REFERENCE.md#自动压缩与溢出恢复)。
 
 ## 聊天链接与代码
 

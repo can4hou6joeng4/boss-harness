@@ -14,7 +14,7 @@
 
 ## 文档与版本
 
-说明 README / 使用指南需要同步的入口、行为或限制；无需修改时说明原因。注明版本影响、是否需要汇总候选版本，以及源码构建、内核包、桌面安装包各自的交付范围。发布 PR 按 [发布约定](https://github.com/can4hou6joeng4/boss-harness/blob/main/RELEASING.md) 核对版本、资产和验收；tag / Release 与对外介绍按已授权范围执行。
+说明 README / 使用指南需要同步的入口、行为或限制；无需修改时说明原因。注明本次递增到的源码候选号与 CHANGELOG 条目、是否需要准备实际预发布，以及源码构建、内核包、桌面安装包各自的交付范围。发布 PR 按 [发布约定](https://github.com/can4hou6joeng4/boss-harness/blob/main/RELEASING.md) 核对版本、资产和验收；tag / Release 与对外介绍按已授权范围执行。
 
 ## 尚未完成
 
