@@ -1,3 +1,10 @@
+## 0.2.0-rc.120 - 2026-11-18
+
+rc.120 源码候选增加公开项目状态页。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `docs/STATUS.md`，汇总源码候选与实际发布的区别、已具备能力、待完成与待验收范围、非目标及参与入口；docs 索引与 README 导航加入该页，文档检查纳入该文件。[Issue #2364](https://github.com/can4hou6joeng4/boss-harness/issues/2364)
+- 候选版本号和使用指南同步为 npm `0.2.0-rc.120` / Python `0.2.0rc120`。
+
 ## 0.2.0-rc.119 - 2026-11-18
 
 rc.119 源码候选为 CI 工作流增加静态安全检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

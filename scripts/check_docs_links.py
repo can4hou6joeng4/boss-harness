@@ -13,7 +13,7 @@ SOURCES = (
     "README.md", "CONTRIBUTING.md", "RELEASING.md", "SECURITY.md", "SUPPORT.md",
     "CODE_OF_CONDUCT.md", "UPSTREAM.md", "CHANGELOG.md", "docs/README.md",
     "docs/USER_GUIDE.md", "docs/DESKTOP_GUIDE.md", "docs/TECHNICAL_REFERENCE.md",
-    "docs/changelog-rc15-details.md",
+    "docs/STATUS.md", "docs/changelog-rc15-details.md",
 )
 INDEX = "docs/README.md"
 LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")

@@ -191,6 +191,7 @@ CI 随后执行 npm 依赖审计、TypeScript 检查、Electron 源码构建及 
 - [使用指南](docs/USER_GUIDE.md)：模型配置、请求期限、职位搜索、沟通列表、技能、队列和上游 CLI 设置。
 - [桌面交互指南](docs/DESKTOP_GUIDE.md)：搜索、审批、通知、会话查找、队列、长会话、界面偏好与导出行为。
 - [内核与业务契约参考](docs/TECHNICAL_REFERENCE.md)：请求边界、失败恢复、上下文预算、资源上限和模块接口。
+- [项目状态与待验收范围](docs/STATUS.md)：源码候选与实际发布的区别、已具备能力、待完成事项与非目标。
 - [贡献与验证](CONTRIBUTING.md)：开发约定、提交格式、PR 与文档同步。
 - [支持与问题分流](SUPPORT.md)：文档、缺陷、功能建议与安全报告的合适入口。
 - [行为准则](CODE_OF_CONDUCT.md)：社区参与的基本预期与处理方式。
