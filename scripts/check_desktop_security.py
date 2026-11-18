@@ -400,6 +400,7 @@ PROCESS_MAIN_FORBIDDEN = (
     ("executeJavaScript", "主进程不得向渲染层注入脚本"),
     ("debugger", "主进程不得挂载调试器或保留 debugger 语句"),
 )
+SPAWN_OWNER = "startupCheck.ts"
 PRELOAD_FORBIDDEN = (
     ("process.env", "preload 不得读取环境变量"),
     ("process.exit", "preload 不得退出进程"),
@@ -434,6 +435,22 @@ def _check_process_boundaries() -> int:
         + len(PROCESS_MAIN_FORBIDDEN)
         + len(PRELOAD_FORBIDDEN)
     )
+
+
+def _check_process_spawn() -> int:
+    callers = [
+        path.name
+        for path in sorted(MAIN.rglob("*.ts"))
+        if "spawn(" in path.read_text(encoding="utf-8")
+    ]
+    if callers != [SPAWN_OWNER]:
+        raise ValueError(
+            "主进程只允许 startupCheck.ts 调用 spawn："
+            + ("、".join(callers) or "无")
+        )
+    if "shell: false" not in (MAIN / SPAWN_OWNER).read_text(encoding="utf-8"):
+        raise ValueError("startupCheck.ts 的 spawn 必须显式设置 shell: false")
+    return 2
 
 
 def _check_session_export() -> int:
@@ -672,6 +689,7 @@ def check_desktop_security() -> tuple[int, int, int]:
     exposure = _check_preload_exposure()
     imports = _check_preload_imports()
     boundaries = _check_process_boundaries()
+    spawn = _check_process_spawn()
     export = _check_session_export()
     ipc = _check_ipc_channels()
     literals = _check_channel_literals()
@@ -683,8 +701,8 @@ def check_desktop_security() -> tuple[int, int, int]:
     origins = _check_origin_policies()
     return (len(EXPECTED), checked,
             allowlist + handlers + navigation + external + preload + exposure + imports
-            + boundaries + export + ipc + literals + boundary + csp + bootstrap + embed
-            + trusted + origins)
+            + boundaries + spawn + export + ipc + literals + boundary + csp + bootstrap
+            + embed + trusted + origins)
 
 
 def main() -> int:
