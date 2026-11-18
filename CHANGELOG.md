@@ -1,3 +1,10 @@
+## 0.2.0-rc.203 - 2026-11-18
+
+rc.203 源码候选补齐专项守卫的技术参考。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `docs/TECHNICAL_REFERENCE.md` 增补 `queue/steer`、循环提醒、浏览器来源与连接生命周期四份静态守卫的核对对象、关键不变量与扫描局限，贡献者可据此判断每项检查能保证什么。[Issue #2530](https://github.com/can4hou6joeng4/boss-harness/issues/2530)
+- 不新增运行时行为或工具权限；版本推进到 npm `0.2.0-rc.203` / Python `0.2.0rc203`。不执行发布动作。
+
 ## 0.2.0-rc.202 - 2026-11-18
 
 rc.202 源码候选为连接检查生命周期增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

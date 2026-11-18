@@ -75,6 +75,14 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 `scripts/check_release_assets.py` 核对发布资产清单守卫：`release_assets.py` 的清单 schema 版本、保留输出名、提交 / 时间 / SHA-256 格式、wheel 与 sdist 的文件名 / 元数据 / 根目录身份校验、输出目录归属、`O_NOFOLLOW`、inode 一致与重复文件名拒绝必须保留；CI 的 `Source build` 还必须保留清单生成命令与 `sha256sum -c SHA256SUMS.txt`。本检查不构建或发布资产，也不授予发布权限。
 `loop_guard.py` 只在单次 `TurnRunner.run()` 内观察已执行工具调用：工具名与规范化参数的 SHA-256 摘要一致时累计，命中第 3、5 次后向模型追加一条合成 `UserMessage` 提醒。该提醒不阻断工具执行、不含参数或结果、不写入会话条目、不跨回合保留；用户 steering 注入或不可安全观察时立即重置。两个 provider 都把工具结果后的用户消息按既有顺序序列化，无需新增协议字段。
 
+`scripts/check_queue_steer.py` 为 `queue/steer` 提供专项源码守卫：内核侧核对 `promote_to_steering` 只接受 `queued` 的 `followUp`、拒绝技能 / 自动压缩覆盖，并通过持久 `_save` 保留原 id、正文与请求编号；`on_queue_steer` 必须校验 active turn、`expectedTurnId`、取消状态与 `STEER_UNAVAILABLE`。脚本还核对 `queueSteer` 能力、协议参数类型、主进程两份白名单与方法参数校验、RPC 错误保留、渲染层 bridge 与面板按钮状态。它是 AST 与文本扫描，不替代状态机探针或真实桌面操作。
+
+`scripts/check_loop_guard.py` 固定重复调用提醒的阈值 `(3, 5)`、512 字符上限与 64 KiB 规范化参数上限；`_argument_digest` 必须规范化排序、禁用 NaN、不可安全序列化时回退，`observe` 只按工具名与参数摘要计数，提醒不含参数或结果。脚本还核对 `agent.py` 在工具结果之后、仍有下一次模型请求时观察，且 steering / 无调用后续消息路径会重置。它不执行模型、不写入会话，也不验证模型是否真的响应提醒。
+
+`scripts/check_browser_source.py` 核对 `BOSS_HARNESS_BROWSER_SOURCE` 的严格白名单 `auto` / `existing-browser` / `stored-cookie`、空值回退与规范化，要求上游参数以独立 `--browser-source` 值构造且子进程保持 `shell=False`；同时核对启动自检码、连接报告与桌面设置页的来源策略展示。脚本不启动上游、不读取浏览器或 Cookie，也不验证上游是否支持该参数。
+
+`scripts/check_connection_lifecycle.py` 核对连接检查的异步生命周期：`_ModelCheck` 必须保留取消事件、provider、worker 终态与中止线程字段；`start` 必须串行化 CLI / 平台检查并处理失败启动，模型检查必须以 worker、取消事件与 `_ModelCheck` 三重归属判定所有权，abort 未完成时不得退休；超时、空闲通知和关闭阶段必须按取消、请求中止、等待的顺序回收。脚本只扫描源码，不证明运行时线程已退出。
+
 `scripts/check_tool_schema.py` 核对工具参数边界：`tool_schema.py` 的关键字与类型集合、schema / 参数字节上限、JSON 节点 / 深度上限与规范化访问上限保持不变；根 schema 必须为对象，结构化字符串仅在按对应对象 / 数组 schema 解码且校验通过后才替换原值，参数校验失败统一转为受限错误。`tool_bundle.py` 必须保留工具名格式、描述非空、执行模式与审批互斥、结果预算范围、schema 冻结、注册表名校验与只读投影。检查是常量与文本扫描，运行时 schema 行为仍需按用户指南核对。
 `scripts/check_tool_results.py` 核对工具结果分页与引用边界：`tool_results.py` 的内联 64 KiB / 单页 1 MiB 预算、默认 16,384 / 最大 32,768 码点与模型 8,192 码点必须保持不变，且满足 `MODEL_RESULT_READ_CHARS ≤ DEFAULT_RESULT_CHARS ≤ MAX_RESULT_CHARS`、单页预算低于内核帧上限；两条读取路径必须校验 `limit`，RPC 请求字段必须限定在 `threadId` / `itemId` / `sha256` / `cursor` / `limit`，摘要必须为 64 位小写十六进制，过期引用必须返回 `STALE_RESULT` 与 `currentRef`，游标必须校验前缀 `tr1_`、长度、条目归属与偏移。模型只读工具必须使用 `MODEL_RESULT_READ_CHARS` 上限、禁止额外属性，并透传当前引用与错误码。检查是常量与文本扫描，实际分页与读取行为仍需按用户指南核对。
 
