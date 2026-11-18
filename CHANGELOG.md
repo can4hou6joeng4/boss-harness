@@ -1,3 +1,10 @@
+## 0.2.0-rc.104 - 2026-11-18
+
+rc.104 源码候选把变更记录纳入版本核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_versions.py` 读取 `CHANGELOG.md` 的第一个二级标题，要求与根包版本一致；不一致或缺少条目时以退出码 2 失败。[Issue #2331](https://github.com/can4hou6joeng4/boss-harness/issues/2331)
+- README 与发布约定说明检查范围。候选版本号和使用指南同步为 npm `0.2.0-rc.104` / Python `0.2.0rc104`。
+
 ## 0.2.0-rc.103 - 2026-11-18
 
 rc.103 源码候选修正 `shutdown` 的连接语义说明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
