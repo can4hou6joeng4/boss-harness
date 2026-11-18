@@ -1,3 +1,10 @@
+## 0.2.0-rc.162 - 2026-11-18
+
+rc.162 源码候选限定 `shell.openExternal` 唯一调用点。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 统计主进程中的 `shell.openExternal(`，要求只出现在 `window.ts` 且恰好一次；桌面防护计数达到 106。[Issue #2448](https://github.com/can4hou6joeng4/boss-harness/issues/2448)
+- 在 `harness.ts` 新增调用与 `window.ts` 重复调用两个负向探针均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.162` / Python `0.2.0rc162`。
+
 ## 0.2.0-rc.161 - 2026-11-18
 
 rc.161 源码候选核对渲染层外部链接判定函数。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

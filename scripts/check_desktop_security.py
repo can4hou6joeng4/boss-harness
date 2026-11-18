@@ -240,7 +240,17 @@ def _check_external_links() -> int:
             raise ValueError(f"window.ts 的 openExternal 缺少 {fragment}")
     if re.search(r"setWindowOpenHandler\([\s\S]{0,240}?openExternal\(", window) is None:
         raise ValueError("window.ts 的 setWindowOpenHandler 应调用 openExternal")
-    return 8
+    calls = [
+        (path, count)
+        for path in sorted(MAIN.rglob("*.ts"))
+        if (count := path.read_text(encoding="utf-8").count("shell.openExternal("))
+    ]
+    if len(calls) != 1 or calls[0][0].name != "window.ts" or calls[0][1] != 1:
+        shown = "、".join(f"{path.name} × {count}" for path, count in calls) or "无"
+        raise ValueError(
+            "shell.openExternal 只允许在 window.ts 的 openExternal 中调用一次，实际为 " + shown
+        )
+    return 9
 
 
 def _check_permission_allowlist() -> int:
