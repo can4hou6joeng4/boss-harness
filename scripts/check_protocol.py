@@ -18,6 +18,10 @@ SECURITY = "apps/desktop/src/main/security.ts"
 SOURCE_ROOT = "harness/src/boss_harness"
 APP_CLIENT = "packages/app-client/src"
 DESKTOP_ROOT = "apps/desktop/src"
+RPC = "harness/src/boss_harness/rpc.py"
+APP_CLIENT_INDEX = "packages/app-client/src/index.ts"
+FRAME_DEFAULT = re.compile(r"maxFrameBytes \?\?\s*(\d+(?:\s*\*\s*\d+)*)")
+QUEUE_DEFAULT = re.compile(r"maxQueuedBytes \?\?\s*(\d+(?:\s*\*\s*\d+)*)")
 EMITTERS = frozenset({"emit", "emit_until", "_emit_committed", "notify"})
 METHOD_LITERAL = re.compile(r'method\s*(?:[!=]==?|:)\s*"([^"]+/[^"]*)"')
 PROTOCOL_DEFAULT = re.compile(r'protocolVersion\s*\?\?\s*"(\d+\.\d+\.\d+)"')
@@ -333,6 +337,63 @@ def _workspace_dependencies() -> int:
     return checked
 
 
+def _int_product(node: ast.AST) -> int | None:
+    if isinstance(node, ast.Constant) and type(node.value) is int and node.value > 0:
+        return node.value
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mult):
+        left = _int_product(node.left)
+        right = _int_product(node.right)
+        if left is not None and right is not None:
+            return left * right
+    return None
+
+
+def _module_int_constant(relative: str, name: str) -> int:
+    try:
+        tree = ast.parse(_read(relative))
+    except SyntaxError:
+        raise ValueError(f"无法解析 {relative}") from None
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if any(isinstance(target, ast.Name) and target.id == name for target in targets):
+            value = _int_product(node.value)
+            if value is None:
+                raise ValueError(f"{relative} 的 {name} 必须是正整数常量表达式")
+            return value
+    raise ValueError(f"{relative} 缺少 {name}")
+
+
+def _ts_product(literal: str) -> int:
+    value = 1
+    for part in literal.split("*"):
+        value *= int(part.strip())
+    return value
+
+
+def _check_transport_limits() -> int:
+    kernel = _module_int_constant(RPC, "MAX_FRAME_BYTES")
+    text = _read(APP_CLIENT_INDEX)
+    frames = sorted({_ts_product(value) for value in FRAME_DEFAULT.findall(text)})
+    queues = sorted({_ts_product(value) for value in QUEUE_DEFAULT.findall(text)})
+    if not frames:
+        raise ValueError(f"{APP_CLIENT_INDEX} 缺少 maxFrameBytes 默认值")
+    if frames != [kernel]:
+        shown = "、".join(str(value) for value in frames)
+        raise ValueError(f"app-client 帧上限 {shown} 与内核 MAX_FRAME_BYTES {kernel} 不一致")
+    if not queues:
+        raise ValueError(f"{APP_CLIENT_INDEX} 缺少 maxQueuedBytes 默认值")
+    if len(queues) != 1:
+        raise ValueError("app-client 的 maxQueuedBytes 默认值必须唯一")
+    if queues[0] < kernel:
+        raise ValueError(f"app-client 队列上限 {queues[0]} 不得小于帧上限 {kernel}")
+    return 5
+
+
 def _describe(missing: set[str], extra: set[str]) -> str:
     parts = []
     if missing:
@@ -342,7 +403,7 @@ def _describe(missing: set[str], extra: set[str]) -> str:
     return "；".join(parts)
 
 
-def check_protocol() -> tuple[str, int, int, int, int, int, int]:
+def check_protocol() -> tuple[str, int, int, int, int, int, int, int]:
     protocol = _read(PROTOCOL)
     python_protocol = _python_protocol_version()
     typescript_protocol = _typescript_protocol_version(protocol)
@@ -384,17 +445,20 @@ def check_protocol() -> tuple[str, int, int, int, int, int, int]:
         raise ValueError("桌面引用了协议之外的方法：" + "、".join(sorted(unknown_literals)))
     renderer, thread = _check_desktop(client)
     capabilities = _check_capabilities(protocol)
-    return python_protocol, len(client), len(notifications), len(requests), capabilities, renderer, thread
+    limits = _check_transport_limits()
+    return (python_protocol, len(client), len(notifications), len(requests),
+            capabilities, renderer, thread, limits)
 
 
 def main() -> int:
     try:
-        version, methods, notifications, requests, capabilities, renderer, thread = check_protocol()
+        version, methods, notifications, requests, capabilities, renderer, thread, limits = check_protocol()
     except ValueError as error:
         print(f"协议常量核对失败，{error}", file=sys.stderr)
         return 2
     print(f"协议 {version}、{methods} 个方法、{notifications} 个通知、{requests} 个服务端请求、"
-          f"{capabilities} 个能力、{renderer} 个渲染层方法、{thread} 个线程方法")
+          f"{capabilities} 个能力、{renderer} 个渲染层方法、{thread} 个线程方法、"
+          f"{limits} 项传输上限一致性")
     return 0
 
 

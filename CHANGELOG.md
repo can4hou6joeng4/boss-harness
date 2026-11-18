@@ -1,3 +1,10 @@
+## 0.2.0-rc.181 - 2026-11-18
+
+rc.181 源码候选核对内核与 app-client 的传输上限。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_protocol.py` 解析内核 `rpc.py` 的 `MAX_FRAME_BYTES`，要求 app-client 的 `maxFrameBytes` 默认值与它相等且字面量唯一，`maxQueuedBytes` 默认值不小于帧上限。[Issue #2486](https://github.com/can4hou6joeng4/boss-harness/issues/2486)
+- 改动客户端帧上限、队列上限与内核常量三个负向探针均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.181` / Python `0.2.0rc181`。
+
 ## 0.2.0-rc.180 - 2026-11-18
 
 rc.180 源码候选限制桌面与 app-client 的子进程 API。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
