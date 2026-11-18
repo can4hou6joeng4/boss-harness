@@ -1,3 +1,22 @@
+## 0.2.0-rc.79 - 2026-11-18
+
+本节汇总第七十九个候选版本的源码与交付内容。相对 rc.78，本候选对齐搜索 Unicode 17 规范分解与合成，并让冻结快照按普通读取规则清理无效编号字段。rc.16 至 rc.79 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 含补表码点的搜索先 NFKD 全分解，按桌面 Unicode 17 组合类稳定排序并逐对合成，补齐新增规范分解与合成对；跨端 9 万条差分语料全部一致（#2214、#2215）。
+- 冻结快照对非字符串编号字段按缺失处理，避免修订误合并造成自洽但少条目的分页结果（#2218、#2219）。
+- 用户指南与内核契约同步上述边界（#2216、#2217、#2220、#2221）。
+- 同步 npm / Python 版本到 `0.2.0-rc.79` / `0.2.0rc79`（#2222）。
+
+升级注意：不改变 JSON-RPC 协议、工具权限、会话持久化格式或存储键；rc.78 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2214](https://github.com/can4hou6joeng4/boss-harness/issues/2214)：对齐 Unicode17 规范分解与合成。
+- [Issue #2218](https://github.com/can4hou6joeng4/boss-harness/issues/2218)：清理冻结快照中的无效编号字段。
+- [Issue #2222](https://github.com/can4hou6joeng4/boss-harness/issues/2222)：准备 rc.79 源码候选并同步版本来源。
+
 ## 0.2.0-rc.78 - 2026-11-18
 
 本节汇总第七十八个候选版本的源码与交付内容。相对 rc.77，本候选修复摘要任务活跃标记的标识规范化。rc.16 至 rc.78 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
