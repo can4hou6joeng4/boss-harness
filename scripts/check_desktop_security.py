@@ -111,7 +111,9 @@ def _check_permission_allowlist() -> int:
             "主窗口权限白名单应恰为 " + "、".join(sorted(PERMISSION_ALLOWLIST))
             + "，实际为 " + ("、".join(sorted(values)) if values else "空")
         )
-    return len(values)
+    if "isTrustedRendererUrl(" not in text:
+        raise ValueError("apps/desktop/src/main/permissionPolicy.ts 必须核对请求来源是否受信")
+    return len(values) + 1
 
 
 def _check_permission_handlers() -> int:
@@ -128,6 +130,12 @@ def _check_permission_handlers() -> int:
         if not re.search(r"on\(\"will-attach-webview\",[^\n]*preventDefault\(\)", text):
             raise ValueError(f"apps/desktop/src/main/{name} 的 will-attach-webview 应 preventDefault")
         checked += 1
+    login = _main_text("platformLogin.ts")
+    if "session.fromPartition(" not in login:
+        raise ValueError("apps/desktop/src/main/platformLogin.ts 必须使用独立 session 分区")
+    if "session.defaultSession" in login:
+        raise ValueError("apps/desktop/src/main/platformLogin.ts 不得使用默认 session")
+    checked += 2
     return checked
 
 

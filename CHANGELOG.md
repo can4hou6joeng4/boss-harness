@@ -1,3 +1,10 @@
+## 0.2.0-rc.127 - 2026-11-18
+
+rc.127 源码候选补上桌面权限来源与登录会话隔离的静态核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求 `permissionPolicy.ts` 调用 `isTrustedRendererUrl` 核对权限请求来源，并要求 `platformLogin.ts` 使用 `session.fromPartition(` 且不得使用默认会话。[Issue #2378](https://github.com/can4hou6joeng4/boss-harness/issues/2378)
+- README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.127` / Python `0.2.0rc127`。
+
 ## 0.2.0-rc.126 - 2026-11-18
 
 rc.126 源码候选为桌面权限与导航防护增加静态核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
