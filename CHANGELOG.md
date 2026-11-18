@@ -1,3 +1,21 @@
+## 0.2.0-rc.84 - 2026-11-18
+
+本节汇总第八十四个候选版本的源码与交付内容。相对 rc.83，本候选对齐桌面摘要任务明细的本地兜底截断方向。rc.16 至 rc.84 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 桌面 `summaryJobsOf` 保留最近 50 条摘要任务明细，与内核 `[-MAX_SUMMARY_JOBS:]` 语义一致；兼容实现返回超量明细时不再展示最旧任务（#2253、#2254）。
+- 技术参考明确摘要任务明细的首份取值、最近记录保留方向与计数基准（#2255、#2256）。
+- 同步 npm / Python 版本到 `0.2.0-rc.84` / `0.2.0rc84`（#2257）。
+
+升级注意：不改变 JSON-RPC 协议、工具权限、会话持久化格式或存储键；rc.83 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2253](https://github.com/can4hou6joeng4/boss-harness/issues/2253)：摘要任务明细按最近记录截断。
+- [Issue #2255](https://github.com/can4hou6joeng4/boss-harness/issues/2255)：明确摘要任务明细截断方向。
+- [Issue #2257](https://github.com/can4hou6joeng4/boss-harness/issues/2257)：准备 rc.84 源码候选并同步版本来源。
+
 ## 0.2.0-rc.83 - 2026-11-18
 
 本节汇总第八十三个候选版本的源码与交付内容。相对 rc.82，本候选对齐桌面用量原因汇总、码点计数与 CSV 导出字段。rc.16 至 rc.83 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
