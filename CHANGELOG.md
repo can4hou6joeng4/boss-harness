@@ -1,3 +1,10 @@
+## 0.2.0-rc.103 - 2026-11-18
+
+rc.103 源码候选修正 `shutdown` 的连接语义说明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 协议注释与技术参考改为：`shutdown` 停止内核服务并返回 `{ "stopped": true }`，连接仍然可读，进程在 stdin 关闭后退出；不再声称响应后关闭连接。[Issue #2329](https://github.com/can4hou6joeng4/boss-harness/issues/2329)
+- 候选版本号和使用指南同步为 npm `0.2.0-rc.103` / Python `0.2.0rc103`。
+
 ## 0.2.0-rc.102 - 2026-11-18
 
 rc.102 源码候选补齐贡献指南的本地检查命令。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

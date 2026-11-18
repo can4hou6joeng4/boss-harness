@@ -108,7 +108,7 @@ export interface InitializeResponse {
 export const ClientMethods = {
   initialize: "initialize",
   initialized: "initialized",
-  /** 不要求完成握手；调用后内核关闭并返回 `{ "stopped": true }`。 */
+  /** 不要求完成握手；调用后停止内核服务并返回 `{ "stopped": true }`，进程在 stdin 关闭后退出。 */
   shutdown: "shutdown",
   threadStart: "thread/start",
   threadList: "thread/list",
