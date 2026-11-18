@@ -1,3 +1,10 @@
+## 0.2.0-rc.168 - 2026-11-18
+
+rc.168 源码候选核对工作流触发器与作业超时。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_workflows.py` 禁止 `pull_request_target` 与 `workflow_run` 触发器，并要求每个作业声明正整数 `timeout-minutes`。[Issue #2460](https://github.com/can4hou6joeng4/boss-harness/issues/2460)
+- `workflow_run` 注入与删除 `timeout-minutes` 两个负向探针均触发对应错误；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.168` / Python `0.2.0rc168`。
+
 ## 0.2.0-rc.167 - 2026-11-18
 
 rc.167 源码候选禁止渲染层入口嵌入与远程资源。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
