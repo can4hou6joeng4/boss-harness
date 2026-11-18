@@ -1,3 +1,10 @@
+## 0.2.0-rc.166 - 2026-11-18
+
+rc.166 源码候选限制主进程的脚本执行与调试器入口。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求 `apps/desktop/src/main` 不得出现 `executeJavaScript` 或 `debugger`，避免绕过桥接注入脚本或挂载调试器；桌面防护计数达到 119。[Issue #2456](https://github.com/can4hou6joeng4/boss-harness/issues/2456)
+- 两个负向探针分别触发对应错误；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.166` / Python `0.2.0rc166`。
+
 ## 0.2.0-rc.165 - 2026-11-18
 
 rc.165 源码候选核对主进程与 preload 的 IPC 角色符号。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
