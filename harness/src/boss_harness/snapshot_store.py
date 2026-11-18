@@ -274,10 +274,10 @@ class SnapshotBuilder:
 
     def _entry(self, entry: dict) -> None:
         entry_type = entry.get("type")
-        entry_id = str(entry.get("id") or "")
+        entry_id = _record_id(entry.get("id")) or ""
         payload = entry.get("payload")
         if entry_type == "item":
-            if not isinstance(payload, dict):
+            if not isinstance(payload, dict) or not entry_id:
                 return
             # 与普通投影同序：先保存修订目标，再清理本条载荷；合并后再清理会误删
             # 被修订条目中原本合法的编号字段与 approval。
