@@ -9,6 +9,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 MAIN = ROOT / "apps/desktop/src/main"
+RENDERER = ROOT / "apps/desktop/src/renderer/src"
+EXTERNAL_SCHEMES = re.compile(r'EXTERNAL_SCHEMES\s*=\s*\[([^\]]*)\]')
 EXPECTED: dict[str, dict[str, bool]] = {
     "window.ts": {
         "contextIsolation": True,
@@ -155,6 +157,68 @@ def _check_navigation_handlers() -> int:
     return checked
 
 
+def _named_body(text: str, name: str) -> str:
+    """按名称取出函数声明或箭头常量的大括号主体。"""
+    match = re.search(
+        rf'\b(?:function\s+{re.escape(name)}\s*\(|const\s+{re.escape(name)}\s*=)', text
+    )
+    if match is None:
+        return ""
+    start = text.find("{", match.end())
+    if start == -1:
+        return ""
+    depth = 0
+    for end in range(start, len(text)):
+        if text[end] == "{":
+            depth += 1
+        elif text[end] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:end + 1]
+    return ""
+
+
+def _schemes(text: str, where: str) -> set[str]:
+    match = re.search(r'\[([^\]]*)\]', text)
+    if match is None:
+        raise ValueError(f"{where} 缺少协议白名单")
+    values = set(re.findall(r'"([^"]+)"', match.group(1)))
+    if not values:
+        raise ValueError(f"{where} 的协议白名单为空")
+    return values
+
+
+def _check_external_links() -> int:
+    renderer = RENDERER / "components/RichMarkdown.tsx"
+    if not renderer.is_file():
+        raise ValueError("缺少渲染层链接组件 apps/desktop/src/renderer/src/components/RichMarkdown.tsx")
+    renderer_match = EXTERNAL_SCHEMES.search(renderer.read_text(encoding="utf-8"))
+    if renderer_match is None:
+        raise ValueError("apps/desktop/src/renderer/src/components/RichMarkdown.tsx 缺少 EXTERNAL_SCHEMES")
+    renderer_schemes = _schemes(renderer_match.group(0), "RichMarkdown.tsx 的 EXTERNAL_SCHEMES")
+    main_body = _named_body(_main_text("security.ts"), "isAllowedExternalUrl")
+    if not main_body:
+        raise ValueError("apps/desktop/src/main/security.ts 缺少 isAllowedExternalUrl")
+    if "new URL(url).protocol" not in main_body:
+        raise ValueError("isAllowedExternalUrl 必须按 URL 解析后的协议判定")
+    main_schemes = _schemes(main_body, "isAllowedExternalUrl 的协议白名单")
+    if main_schemes != renderer_schemes:
+        raise ValueError(
+            "外部链接协议白名单不一致：渲染层 " + "、".join(sorted(renderer_schemes))
+            + "；主进程 " + "、".join(sorted(main_schemes))
+        )
+    window = _main_text("window.ts")
+    open_body = _named_body(window, "openExternal")
+    if not open_body:
+        raise ValueError("apps/desktop/src/main/window.ts 缺少 openExternal")
+    for fragment in ("isAllowedExternalUrl(", "shell.openExternal("):
+        if fragment not in open_body:
+            raise ValueError(f"window.ts 的 openExternal 缺少 {fragment}")
+    if re.search(r"setWindowOpenHandler\([\s\S]{0,240}?openExternal\(", window) is None:
+        raise ValueError("window.ts 的 setWindowOpenHandler 应调用 openExternal")
+    return 6
+
+
 def _check_permission_allowlist() -> int:
     text = _main_text("permissionPolicy.ts")
     match = re.search(r"MAIN_WINDOW_PERMISSIONS[^=]*=\s*new Set\(\[(.*?)\]\)", text, re.DOTALL)
@@ -229,8 +293,9 @@ def check_desktop_security() -> tuple[int, int, int]:
     allowlist = _check_permission_allowlist()
     handlers = _check_permission_handlers()
     navigation = _check_navigation_handlers()
+    external = _check_external_links()
     preload = _check_preload_bridge()
-    return len(EXPECTED), checked, allowlist + handlers + navigation + preload
+    return len(EXPECTED), checked, allowlist + handlers + navigation + external + preload
 
 
 def main() -> int:
