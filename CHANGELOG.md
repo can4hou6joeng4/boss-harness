@@ -1,3 +1,10 @@
+## 0.2.0-rc.184 - 2026-11-18
+
+rc.184 源码候选核对工作区技能加载边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_skills.py`：核对技能常量关系与帧上限、`O_NOFOLLOW` / `O_NONBLOCK` / inode 校验 / 有界读取、`os.scandir` 与根目录符号链接拒绝、名称 / 描述 / 问题清单截断，并禁止 `SkillCatalog` 使用 `glob` / `rglob` / `iterdir` 枚举技能。[Issue #2492](https://github.com/can4hou6joeng4/boss-harness/issues/2492)
+- CI 接入后覆盖 10 个检查脚本；移除 `O_NOFOLLOW`、删除名称截断、改用 `rglob`、缩小扫描上限与抬高单文件上限五个负向探针均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.184` / Python `0.2.0rc184`。
+
 ## 0.2.0-rc.183 - 2026-11-18
 
 rc.183 源码候选固定内核私有状态文件边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
