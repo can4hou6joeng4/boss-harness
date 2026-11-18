@@ -1,3 +1,11 @@
+## 0.2.0-rc.122 - 2026-11-18
+
+rc.122 源码候选让宿主默认协议版本引用唯一常量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `packages/app-client/src/host.ts` 的 initialize 默认 `protocolVersion` 改为引用 `PROTOCOL_VERSION`，不再写死 `"0.2.0"`。[Issue #2368](https://github.com/can4hou6joeng4/boss-harness/issues/2368)
+- `scripts/check_protocol.py` 增加静态检查：宿主与桌面源码中的 `protocolVersion ?? "…"` 默认值必须引用常量，重复字面量会使检查失败。
+- 候选版本号和使用指南同步为 npm `0.2.0-rc.122` / Python `0.2.0rc122`。
+
 ## 0.2.0-rc.121 - 2026-11-18
 
 rc.121 源码候选补充状态页的英文与支持入口。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

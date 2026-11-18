@@ -43,7 +43,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ## 构建前协议核对
 
-`scripts/check_protocol.py` 在安装依赖前运行，失败时退出码 2。它核对七类静态不变量：
+`scripts/check_protocol.py` 在安装依赖前运行，失败时退出码 2。它核对八类静态不变量：
 
 - `ApplicationService._register()` 注册的方法集合与 `ClientMethods` 双向一致；
 - 内核以字面量或模块常量发送的通知、`self.server.request` 字面量请求分别出现在 `ServerNotifications`、`ServerRequests` 中；
@@ -51,7 +51,8 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 - 桌面主进程和渲染层以 `method` 字面量比较或构造、且含 `/` 的方法名出现在 `ClientMethods` 或 `ServerNotifications` 中；
 - `on_initialize` 返回的 `capabilities` 键与 `InitializeResponse.capabilities` 的布尔字段一致；
 - `RENDERER_METHODS` 是 `ClientMethods` 的子集，仅主进程方法在脚本的 `MAIN_ONLY_METHODS` 中显式登记，`THREAD_METHODS` 是渲染层方法的子集；
-- 内核 `protocol.py` 的 `PROTOCOL_VERSION` 与协议包常量相同，且 `application.py` / `session_export.py` 不重复定义。
+- 内核 `protocol.py` 的 `PROTOCOL_VERSION` 与协议包常量相同，且 `application.py` / `session_export.py` 不重复定义；
+- 宿主与桌面源码中的 `protocolVersion ?? "…"` 默认值必须引用 `PROTOCOL_VERSION`，不得另立协议版本字面量。
 
 检查是静态扫描：通过变量拼接的方法名、运行时注册或动态生成的字段不在覆盖范围；新增此类路径时仍需人工核对协议常量。版本一致性由 `scripts/check_versions.py` 单独核对。
 

@@ -1,4 +1,10 @@
-import type { InitializeResponse, JsonRpcId, JsonRpcNotification, JsonRpcRequest } from "@boss-harness/protocol";
+import {
+  PROTOCOL_VERSION,
+  type InitializeResponse,
+  type JsonRpcId,
+  type JsonRpcNotification,
+  type JsonRpcRequest,
+} from "@boss-harness/protocol";
 import { HarnessClient, type HarnessClientOptions } from "./index";
 
 export type HarnessConnectionState = "cold" | "starting" | "initializing" | "ready" | "disconnected" | "stopped";
@@ -141,7 +147,7 @@ export class HarnessHostConnection {
       connection.start();
       this.#setState("initializing");
       const response = await connection.request<InitializeResponse>("initialize", {
-        protocolVersion: this.options.protocolVersion ?? "0.2.0",
+        protocolVersion: this.options.protocolVersion ?? PROTOCOL_VERSION,
         clientInfo: this.options.clientInfo,
         capabilities: { experimentalApi: false, bidirectionalRequests: true },
       });
