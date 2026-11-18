@@ -377,6 +377,8 @@ SESSION_EXPORT_FRAGMENTS = (
     "validateThreadExportResponse(response, request)",
     "writeSessionExport(choice.filePath, exported.content)",
     "basename(choice.filePath)",
+    "createDirectory",
+    "showOverwriteConfirmation",
 )
 
 
