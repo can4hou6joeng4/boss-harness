@@ -1,3 +1,10 @@
+## 0.2.0-rc.171 - 2026-11-18
+
+rc.171 源码候选新增内核默认工具允许清单核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_harness_tools.py`，以标准库 AST 解析 `TOOLS` 元组：14 个唯一工具名、13 个只读工具、仅 `boss_hr_greet` 需批准，且每个 `input_schema` 为 `type: object`、`additionalProperties: false`、`required` 只引用已声明属性。[Issue #2466](https://github.com/can4hou6joeng4/boss-harness/issues/2466)
+- CI 增加工具清单核对步骤，工作流检查覆盖 7 个脚本；改名工具与去掉批准标记两个负向探针均触发对应错误；README、技术参考、发布约定与 STATUS 同步；版本推进到 npm `0.2.0-rc.171` / Python `0.2.0rc171`。
+
 ## 0.2.0-rc.170 - 2026-11-18
 
 rc.170 源码候选固定 IPC 通道为双引号字符串字面量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
