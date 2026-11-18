@@ -229,7 +229,7 @@ class BossCliTool:
         try:
             proc = subprocess.Popen(argv, stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                    start_new_session=os.name == "posix")
+                                    start_new_session=os.name == "posix", shell=False)
         except OSError:
             return failure("CLI_ERROR", "上游 CLI 不可执行，请检查 BOSS_CLI_BIN")
         deadline = time.monotonic() + timeout
