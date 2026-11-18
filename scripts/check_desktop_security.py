@@ -323,14 +323,25 @@ def _channel_diff(label: str, expected: set[str], actual: set[str]) -> str:
             + "；多出：" + ("、".join(extra) or "无"))
 
 
+RENDERER_BOUNDARY: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bipcRenderer\b"), "不得引用 ipcRenderer"),
+    (re.compile(r'(?:from\s+|import\s*\(\s*)["\']electron["\']'), "不得直接导入 electron"),
+    (re.compile(r"\brequire\s*\("), "不得使用 CommonJS require"),
+    (re.compile(r'(?:from\s+|import\s*\(\s*)["\']node:'), "不得直接导入 node: 内置模块"),
+)
+
+
 def _check_renderer_boundary() -> int:
     renderer = ROOT / "apps/desktop/src/renderer"
     for path in sorted(renderer.rglob("*")):
         if not path.is_file() or path.suffix not in {".ts", ".tsx"}:
             continue
-        if "ipcRenderer" in path.read_text(encoding="utf-8"):
-            raise ValueError(f"渲染层不得引用 ipcRenderer：{path.relative_to(ROOT).as_posix()}")
-    return 1
+        text = path.read_text(encoding="utf-8")
+        relative = path.relative_to(ROOT).as_posix()
+        for pattern, message in RENDERER_BOUNDARY:
+            if pattern.search(text):
+                raise ValueError(f"渲染层{message}：{relative}")
+    return len(RENDERER_BOUNDARY)
 
 
 def _check_ipc_channels() -> int:
