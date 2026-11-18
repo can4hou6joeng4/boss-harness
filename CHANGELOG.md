@@ -1,3 +1,10 @@
+## 0.2.0-rc.141 - 2026-11-18
+
+rc.141 源码候选核对受信发送方判定。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 取出 `harness.ts` 的 `trustedSender` 主体，要求校验窗口成员关系、`event.senderFrame === event.sender.mainFrame`、`event.senderFrame.url` 与 `isTrustedRendererUrl(`，并至少两处 `throw new Error(`。[Issue #2406](https://github.com/can4hou6joeng4/boss-harness/issues/2406)
+- 负向探针删除主框架比较、来源判定与抛出均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.141` / Python `0.2.0rc141`。
+
 ## 0.2.0-rc.140 - 2026-11-18
 
 rc.140 源码候选核对 IPC 通道与发送方校验。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
