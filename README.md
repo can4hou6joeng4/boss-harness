@@ -25,7 +25,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 - **Execution**: streaming turns, steering / follow-up queues, per-action approvals and stop, append-only JSONL history with SQLite indexing, context budgets and compaction tasks, durable restore, and branch-aware session state.
 - **Safety boundary**: 14 allowlisted tools (13 read-only plus one greeting action that requires approval on every call); capability discovery never grants permissions, and the renderer never receives platform cookies.
 - **Model routes**: OpenAI Responses (Codex or an explicit endpoint), Anthropic Messages, or `none`, sharing the same turn and tool contract.
-- **Desktop**: a single `boss` preload bridge over host-validated IPC; the renderer reaches the main process only through `window.boss` (no `ipcRenderer` / Electron / Node imports, no HTML sinks, CSP limited to local sources with no remote origins); platform login uses an isolated browser partition; session export is sanitized on write; an offline `--check` preflight is included.
+- **Desktop**: a single `boss` preload bridge over host-validated IPC; the renderer reaches the main process only through `window.boss` (no `ipcRenderer` / Electron / Node imports, no HTML sinks, CSP limited to local sources with no remote origins); the workbench surfaces the persistent turn queue with retry / withdraw and full-input review, workspace skill selection and management, and auto-compaction policy settings; platform login uses an isolated browser partition; session export is sanitized on write; an offline `--check` preflight is included.
 - **Design notes**: the kernel follows Pi's agent-harness / durable design ideas but implements this project's recruiting safety contract independently. A read-only review log of external reference repositories is kept in [UPSTREAM.md](UPSTREAM.md); those projects are not upstreams and their links do not imply endorsement.
 - **Status**: source candidates on `main` are not releases; [project status](docs/STATUS.md) lists implemented, pending and non-goal boundaries.
 
@@ -55,7 +55,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 | 核对模型用量 | 会话用量面板按回合、摘要任务与合计展示已持久的 provider 上报，支持复制 CSV；来源字段有界校验，未上报与不计入请求分开显示。 |
 | 恢复长会话 | 普通读取与冻结快照按响应预算分页，游标绑定实际返回条目；索引修复按会话隔离，损坏会话不会吞掉后续页的分页边界。 |
 | 在不同模型线路间切换 | OpenAI Responses、Anthropic Messages 和 `none` 共享同一套回合与工具契约。 |
-| 在桌面里观察过程 | Electron / React 工作台通过双向 stdio JSON-RPC 连接 Python 内核，显示回合、工具、队列和上下文状态。 |
+| 在桌面里观察过程 | Electron / React 工作台通过双向 stdio JSON-RPC 连接 Python 内核，显示回合、工具、队列和上下文状态；队列项支持重试 / 撤回与完整输入核对，技能选择器、工作区技能管理与自动压缩策略设置也在工作台内完成。 |
 | 管理不再需要的会话 | 通过侧栏菜单归档或恢复，在标题栏或侧栏永久删除聊天；删除前列出将一并清除的本机草稿、附件与反馈，确认移除后不会被较早的列表刷新重新放回，运行中或排队时内核拒绝删除。 |
 
 当前内核提供 14 个 allowlist 工具：13 个只读工具，以及一个需要逐次审批的招聘者打招呼工具。能力发现不会自动增加工具权限；模型与普通 renderer 不接收平台 Cookie。
