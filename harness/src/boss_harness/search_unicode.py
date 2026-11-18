@@ -6,10 +6,11 @@ Unicode 数据源不同：桌面跟随 Node（Node 24 / ICU 78.3 为 Unicode 17.
 版本差异会让同一文本在两个入口得到不同的归一化结果，例如 Python ≤ 3.13 不折叠
 Garay 大写字母，Python ≤ 3.11 不分解 Unicode 15 的西里尔修饰字母。
 
-下面两张表只收录受支持 Python 相对桌面运行时缺少的映射，逐码点补在对应步骤
-之后：``_NFKC_EXTRA`` 在 NFKC 之后、casefold 之前，``_CASEFOLD_EXTRA`` 在
-casefold 之后。运行时已应用映射时原码点不再出现，重复套用保持幂等；Unicode 的
-大小写映射一经分配即保持稳定，NFKC 兼容分解对已有码点也不会改写。
+下面几张表只收录受支持 Python 相对桌面运行时缺少的映射：``_NFKC_EXTRA``
+是 Unicode 17 新增的兼容分解，``_CANON_DECOMP_EXTRA`` / ``_COMPOSE_EXTRA``
+是新增的规范分解与合成对，``_CASEFOLD_EXTRA`` 在 casefold 之前补齐差异。
+运行时已应用映射时原码点不再出现，重复套用保持幂等；Unicode 的大小写映射与
+已分配码点的分解一经分配即保持稳定。
 
 映射以桌面运行时为准。升级 Node 的 Unicode 版本或调整最低 Python 版本后，对
 全部码点逐一比较 ``search_normalize(chr(cp))`` 与桌面 ``kernelSearchText``，
@@ -18,7 +19,8 @@ casefold 之后。运行时已应用映射时原码点不再出现，重复套�
 
 ``_GRAPHEME_EXTEND_EXTRA`` 与 ``_CCC_EXTRA`` 处理另一层差异：桌面按
 Unicode 17 的字素属性合并组合记号，并按组合类做规范排序；受支持 Python
-相对缺少部分码点与类别。两表用于让簇切分和排序跟随同一份桌面数据。
+相对缺少部分码点与类别。含补表码点时先用 NFKD 全分解、按桌面组合类稳定重排
+再逐对合成，避免运行时的旧组合类错误阻塞合成。
 """
 from __future__ import annotations
 
@@ -242,7 +244,23 @@ def _extra_pattern() -> re.Pattern[str]:
     return re.compile(f"[{body}]")
 
 
+_CANON_DECOMP_EXTRA = {
+    0x105C9: (0x105D2, 0x0307), 0x105E4: (0x105DA, 0x0307),
+    0x11383: (0x11382, 0x113C9), 0x11385: (0x11384, 0x113BB),
+    0x1138E: (0x1138B, 0x113C2), 0x11391: (0x11390, 0x113C9),
+    0x113C5: (0x113C2, 0x113C2), 0x113C7: (0x113C2, 0x113B8),
+    0x113C8: (0x113C2, 0x113C9),
+    0x16121: (0x1611E, 0x1611E), 0x16122: (0x1611E, 0x16129),
+    0x16123: (0x1611E, 0x1611F), 0x16124: (0x16129, 0x1611F),
+    0x16125: (0x1611E, 0x16120), 0x16126: (0x16121, 0x1611F),
+    0x16127: (0x16122, 0x1611F), 0x16128: (0x16121, 0x16120),
+    0x16D68: (0x16D67, 0x16D67), 0x16D69: (0x16D63, 0x16D67),
+    0x16D6A: (0x16D69, 0x16D67),
+}
+_COMPOSE_EXTRA = {parts: chr(code) for code, parts in _CANON_DECOMP_EXTRA.items()}
+
 _EXTRA_PATTERN = _extra_pattern()
+_RECURSION_LIMIT = 16
 
 
 def needs_extra(value: str) -> bool:
@@ -250,35 +268,73 @@ def needs_extra(value: str) -> bool:
     return _EXTRA_PATTERN.search(value) is not None
 
 
-def search_normalize(value: str) -> str:
-    """NFKC + 规范排序 + casefold，并补齐运行时 Unicode 数据尚未覆盖的映射。
+def _expand_canonical(code: int, seen: frozenset[int] = frozenset()) -> str:
+    """递归展开运行时未收录的 Unicode 17 规范分解。"""
+    parts = _CANON_DECOMP_EXTRA.get(code)
+    if parts is None or code in seen:
+        return chr(code)
+    return "".join(_expand_canonical(part, seen | {code}) for part in parts)
 
-    补表后要再过一次 NFKC：新字母的兼容分解可能与紧随的组合记号重新合成
-    （如 U+A7F1 + 组合锐音符 → ``ś``），只在替换后归一化才能与桌面一致。
-    桌面运行时对新记号已有组合类，Python 的 NFKC 仍按 ccc=0 留下原顺序；
-    这里按桌面类别做稳定排序，避免组合顺序不同的查询漏命中。
-    """
-    normalized = unicodedata.normalize("NFKC", value)
-    translated = normalized.translate(_NFKC_EXTRA)
-    if translated != normalized:
-        normalized = unicodedata.normalize("NFKC", translated)
-    else:
-        normalized = translated
-    chars = list(normalized)
+
+def _canonical_order(chars: list[str]) -> list[str]:
+    """按桌面 Unicode 17 的组合类做稳定规范排序。"""
     for index in range(1, len(chars)):
-        code = ord(chars[index])
-        if extra_combining_class(code):
-            current = extra_combining_class(code)
-            position = index
-            while position > 0:
-                previous = extra_combining_class(ord(chars[position - 1]))
-                if not previous or previous <= current:
-                    break
-                chars[position], chars[position - 1] = chars[position - 1], chars[position]
-                position -= 1
-    # 按桌面组合类重排后要再次 NFKC：排序可能把可合成记号移到基字符旁，
-    # Python 首次 NFKC 因不认识新记号的组合类而未合成。
-    sorted_text = "".join(chars)
-    if sorted_text != normalized:
-        sorted_text = unicodedata.normalize("NFKC", sorted_text)
-    return sorted_text.casefold().translate(_CASEFOLD_EXTRA)
+        current = extra_combining_class(ord(chars[index]))
+        if not current:
+            continue
+        position = index
+        while position > 0:
+            previous = extra_combining_class(ord(chars[position - 1]))
+            if not previous or previous <= current:
+                break
+            chars[position - 1], chars[position] = chars[position], chars[position - 1]
+            position -= 1
+    return chars
+
+
+def _compose_pair(first: str, second: str, cache: dict[tuple[str, str], str | None]) -> str | None:
+    """按桌面规则合成一对 NFKD 稳定的字符。"""
+    key = (first, second)
+    if key in cache:
+        return cache[key]
+    target = _COMPOSE_EXTRA.get((ord(first), ord(second)))
+    if target is None:
+        candidate = unicodedata.normalize("NFC", first + second)
+        target = candidate if len(candidate) == 1 else None
+    cache[key] = target
+    return target
+
+
+def _canonical_compose(chars: list[str]) -> str:
+    """按桌面 Unicode 17 的组合类与合成表做规范合成。"""
+    out = list(chars)
+    starter = -1
+    last_class = 0
+    index = 0
+    cache: dict[tuple[str, str], str | None] = {}
+    while index < len(out):
+        char = out[index]
+        canonical_class = extra_combining_class(ord(char))
+        composed = None
+        if starter >= 0 and (index == starter + 1 or (canonical_class and last_class < canonical_class)):
+            composed = _compose_pair(out[starter], char, cache)
+        if composed is not None:
+            out[starter] = composed
+            del out[index]
+            continue
+        if canonical_class == 0:
+            starter = index
+        last_class = canonical_class
+        index += 1
+    return "".join(out)
+
+
+def search_normalize(value: str) -> str:
+    """按桌面字素簇的 NFKC + casefold 规则归一化补齐运行时 Unicode 数据。"""
+    if not needs_extra(value):
+        return unicodedata.normalize("NFKC", value).casefold()
+    decomposed = unicodedata.normalize("NFKD", value).translate(_NFKC_EXTRA)
+    expanded = "".join(_expand_canonical(ord(char)) for char in decomposed)
+    decomposed = unicodedata.normalize("NFKD", expanded)
+    composed = _canonical_compose(_canonical_order(list(decomposed)))
+    return composed.casefold().translate(_CASEFOLD_EXTRA)
