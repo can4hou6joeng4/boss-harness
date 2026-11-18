@@ -1,3 +1,10 @@
+## 0.2.0-rc.128 - 2026-11-18
+
+rc.128 源码候选核对桌面权限处理器的实际语义。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求 `window.ts` 的两个权限处理器都调用 `allowsMainWindowPermission`，并要求 `platformLogin.ts` 的请求处理器调用 `callback(false)`、检查处理器返回 `false`。[Issue #2380](https://github.com/can4hou6joeng4/boss-harness/issues/2380)
+- README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.128` / Python `0.2.0rc128`。
+
 ## 0.2.0-rc.127 - 2026-11-18
 
 rc.127 源码候选补上桌面权限来源与登录会话隔离的静态核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

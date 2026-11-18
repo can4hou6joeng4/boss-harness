@@ -63,7 +63,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 检查是静态扫描：通过变量拼接的方法名、运行时注册或动态生成的字段不在覆盖范围；新增此类路径时仍需人工核对协议常量。版本一致性由 `scripts/check_versions.py` 单独核对。
 
-`scripts/check_desktop_security.py` 扫描 `apps/desktop/src/main` 中的 `webPreferences` 对象字面量，核对主窗口与平台登录视图的隔离、沙箱、Node 集成、Web 安全、登录视图 `devTools` 等设置；出现未登记文件或布尔值不符时以文件名与配置项失败。它还核对 `permissionPolicy.ts` 的主窗口权限白名单恰为 `clipboard-sanitized-write` 且判定要求请求来自受信渲染入口，并要求两处主进程视图都注册权限请求 / 检查处理器、`setWindowOpenHandler` 返回 `deny`、`will-attach-webview` 调用 `preventDefault`；平台登录只允许使用 `session.fromPartition(` 创建的独立分区，不得落到默认会话。检查是静态对象字面量与文本扫描，动态生成或包装后的配置仍需人工核对。
+`scripts/check_desktop_security.py` 扫描 `apps/desktop/src/main` 中的 `webPreferences` 对象字面量，核对主窗口与平台登录视图的隔离、沙箱、Node 集成、Web 安全、登录视图 `devTools` 等设置；出现未登记文件或布尔值不符时以文件名与配置项失败。它还核对 `permissionPolicy.ts` 的主窗口权限白名单恰为 `clipboard-sanitized-write` 且判定要求请求来自受信渲染入口，并要求两处主进程视图都注册权限请求 / 检查处理器、`setWindowOpenHandler` 返回 `deny`、`will-attach-webview` 调用 `preventDefault`；主窗口两个处理器都调用 `allowsMainWindowPermission`，平台登录处理器显式拒绝，且登录视图只允许使用 `session.fromPartition(` 创建的独立分区，不得落到默认会话。检查是静态对象字面量与文本扫描，动态生成或包装后的配置仍需人工核对。
 
 `scripts/check_workflows.py` 扫描 `.github/workflows` 下的 YAML：要求顶层 `permissions` 含 `contents: read` 且不含 `write`，且顶层之外不得再声明 `permissions`（job 级或 step 级声明同样会使检查失败）；`concurrency` 启用 `cancel-in-progress: true`，每个 `actions/checkout` 步骤带 `persist-credentials: false`，并禁止 `pull_request_target` 与非 `actions/` 的 `uses`。检查是文本静态扫描，不解析完整 YAML 语义；复用工作流或动态表达式仍需人工核对。
 
