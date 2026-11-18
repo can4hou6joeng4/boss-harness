@@ -1,3 +1,19 @@
+## 0.2.0-rc.89 - 2026-11-18
+
+本节汇总第八十九个候选版本的源码与交付内容。相对 rc.88，本候选补齐内核实际发送的 `toolCall/executing` 协议通知常量。rc.16 至 rc.89 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- `ServerNotifications` 增加 `toolCallExecuting: "toolCall/executing"`，与内核实际派发点及桌面消费的字符串一致；第三方客户端可按类型订阅工具开始执行的通知（#2285、#2286）。
+- 同步 npm / Python 版本到 `0.2.0-rc.89` / `0.2.0rc89`（#2287）。
+
+升级注意：不改变 JSON-RPC 协议版本、工具权限、会话持久化格式或存储键；rc.88 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2285](https://github.com/can4hou6joeng4/boss-harness/issues/2285)：补齐 `toolCall/executing` 通知常量。
+- [Issue #2287](https://github.com/can4hou6joeng4/boss-harness/issues/2287)：准备 rc.89 源码候选并同步版本来源。
+
 ## 0.2.0-rc.88 - 2026-11-18
 
 本节汇总第八十八个候选版本的源码与交付内容。相对 rc.87，本候选在 README 稳定能力地图中补充会话用量与按预算恢复说明。rc.16 至 rc.88 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
