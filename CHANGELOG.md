@@ -1,3 +1,10 @@
+## 0.2.0-rc.144 - 2026-11-18
+
+rc.144 源码候选固定来源判定函数的关键实现。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 取出 `security.ts` 的 `isTrustedRendererUrl` 与 `isOfficialLoginUrl`，要求保留开发来源 / 路径比较、`file:` 入口比较，以及 `https:`、拒绝 userinfo、443 端口、`zhipin.com` 精确主机与子域后缀。[Issue #2412](https://github.com/can4hou6joeng4/boss-harness/issues/2412)
+- 负向探针删除后缀限制、端口限制与文件比较均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.144` / Python `0.2.0rc144`。
+
 ## 0.2.0-rc.143 - 2026-11-18
 
 rc.143 源码候选核对检查脚本全部接入 CI。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

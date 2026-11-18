@@ -348,12 +348,45 @@ def _check_ipc_channels() -> int:
     return len(handled) + len(sent) + 2
 
 
+ORIGIN_POLICIES: dict[str, tuple[str, ...]] = {
+    "isTrustedRendererUrl": (
+        'actual.protocol === "file:"',
+        "fileURLToPath(actual) === resolve(entryFile)",
+        "actual.origin === expected.origin",
+        "actual.pathname === expected.pathname",
+        'actual.protocol === "http:"',
+        'actual.protocol === "https:"',
+    ),
+    "isOfficialLoginUrl": (
+        'parsed.protocol === "https:"',
+        "!parsed.username",
+        "!parsed.password",
+        'parsed.port === "443"',
+        'parsed.hostname === "zhipin.com"',
+        'parsed.hostname.endsWith(".zhipin.com")',
+    ),
+}
+
 TRUSTED_SENDER_FRAGMENTS = (
     "event.senderFrame !== event.sender.mainFrame",
     "event.senderFrame.url",
     "isTrustedRendererUrl(",
     "webContents === event.sender",
 )
+
+
+def _check_origin_policies() -> int:
+    text = _main_text("security.ts")
+    checked = 0
+    for name, required in ORIGIN_POLICIES.items():
+        body = _named_body(text, name)
+        if not body:
+            raise ValueError(f"apps/desktop/src/main/security.ts 缺少 {name}")
+        missing = [fragment for fragment in required if fragment not in body]
+        if missing:
+            raise ValueError(f"security.ts 的 {name} 缺少：" + "、".join(missing))
+        checked += len(required)
+    return checked
 
 
 def _check_trusted_sender() -> int:
@@ -385,7 +418,9 @@ def check_desktop_security() -> tuple[int, int, int]:
     preload = _check_preload_bridge()
     ipc = _check_ipc_channels()
     trusted = _check_trusted_sender()
-    return len(EXPECTED), checked, allowlist + handlers + navigation + external + preload + ipc + trusted
+    origins = _check_origin_policies()
+    return (len(EXPECTED), checked,
+            allowlist + handlers + navigation + external + preload + ipc + trusted + origins)
 
 
 def main() -> int:
