@@ -36,6 +36,18 @@ PRELOAD_FILES = frozenset({"window.ts"})
 PERMISSION_ALLOWLIST = frozenset({"clipboard-sanitized-write"})
 PERMISSION_FILES = ("window.ts", "platformLogin.ts")
 PERMISSION_HANDLERS = ("setPermissionRequestHandler", "setPermissionCheckHandler")
+NAVIGATION_HANDLERS: dict[str, dict[str, tuple[str, ...]]] = {
+    "window.ts": {
+        "will-navigate": ("isTrustedRendererUrl(url", "preventDefault()"),
+        "will-frame-navigate": ("event.isMainFrame", "isTrustedRendererUrl(event.url", "preventDefault()"),
+    },
+    "platformLogin.ts": {
+        "will-navigate": ("isOfficialLoginUrl(url", "preventDefault()"),
+        "will-frame-navigate": ("event.isMainFrame", "isOfficialLoginUrl(event.url", "preventDefault()"),
+        "will-redirect": ("mainFrame", "isOfficialLoginUrl(url", "preventDefault()"),
+        "will-prevent-unload": ("preventDefault()",),
+    },
+}
 
 
 def _blocks(text: str) -> list[str]:
@@ -98,6 +110,49 @@ def _main_text(name: str) -> str:
     if not path.is_file():
         raise ValueError(f"缺少桌面主进程文件 apps/desktop/src/main/{name}")
     return path.read_text(encoding="utf-8")
+
+
+def _handler_body(text: str, name: str) -> str:
+    """取出事件处理器的主体：支持块语句与单表达式两种箭头函数。"""
+    match = re.search(rf'\bon\(\s*"{re.escape(name)}"', text)
+    if match is None:
+        return ""
+    arrow = text.find("=>", match.end())
+    if arrow == -1:
+        return ""
+    index = arrow + 2
+    while index < len(text) and text[index] in " \t\r\n":
+        index += 1
+    if index < len(text) and text[index] == "{":
+        depth = 0
+        for end in range(index, len(text)):
+            if text[end] == "{":
+                depth += 1
+            elif text[end] == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[index:end + 1]
+        return ""
+    end = text.find("\n", index)
+    return text[index:] if end == -1 else text[index:end]
+
+
+def _check_navigation_handlers() -> int:
+    checked = 0
+    for name, handlers in NAVIGATION_HANDLERS.items():
+        text = _main_text(name)
+        for handler, required in handlers.items():
+            body = _handler_body(text, handler)
+            if not body:
+                raise ValueError(f"apps/desktop/src/main/{name} 缺少 {handler} 处理器")
+            missing = [fragment for fragment in required if fragment not in body]
+            if missing:
+                raise ValueError(
+                    f"apps/desktop/src/main/{name} 的 {handler} 处理器缺少："
+                    + "、".join(missing)
+                )
+            checked += len(required)
+    return checked
 
 
 def _check_permission_allowlist() -> int:
@@ -173,8 +228,9 @@ def check_desktop_security() -> tuple[int, int, int]:
         raise ValueError("未登记的 webPreferences：" + "、".join(unregistered))
     allowlist = _check_permission_allowlist()
     handlers = _check_permission_handlers()
+    navigation = _check_navigation_handlers()
     preload = _check_preload_bridge()
-    return len(EXPECTED), checked, allowlist + handlers + preload
+    return len(EXPECTED), checked, allowlist + handlers + navigation + preload
 
 
 def main() -> int:
