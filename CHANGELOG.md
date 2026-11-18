@@ -1,3 +1,10 @@
+## 0.2.0-rc.173 - 2026-11-18
+
+rc.173 源码候选核对工具组合沿用审批标记。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_harness_tools.py` 要求 `tools/bundle.py` 从 `TOOLS` 与 `approval_required_tools()` 投影名称、描述、schema 与 `requires_approval`，不得在组合层改写审批标记。[Issue #2470](https://github.com/can4hou6joeng4/boss-harness/issues/2470)
+- 固定 `requires_approval=False` 与清空遍历来源两个负向探针均触发对应错误；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.173` / Python `0.2.0rc173`。
+
 ## 0.2.0-rc.172 - 2026-11-18
 
 rc.172 源码候选核对写工具集合一致性。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
