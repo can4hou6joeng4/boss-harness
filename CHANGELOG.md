@@ -1,3 +1,23 @@
+## 0.2.0-rc.86 - 2026-11-18
+
+本节汇总第八十六个候选版本的源码与交付内容。相对 rc.85，本候选修正会话列表分页和空条目标识的读取边界。rc.16 至 rc.86 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 会话列表在跳过无法重建的会话后仍按有效记录保留 lookahead 与游标，后续健康会话不会因损坏行吃掉候选窗口而永久不可见（#2267、#2268）。
+- 顶层条目 id 为空字符串时，普通投影与冻结快照构建一致跳过；快照分页继续要求非空、唯一 id，避免普通读取成功但快照恢复失败（#2269、#2270）。
+- 技术参考同步会话分页与空标识边界（#2271、#2272）。
+- 同步 npm / Python 版本到 `0.2.0-rc.86` / `0.2.0rc86`（#2273）。
+
+升级注意：不改变 JSON-RPC 协议、工具权限、会话持久化格式或存储键；rc.85 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2267](https://github.com/can4hou6joeng4/boss-harness/issues/2267)：跳过损坏会话后保持分页游标正确。
+- [Issue #2269](https://github.com/can4hou6joeng4/boss-harness/issues/2269)：统一空条目标识的读取契约。
+- [Issue #2271](https://github.com/can4hou6joeng4/boss-harness/issues/2271)：会话列表分页与空条目边界说明。
+- [Issue #2273](https://github.com/can4hou6joeng4/boss-harness/issues/2273)：准备 rc.86 源码候选并同步版本来源。
+
 ## 0.2.0-rc.85 - 2026-11-18
 
 本节汇总第八十五个候选版本的源码与交付内容。相对 rc.84，本候选修正摘要任务触发方式标注，并让用量分页遵守响应预算。rc.16 至 rc.85 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
