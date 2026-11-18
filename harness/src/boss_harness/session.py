@@ -2669,25 +2669,33 @@ class SessionStore:
             if pending:
                 query += " AND id NOT IN (" + ",".join("?" for _ in pending) + ")"
                 parameters.extend(pending)
-            query += " ORDER BY updated_at DESC,id DESC LIMIT ?"
-            parameters.append(limit + 1)
+            query += " ORDER BY updated_at DESC,id DESC"
             skip: set[str] = set()
 
             def read() -> dict:
+                # 损坏会话必须从候选窗口之外继续取行：若先取 limit+1 再过滤，
+                # 损坏行会吃掉 lookahead，后面的健康会话被误判为没有下一页。
+                page: list[Any] = []
+                has_more = False
                 with self._index.connection() as connection:
-                    rows = connection.execute(query, parameters).fetchall()
-                # 与 list_threads 相同的按会话隔离：投影与源日志同时损坏的会话
-                # 无法重建，从分页结果中跳过，不让整页读取失败。
-                rows = [row for row in rows if row["id"] not in skip]
-                page = rows[:limit]
-                for row in page:
-                    # 投影列不保证仍是建表时的类型：SQLite 的列亲和性不会阻止外部把
-                    # updated_at 改写成 BLOB。游标的 json.dumps 会抛 TypeError，绕过
-                    # 只捕获 _IndexedMetadataError 的重建重试，把 -32603 送给调用方。
-                    if not isinstance(row["updated_at"], str):
-                        raise _IndexedMetadataError(row["id"])
+                    cursor = connection.execute(query, parameters)
+                    while True:
+                        row = cursor.fetchone()
+                        if row is None:
+                            break
+                        if row["id"] in skip:
+                            continue
+                        # 投影列不保证仍是建表时的类型：SQLite 的列亲和性不会阻止外部把
+                        # updated_at 改写成 BLOB。游标的 json.dumps 会抛 TypeError，绕过
+                        # 只捕获 _IndexedMetadataError 的重建重试，把 -32603 送给调用方。
+                        if not isinstance(row["updated_at"], str):
+                            raise _IndexedMetadataError(row["id"])
+                        if len(page) == limit:
+                            has_more = True
+                            break
+                        page.append(row)
                 next_cursor = (_page_cursor("threads", scope, [page[-1]["updated_at"], page[-1]["id"]])
-                               if len(rows) > limit else None)
+                               if page and has_more else None)
                 return {"threads": [self._thread_metadata(row) for row in page],
                         "nextCursor": next_cursor}
 
