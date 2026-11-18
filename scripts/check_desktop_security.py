@@ -130,7 +130,16 @@ def _check_permission_handlers() -> int:
         if not re.search(r"on\(\"will-attach-webview\",[^\n]*preventDefault\(\)", text):
             raise ValueError(f"apps/desktop/src/main/{name} 的 will-attach-webview 应 preventDefault")
         checked += 1
+    window = _main_text("window.ts")
+    if len(re.findall(r"allowsMainWindowPermission\(", window)) < 2:
+        raise ValueError("apps/desktop/src/main/window.ts 的权限请求与检查处理器都应调用 allowsMainWindowPermission")
+    checked += 1
     login = _main_text("platformLogin.ts")
+    if "callback(false)" not in login:
+        raise ValueError("apps/desktop/src/main/platformLogin.ts 的权限请求处理器应拒绝")
+    if re.search(r"setPermissionCheckHandler\(\(\)\s*=>\s*false\)", login) is None:
+        raise ValueError("apps/desktop/src/main/platformLogin.ts 的权限检查处理器应返回 false")
+    checked += 2
     if "session.fromPartition(" not in login:
         raise ValueError("apps/desktop/src/main/platformLogin.ts 必须使用独立 session 分区")
     if "session.defaultSession" in login:
