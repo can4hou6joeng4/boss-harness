@@ -1,3 +1,10 @@
+## 0.2.0-rc.133 - 2026-11-18
+
+rc.133 源码候选将 preload 桥接纳入桌面静态安全检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求 preload 经 `contextBridge.exposeInMainWorld` 暴露 API，并拒绝直接暴露 `ipcRenderer`。[Issue #2390](https://github.com/can4hou6joeng4/boss-harness/issues/2390)
+- README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.133` / Python `0.2.0rc133`。
+
 ## 0.2.0-rc.132 - 2026-11-18
 
 rc.132 源码候选让文档检查忽略 HTML 注释。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
