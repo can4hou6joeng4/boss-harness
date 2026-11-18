@@ -54,6 +54,8 @@ jobs:
         run: python scripts/check_tool_results.py
       - name: Verify tool argument boundaries
         run: python scripts/check_tool_schema.py
+      - name: Verify queue steering boundaries
+        run: python scripts/check_queue_steer.py
       - name: Verify release asset boundaries
         run: python scripts/check_release_assets.py
       - name: Verify search normalization

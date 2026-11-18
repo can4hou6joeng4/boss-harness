@@ -1,3 +1,10 @@
+## 0.2.0-rc.199 - 2026-11-18
+
+rc.199 源码候选为 rc.198 的 `queue/steer` 增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_queue_steer.py` 并接入 CI：核对 `_save` 原子转换、active turn / `expectedTurnId` 守卫、覆盖选项拒绝、协议 / 主进程白名单 / 桌面按钮边界，共 28 项防护。[Issue #2522](https://github.com/can4hou6joeng4/boss-harness/issues/2522)
+- 负向探针覆盖状态、技能与回合守卫失效及非持久转换；全部检查通过。版本推进到 npm `0.2.0-rc.199` / Python `0.2.0rc199`。不执行发布动作。
+
 ## 0.2.0-rc.198 - 2026-11-18
 
 rc.198 源码候选支持把排队消息原子转为当前回合。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
