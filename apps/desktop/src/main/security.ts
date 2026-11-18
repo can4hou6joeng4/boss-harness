@@ -84,7 +84,7 @@ const RENDERER_METHODS = new Set([
   "thread/leaf/read", "thread/leaf/set", "thread/branches/list", "thread/branchSummary/read", "thread/usage/read",
   "thread/search",
   "thread/archive", "thread/unarchive", "thread/delete", "thread/name/set", "thread/model/set", "thread/reasoning/read", "thread/reasoning/set", "thread/turns/list", "thread/items/list", "thread/item/result/read", "thread/item/content/read",
-  "turn/start", "turn/interrupt", "turn/steer", "turn/read", "turn/continuation/read", "turn/continue", "task/read", "queue/list", "queue/get", "queue/add", "queue/update", "queue/remove",
+  "turn/start", "turn/interrupt", "turn/steer", "turn/read", "turn/continuation/read", "turn/continue", "task/read", "queue/list", "queue/get", "queue/add", "queue/update", "queue/steer", "queue/remove",
   "event/list", "model/list", "config/read", "config/autoCompaction/set", "skills/list", "skills/read", "skills/create", "skills/write", "skills/delete", "tool/list", "attachment/add", "attachment/read",
   "context/read", "context/compact/plan", "context/compact/start", "context/compact/abort", "context/compact/read", "context/compact", "context/edit/read", "context/edit", "context/instructions/read", "context/instructions/write", "approval/list", "approval/respond",
   "connection/read", "connection/check",
@@ -96,7 +96,7 @@ const THREAD_METHODS = new Set([
   "thread/read", "thread/resume", "thread/fork", "thread/leaf/read", "thread/leaf/set", "thread/branches/list",
   "thread/branchSummary/read", "thread/usage/read", "thread/archive", "thread/unarchive", "thread/delete", "thread/name/set", "thread/model/set",
   "thread/reasoning/read", "thread/reasoning/set", "thread/turns/list", "thread/items/list", "thread/item/result/read", "thread/item/content/read", "turn/start", "turn/interrupt", "turn/steer", "turn/read", "turn/continuation/read", "turn/continue",
-  "task/read", "queue/list", "queue/get", "queue/add", "queue/update", "queue/remove", "context/read", "context/compact/plan", "context/compact/start", "context/compact", "context/edit/read", "context/edit",
+  "task/read", "queue/list", "queue/get", "queue/add", "queue/update", "queue/steer", "queue/remove", "context/read", "context/compact/plan", "context/compact/start", "context/compact", "context/edit/read", "context/edit",
 ]);
 
 /** 已存在技能的目录名：允许旧名称，但必须是单层安全路径。 */
@@ -209,6 +209,16 @@ export function validateHarnessRequest(payload: unknown): { method: string; para
       typeof params.threadId !== "string" || !/^[A-Za-z0-9_-]{1,200}$/.test(params.threadId) ||
       typeof params.queueId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(params.queueId)) {
       throw new Error("invalid queue read");
+    }
+    return { method: payload.method, params };
+  }
+  if (payload.method === "queue/steer") {
+    const allowed = new Set(["threadId", "queueId", "expectedTurnId"]);
+    if (!params || Object.keys(params).some(key => !allowed.has(key)) ||
+      typeof params.threadId !== "string" || !/^[A-Za-z0-9_-]{1,200}$/.test(params.threadId) ||
+      typeof params.queueId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(params.queueId) ||
+      typeof params.expectedTurnId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(params.expectedTurnId)) {
+      throw new Error("invalid queue steer");
     }
     return { method: payload.method, params };
   }

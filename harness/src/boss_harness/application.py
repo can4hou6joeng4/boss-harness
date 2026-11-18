@@ -558,6 +558,7 @@ class ApplicationService:
             "queue/add": self.on_queue_add, "queue/list": self.on_queue_list,
             "queue/update": self.on_queue_update,
             "queue/get": self.on_queue_get,
+            "queue/steer": self.on_queue_steer,
             "queue/remove": self.on_queue_remove, "tool/list": self.on_tool_list,
             "model/list": self.on_model_list, "config/read": self.on_config_read,
             "config/autoCompaction/set": self.on_config_auto_compaction_set,
@@ -647,6 +648,7 @@ class ApplicationService:
                              "workspaceInstructionsEdit": True, "skillsRead": True,
                              "skillsCreate": True, "skillsWrite": True,
                              "skillsDelete": True, "queueUpdate": True,
+                             "queueSteer": True,
                            "attachmentReadPaging": True,
                              "autoCompactionConfig": self._auto_compaction_source in {"stored", "default"}},
             "toolBridge": {**bridge_description, "tools": self.runner.tool_names,
@@ -4379,6 +4381,35 @@ class ApplicationService:
             self.sessions.require_thread(thread_id)
             item = self.queue.update_input(thread_id, queue_id, text)
         # The new text is durable; a failed observation must not report failure.
+        self._emit_queue_updated(thread_id, item["id"])
+        return {"queueItem": queue_view_record(item)}
+
+    def on_queue_steer(self, params: dict | None) -> dict:
+        """Turn a queued follow-up into steering for the active turn atomically.
+
+        The kernel owns the identity and eligibility checks so the desktop never
+        has to sequence remove + turn/steer and risk a lost or duplicated message.
+        """
+        params = params or {}
+        thread_id = _text(params, "threadId")
+        queue_id = _text(params, "queueId", maximum=128)
+        expected = _text(params, "expectedTurnId", maximum=128)
+        with self._follow_up_admission_lock, self.runtimes.lock:
+            if self.runtimes.closed:
+                raise RpcError(-32003, "内核正在关闭")
+            self.sessions.require_thread(thread_id)
+            job = self.runtimes.active.get(thread_id)
+            if job is None or job["turnId"] != expected or job["cancel"].is_set():
+                raise RpcError(-32004, "目标回合已经结束或发生变化",
+                               {"code": "STEER_UNAVAILABLE"})
+            try:
+                item = self.queue.promote_to_steering(thread_id, queue_id, expected)
+            except ValueError as exc:
+                raise RpcError(-32004, str(exc), {"code": "STEER_UNAVAILABLE"}) from None
+            if not any(q["kind"] == "followUp" and q["status"] == "queued"
+                       for q in self.queue.list(thread_id)):
+                self._forget_capacity_waiter_locked(thread_id)
+        # The promotion is durable; a failed observation must not reject it.
         self._emit_queue_updated(thread_id, item["id"])
         return {"queueItem": queue_view_record(item)}
 

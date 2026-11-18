@@ -13,6 +13,7 @@ const PRESERVED: ReadonlySet<string> = new Set([
   "context/edit",
   "context/edit/read",
   "queue/add",
+  "queue/steer",
   "queue/remove",
   "task/read",
   "thread/branchSummary/read",

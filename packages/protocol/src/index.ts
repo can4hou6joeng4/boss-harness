@@ -96,6 +96,8 @@ export interface InitializeResponse {
     skillsDelete?: boolean;
     /** 可用 `queue/update` 在投递前改写仍在排队的队列项正文。 */
     queueUpdate?: boolean;
+    /** 可用 `queue/steer` 把排队中的后续消息原子转为当前回合的 steering。 */
+    queueSteer?: boolean;
     /** `attachment/read` 接受 `cursor` / `limit` / `sha256`，按有界分段读取附件正文。 */
     attachmentReadPaging?: boolean;
     /** 可用 `config/autoCompaction/set` 持久化自动压缩默认策略。 */
@@ -148,6 +150,7 @@ export const ClientMethods = {
   queueList: "queue/list",
   queueGet: "queue/get",
   queueUpdate: "queue/update",
+  queueSteer: "queue/steer",
   queueRemove: "queue/remove",
   modelList: "model/list",
   configRead: "config/read",
@@ -866,6 +869,8 @@ export interface QueueListResponse {
 export interface QueueGetParams { threadId: string; queueId: string }
 /** `queue/update`：仅改写仍在排队（`queued`）的正文；能力为 `queueUpdate`。 */
 export interface QueueUpdateParams { threadId: string; queueId: string; input: string }
+/** `queue/steer`：把排队中的 follow-up 原子转为当前回合的 steering；能力为 `queueSteer`。 */
+export interface QueueSteerParams { threadId: string; queueId: string; expectedTurnId: string }
 export interface QueueItemResponse { queueItem: QueueItem }
 
 export type TaskKind = "turn" | "queue" | "compaction";

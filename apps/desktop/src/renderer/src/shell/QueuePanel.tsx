@@ -18,7 +18,7 @@ import { useQueueEditor } from "../data/queueEditDrafts";
 import { QueueInputDialog } from "./QueueInputDialog";
 import { compactionLabel, compactionTitle } from "./queueCompaction";
 
-export function QueuePanel({ items, threadId, totalItems, activeItems, truncated, onRemove, onRetry, onReadFull, onUpdateInput, skills = [], connected = true, onRefresh }: {
+export function QueuePanel({ items, threadId, totalItems, activeItems, truncated, onRemove, onRetry, onReadFull, onUpdateInput, onSteer, steerAvailable = false, skills = [], connected = true, onRefresh }: {
   items: QueueItem[];
   /** 所属会话；未保存的编辑草稿按会话保留，对话区随切换卸载后仍能恢复。 */
   threadId?: string;
@@ -38,6 +38,10 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   onReadFull?: (item: QueueItem) => Promise<QueueItem>;
   /** 改写仍在排队（queued）的队列项正文；正文被截断时必须先经 onReadFull 读取全文。 */
   onUpdateInput?: (item: QueueItem, input: string) => Promise<QueueItem>;
+  /** 把排队中的 follow-up 转为当前回合 steering；没有运行回合或带覆盖选项时由调用方拒绝。 */
+  onSteer?: (item: QueueItem) => Promise<QueueActionOutcome>;
+  /** 当前会话是否有可接收 steering 的运行中回合。 */
+  steerAvailable?: boolean;
   /** 撤回队列项；`skipped` 表示请求没有发出，`uncertain` 表示结果无法确认。 */
   onRemove: (id: string) => Promise<QueueActionOutcome>;
   /** 重新排队暂停项；`partial` 表示新项已受理，但旧项撤回尚未确认。 */
@@ -45,8 +49,8 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
 }): JSX.Element | null {
   // 重新排队与撤回的在途锁、失败原因按会话保留；通知切换导致面板卸载也不能遗忘在途写入。
   const actions = useQueueActions(threadId);
-  const { pendingRetryId, pendingRemoveId, error, removeMessage } = actions;
-  const queueBusy = pendingRetryId !== null || pendingRemoveId !== null;
+  const { pendingRetryId, pendingRemoveId, pendingSteerId, error, removeMessage } = actions;
+  const queueBusy = pendingRetryId !== null || pendingRemoveId !== null || pendingSteerId !== null;
   const removeBusy = pendingRemoveId !== null;
   const [refreshing, setRefreshing] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
@@ -101,6 +105,34 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     }
   };
   const canRetry = (item: QueueItem) => Boolean(onRetry) && queueItemRetryable(item);
+  const canSteer = (item: QueueItem) => Boolean(onSteer) && item.kind === "followUp" && item.status === "queued";
+  const steerBlockedReason = (item: QueueItem): string | null => {
+    if (!connected) return "本机内核未连接，恢复连接后再转为当前回合";
+    if (!steerAvailable) return "当前没有运行中的回合，无法注入 steering";
+    if (queueBusy || batch !== null) return "另一条队列操作仍在进行，本次没有发出";
+    if ((item.skillIds?.length ?? 0) > 0) return "带技能的消息不能转为当前回合";
+    if (item.autoCompaction) return "带自动压缩覆盖的消息不能转为当前回合";
+    return null;
+  };
+  const steer = async (item: QueueItem) => {
+    const current = actions.getState();
+    if (!onSteer || current.pendingRetryId !== null || current.pendingRemoveId !== null
+      || current.pendingSteerId !== null || batch !== null) {
+      actions.setError("另一条队列操作仍在进行，本次没有发出。");
+      return;
+    }
+    actions.beginSteer(item.id);
+    setBatchNotice("");
+    let notice: string | null = null;
+    try {
+      const outcome = await onSteer(item);
+      notice = queueActionNotice("转为当前回合", outcome);
+    } catch (cause) {
+      notice = `转为当前回合结果尚未确认：${harnessErrorText(cause)}。请先核对队列状态。`;
+    }
+    actions.settleSteer(item.id, notice ?? "");
+    if (alive.current && !notice) setBatchNotice("已转为当前回合；将在下一次模型请求前注入。");
+  };
   // 批量入口只处理可重试的暂停项；不可重试的暂停项仍需用户核对后撤回。
   const retryablePaused = items.filter(canRetry);
   // 批量撤回只覆盖暂停项：排队与投递中的消息仍按单条确认撤回。
@@ -119,7 +151,7 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
     }
   };
   const startEditing = async (item: QueueItem) => {
-    if (!onUpdateInput || reading || saving || batch || item.status !== "queued") return;
+    if (!onUpdateInput || reading || saving || queueBusy || batch || item.status !== "queued") return;
     actions.setError(""); setEditError(""); setConfirmEditClose(false);
     if (!item.inputTruncated) { setEditing({ item, draft: item.input, originalInput: item.input }); return; }
     if (!onReadFull) { actions.setError("列表只显示截断预览，当前无法读取完整正文进行编辑。"); return; }
@@ -166,7 +198,7 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   const retry = async (item: QueueItem): Promise<{ accepted: boolean; notice: string | null }> => {
     // 读取会话级最新状态：切回后的新组件不能沿用渲染时的旧锁。
     const current = actions.getState();
-    if (current.pendingRetryId !== null || current.pendingRemoveId !== null) return { accepted: false, notice: "另一条队列操作仍在进行，本次没有发出。" };
+    if (current.pendingRetryId !== null || current.pendingRemoveId !== null || current.pendingSteerId !== null) return { accepted: false, notice: "另一条队列操作仍在进行，本次没有发出。" };
     actions.beginRetry(item.id);
     let accepted = false;
     let notice: string | null = null;
@@ -220,7 +252,7 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   /** 撤回一条并返回停止原因；null 表示本条已确认撤回。`certain` 为 false 表示结果未确认。 */
   const removeOne = async (item: QueueItem): Promise<{ stop: string; certain: boolean } | null> => {
     const current = actions.getState();
-    if (current.pendingRetryId !== null || current.pendingRemoveId !== null) {
+    if (current.pendingRetryId !== null || current.pendingRemoveId !== null || current.pendingSteerId !== null) {
       return { stop: "另一条队列操作仍在进行，本次没有发出。", certain: true };
     }
     actions.beginRemove(item.id);
@@ -239,13 +271,13 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   // 首次点击只打开确认框，不发出任何队列写请求；取消或关闭保持条目原样。
   const startRemove = (item: QueueItem) => {
     const current = actions.getState();
-    if (batch || current.pendingRetryId !== null || current.pendingRemoveId !== null) return;
+    if (batch || current.pendingRetryId !== null || current.pendingRemoveId !== null || current.pendingSteerId !== null) return;
     actions.setError(""); actions.setRemoveMessage(""); setRemoveTarget(item);
   };
   /** 打开批量撤回确认框；只持有暂停项快照，不发出任何队列写请求。 */
   const startRemoveAll = () => {
     const current = actions.getState();
-    if (batch || current.pendingRetryId !== null || current.pendingRemoveId !== null || !connected || removablePaused.length < 2) return;
+    if (batch || current.pendingRetryId !== null || current.pendingRemoveId !== null || current.pendingSteerId !== null || !connected || removablePaused.length < 2) return;
     actions.setError(""); actions.setRemoveMessage(""); setBatchNotice("");
     setRemoveTargets(removablePaused);
   };
@@ -260,7 +292,7 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
   const confirmRemove = async () => {
     // 同步读取最新锁：两次快速确认不能都穿过渲染快照，向同一队列项重复撤回。
     const current = actions.getState();
-    if (!removeTarget || current.pendingRetryId !== null || current.pendingRemoveId !== null || !removeAvailable) return;
+    if (!removeTarget || current.pendingRetryId !== null || current.pendingRemoveId !== null || current.pendingSteerId !== null || !removeAvailable) return;
     const failure = await removeOne(removeTarget);
     if (!failure) setRemoveTarget(null);
   };
@@ -372,7 +404,10 @@ export function QueuePanel({ items, threadId, totalItems, activeItems, truncated
             return detail ? <p className="turn-queue-error">{detail}</p> : null;
           })()}
         </div>
-        {onUpdateInput && item.status === "queued" && <button type="button" className="turn-queue-edit" title="编辑排队中的正文；不会提前投递" disabled={reading !== null || saving || batch !== null} onClick={() => { void startEditing(item); }}>编辑</button>}
+        {onUpdateInput && item.status === "queued" && <button type="button" className="turn-queue-edit" title="编辑排队中的正文；不会提前投递" disabled={reading !== null || saving || queueBusy || batch !== null} onClick={() => { void startEditing(item); }}>编辑</button>}
+        {canSteer(item) && <button type="button" className="turn-queue-steer" disabled={steerBlockedReason(item) !== null}
+          title={steerBlockedReason(item) ?? "把这条排队消息转为当前回合的 steering；会在下一次模型请求前注入"}
+          onClick={() => { void steer(item); }}>{pendingSteerId === item.id ? "转换中…" : "转为当前回合"}</button>}
         {canRetry(item) && <button type="button" className="turn-queue-retry" disabled={queueBusy || batch !== null || !connected}
           title={connected ? "用同一输入与技能重新创建队列消息，并撤回旧项" : "本机内核未连接，恢复连接后再重新排队"}
           onClick={() => { setBatchNotice(""); void retry(item); }}>重新排队</button>}

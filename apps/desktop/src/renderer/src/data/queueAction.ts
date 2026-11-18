@@ -18,7 +18,7 @@ export type QueueActionOutcome =
 export type QueueRetryOutcome = QueueActionOutcome | { status: "partial" };
 
 /** 面板内提示；部分完成仍须停止后续操作，避免重复创建已经受理的新项。 */
-export function queueActionNotice(action: "撤回" | "重新排队", outcome: QueueRetryOutcome): string | null {
+export function queueActionNotice(action: "撤回" | "重新排队" | "转为当前回合", outcome: QueueRetryOutcome): string | null {
   if (outcome.status === "partial") return "重新排队已受理，但旧队列项撤回结果尚未确认；请先刷新队列，核对并撤回仍保留的旧项，不要重复重新排队。";
   if (outcome.status === "skipped") return `${action}没有发出：${outcome.reason}。`;
   if (outcome.status === "uncertain") return `${action}结果尚未确认；请先核对队列状态，再决定是否重试。`;

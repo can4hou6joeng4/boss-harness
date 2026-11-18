@@ -1181,7 +1181,7 @@ class TurnRunner:
                 messages.append(ToolResultsMessage(results=tuple(results)))
                 if _round + 1 < max_model_requests:
                     for call in calls:
-                        reminder = loop_guard.observe(call.name, dict(call.arguments))
+                        reminder = loop_guard.observe(call.name, call.arguments)
                         if reminder is not None:
                             messages.append(UserMessage(text=reminder))
 
