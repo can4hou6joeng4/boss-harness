@@ -17,6 +17,19 @@
 
 **当前状态**：`main` 是开发分支，源码版本以[根包版本](package.json)为准；最新实际预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。桌面当前从源码构建，尚无独立安装包或签名发行。变化记录见 [CHANGELOG](CHANGELOG.md)，发布流程见 [RELEASING](RELEASING.md)，已发布资产见 [Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。
 
+## 项目定位
+
+BOSS Harness 不是把招聘平台包成一个聊天接口，而是把「模型想做什么」与「实际允许做什么」分开：
+
+- **执行与扩展**：固定 14 项工具 allowlist，能力发现不会增加权限；工具桥只经 stdio JSON-RPC 调用 `boss-agent-cli`。
+- **平台动作**：写操作逐次审批，未知结果先核对；不自动翻页、不批量沟通、不绕过平台风控。
+- **会话与证据**：append-only JSONL + SQLite 索引，冻结快照、摘要、分支和导出都保留来源与边界。
+- **资源与隐私**：上下文、附件、工具结果、技能、导出和发布资产都有显式预算与静态守卫。
+
+**适合**：希望把模型接入招聘工作流，同时需要本地状态、可恢复会话和明确审批边界的开发者与小团队。
+
+**不适合**：批量投递、批量打招呼、自动绕过验证码 / 风控，或把未发布源码候选当作生产安装包。
+
 ## English overview
 
 BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that connects model turns, recruiting tools, and recoverable sessions into one bounded workflow. Recruiting actions always run through the separately installed `boss-agent-cli` subprocess; this repository owns the execution loop, context, sessions, approvals, and the Electron shell.

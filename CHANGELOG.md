@@ -1,3 +1,10 @@
+## 0.2.0-rc.195 - 2026-11-18
+
+rc.195 文档候选刷新项目定位与社区介绍草稿。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- README 增加「项目定位」：执行 / 平台动作 / 会话证据 / 资源隐私四条边界，以及适合与不适合的使用范围。[Issue #2514](https://github.com/can4hou6joeng4/boss-harness/issues/2514)
+- 更新滚动推广草稿到当前 14 项工程检查与 rc 事实；仍不向任何社区发送。版本推进到 npm `0.2.0-rc.195` / Python `0.2.0rc195`。
+
 ## 0.2.0-rc.194 - 2026-11-18
 
 rc.194 源码候选核对包发布元数据与私有边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
