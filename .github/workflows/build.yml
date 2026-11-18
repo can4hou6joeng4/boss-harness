@@ -23,6 +23,15 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify source versions
+        id: versions
+        run: |
+          SOURCE_VERSION="$(python scripts/check_versions.py)"
+          printf 'Source package versions agree on %s\n' "$SOURCE_VERSION"
+          printf 'python=%s\n' "$SOURCE_VERSION" >> "$GITHUB_OUTPUT"
       - run: npm ci
       # 生产产物不打包开发依赖；生产树按 moderate 阻断，开发树仍按 critical 阻断，
       # 避免上游尚无修复版的高危构建工具公告长期冻结所有源码 PR。
@@ -30,16 +39,14 @@ jobs:
       - run: npm audit --audit-level=critical
       - run: npm run typecheck
       - run: npm run build
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
       - run: python -m pip install build packaging
       - run: python -m build ./harness --outdir dist/python
       - name: Generate release asset manifest
+        env:
+          SOURCE_VERSION: ${{ steps.versions.outputs.python }}
         run: |
-          VERSION="$(python -c "import pathlib, tomllib; print(tomllib.loads(pathlib.Path('harness/pyproject.toml').read_text(encoding='utf-8'))['project']['version'])")"
           python scripts/release_assets.py \
-            --version "$VERSION" \
+            --version "$SOURCE_VERSION" \
             --commit "$GITHUB_SHA" \
             --source-ref "$GITHUB_REF" \
             --out-dir dist/python \
@@ -49,15 +56,18 @@ jobs:
         run: sha256sum -c SHA256SUMS.txt
       - name: Verify distributions install and start
         shell: bash
+        env:
+          SOURCE_VERSION: ${{ steps.versions.outputs.python }}
         run: |
-          VERSION="$(python -c "import pathlib, tomllib; print(tomllib.loads(pathlib.Path('harness/pyproject.toml').read_text(encoding='utf-8'))['project']['version'])")"
           STATE_DIR="$(mktemp -d "$RUNNER_TEMP/boss-harness-state.XXXXXX")"
           for artifact in dist/python/*.whl dist/python/*.tar.gz; do
             venv="$RUNNER_TEMP/venv-$(basename "$artifact" | tr -c 'A-Za-z0-9' '-')"
             python -m venv "$venv"
             "$venv/bin/pip" install --quiet --disable-pip-version-check "$artifact"
             installed="$("$venv/bin/python" -c 'from importlib.metadata import version; print(version("boss-harness"))')"
-            test "$installed" = "$VERSION"
+            test "$installed" = "$SOURCE_VERSION"
+            reported="$("$venv/bin/boss-harness" --version)"
+            test "$reported" = "boss-harness $SOURCE_VERSION"
             "$venv/bin/boss-harness" --check --provider none --state-dir "$STATE_DIR" > /dev/null
           done
       - name: Upload Python distributions
