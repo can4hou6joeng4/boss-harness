@@ -15,6 +15,9 @@ USES = re.compile(r"(?m)^\s*(?:-\s*)?uses:\s*(\S+)\s*$")
 PERMISSIONS = re.compile(r"(?m)^( *)permissions:\s*(.*)$")
 CHECK_SCRIPT = re.compile(r"scripts/(check_[A-Za-z0-9_]+\.py)")
 ACTION_REF = re.compile(r"^actions/[A-Za-z0-9_-]+@v\d+$")
+FORBIDDEN_TRIGGERS = ("pull_request_target", "workflow_run")
+JOB = re.compile(r"(?m)^  ([A-Za-z0-9_-]+):\s*$")
+TIMEOUT = re.compile(r"(?m)^    timeout-minutes:\s*([1-9]\d*)\s*$")
 AUDIT_COMMANDS = (
     "npm audit --audit-level=moderate --omit=dev",
     "npm audit --audit-level=critical",
@@ -42,8 +45,20 @@ def _check_workflow(path: Path) -> tuple[int, int]:
         text = path.read_text(encoding="utf-8")
     except OSError:
         raise ValueError(f"无法读取 {name}") from None
-    if "pull_request_target" in text:
-        raise ValueError(f"{name} 不得使用 pull_request_target")
+    for trigger in FORBIDDEN_TRIGGERS:
+        if trigger in text:
+            raise ValueError(f"{name} 不得使用 {trigger} 触发器")
+    jobs_heading = re.search(r"(?m)^jobs:\s*$", text)
+    if jobs_heading is None:
+        raise ValueError(f"{name} 缺少 jobs")
+    jobs_text = text[jobs_heading.end():]
+    jobs = list(JOB.finditer(jobs_text))
+    if not jobs:
+        raise ValueError(f"{name} 的 jobs 下没有作业")
+    for index, job in enumerate(jobs):
+        end = jobs[index + 1].start() if index + 1 < len(jobs) else len(jobs_text)
+        if TIMEOUT.search(jobs_text[job.end():end]) is None:
+            raise ValueError(f"{name} 的作业 {job.group(1)} 缺少正整数 timeout-minutes")
     permissions = re.search(r"(?m)^permissions:\s*\n((?: {2}\S.*(?:\n|$))+)", text)
     if permissions is None:
         raise ValueError(f"{name} 缺少顶层 permissions")
