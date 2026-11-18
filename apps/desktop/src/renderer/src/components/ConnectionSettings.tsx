@@ -114,6 +114,11 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
   // 未连接的原因与本地自检明细；已连接或仍在首次启动时不显示。
   const notice = harnessUp ? null : connectionNoticeParts(connection);
   const startupChecks = notice ? startupCheckRows(connection?.startupDiagnosis) : [];
+  const startupDiagnosis = notice ? connection?.startupDiagnosis : undefined;
+  const reportMeta = startupDiagnosis?.kind === "report"
+    ? [startupDiagnosis.version ? `内核 ${startupDiagnosis.version}` : "",
+      startupDiagnosis.protocolVersion ? `协议 ${startupDiagnosis.protocolVersion}` : ""].filter(Boolean).join(" · ")
+    : "";
   const hasCheckError = startupChecks.some(check => check.status === "error");
   const canReconnect = !harnessUp && Boolean(window.boss) && connection?.state === "disconnected";
   const badge = <span className={`settings-badge${harnessUp ? " is-connected" : ""}`}><span className="settings-status-dot" />{harnessUp ? "运行中" : "未连接"}</span>;
@@ -121,6 +126,7 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
     <div className={`settings-row${notice ? " connection-check-row" : ""}`}><div className="settings-row-copy"><div className="settings-row-title">招聘 Harness</div><p className="settings-row-description">当前桌面进程提供的本机运行状态</p>
       {notice && <div className="connection-startup" role="status">
         <p className="connection-startup-headline">{notice.headline}</p>
+        {reportMeta && <p className="settings-row-description">自检报告：{reportMeta}</p>}
         {notice.diagnosis && !hasCheckError && <p className="settings-row-description">{notice.diagnosis}</p>}
         {startupChecks.length > 0 && <ul className="connection-startup-checks" aria-label="本地配置自检结果">{startupChecks.map(check => <li key={check.key} className={`is-${check.status}`}>
           <span className="connection-startup-check-title">{check.title}</span><span className="connection-startup-check-status">{check.label}</span>

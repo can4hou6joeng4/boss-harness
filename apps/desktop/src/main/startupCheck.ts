@@ -56,7 +56,15 @@ export function parseStartupReport(output: string): StartupDiagnosis | null {
   }
   // `ok` 与检查项矛盾的报告不可信：不替内核猜哪一边正确。
   if (report.ok !== checks.every((entry) => entry.status !== "error")) return null;
-  return { kind: "report", ok: report.ok, checks };
+  const version = report.version;
+  const protocolVersion = report.protocolVersion;
+  if (version !== undefined && !plainText(version)) return null;
+  if (protocolVersion !== undefined && !plainText(protocolVersion)) return null;
+  return {
+    kind: "report", ok: report.ok, checks,
+    ...(version !== undefined ? { version } : {}),
+    ...(protocolVersion !== undefined ? { protocolVersion } : {}),
+  };
 }
 
 /**
