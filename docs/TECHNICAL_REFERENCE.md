@@ -43,10 +43,11 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ## 构建前协议核对
 
-`scripts/check_protocol.py` 在安装依赖前运行，失败时退出码 2。它核对五类静态不变量：
+`scripts/check_protocol.py` 在安装依赖前运行，失败时退出码 2。它核对六类静态不变量：
 
 - `ApplicationService._register()` 注册的方法集合与 `ClientMethods` 双向一致；
 - 内核以字面量或模块常量发送的通知、`self.server.request` 字面量请求分别出现在 `ServerNotifications`、`ServerRequests` 中；
+- 宿主在 `packages/app-client` 以 `method` 字面量发送的通知出现在 `ServerNotifications` 中；该常量中除内核静态发送、宿主发送与脚本 `DYNAMIC_KERNEL_NOTIFICATIONS` 显式登记的动态方法外，不得有未登记发送方的条目；
 - `on_initialize` 返回的 `capabilities` 键与 `InitializeResponse.capabilities` 的布尔字段一致；
 - `RENDERER_METHODS` 是 `ClientMethods` 的子集，仅主进程方法在脚本的 `MAIN_ONLY_METHODS` 中显式登记，`THREAD_METHODS` 是渲染层方法的子集；
 - 内核 `protocol.py` 的 `PROTOCOL_VERSION` 与协议包常量相同，且 `application.py` / `session_export.py` 不重复定义。

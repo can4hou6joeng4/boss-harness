@@ -1,3 +1,10 @@
+## 0.2.0-rc.105 - 2026-11-18
+
+rc.105 源码候选补齐宿主通知与未使用协议常量的核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_protocol.py` 扫描 `packages/app-client` 的 `method` 字面量，要求宿主通知全部登记在 `ServerNotifications`；该常量中没有内核静态发送、宿主发送或 `DYNAMIC_KERNEL_NOTIFICATIONS` 登记的条目时失败。[Issue #2333](https://github.com/can4hou6joeng4/boss-harness/issues/2333)
+- 技术参考改为六类静态不变量；README 与发布约定补充宿主通知范围。候选版本号和使用指南同步为 npm `0.2.0-rc.105` / Python `0.2.0rc105`。
+
 ## 0.2.0-rc.104 - 2026-11-18
 
 rc.104 源码候选把变更记录纳入版本核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
