@@ -90,7 +90,6 @@ def _empty() -> dict:
 MAX_PROVENANCE_ITEMS = 8
 MAX_PROVIDER_CHARS = 64
 MAX_MODEL_CHARS = 200
-MAX_TURN_ID_CHARS = 128
 
 
 def _provenance(values: list, value: Any, limit: int) -> None:
@@ -146,7 +145,8 @@ _BRANCH_SUMMARY = "branch_summary"
 CACHE_MISS_FLOOR = 1024
 
 
-def _identifier(value: Any) -> str | None:
+def boundedbounded_identifier(value: Any) -> str | None:
+    """有界标识的共享规范化：先校验长度，再按会话读取规则降级文本。"""
     if not isinstance(value, str) or not 0 < len(value) <= 128:
         return None
     value = wire_text(value)
@@ -156,12 +156,12 @@ def _identifier(value: Any) -> str | None:
 def _job_metadata(entry_type: str, payload: dict) -> dict:
     """只取摘要任务与回合、原因的已验证关联；缺失字段保持 None。"""
     if entry_type == _BRANCH_SUMMARY:
-        return {"kind": "branchSummary", "turnId": _identifier(payload.get("targetTurnId")),
+        return {"kind": "branchSummary", "turnId": bounded_identifier(payload.get("targetTurnId")),
                 "throughTurnId": None, "reason": None, "origin": "model"}
     reason = payload.get("reason")
     origin = payload.get("origin")
-    return {"kind": "compaction", "turnId": _identifier(payload.get("turnId")),
-            "throughTurnId": _identifier(payload.get("throughTurnId")),
+    return {"kind": "compaction", "turnId": bounded_identifier(payload.get("turnId")),
+            "throughTurnId": bounded_identifier(payload.get("throughTurnId")),
             "reason": reason if isinstance(reason, str) and reason in {"threshold", "budget", "overflow"} else None,
             "origin": origin if isinstance(origin, str) and origin in {"user", "model"} else None}
 
@@ -207,7 +207,7 @@ def summarize_usage(entries: Iterable[dict], active_turn_ids: set[str] | None = 
         if not isinstance(payload, dict):
             continue
         if kind in ("context_checkpoint", _BRANCH_SUMMARY):
-            job_id = _identifier(payload.get("summaryJobId"))
+            job_id = bounded_identifier(payload.get("summaryJobId"))
             if job_id is not None:
                 meta = job_meta.get(job_id)
                 if meta is None:
@@ -221,10 +221,9 @@ def summarize_usage(entries: Iterable[dict], active_turn_ids: set[str] | None = 
                 cache_prev_prompt = None
                 cache_reported = False
         elif kind == "model_usage":
-            turn_id = payload.get("turnId")
-            if not isinstance(turn_id, str) or not 0 < len(turn_id) <= MAX_TURN_ID_CHARS:
+            turn_id = boundedbounded_identifier(payload.get("turnId"))
+            if turn_id is None:
                 continue
-            turn_id = wire_text(turn_id)
             if active_turn_ids is not None and turn_id not in active_turn_ids:
                 continue
             bucket = turns.get(turn_id)
@@ -257,7 +256,7 @@ def summarize_usage(entries: Iterable[dict], active_turn_ids: set[str] | None = 
             cache_reported = cache_reported or cache_read + cache_write > 0
         elif kind == "context_summary_usage":
             _add(summary, payload.get("provider"), payload.get("model"), payload.get("usage"))
-            job_id = _identifier(payload.get("jobId"))
+            job_id = bounded_identifier(payload.get("jobId"))
             if job_id is not None:
                 bucket = jobs.get(job_id)
                 if bucket is None:
