@@ -106,6 +106,56 @@ def _ts_product(literal: str) -> int:
     return value
 
 
+TOOL_PROJECTION = (
+    '_SAFE_ARGUMENTS = frozenset({"keyword", "query", "page", "city", "salary", "experience", "education", "action"})',
+    "MAX_SCRUB_DEPTH = 64",
+    'DEPTH_MARK = "[嵌套层级超出显示上限]"',
+    'if _depth > MAX_SCRUB_DEPTH:',
+    "for key, value in list(arguments.items())[:40]:",
+    "name = str(key)[:64]",
+    "elif key in _SAFE_ARGUMENTS and (isinstance(value, (int, float, bool)) or value is None",
+    'out[name] = f"{OMITTED}（{_describe_value(value)}）"',
+    "return self._scrub_json(out, personal=not self.include)",
+    'redactor.collect_personal(result.get("data"))',
+    'redactor.collect_personal(result.get("error"))',
+    'redactor.collect_personal(item.get("toolArguments"))',
+    'if self.include:',
+    'text = json.dumps(self._scrub_json(body, personal=False), ensure_ascii=False, indent=2,',
+    'unit["result"] = {"included": True, "text": _clip(text, MAX_RESULT_CHARS)}',
+    '"data": _structure(result.get("data"), self.redactor),',
+    '"pagination": _pagination(result.get("pagination")),',
+    '"hintCount": len(result["hints"]) if isinstance(result.get("hints"), list) else 0,',
+    "return _wire_bytes(render(meta, units[:count], counts, len(units), max_bytes, queue))",
+    "if size(keep) > max_bytes:",
+    "if size(middle) <= max_bytes:",
+    'raise ValueError("会话导出头部超出大小上限")',
+    'extension = {"markdown": "md", "json": "json", "html": "html"}[fmt]',
+)
+
+
+def _check_tool_projection(tree: ast.Module, source: str) -> int:
+    missing = [fragment for fragment in TOOL_PROJECTION if fragment not in source]
+    if missing:
+        raise ValueError("会话导出工具数据边界缺少：" + "、".join(missing))
+    arguments = _method_source(tree, source, "_arguments")
+    safe = arguments.find("elif key in _SAFE_ARGUMENTS")
+    omitted = arguments.find('out[name] = f"{OMITTED}')
+    if safe < 0 or omitted < 0 or safe > omitted:
+        raise ValueError("_arguments() 必须先在安全白名单外以省略摘要替代")
+    scrub = _method_source(tree, source, "_scrub_json")
+    depth = scrub.find("if _depth > MAX_SCRUB_DEPTH:")
+    for fragment in ("self.redactor.sensitive(value)", "self.redactor.personal(text) if personal else text"):
+        position = scrub.find(fragment)
+        if position < 0 or (depth >= 0 and position < depth):
+            raise ValueError("_scrub_json() 必须先检查递归上限再脱敏字符串")
+    tool = _method_source(tree, source, "_tool")
+    included = tool.find('unit["result"] = {"included": True')
+    structured = tool.find('"data": _structure(result.get("data"), self.redactor),')
+    if included < 0 or structured < 0 or included > structured:
+        raise ValueError("_tool() 的默认分支必须只导出结构与状态")
+    return len(TOOL_PROJECTION) + 3
+
+
 def _method_source(tree: ast.Module, source: str, method_name: str) -> str:
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == method_name:
@@ -207,7 +257,8 @@ def check_export_privacy() -> int:
     if writes:
         raise ValueError("session_export.py 不得触碰目标文件：" + "、".join(writes))
     pipeline = _check_sensitive_pipeline(tree, export_text)
-    return 7 + pipeline
+    tool = _check_tool_projection(tree, export_text)
+    return 7 + pipeline + tool
 
 
 def main() -> int:
@@ -218,7 +269,7 @@ def main() -> int:
         return 2
     print(
         "会话导出隐私边界一致：3 种格式、请求字段与默认脱敏、"
-        f"4 个脱敏标记、字节上限有序且低于 1 MiB 并与主进程一致、脱敏管线顺序与导出模块不写盘（{guards} 项）"
+        f"4 个脱敏标记、字节上限有序且低于 1 MiB 并与主进程一致、脱敏管线顺序、工具数据边界与导出模块不写盘（{guards} 项）"
     )
     return 0
 
