@@ -1,3 +1,10 @@
+## 0.2.0-rc.147 - 2026-11-18
+
+rc.147 源码候选禁止渲染层直接导入 Electron 与 Node 模块。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 的渲染层边界检查扩展为四条规则：`ipcRenderer`、`from "electron"` / `import("electron")`、CommonJS `require(`、`from "node:*"` / `import("node:*")`，命中即失败。[Issue #2418](https://github.com/can4hou6joeng4/boss-harness/issues/2418)
+- 四类负向探针分别触发对应失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.147` / Python `0.2.0rc147`。
+
 ## 0.2.0-rc.146 - 2026-11-18
 
 rc.146 源码候选禁止渲染层直接引用 `ipcRenderer`。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
