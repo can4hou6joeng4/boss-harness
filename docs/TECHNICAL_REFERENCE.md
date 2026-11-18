@@ -12,6 +12,7 @@
 - [JSON-RPC 帧完整性](#json-rpc-帧完整性)
 - [启动自检报告](#启动自检报告)
 - [服务端通知](#服务端通知)
+- [构建前静态检查](#构建前静态检查)
 - [返回 README](../README.md)
 
 ## JSON-RPC 帧完整性
@@ -48,7 +49,33 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 `ServerNotifications` 是方法名常量，不是完整参数 schema；方法参数仍以 `packages/protocol` 的类型和对应读取接口为准。
 
-## 构建前协议核对
+## 构建前静态检查
+
+`scripts/check_*.py` 是一组静态检查：CI 的 Source build 在安装依赖前逐个运行，任一失败即终止构建；本地用 `npm run check` 按文件名顺序运行全部（通常在数秒内完成），遇到第一个失败即停止并沿用其退出码，也可以单独运行某个脚本。`npm run check` 默认使用仓库根目录的 `.venv/bin/python`，设置 `PYTHON` 环境变量可改用其他 Python 3.11+ 解释器；它是 POSIX shell 循环，不安装依赖。这些脚本只读取源码、配置与文档（`check_versions.py` 与 `check_search_unicode.py` 另调用本机的 `npm` / `node`），不联网，不调用模型、招聘 CLI 或招聘平台；通过只说明已登记的不变量没有被改动，不代替运行时验证、真实平台或安装包验收。
+
+各脚本的核对范围只在本节维护；README、贡献约定与发布约定链接到这里，不再各自抄写清单。新增检查脚本时须接入 `.github/workflows/build.yml` 并在本节补充同名小节，两处分别由 `check_workflows.py` 与 `check_docs_links.py` 核对。
+
+| 领域 | 脚本 |
+| --- | --- |
+| 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
+| 协议与传输 | [`check_protocol.py`](#check_protocolpy) |
+| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
+| 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
+| 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy) |
+| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_attachments.py`](#check_attachmentspy) |
+| 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy) |
+| 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_snippet.py`](#check_search_snippetpy) |
+| 工作流与文档 | [`check_workflows.py`](#check_workflowspy)、[`check_docs_links.py`](#check_docs_linkspy) |
+
+### `check_versions.py`
+
+`scripts/check_versions.py` 核对版本一致性：npm 根包 / 工作区 / 锁文件、Python 包版本、`CHANGELOG.md` 首条、全部版本条目严格递减与日期合法非递增、使用指南版本行以及 npm 实际发现的工作区列表。同一脚本还核对许可证与包元数据：根包与全部 npm 工作区的 `license` 必须为 `MIT`，`harness/pyproject.toml` 的 `project.license` 为 `MIT` 且 `license-files` 恰为 `["LICENSE"]`，`LICENSE` 以 `MIT License` 开头并包含 MIT 许可正文；根包的 description / private / repository / homepage / bugs / engines.node，全部工作区的 private 与非空 description，以及 Python 的 readme / requires-python / keywords / project.urls / boss-harness 入口 / hatchling 构建与 wheel 包路径也必须保持。它需要 Node.js 24+ 与 Python 3.11+；成功时向 stdout 输出 Python 版本，Source build 复用该结果生成资产清单并核对隔离安装。
+
+### `check_release_assets.py`
+
+`scripts/check_release_assets.py` 核对发布资产清单守卫：`release_assets.py` 的清单 schema 版本、保留输出名、提交 / 时间 / SHA-256 格式、wheel 与 sdist 的文件名 / 元数据 / 根目录身份校验、输出目录归属、`O_NOFOLLOW`、inode 一致与重复文件名拒绝必须保留；CI 的 `Source build` 还必须保留清单生成命令与 `sha256sum -c SHA256SUMS.txt`。本检查不构建或发布资产，也不授予发布权限。
+
+### `check_protocol.py`
 
 `scripts/check_protocol.py` 在安装依赖前运行，失败时退出码 2。它核对十类静态不变量：
 
@@ -63,46 +90,85 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 - 根 `package.json` 声明的工作区源码导入 `@boss-harness/*` 时，对应包必须出现在该工作区的 `dependencies` 或 `devDependencies` 中；
 - 内核 `rpc.py` 的 `MAX_FRAME_BYTES` 是正整数常量表达式，app-client 的 `maxFrameBytes` 默认值与它相等且全部默认字面量唯一，`maxQueuedBytes` 默认值不小于帧上限。
 
-检查是静态扫描：通过变量拼接的方法名、运行时注册或动态生成的字段不在覆盖范围；新增此类路径时仍需人工核对协议常量。版本一致性由 `scripts/check_versions.py` 单独核对：npm 根包 / 工作区 / 锁文件、Python 包版本、`CHANGELOG.md` 首条、全部版本条目严格递减与日期合法非递增、使用指南版本行以及 npm 实际发现的工作区列表。同一脚本还核对许可证与包元数据：根包与全部 npm 工作区的 `license` 必须为 `MIT`，`harness/pyproject.toml` 的 `project.license` 为 `MIT` 且 `license-files` 恰为 `["LICENSE"]`，`LICENSE` 以 `MIT License` 开头并包含 MIT 许可正文；根包的 description / private / repository / homepage / bugs / engines.node，全部工作区的 private 与非空 description，以及 Python 的 readme / requires-python / keywords / project.urls / boss-harness 入口 / hatchling 构建与 wheel 包路径也必须保持。
+检查是静态扫描：通过变量拼接的方法名、运行时注册或动态生成的字段不在覆盖范围；新增此类路径时仍需人工核对协议常量。
+
+### `check_desktop_security.py`
 
 `scripts/check_desktop_security.py` 扫描 `apps/desktop/src/main` 中的 `webPreferences` 对象字面量，核对主窗口与平台登录视图的隔离、沙箱、Node 集成、Web 安全、登录视图 `devTools` 等设置；出现未登记文件或布尔值不符时以文件名与配置项失败。它还核对 `permissionPolicy.ts` 的主窗口权限白名单恰为 `clipboard-sanitized-write`，判定函数必须保留请求 URL 非空、权限命中白名单与来源受信三项，并要求两处主进程视图都注册权限请求 / 检查处理器、`setWindowOpenHandler` 返回 `deny`、`will-attach-webview` 调用 `preventDefault`；主窗口的 `will-navigate` / `will-frame-navigate` 处理器必须调用 `isTrustedRendererUrl` 并阻止不符合的导航，登录视图的 `will-navigate` / `will-frame-navigate` / `will-redirect` 必须调用 `isOfficialLoginUrl`（后两者还须限定主框架），`will-prevent-unload` 必须阻止卸载。主窗口两个权限处理器都调用 `allowsMainWindowPermission`，平台登录处理器显式拒绝，且登录视图只允许使用 `session.fromPartition(` 创建的独立分区，不得落到默认会话。preload 必须经 `contextBridge.exposeInMainWorld` 暴露 API，不得直接暴露 `ipcRenderer`；暴露调用必须恰好一次且为 `exposeInMainWorld("boss", api)`，preload 的非相对导入只允许 `electron` 与 `@boss-harness/*` 已知模块。preload 源码也不得出现 `process.env`、`process.exit`、`process.argv` 或 `process.cwd`，避免环境变量、启动参数或工作目录经桥接暴露；当前仅通过 `process.versions` 与 `process.platform` 暴露只读版本信息。桥接面由 `preload/bridge.ts` 的 `BossBridge` 统一导出：preload 的 `api` 显式标注该类型，`env.d.ts` 只声明 `boss: BossBridge`，方法列表不再在两侧重复；`DesktopHarnessStatus` 也复用 `HarnessConnectionStatus`。渲染层 `apps/desktop/src/renderer` 下的 `.ts` / `.tsx` 源码不得出现 `ipcRenderer`、直接导入 `electron` / `node:*` 或使用 CommonJS `require(`，只能经 `window.boss` 使用桥接 API。渲染层入口 `index.html` 必须保留 CSP meta：`default-src` 与 `script-src` 恰为 `'self'`，任何指令不得含 `'unsafe-eval'`、`*` 或 `://` 远程来源，且不得出现无 `src` 的内联脚本；入口必须恰好包含一个 `type="module"` 的 script，`src` 指向本地 `./src/` 模块。入口也不得包含 `iframe` / `webview` / `object` / `embed` 嵌入元素，`src` / `href` / `action` 不得引用远程或协议相对 URL。渲染层源码还不得出现 `dangerouslySetInnerHTML`、`innerHTML` 或 `outerHTML` / `insertAdjacentHTML`，也不得使用 `eval(` 或 `new Function(`。导入方向是单向的：主进程不得导入 `../renderer` 源码，preload 不得导入 `../main` 源码，跨进程只经文件路径与桥接通信。进程角色符号同样单向：主进程源码不得出现 `ipcRenderer`，preload 源码不得出现 `ipcMain`。主进程源码也不得出现 `executeJavaScript` 或 `debugger`，避免绕过桥接向渲染层注入代码、接管调试通道或遗留调试语句。主进程只允许 `startupCheck.ts` 调用 `spawn(`，app-client 只允许 `index.ts` 调用 `spawn(`，两处都必须显式设置 `shell: false`，避免命令经 shell 解析。两个区域的 `node:child_process` 导入只允许具名 `spawn` 与 `type` 类型，不得默认导入、命名空间导入或动态导入；源码也不得调用 `exec`、`execFile`、`execSync`、`execFileSync`、`spawnSync` 或 `fork`，避免回退到经 shell 解析参数或执行任意模块的入口。脚本还解析 preload 的 `ipcRenderer.invoke` / `on` 与主进程 `ipcMain.handle`、`send` / `sendWhenLoaded` 通道，要求 invoke 与 handle、订阅与发送集合完全一致，同一通道不得重复注册，调用处的通道必须写成双引号字符串字面量（模板字符串或变量会失败），每个 handle 处理器必须以 `trustedSender(event)` 开头，剥离大括号后不得先做其它工作；`session-export:save` 还必须保留 `validateSessionExportRequest(payload)`、`validateThreadExportResponse(response, request)`、`writeSessionExport(choice.filePath, exported.content)` 与以 `basename(choice.filePath)` 返回文件名；保存对话框还必须保留 `createDirectory` 与 `showOverwriteConfirmation` 属性。`trustedSender` 自身还必须校验发送方属于已登记窗口、当前帧为主框架、入口 URL 受信，并在窗口 / 主框架不满足与来源不满足时分别抛出。脚本还固定 `isTrustedRendererUrl` 与 `isOfficialLoginUrl` 的关键判定：开发来源 / 路径与 `file:` 入口比较，以及 `https:`、拒绝 userinfo、443 端口、`zhipin.com` 精确主机与子域后缀。渲染层 `RichMarkdown.tsx` 的 `EXTERNAL_SCHEMES` 与 `security.ts` 的 `isAllowedExternalUrl` 必须非空且集合一致，渲染层的 `externalTarget` 还必须保留 `EXTERNAL_SCHEMES.includes(` 与 `new URL(url).protocol` 判定；`window.ts` 的 `openExternal` 必须先调用 `isAllowedExternalUrl` 再交给 `shell.openExternal`，`setWindowOpenHandler` 调用该封装而不是直接打开；`shell.openExternal` 只允许在该函数中出现一次。脚本还核对渲染层会话恢复边界：`harnessReplica.ts` 必须保留分页与正文预算常量，以及内容引用的编码、SHA-256、线程 / 条目 / 快照标识、`part`、字符与 UTF-8 字节关系（含 4 倍上限与 16 MiB 上限）判定。检查是静态对象字面量与文本扫描，动态生成或包装后的配置仍需人工核对。
 
+### `check_harness_tools.py`
+
 `scripts/check_harness_tools.py` 用标准库 AST 解析 `harness/src/boss_harness/tools/boss_cli.py` 的 `TOOLS` 元组：工具名必须恰为 14 个已登记名称且不重复，其中 13 个只读，仅 `boss_hr_greet` 标记 `requires_approval: True`；每个工具必须带非空描述与 handler，`input_schema` 必须为 `type: object`、`additionalProperties: false`，`required` 只能包含已声明属性且不得重复。它还解析 `context.py` 的 `_WRITE_TOOLS`、`write_tools` 默认值与 `tool_results.py` 的 `LEGACY_WRITE_TOOLS`，要求三处写工具集合均恰为 `boss_hr_greet`。它同时核对 `tools/bundle.py` 保留 `handlers = tool_handlers()`、`approval_required = approval_required_tools()` 与 `for spec in TOOLS`，并要求 `name` / `description` / `input_schema` / `requires_approval` 从 spec 透传，组合层不得把审批标记改写为固定值。工具桥 `tools/boss_cli.py` 的 `Popen` 必须显式 `shell=False`；`harness/src/boss_harness` 下任何 Python 文件出现 `shell=True`、`create_subprocess_shell(`、`os.system(` 或 `os.popen(` 都会失败。检查读取源码字面量，不导入内核、不依赖已安装包；运行时生成的工具或动态 schema 仍需人工核对。
 
-`scripts/check_attachments.py` 核对附件边界：`resources.py` 的默认存储 512 MiB / 4096 对象、上限 `2**63 - 1`、`DEFAULT_READ_CHARS = 16,384` 与 `MAX_READ_CHARS = 32,768` 必须保持不变；`attachment/read` 的请求字段白名单、默认分段、`wire_size(result) > MAX_PAGE_BYTES` 单页守卫，以及 `RESPONSE_TOO_LARGE` / `attachment/read` / `suggestedLimit` 恢复信息必须保留；两个存储配额环境变量名也不得改名。检查是常量与文本扫描，实际配额与分页行为仍需按用户指南核对。
+### `check_tool_schema.py`
 
-`scripts/check_skills.py` 核对工作区技能边界：`SkillCatalog` 的六个常量必须是正整数表达式，`MAX_SKILL_SCAN_ENTRIES` 不小于 `MAX_SKILL_DESCRIPTORS`，`MAX_SKILL_BYTES` 不超过内核 `MAX_FRAME_BYTES`；技能正文读取必须保留 `O_NOFOLLOW`、`O_NONBLOCK`、inode 校验与 `MAX_SKILL_BYTES + 1` 有界读取；技能目录必须用 `os.scandir` 并以 `follow_symlinks=False` 判定子目录、拒绝根目录符号链接，候选窗口按 `MAX_SKILL_SCAN_ENTRIES` 收敛；列表投影必须截断名称与描述并封顶问题清单；`SkillCatalog` 不得用 `glob` / `rglob` / `iterdir` 枚举技能。检查是静态文本与常量扫描，符号链接竞态与运行时读取结果仍需按平台核对。
-`scripts/check_release_assets.py` 核对发布资产清单守卫：`release_assets.py` 的清单 schema 版本、保留输出名、提交 / 时间 / SHA-256 格式、wheel 与 sdist 的文件名 / 元数据 / 根目录身份校验、输出目录归属、`O_NOFOLLOW`、inode 一致与重复文件名拒绝必须保留；CI 的 `Source build` 还必须保留清单生成命令与 `sha256sum -c SHA256SUMS.txt`。本检查不构建或发布资产，也不授予发布权限。
-`loop_guard.py` 只在单次 `TurnRunner.run()` 内观察已执行工具调用：工具名与规范化参数的 SHA-256 摘要一致时累计，命中第 3、5 次后向模型追加一条合成 `UserMessage` 提醒。该提醒不阻断工具执行、不含参数或结果、不写入会话条目、不跨回合保留；用户 steering 注入或不可安全观察时立即重置。两个 provider 都把工具结果后的用户消息按既有顺序序列化，无需新增协议字段。
+`scripts/check_tool_schema.py` 核对工具参数边界：`tool_schema.py` 的关键字与类型集合、schema / 参数字节上限、JSON 节点 / 深度上限与规范化访问上限保持不变；根 schema 必须为对象，结构化字符串仅在按对应对象 / 数组 schema 解码且校验通过后才替换原值，参数校验失败统一转为受限错误。`tool_bundle.py` 必须保留工具名格式、描述非空、执行模式与审批互斥、结果预算范围、schema 冻结、注册表名校验与只读投影。检查是常量与文本扫描，运行时 schema 行为仍需按用户指南核对。
 
-`scripts/check_queue_steer.py` 为 `queue/steer` 提供专项源码守卫：内核侧核对 `promote_to_steering` 只接受 `queued` 的 `followUp`、拒绝技能 / 自动压缩覆盖，并通过持久 `_save` 保留原 id、正文与请求编号；`on_queue_steer` 必须校验 active turn、`expectedTurnId`、取消状态与 `STEER_UNAVAILABLE`。脚本还核对 `queueSteer` 能力、协议参数类型、主进程两份白名单与方法参数校验、RPC 错误保留、渲染层 bridge 与面板按钮状态。它是 AST 与文本扫描，不替代状态机探针或真实桌面操作。
+### `check_tool_results.py`
 
-`scripts/check_catchup_boundary.py` 核对摘要后补领转向的提交批次、最终请求指纹与续接拒绝条件；它是 AST 与文本扫描，不替代真实模型或桌面操作。
+`scripts/check_tool_results.py` 核对工具结果分页与引用边界：`tool_results.py` 的内联 64 KiB / 单页 1 MiB 预算、默认 16,384 / 最大 32,768 码点与模型 8,192 码点必须保持不变，且满足 `MODEL_RESULT_READ_CHARS ≤ DEFAULT_RESULT_CHARS ≤ MAX_RESULT_CHARS`、单页预算低于内核帧上限；两条读取路径必须校验 `limit`，RPC 请求字段必须限定在 `threadId` / `itemId` / `sha256` / `cursor` / `limit`，摘要必须为 64 位小写十六进制，过期引用必须返回 `STALE_RESULT` 与 `currentRef`，游标必须校验前缀 `tr1_`、长度、条目归属与偏移。模型只读工具必须使用 `MODEL_RESULT_READ_CHARS` 上限、禁止额外属性，并透传当前引用与错误码。检查是常量与文本扫描，实际分页与读取行为仍需按用户指南核对。
 
-`scripts/check_search_snippet.py` 核对搜索片段与高亮的一致性：`SessionStore._search_snippet` 只折叠命中两侧空白，必须原样复制命中区间，预算不足时先保留命中词再收窄上下文，并保留截断省略号；桌面的 `findKernelTextRanges` / `splitKernelHighlight` 必须使用内核 casefold 归一化，`SearchDialog` 必须把 `hit.snippet` 交给该高亮路径。脚本不执行搜索，也不验证运行时命中数量。
+### `check_approval.py`
 
 `scripts/check_approval.py` 核对审批裁决边界：`application.py` 的请求必须只有 `approvalId` 与有界 `approved`，遍历活动 runner 时调用持久回调，并将服务端请求取消与恢复 / 执行中回执分开；`agent.py` 只在未裁决、未取消且未过期时接受决定，并在回合清理时丢弃待决集合；`session.py` 必须校验审批 id 格式、索引唯一性、归档与 owner 状态、重复冲突和到期判定。脚本是源码扫描，不执行工具或验证真实用户裁决。
 
-`scripts/check_connection_report.py` 核对连接报告字段投影：内核 `connections.read()` 是 `connection/read` 与 `connection/check` 的共同数据源，报告固定为 `cli` / `model` / `platform` 三卡；渲染层解析器必须收口状态、浏览器来源与认证状态枚举，并限制正文、代码、时间与文本字段长度，未知值整份拒绝而非显示空白。脚本同时核对桌面 bridge 与 `connection/check` 目标白名单。它是静态扫描，不证明运行时报告内容一定可信。
+### `check_loop_guard.py`
+
+`loop_guard.py` 只在单次 `TurnRunner.run()` 内观察已执行工具调用：工具名与规范化参数的 SHA-256 摘要一致时累计，命中第 3、5 次后向模型追加一条合成 `UserMessage` 提醒。该提醒不阻断工具执行、不含参数或结果、不写入会话条目、不跨回合保留；用户 steering 注入或不可安全观察时立即重置。两个 provider 都把工具结果后的用户消息按既有顺序序列化，无需新增协议字段。
 
 `scripts/check_loop_guard.py` 固定重复调用提醒的阈值 `(3, 5)`、512 字符上限与 64 KiB 规范化参数上限；`_argument_digest` 必须规范化排序、禁用 NaN、不可安全序列化时回退，`observe` 只按工具名与参数摘要计数，提醒不含参数或结果。脚本还核对 `agent.py` 在工具结果之后、仍有下一次模型请求时观察，且 steering / 无调用后续消息路径会重置。它不执行模型、不写入会话，也不验证模型是否真的响应提醒。
 
-`scripts/check_browser_source.py` 核对 `BOSS_HARNESS_BROWSER_SOURCE` 的严格白名单 `auto` / `existing-browser` / `stored-cookie`、空值回退与规范化，要求上游参数以独立 `--browser-source` 值构造且子进程保持 `shell=False`；同时核对启动自检码、连接报告与桌面设置页的来源策略展示。脚本不启动上游、不读取浏览器或 Cookie，也不验证上游是否支持该参数。
+### `check_queue_steer.py`
 
-`scripts/check_connection_lifecycle.py` 核对连接检查的异步生命周期：`_ModelCheck` 必须保留取消事件、provider、worker 终态与中止线程字段；`start` 必须串行化 CLI / 平台检查并处理失败启动，模型检查必须以 worker、取消事件与 `_ModelCheck` 三重归属判定所有权，abort 未完成时不得退休；超时、空闲通知和关闭阶段必须按取消、请求中止、等待的顺序回收。脚本只扫描源码，不证明运行时线程已退出。
+`scripts/check_queue_steer.py` 为 `queue/steer` 提供专项源码守卫：内核侧核对 `promote_to_steering` 只接受 `queued` 的 `followUp`、拒绝技能 / 自动压缩覆盖，并通过持久 `_save` 保留原 id、正文与请求编号；`on_queue_steer` 必须校验 active turn、`expectedTurnId`、取消状态与 `STEER_UNAVAILABLE`。脚本还核对 `queueSteer` 能力、协议参数类型、主进程两份白名单与方法参数校验、RPC 错误保留、渲染层 bridge 与面板按钮状态。它是 AST 与文本扫描，不替代状态机探针或真实桌面操作。
 
-`scripts/check_tool_schema.py` 核对工具参数边界：`tool_schema.py` 的关键字与类型集合、schema / 参数字节上限、JSON 节点 / 深度上限与规范化访问上限保持不变；根 schema 必须为对象，结构化字符串仅在按对应对象 / 数组 schema 解码且校验通过后才替换原值，参数校验失败统一转为受限错误。`tool_bundle.py` 必须保留工具名格式、描述非空、执行模式与审批互斥、结果预算范围、schema 冻结、注册表名校验与只读投影。检查是常量与文本扫描，运行时 schema 行为仍需按用户指南核对。
-`scripts/check_tool_results.py` 核对工具结果分页与引用边界：`tool_results.py` 的内联 64 KiB / 单页 1 MiB 预算、默认 16,384 / 最大 32,768 码点与模型 8,192 码点必须保持不变，且满足 `MODEL_RESULT_READ_CHARS ≤ DEFAULT_RESULT_CHARS ≤ MAX_RESULT_CHARS`、单页预算低于内核帧上限；两条读取路径必须校验 `limit`，RPC 请求字段必须限定在 `threadId` / `itemId` / `sha256` / `cursor` / `limit`，摘要必须为 64 位小写十六进制，过期引用必须返回 `STALE_RESULT` 与 `currentRef`，游标必须校验前缀 `tr1_`、长度、条目归属与偏移。模型只读工具必须使用 `MODEL_RESULT_READ_CHARS` 上限、禁止额外属性，并透传当前引用与错误码。检查是常量与文本扫描，实际分页与读取行为仍需按用户指南核对。
+### `check_catchup_boundary.py`
+
+`scripts/check_catchup_boundary.py` 核对摘要后补领转向的提交批次、最终请求指纹与续接拒绝条件；它是 AST 与文本扫描，不替代真实模型或桌面操作。
+
+### `check_private_files.py`
 
 `scripts/check_private_files.py` 核对私有状态边界：`private_files.py` 必须保留目录 `0o700` / 文件 `0o600` 的创建与限制、`O_NOFOLLOW`、uid 与 inode 校验、ACL 清理和根目录拒绝；`ownership.py`、`persistence.py`、`session.py`、`snapshot_store.py`、`settings.py`、`maintenance.py`、`startup_check.py` 必须保留关键调用点；这些状态模块不得直接使用 `open(..., "w"/"a")`、`write_text(` 或 `write_bytes(` 写盘。检查是静态文本扫描，符号链接与权限的运行时行为仍需按平台核对。
 
+### `check_export_privacy.py`
+
 `scripts/check_export_privacy.py` 核对会话导出的默认脱敏边界：`session_export.py` 的 `EXPORT_FORMATS` 必须恰为 `markdown` / `json` / `html`，三个字节上限必须满足 `MIN_EXPORT_BYTES ≤ DEFAULT_EXPORT_BYTES ≤ MAX_EXPORT_BYTES` 且最大值低于 1 MiB；`application.py` 的 `thread/export` 请求字段白名单必须包含且只包含 `threadId`、`view`、`format`、`includeToolResults`、`maxBytes`，且 `includeToolResults` 默认 `False`；主进程 `security.ts` 的 `EXPORT_MAX_BYTES` 必须与内核 `MAX_EXPORT_BYTES` 相等，并保留按 UTF-8 字节数核对导出正文长度的判定；`session_export.py` 必须保留 `redact_secrets(` 与凭据、环境变量、本机路径、候选人信息四个脱敏标记，并且 `sensitive()` / `personal()` 的脱敏步骤与顺序必须保留、个人信息按长度降序打码；导出模块不得出现 `write_text(`、`write_bytes(`、`open(`、`os.replace(`、`unlink(` 或 `mkdir(`。检查是源码字面量与文本扫描，导出正文的运行时行为仍需按用户指南核对。
 
-`scripts/check_workflows.py` 扫描 `.github/workflows` 下的 YAML：要求顶层 `permissions` 含 `contents: read` 且不含 `write`，且顶层之外不得再声明 `permissions`（job 级或 step 级声明同样会使检查失败）；`concurrency` 启用 `cancel-in-progress: true`，每个 `actions/checkout` 步骤带 `persist-credentials: false`，并禁止 `pull_request_target` / `workflow_run` 与非 `actions/` 的 `uses`，每个作业必须声明正整数 `timeout-minutes`；每个 `uses` 引用必须匹配 `actions/<名称>@v<主版本>`，`@main` / `@master` 等可变引用失败；工作流聚合文本还必须保留两条 `npm audit` 命令（生产 moderate、全量 critical），缺失即失败。它还收集 `scripts/check_*.py` 与工作流文本中的脚本引用，要求集合完全一致；未接入 CI 的检查脚本或引用不存在的脚本都会失败。检查是文本静态扫描，不解析完整 YAML 语义；复用工作流或动态表达式仍需人工核对。
+### `check_skills.py`
+
+`scripts/check_skills.py` 核对工作区技能边界：`SkillCatalog` 的六个常量必须是正整数表达式，`MAX_SKILL_SCAN_ENTRIES` 不小于 `MAX_SKILL_DESCRIPTORS`，`MAX_SKILL_BYTES` 不超过内核 `MAX_FRAME_BYTES`；技能正文读取必须保留 `O_NOFOLLOW`、`O_NONBLOCK`、inode 校验与 `MAX_SKILL_BYTES + 1` 有界读取；技能目录必须用 `os.scandir` 并以 `follow_symlinks=False` 判定子目录、拒绝根目录符号链接，候选窗口按 `MAX_SKILL_SCAN_ENTRIES` 收敛；列表投影必须截断名称与描述并封顶问题清单；`SkillCatalog` 不得用 `glob` / `rglob` / `iterdir` 枚举技能。检查是静态文本与常量扫描，符号链接竞态与运行时读取结果仍需按平台核对。
+
+### `check_attachments.py`
+
+`scripts/check_attachments.py` 核对附件边界：`resources.py` 的默认存储 512 MiB / 4096 对象、上限 `2**63 - 1`、`DEFAULT_READ_CHARS = 16,384` 与 `MAX_READ_CHARS = 32,768` 必须保持不变；`attachment/read` 的请求字段白名单、默认分段、`wire_size(result) > MAX_PAGE_BYTES` 单页守卫，以及 `RESPONSE_TOO_LARGE` / `attachment/read` / `suggestedLimit` 恢复信息必须保留；两个存储配额环境变量名也不得改名。检查是常量与文本扫描，实际配额与分页行为仍需按用户指南核对。
+
+### `check_browser_source.py`
+
+`scripts/check_browser_source.py` 核对 `BOSS_HARNESS_BROWSER_SOURCE` 的严格白名单 `auto` / `existing-browser` / `stored-cookie`、空值回退与规范化，要求上游参数以独立 `--browser-source` 值构造且子进程保持 `shell=False`；同时核对启动自检码、连接报告与桌面设置页的来源策略展示。脚本不启动上游、不读取浏览器或 Cookie，也不验证上游是否支持该参数。
+
+### `check_connection_lifecycle.py`
+
+`scripts/check_connection_lifecycle.py` 核对连接检查的异步生命周期：`_ModelCheck` 必须保留取消事件、provider、worker 终态与中止线程字段；`start` 必须串行化 CLI / 平台检查并处理失败启动，模型检查必须以 worker、取消事件与 `_ModelCheck` 三重归属判定所有权，abort 未完成时不得退休；超时、空闲通知和关闭阶段必须按取消、请求中止、等待的顺序回收。脚本只扫描源码，不证明运行时线程已退出。
+
+### `check_connection_report.py`
+
+`scripts/check_connection_report.py` 核对连接报告字段投影：内核 `connections.read()` 是 `connection/read` 与 `connection/check` 的共同数据源，报告固定为 `cli` / `model` / `platform` 三卡；渲染层解析器必须收口状态、浏览器来源与认证状态枚举，并限制正文、代码、时间与文本字段长度，未知值整份拒绝而非显示空白。脚本同时核对桌面 bridge 与 `connection/check` 目标白名单。它是静态扫描，不证明运行时报告内容一定可信。
+
+### `check_search_unicode.py`
 
 `scripts/check_search_unicode.py` 同样在安装依赖前运行：Python 侧按内核 `needs_extra` 选择补表归一化路径，Node 侧导入桌面 `caseFold.ts`，对全部 Unicode 标量值按 `0x1000` 分块计算 SHA-256 摘要并比较；不一致时列出码点区间。它验证映射表与两端 Unicode 数据的组合结果，不覆盖按字素簇切分的文本级行为。Source build 在 Python 3.12 上运行一次，独立的 Python matrix job 另在 Python 3.10、3.11、3.12、3.13、3.14 上分别运行，均使用 Node 24；同一 job 还用 `python -m compileall -q harness/src scripts` 验证这些解释器能编译内核与脚本源码（不导入依赖、不联网）。全量核对报告分块差异，可加 `--block 0xN` 只比较该 0x1000 分块并逐码点列出 Python 与 Node 的结果。
 
-`scripts/check_docs_links.py` 扫描根目录、`docs/`、`harness/` 与 `.github/` 下的全部 Markdown（含 `harness/README.md` 与 PR 模板）：跳过代码围栏、行内代码与 HTML 注释中的示例、外链，核对相对文件路径存在；带 `#片段` 的链接同时按 ATX 标题生成 GitHub 风格锚点（小写、去标点、空格转连字符、重复标题全局追加 `-1`、`-2`），并解码百分号编码后校验同文件与跨 Markdown 文件的页内锚点。代码围栏识别 ``` 与 ~~~，最多允许 3 个前导空格，关闭标记不得短于开启标记且不得带信息串；未闭合时以文件名失败。它还要求 `docs/README.md` 索引 `docs/` 下其余 Markdown 文件，并要求上述目录中的 Markdown 全部登记在检查清单内，未登记或登记后移出约定位置都会失败。它不检查远程 URL 是否可访问，也不处理 setext 标题或运行时生成的页面锚点。
+### `check_search_snippet.py`
+
+`scripts/check_search_snippet.py` 核对搜索片段与高亮的一致性：`SessionStore._search_snippet` 只折叠命中两侧空白，必须原样复制命中区间，预算不足时先保留命中词再收窄上下文，并保留截断省略号；桌面的 `findKernelTextRanges` / `splitKernelHighlight` 必须使用内核 casefold 归一化，`SearchDialog` 必须把 `hit.snippet` 交给该高亮路径。脚本不执行搜索，也不验证运行时命中数量。
+
+### `check_workflows.py`
+
+`scripts/check_workflows.py` 扫描 `.github/workflows` 下的 YAML：要求顶层 `permissions` 含 `contents: read` 且不含 `write`，且顶层之外不得再声明 `permissions`（job 级或 step 级声明同样会使检查失败）；`concurrency` 启用 `cancel-in-progress: true`，每个 `actions/checkout` 步骤带 `persist-credentials: false`，并禁止 `pull_request_target` / `workflow_run` 与非 `actions/` 的 `uses`，每个作业必须声明正整数 `timeout-minutes`；每个 `uses` 引用必须匹配 `actions/<名称>@v<主版本>`，`@main` / `@master` 等可变引用失败；工作流聚合文本还必须保留两条 `npm audit` 命令（生产 moderate、全量 critical），缺失即失败。它还收集 `scripts/check_*.py` 与工作流文本中的脚本引用，要求集合完全一致；未接入 CI 的检查脚本或引用不存在的脚本都会失败。检查是文本静态扫描，不解析完整 YAML 语义；复用工作流或动态表达式仍需人工核对。
+
+### `check_docs_links.py`
+
+`scripts/check_docs_links.py` 扫描根目录、`docs/`、`harness/` 与 `.github/` 下的全部 Markdown（含 `harness/README.md` 与 PR 模板）：跳过代码围栏、行内代码与 HTML 注释中的示例、外链，核对相对文件路径存在；带 `#片段` 的链接同时按 ATX 标题生成 GitHub 风格锚点（小写、去标点、空格转连字符、重复标题全局追加 `-1`、`-2`），并解码百分号编码后校验同文件与跨 Markdown 文件的页内锚点。代码围栏识别 ``` 与 ~~~，最多允许 3 个前导空格，关闭标记不得短于开启标记且不得带信息串；未闭合时以文件名失败。它还要求 `docs/README.md` 索引 `docs/` 下其余 Markdown 文件，并要求上述目录中的 Markdown 全部登记在检查清单内，未登记或登记后移出约定位置都会失败。它不检查远程 URL 是否可访问，也不处理 setext 标题或运行时生成的页面锚点。它还要求 `scripts/` 下每个 `check_*.py` 在本文档恰有一个以脚本名为标题的三级小节，小节对应的脚本也必须存在；代码围栏与 HTML 注释中的标题不计入。
 
 ## 业务 CLI 请求与认证边界
 

@@ -29,7 +29,7 @@ DEFAULT_STATE_DIR = _default_state_dir()
 
 
 def _build_config(args: argparse.Namespace) -> ModelConfig:
-    """命令行 > 环境变量；`--provider none` 可强制离线。
+    """命令行 > 环境变量；`--provider none` 可强制不调用模型（仍可调用招聘 CLI）。
 
     provider 交给 `resolve_config` 一起决定，不能解析完再 `replace`：模型配置的字段会随
     provider 增加，而各线路的端点与凭据来源不同，事后替换会让 `--provider openai` 拿到
@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
         "--provider",
         default="auto",
         choices=["auto", "anthropic", "openai", "codex", "none"],
-        help="模型供应商；openai 与其别名 codex 走 Codex 配置里的 Responses 线路，none 表示走确定性回合（离线）",
+        help="模型供应商；openai 与其别名 codex 走 Codex 配置里的 Responses 线路，none 表示不调用模型的确定性回合（仍可调用招聘 CLI）",
     )
     parser.add_argument("--model", default=None, help=f"模型 id，默认 {DEFAULT_MODEL}")
     parser.add_argument("--version", action="version", version=f"boss-harness {__version__}")

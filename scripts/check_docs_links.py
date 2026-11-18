@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""核对面向用户与贡献者的 Markdown 相对链接与页内锚点。"""
+"""核对面向用户与贡献者的 Markdown 相对链接、页内锚点与检查脚本说明覆盖。"""
 
 from __future__ import annotations
 
@@ -17,6 +17,8 @@ SOURCES = (
     "harness/README.md", ".github/PULL_REQUEST_TEMPLATE.md",
 )
 INDEX = "docs/README.md"
+REFERENCE = "docs/TECHNICAL_REFERENCE.md"
+SCRIPT_HEADING = re.compile(r"^### `(check_[A-Za-z0-9_]+\.py)`[ \t]*$", re.MULTILINE)
 MARKDOWN_DIRS = ("", "docs", "harness", ".github")
 LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 DEFINITION = re.compile(r"^\[[^\]]+\]:\s*(\S+)", re.MULTILINE)
@@ -136,7 +138,29 @@ def _check_coverage() -> int:
     return len(found)
 
 
-def check_docs_links() -> tuple[int, int, int, int]:
+def _check_script_reference() -> int:
+    """检查脚本的说明只在技术参考维护一份：每个脚本恰有一个同名小节。"""
+    try:
+        text = (ROOT / REFERENCE).read_text(encoding="utf-8")
+    except OSError:
+        raise ValueError(f"无法读取 {REFERENCE}") from None
+    documented = SCRIPT_HEADING.findall(COMMENT.sub("", _strip_fences(text, REFERENCE)))
+    scripts = {path.name for path in (ROOT / "scripts").glob("check_*.py")}
+    if not scripts:
+        raise ValueError("scripts 下没有 check_*.py")
+    missing = sorted(scripts - set(documented))
+    unknown = sorted(set(documented) - scripts)
+    repeated = sorted({name for name in documented if documented.count(name) > 1})
+    if missing or unknown or repeated:
+        raise ValueError(
+            f"{REFERENCE} 的检查脚本小节不一致：缺少 " + ("、".join(missing) or "无")
+            + "；脚本不存在 " + ("、".join(unknown) or "无")
+            + "；重复 " + ("、".join(repeated) or "无")
+        )
+    return len(scripts)
+
+
+def check_docs_links() -> tuple[int, int, int, int, int]:
     broken: list[str] = []
     bad_anchors: list[str] = []
     checked = 0
@@ -166,18 +190,19 @@ def check_docs_links() -> tuple[int, int, int, int]:
         raise ValueError("相对链接不存在：" + "；".join(sorted(broken)))
     if bad_anchors:
         raise ValueError("页内锚点不存在：" + "；".join(sorted(bad_anchors)))
-    return checked, anchors, _check_index(), _check_coverage()
+    return checked, anchors, _check_index(), _check_coverage(), _check_script_reference()
 
 
 def main() -> int:
     try:
-        checked, anchors, indexed, covered = check_docs_links()
+        checked, anchors, indexed, covered, scripts = check_docs_links()
     except ValueError as error:
         print(f"文档链接核对失败，{error}", file=sys.stderr)
         return 2
     print(
         f"文档相对链接一致：{checked} 个链接、{anchors} 个页内锚点；"
-        f"索引覆盖 {indexed} 篇文档，检查覆盖 {covered} 篇 Markdown"
+        f"索引覆盖 {indexed} 篇文档，检查覆盖 {covered} 篇 Markdown，"
+        f"{scripts} 个检查脚本均有说明小节"
     )
     return 0
 

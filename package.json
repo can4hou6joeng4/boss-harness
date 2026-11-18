@@ -1,7 +1,7 @@
 {
   "name": "boss-harness",
   "private": true,
-  "version": "0.2.0-rc.210",
+  "version": "0.2.0-rc.211",
   "license": "MIT",
   "description": "BOSS Harness：面向招聘任务的 Agent Harness（Python 内核与 Electron 桌面）",
   "engines": {
@@ -14,7 +14,8 @@
   "scripts": {
     "dev": "npm run dev --workspace boss-harness-desktop",
     "build": "npm run build --workspace boss-harness-desktop",
-    "typecheck": "tsc --noEmit -p apps/desktop/tsconfig.json"
+    "typecheck": "tsc --noEmit -p apps/desktop/tsconfig.json",
+    "check": "for check in scripts/check_*.py; do \"${PYTHON:-.venv/bin/python}\" \"$check\" || exit $?; done"
   },
   "devDependencies": {
     "typescript": "^5.6.0"
