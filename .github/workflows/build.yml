@@ -58,6 +58,8 @@ jobs:
         run: python scripts/check_queue_steer.py
       - name: Verify loop guard boundaries
         run: python scripts/check_loop_guard.py
+      - name: Verify browser source boundaries
+        run: python scripts/check_browser_source.py
       - name: Verify release asset boundaries
         run: python scripts/check_release_assets.py
       - name: Verify search normalization

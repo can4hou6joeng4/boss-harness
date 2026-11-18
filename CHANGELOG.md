@@ -1,3 +1,10 @@
+## 0.2.0-rc.201 - 2026-11-18
+
+rc.201 源码候选为浏览器来源覆盖增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_browser_source.py` 并接入 CI：核对 `BOSS_HARNESS_BROWSER_SOURCE` 的严格白名单、规范化与空值回退、`--browser-source` 参数构造、启动自检码、连接报告与桌面展示共 27 项防护。[Issue #2526](https://github.com/can4hou6joeng4/boss-harness/issues/2526)
+- 负向探针覆盖空值回退、规范化、参数传递与连接报告投影；全部检查通过。版本推进到 npm `0.2.0-rc.201` / Python `0.2.0rc201`。不执行发布动作。
+
 ## 0.2.0-rc.200 - 2026-11-18
 
 rc.200 源码候选为重复同参工具调用提醒增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
