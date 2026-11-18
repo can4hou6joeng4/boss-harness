@@ -54,7 +54,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 检查是静态扫描：通过变量拼接的方法名、运行时注册或动态生成的字段不在覆盖范围；新增此类路径时仍需人工核对协议常量。版本一致性由 `scripts/check_versions.py` 单独核对。
 
-`scripts/check_search_unicode.py` 同样在安装依赖前运行：Python 侧按内核 `needs_extra` 选择补表归一化路径，Node 侧导入桌面 `caseFold.ts`，对全部 Unicode 标量值按 `0x1000` 分块计算 SHA-256 摘要并比较；不一致时列出码点区间。它验证映射表与两端 Unicode 数据的组合结果，不覆盖按字素簇切分的文本级行为。Source build 在 Python 3.12 上运行一次，独立的 Search normalization job 另在 Python 3.10、3.11、3.12、3.13、3.14 上分别运行，均使用 Node 24。
+`scripts/check_search_unicode.py` 同样在安装依赖前运行：Python 侧按内核 `needs_extra` 选择补表归一化路径，Node 侧导入桌面 `caseFold.ts`，对全部 Unicode 标量值按 `0x1000` 分块计算 SHA-256 摘要并比较；不一致时列出码点区间。它验证映射表与两端 Unicode 数据的组合结果，不覆盖按字素簇切分的文本级行为。Source build 在 Python 3.12 上运行一次，独立的 Search normalization job 另在 Python 3.10、3.11、3.12、3.13、3.14 上分别运行，均使用 Node 24。全量核对报告分块差异，可加 `--block 0xN` 只比较该 0x1000 分块并逐码点列出 Python 与 Node 的结果。
 
 ## 业务 CLI 请求与认证边界
 
