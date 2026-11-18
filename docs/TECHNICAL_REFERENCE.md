@@ -10,6 +10,7 @@
 - [会话与模块边界](#模块边界)
 - [桌面与队列行为](#工作流会话与桌面设置)
 - [JSON-RPC 帧完整性](#json-rpc-帧完整性)
+- [启动自检报告](#启动自检报告)
 - [服务端通知](#服务端通知)
 - [返回 README](../README.md)
 
@@ -24,6 +25,12 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 当前内核收紧已有参数类型校验：`turn/start` 与 `context/read` 只有缺省 `model` 才继承会话模型，显式 null、空字符串、布尔、数字、数组或对象均返回 `-32602`；合法字符串仍按会话模型线路检查，不匹配继续返回 `-32013`。当前内核把同一规则用于 `turn/start.provider`：显式提供时须通过 provider 格式校验并与已选线路一致，null 等其他类型返回 `-32602`，缺省才不核对。`thread/read` 与 `thread/resume` 的 `excludeTurns` 只接受布尔 true / false，缺省为 false；不能传字符串 `"false"`。同两个接口的 `snapshot` 也只接受布尔值，字符串、数字、数组、对象或 null 返回 `-32602`，不会静默降级成普通读取。读取 `view` 只接受 `log` / `branch`，`task/read.kind` 只接受 `turn` / `queue` / `compaction`，数组、对象等非法类型统一返回 `-32602`，不再误报内部错误。`thread/start.projectId` 与 `thread/list.projectId` 筛选限制为最多 200 字符的字符串，超长值在写入会话文件或执行索引查询前返回 `-32602`；旧记录中的超长标识在读取投影中截断为前 200 字符并标记 `projectIdTruncated: true`，原始会话头不改写。会话标题在新建、重命名与 `thread/fork` 自定义标题处共用最多 500 字符的上限，超长值在写入会话文件前返回 `-32602`；旧记录中的超长标题在读取投影中截断为前 500 字符并标记 `titleTruncated: true`，原始会话头不改写。
 
 队列任务的持久状态缺失或非法时，`task/read` 返回字符串 `unknown` 与 `recoveryPolicy: "manual_review"`，合法状态与恢复策略不变。会话索引的 `queueActiveItems` / `queueCounts` 与队列列表共用 `queue_record` 校验，损坏记录不覆盖同 id 先前的有效状态。此计数修正用于后续追加与索引重建；未变化日志的既有缓存索引不强制更新，历史错计数可退出应用后运行 `boss-harness --repair-state` 从日志重建。上述修正不新增 RPC，协议与内核仍为 `0.2.0`。
+
+## 启动自检报告
+
+`boss-harness --check` 只读取本地配置并向 stdout 输出单份 JSON：`schemaVersion: 1`、`version`、`protocolVersion`、`pythonVersion`、`ok` 与 `checks`。桌面主进程在握手前启动失败时运行同一命令，解析器只接受这些字段中的报告结构、`schemaVersion: 1`、布尔 `ok`、非空且不超过 16 项的 `checks` 列表；每项的名称、检查码、消息与建议必须符合固定格式，且同一报告中名称不重复。若 `ok` 与「所有检查项均非 error」不一致，整份报告作废，不向界面展示部分内容。
+
+解析器不据此判断报告是否可信于真实运行环境，也不读取 stderr、内核会话或任何凭据；自检超时、输出超限、非 UTF-8 或进程异常退出时统一归入不可用原因。字段含义与用户处理建议见[使用指南](USER_GUIDE.md#本地配置自检)，桌面展示路径见[桌面指南](DESKTOP_GUIDE.md#界面偏好与恢复)。
 
 ## 服务端通知
 
