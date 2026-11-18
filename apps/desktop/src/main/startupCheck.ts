@@ -98,6 +98,7 @@ export function runStartupCheck(target: StartupCheckTarget, signal?: AbortSignal
     try {
       child = spawn(target.command, target.args, {
         cwd: target.cwd, env: target.env, stdio: ["ignore", "pipe", "ignore"], windowsHide: true,
+        shell: false,
       });
     } catch {
       finish({ kind: "unavailable", reason: "spawn" });

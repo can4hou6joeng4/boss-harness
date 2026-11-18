@@ -1,3 +1,10 @@
+## 0.2.0-rc.174 - 2026-11-18
+
+rc.174 源码候选限定子进程启动不开 shell。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `startupCheck.ts` 的 `spawn` 显式设置 `shell: false`；`scripts/check_desktop_security.py` 要求主进程只有该文件出现 `spawn(`，且必须包含 `shell: false`，桌面防护计数达到 131。[Issue #2472](https://github.com/can4hou6joeng4/boss-harness/issues/2472)
+- 删除显式设置与在其他主进程文件新增 `spawn` 两个负向探针均触发对应错误；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.174` / Python `0.2.0rc174`。
+
 ## 0.2.0-rc.173 - 2026-11-18
 
 rc.173 源码候选核对工具组合沿用审批标记。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
