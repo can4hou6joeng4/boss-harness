@@ -1,3 +1,11 @@
+## 0.2.0-rc.131 - 2026-11-18
+
+rc.131 源码候选在启动自检摘要中补充 Python 版本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `StartupDiagnosis` 报告分支增加可选 `pythonVersion`；主进程解析器与渲染层沿用单行有界校验，不合规时整份报告作废。[Issue #2386](https://github.com/can4hou6joeng4/boss-harness/issues/2386)
+- 设置页自检摘要显示「内核 … · 协议 … · Python …」，便于识别解释器版本或虚拟环境问题。
+- 用户指南与技术参考同步；版本推进到 npm `0.2.0-rc.131` / Python `0.2.0rc131`。
+
 ## 0.2.0-rc.130 - 2026-11-18
 
 rc.130 源码候选在桌面启动自检中展示内核与协议版本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
