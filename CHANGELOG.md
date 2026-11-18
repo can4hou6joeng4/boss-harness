@@ -1,3 +1,10 @@
+## 0.2.0-rc.190 - 2026-11-18
+
+rc.190 源码候选核对会话导出脱敏管线顺序。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_export_privacy.py` 新增 39 项管线核对：已知凭据 / 路径值优先、`redact_secrets`、token / 环境赋值 / 路径规则的顺序、个人信息按长度降序打码，以及 `text()` 的双重脱敏。[Issue #2504](https://github.com/can4hou6joeng4/boss-harness/issues/2504)
+- 六个负向探针（删除上游脱敏、路径脱敏、个人信息打码、排序、改写敏感环境规则）均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.190` / Python `0.2.0rc190`。
+
 ## 0.2.0-rc.189 - 2026-11-18
 
 rc.189 源码候选核对工具结果分页与引用边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
