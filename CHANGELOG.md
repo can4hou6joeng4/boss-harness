@@ -1,3 +1,10 @@
+## 0.2.0-rc.186 - 2026-11-18
+
+rc.186 源码候选核对桌面会话恢复边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 新增恢复边界核对：`harnessReplica.ts` 的 4 个分页 / 正文预算常量，以及 10 项内容引用校验（编码、SHA-256、线程 / 条目 / 快照标识、`part`、字符与字节关系、4 倍上限与 16 MiB 上限）；桌面防护计数达到 161。[Issue #2496](https://github.com/can4hou6joeng4/boss-harness/issues/2496)
+- 删除 4 倍字节关系、抬高 16 MiB 上限与放大正文分页预算三个负向探针均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.186` / Python `0.2.0rc186`。
+
 ## 0.2.0-rc.185 - 2026-11-18
 
 rc.185 源码候选核对会话导出上限的双端一致。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

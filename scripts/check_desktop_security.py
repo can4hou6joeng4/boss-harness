@@ -542,6 +542,25 @@ RENDERER_BOUNDARY: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\beval\s*\("), "不得使用 eval"),
     (re.compile(r"\bnew\s+Function\s*\("), "不得使用 new Function"),
 )
+REPLICA_SOURCE = "apps/desktop/src/renderer/src/data/harnessReplica.ts"
+REPLICA_CONSTANTS = (
+    "const MAX_PAGE_COUNT = 10_000;",
+    "const MAX_CURSOR_LENGTH = 2048;",
+    "const MIN_CONTENT_CHUNK_CHARS = 1024;",
+    "const MAX_CONTENT_PAGE_READS = 10_000;",
+)
+REPLICA_FRAGMENTS = (
+    'reference.encoding !== "text"',
+    "/^[a-f0-9]{64}$/.test(reference.sha256)",
+    "/^[a-f0-9]{12}$/.test(reference.threadId)",
+    'reference.part !== "text" && reference.part !== "thinking"',
+    "/^[a-f0-9]{32}$/.test(reference.snapshotId)",
+    "reference.characterLength < 1",
+    "reference.byteLength < reference.characterLength",
+    "reference.byteLength > reference.characterLength * 4",
+    "reference.byteLength > 16 * 1024 * 1024",
+    "会话内容引用无效或超出自动恢复上限",
+)
 
 
 def _check_renderer_boundary() -> int:
@@ -555,6 +574,18 @@ def _check_renderer_boundary() -> int:
             if pattern.search(text):
                 raise ValueError(f"渲染层{message}：{relative}")
     return len(RENDERER_BOUNDARY)
+
+
+def _check_restore_bounds() -> int:
+    text = (ROOT / REPLICA_SOURCE).read_text(encoding="utf-8")
+    missing = [
+        fragment
+        for fragment in (*REPLICA_CONSTANTS, *REPLICA_FRAGMENTS)
+        if fragment not in text
+    ]
+    if missing:
+        raise ValueError(f"{REPLICA_SOURCE} 的恢复边界缺少：" + "、".join(missing))
+    return len(REPLICA_CONSTANTS) + len(REPLICA_FRAGMENTS)
 
 
 def _csp_directives(content: str) -> dict[str, tuple[str, ...]]:
@@ -743,6 +774,7 @@ def check_desktop_security() -> tuple[int, int, int]:
     ipc = _check_ipc_channels()
     literals = _check_channel_literals()
     boundary = _check_renderer_boundary()
+    restore = _check_restore_bounds()
     csp = _check_renderer_csp()
     bootstrap = _check_renderer_bootstrap()
     embed = _check_renderer_embed()
@@ -750,8 +782,8 @@ def check_desktop_security() -> tuple[int, int, int]:
     origins = _check_origin_policies()
     return (len(EXPECTED), checked,
             allowlist + handlers + navigation + external + preload + exposure + imports
-            + boundaries + spawn + exec_guard + export + ipc + literals + boundary + csp
-            + bootstrap + embed + trusted + origins)
+            + boundaries + spawn + exec_guard + export + ipc + literals + boundary + restore
+            + csp + bootstrap + embed + trusted + origins)
 
 
 def main() -> int:
