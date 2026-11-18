@@ -279,7 +279,10 @@ class SnapshotBuilder:
         if entry_type == "item":
             if not isinstance(payload, dict):
                 return
+            # 与普通投影同序：先保存修订目标，再清理本条载荷；合并后再清理会误删
+            # 被修订条目中原本合法的编号字段与 approval。
             target_id = _record_id(payload.get("revises")) or ""
+            payload = _clean_item_fields(payload)
             if not target_id and payload.get("kind") == "toolCall" and payload.get("status") != "running":
                 parent_id = _record_id(entry.get("parentId")) or ""
                 parent_ordinal = self._alias(parent_id) if parent_id else None
@@ -291,8 +294,7 @@ class SnapshotBuilder:
                 previous_size = len(json.dumps(current, ensure_ascii=False, allow_nan=False,
                                                 separators=(",", ":")).encode("utf-8"))
                 merged = {**current, **payload, "id": current["id"], "threadId": self.thread_id}
-                self._write_item(ordinal, _clean_item_fields(merged), is_new=False,
-                                 previous_size=previous_size)
+                self._write_item(ordinal, merged, is_new=False, previous_size=previous_size)
             else:
                 if self._alias(entry_id) is not None:
                     # 与 `_project_items` 一致：同一编号的顶层条目重复出现（外部改写或
@@ -301,7 +303,7 @@ class SnapshotBuilder:
                     return
                 ordinal = self.count
                 merged = {**payload, "id": entry_id, "threadId": self.thread_id}
-                self._write_item(ordinal, _clean_item_fields(merged), is_new=True)
+                self._write_item(ordinal, merged, is_new=True)
             self.connection.execute("INSERT INTO aliases(alias,ordinal) VALUES(?,?) "
                                     "ON CONFLICT(alias) DO UPDATE SET ordinal=excluded.ordinal",
                                     (entry_id, ordinal))
@@ -555,11 +557,11 @@ class SnapshotStore:
                     payload_bytes += len(payload.encode("utf-8"))
                     if result and payload_bytes > max_payload_bytes:
                         break
-                    # 编辑状态列与条目一样来自持久库：entry_id 必须是非空字符串，
-                    # excluded 必须是 0 / 1。损坏行按「没有编辑状态」处理，条目照常返回，
-                    # 不让 BLOB 标识让整页响应无法编码。
+                    # 编辑状态列与条目一样来自持久库：entry_id 必须是字符串，允许空串
+                    # （与 context_edit_states 一致）；excluded 必须是 0 / 1。损坏行按
+                    # 「没有编辑状态」处理，条目照常返回，不让 BLOB 标识影响编码。
                     edit = None
-                    if isinstance(row[1], str) and row[1] and type(row[2]) is int and row[2] in (0, 1):
+                    if isinstance(row[1], str) and type(row[2]) is int and row[2] in (0, 1):
                         edit = {"entryId": row[1], "excluded": row[2] == 1}
                     result.append((_require_item_id(_decode_item(payload)), edit))
             finally:
@@ -586,7 +588,7 @@ class SnapshotStore:
             finally:
                 connection.close()
             # 与 page() 同一契约：标识或排除标记损坏时按「没有编辑状态」处理。
-            if (not row or not isinstance(row[0], str) or not row[0]
+            if (not row or not isinstance(row[0], str)
                     or type(row[1]) is not int or row[1] not in (0, 1)):
                 return None
             return {"entryId": row[0], "excluded": row[1] == 1}

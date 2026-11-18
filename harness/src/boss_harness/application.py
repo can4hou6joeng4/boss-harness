@@ -839,7 +839,7 @@ class ApplicationService:
                     # 让客户端改用日志视图分页读取，而不是让内核被 OOM 杀掉。
                     if source_size > MAX_SNAPSHOT_BYTES:
                         raise RpcError(-32010, "分支快照会话过大，请改用 thread/resume 读取日志视图并分页读取条目",
-                                       {"code": "RESPONSE_TOO_LARGE", "recoveryMethod": "thread.resume",
+                                       {"code": "RESPONSE_TOO_LARGE", "recoveryMethod": "thread/resume",
                                         "snapshot": True, "view": "log"})
                     # The leaf projection needs the whole pinned prefix; it is computed
                     # outside the writer lock from the same inode/size as the build.  The
