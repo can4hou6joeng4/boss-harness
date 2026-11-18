@@ -1,3 +1,10 @@
+## 0.2.0-rc.177 - 2026-11-18
+
+rc.177 文档候选对齐 README 英文概览与桌面能力。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- README 英文 Desktop 条目与中文能力地图补充持久队列的重试 / 撤回与完整输入核对、工作区技能管理、自动压缩策略设置，与 STATUS 已实现范围一致。[Issue #2478](https://github.com/can4hou6joeng4/boss-harness/issues/2478)
+- 文档链接检查通过；版本推进到 npm `0.2.0-rc.177` / Python `0.2.0rc177`。
+
 ## 0.2.0-rc.176 - 2026-11-18
 
 rc.176 源码候选固定工具子进程不开 shell。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
