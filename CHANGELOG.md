@@ -1,3 +1,10 @@
+## 0.2.0-rc.109 - 2026-11-18
+
+rc.109 源码候选加入用户文档相对链接核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_docs_links.py`：扫描 README、贡献与发布约定、安全与支持文档及 docs 下的用户文档，跳过代码块、行内代码、外链与纯锚点，核对相对文件路径存在；断链时列出文件与目标并以退出码 2 失败。[Issue #2341](https://github.com/can4hou6joeng4/boss-harness/issues/2341)
+- CI 在安装依赖前运行该检查；CONTRIBUTING、README、发布约定与技术参考记录入口和边界。候选版本号和使用指南同步为 npm `0.2.0-rc.109` / Python `0.2.0rc109`。
+
 ## 0.2.0-rc.108 - 2026-11-18
 
 rc.108 源码候选为搜索归一化核对加入分块诊断。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
