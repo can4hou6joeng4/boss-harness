@@ -1,3 +1,10 @@
+## 0.2.0-rc.182 - 2026-11-18
+
+rc.182 源码候选核对发布元数据与 LICENSE 的 MIT 声明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_versions.py` 核对根包与全部 npm 工作区的 `license` 为 MIT，`pyproject.toml` 的 `project.license` 为 MIT 且 `license-files` 恰为 `["LICENSE"]`，并核对 `LICENSE` 以 `MIT License` 开头且包含许可正文。[Issue #2488](https://github.com/can4hou6joeng4/boss-harness/issues/2488)
+- 改动工作区许可证、删除 `license-files`、改写 `LICENSE` 首行三个负向探针均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.182` / Python `0.2.0rc182`。
+
 ## 0.2.0-rc.181 - 2026-11-18
 
 rc.181 源码候选核对内核与 app-client 的传输上限。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
