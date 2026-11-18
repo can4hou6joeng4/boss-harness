@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.211` / Python `0.2.0rc211` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.212` / Python `0.2.0rc212` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -64,7 +64,7 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 
 Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请求是否携带服务端回退参数（走对应的 beta 接口）：未设置时，`ANTHROPIC_BASE_URL` 未设置或指向官方主机则开启，指向其他网关则关闭；显式取值去除首尾空白并按不区分大小写解析，`1` / `true` / `yes` / `on` 为开启，`0` / `false` / `no` / `off` 与空值为关闭，其他取值以 `MODEL_SERVER_FALLBACK_INVALID` 明确失败，不会被当作开启。网关不支持该参数时应保持关闭。`BOSS_HARNESS_THINKING=summarized` 请求模型返回思考摘要，其他取值或未设置时不请求。这两项只作用于 Anthropic 线路，`none` 与 OpenAI 线路不因它们失败。
 
-选择 `none` 时（显式 `--provider none`、`BOSS_HARNESS_PROVIDER=none` 或没有可用凭据时自动回退），内核不读取模型名与推理档位：握手、`config/read`、`model/list` 与新建会话统一使用 `none · none`，设置 `BOSS_HARNESS_MODEL` 或 `BOSS_HARNESS_EFFORT` 不会改变该线路，也不会发起模型请求。`none` 仍可调用招聘 CLI 与上游只读工具。
+选择 `none` 时（显式 `--provider none`、`BOSS_HARNESS_PROVIDER=none` 或没有可用凭据时自动回退），内核不读取模型名与推理档位：握手、`config/read`、`model/list` 与新建会话统一使用 `none · none`，设置 `BOSS_HARNESS_MODEL` 或 `BOSS_HARNESS_EFFORT` 不会改变该线路，也不会发起模型请求。`none` 仍可调用招聘 CLI 与上游只读工具。桌面「设置 → 模型与连接」的「模型服务」卡片把这条默认线路标为「未启用」，并注明招聘 CLI 仍可运行、可能访问平台；它不表示离线。
 
 缺少任一项时才读取 `BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 或默认 `~/.codex/config.toml`，按此顺序选择文件，显式字段仍优先。读取 TOML 需要 Python 3.11+；已有文件不可读或语法损坏时明确报错，不退到其他 provider。文件不存在或缺少可用 profile 时继续检查端点与凭据，缺项会报错；未提供模型且没有可用文件模型时保留既有 `DEFAULT_MODEL`。
 

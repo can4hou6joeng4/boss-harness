@@ -6,8 +6,10 @@ import { useClipboardCopy } from "../data/clipboardCopy";
 import { loginActive, loginSettled, platformLoginStatusOf } from "../data/platformLoginState";
 import { formatIsoClock } from "../data/timeFormat";
 
+// `disabled` 表示这一项未启用（默认模型线路为 none，或工具组合未启用平台能力），不是离线：
+// 未启用模型时招聘 CLI 仍可运行并可能访问平台。
 const LABELS: Record<ConnectionCheck["state"], string> = {
-  unchecked: "尚未检测", checking: "检测中", ready: "检查通过", failed: "检查失败", blocked: "需要处理", disabled: "离线配置",
+  unchecked: "尚未检测", checking: "检测中", ready: "检查通过", failed: "检查失败", blocked: "需要处理", disabled: "未启用",
 };
 const AUTH_LABELS: Record<string, string> = { complete: "完整", partial: "不完整", broken: "不可用", missing: "缺失", unknown: "未检测" };
 const BROWSER_SOURCE_LABELS: Record<NonNullable<ConnectionCheck["browserSourcePolicy"]>, string> = {

@@ -35,6 +35,10 @@ PUBLIC_CHECK_CODES = PAUSE_CODES | {
     "INVALID_PARAM", "NOT_SUPPORTED", "LOGIN_CREDENTIAL_EXTRACTION_FAILED", "CONNECTION_FAILED",
 }
 _PLATFORM_DISABLED = "当前工具组合未启用平台连接与登录"
+# 模型卡片只描述进程默认线路。`none` 只是不调用模型，不能写成「离线」：
+# 启用了平台能力时招聘 CLI 照常可用，并可能访问平台。
+_MODEL_DISABLED = "默认模型线路不调用模型"
+_MODEL_DISABLED_WITH_CLI = _MODEL_DISABLED + "；招聘 CLI 仍可运行并可能访问平台"
 _AUTH_STATES = frozenset({"complete", "partial", "broken", "missing"})
 
 
@@ -84,10 +88,12 @@ class ConnectionChecks:
         self.login = {"state": "idle", "summary": "尚未开始扫码登录"}
         self.login_cancel: threading.Event | None = None
         real = config.provider in {"openai", "anthropic"}
+        model_summary = "已配置，尚未发送请求" if real else (
+            _MODEL_DISABLED if bridge_factory is None else _MODEL_DISABLED_WITH_CLI)
         self.report = {
             "cli": {"state": "unchecked", "summary": "尚未检查本机 CLI 与登录态"},
             "model": {"state": "unchecked" if real else "disabled", "provider": config.provider,
-                      "model": config.model, "summary": "已配置，尚未发送请求" if real else "当前为离线运行配置"},
+                      "model": config.model, "summary": model_summary},
             "platform": {"state": "unchecked", "summary": "尚未在线验证", "authState": "unknown"},
         }
         if browser_source_policy is not None:
