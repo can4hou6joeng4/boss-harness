@@ -10,6 +10,7 @@
 - [会话与模块边界](#模块边界)
 - [桌面与队列行为](#工作流会话与桌面设置)
 - [JSON-RPC 帧完整性](#json-rpc-帧完整性)
+- [服务端通知](#服务端通知)
 - [返回 README](../README.md)
 
 ## JSON-RPC 帧完整性
@@ -23,6 +24,22 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 当前内核收紧已有参数类型校验：`turn/start` 与 `context/read` 只有缺省 `model` 才继承会话模型，显式 null、空字符串、布尔、数字、数组或对象均返回 `-32602`；合法字符串仍按会话模型线路检查，不匹配继续返回 `-32013`。当前内核把同一规则用于 `turn/start.provider`：显式提供时须通过 provider 格式校验并与已选线路一致，null 等其他类型返回 `-32602`，缺省才不核对。`thread/read` 与 `thread/resume` 的 `excludeTurns` 只接受布尔 true / false，缺省为 false；不能传字符串 `"false"`。同两个接口的 `snapshot` 也只接受布尔值，字符串、数字、数组、对象或 null 返回 `-32602`，不会静默降级成普通读取。读取 `view` 只接受 `log` / `branch`，`task/read.kind` 只接受 `turn` / `queue` / `compaction`，数组、对象等非法类型统一返回 `-32602`，不再误报内部错误。`thread/start.projectId` 与 `thread/list.projectId` 筛选限制为最多 200 字符的字符串，超长值在写入会话文件或执行索引查询前返回 `-32602`；旧记录中的超长标识在读取投影中截断为前 200 字符并标记 `projectIdTruncated: true`，原始会话头不改写。会话标题在新建、重命名与 `thread/fork` 自定义标题处共用最多 500 字符的上限，超长值在写入会话文件前返回 `-32602`；旧记录中的超长标题在读取投影中截断为前 500 字符并标记 `titleTruncated: true`，原始会话头不改写。
 
 队列任务的持久状态缺失或非法时，`task/read` 返回字符串 `unknown` 与 `recoveryPolicy: "manual_review"`，合法状态与恢复策略不变。会话索引的 `queueActiveItems` / `queueCounts` 与队列列表共用 `queue_record` 校验，损坏记录不覆盖同 id 先前的有效状态。此计数修正用于后续追加与索引重建；未变化日志的既有缓存索引不强制更新，历史错计数可退出应用后运行 `boss-harness --repair-state` 从日志重建。上述修正不新增 RPC，协议与内核仍为 `0.2.0`。
+
+## 服务端通知
+
+`packages/protocol` 的 `ServerNotifications` 是内核主动发送的通知方法集合；协议版本仍为 `0.2.0`。客户端应忽略未知方法，并通过后续读取或终态通知补齐状态。`toolCall/executing` 是可选通知，旧内核不发送时客户端仍可从 `toolCall/started` 进入等待或执行状态，并以 `toolCall/completed` 收尾。
+
+| 类别 | 方法 | 说明 |
+| --- | --- | --- |
+| 回合 | `turn/started`、`turn/completed`、`turn/steeringApplied`、`model/retryStarted`、`model/retryEnded`、`session/error` | 回合开始 / 终态、转向消息已应用、模型重试观测与回合错误。重试通知只用于观察，不写会话条目；回合结果以 `turn/completed.status` 为准。 |
+| 流式内容 | `item/started`、`item/completed`、`agentMessage/delta`、`agentThinking/delta` | 条目生命周期与增量文本 / 思考。增量不是持久投影，刷新后以条目读取为准。 |
+| 工具与审批 | `toolCall/started`、`toolCall/executing`、`toolCall/completed`、`approval/requested`、`approval/decided` | 工具执行状态与审批。双向连接用 `item/tool/requestApproval` 服务端请求承载审批请求，非双向连接才以 `approval/requested` 通知发送；`approval/decided` 可能来自实时裁决或恢复路径。 |
+| 会话 | `thread/created`、`thread/updated`、`thread/leafChanged`、`thread/archived`、`thread/deleted`、`thread/unarchived`、`thread/renamed`、`thread/reasoning/updated`、`thread/model/updated` | 会话生命周期、分支叶变化、归档 / 删除 / 恢复、标题、推理档位与模型线路变更。 |
+| 队列 | `queue/updated` | 队列项新增、状态变化或投递结果；客户端应重读 `queue/list`，不要把通知本身当成完整队列快照。 |
+| 上下文 | `context/compacted`、`context/compactionStarted`、`context/compactionProgress`、`context/compactionCompleted`、`context/compactionFailed`、`context/edited` | 摘要任务进度 / 终态、上下文已压缩与消息上下文编辑。任务详情仍经 `context/compact/read` 核对。 |
+| 宿主连接 | `harness/disconnected`、`harness/connectionStatus`、`kernel/hookError` | 宿主连接状态与 hook 诊断。连接状态由宿主发布；内核通知流中的同名帧不应覆盖宿主状态。 |
+
+`ServerNotifications` 是方法名常量，不是完整参数 schema；方法参数仍以 `packages/protocol` 的类型和对应读取接口为准。
 
 ## 业务 CLI 请求与认证边界
 
