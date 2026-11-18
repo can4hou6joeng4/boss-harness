@@ -16,10 +16,14 @@ export const USAGE_REASONS: Record<string, string> = {
   inconsistent: "字段互相矛盾", zero: "全部为零", unknownProvider: "未知 provider",
 };
 
-/** 摘要任务来源；内核未记录 origin 时只显示任务类型。 */
+/**
+ * 摘要任务触发方式；`origin` 只表示摘要作者，手动压缩同样可能由模型生成。
+ * 压缩任务以 `reason` 是否存在区分自动与手动，分支摘要单独标注。
+ */
 export function usageJobSource(job: ThreadUsageSummaryJob): string {
-  return job.kind === "branchSummary" ? "分支摘要"
-    : job.origin === "user" ? "手动压缩" : job.origin === "model" ? "自动压缩" : "摘要任务";
+  if (job.kind === "branchSummary") return "分支摘要";
+  if (job.kind === "compaction") return job.reason ? "自动压缩" : "手动压缩";
+  return job.origin === "user" ? "用户摘要" : job.origin === "model" ? "模型摘要" : "摘要任务";
 }
 
 /** 摘要任务触发原因。 */
@@ -155,7 +159,6 @@ export function buildUsageCsv(data: UsageReportData, context: UsageReportContext
     const note = [
       usageJobSource(job),
       job.reason ? USAGE_JOB_REASONS[job.reason] ?? job.reason : "",
-      job.origin === "user" ? "手动" : job.origin === "model" ? "自动" : "",
       job.active ? "当前生效" : "",
       job.throughTurnId && job.throughTurnId !== job.turnId ? `摘要至 ${context.turnLabel(job.throughTurnId)}` : "",
     ].filter(Boolean).join(" · ") || job.jobId;
