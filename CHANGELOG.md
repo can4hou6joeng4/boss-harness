@@ -1,3 +1,10 @@
+## 0.2.0-rc.209 - 2026-11-19
+
+rc.209 源码候选修复中断续接可能丢失已投递转向消息的问题。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 转向提交后立即写入包含转向文本的 `context_budget` 与新的请求指纹，续接预检发现仍位于可验证边界之外的已投递转向消息时，明确返回 `CONTINUATION_STEERING_OUTSIDE_BOUNDARY`，不再静默丢输入。[Issue #2542](https://github.com/can4hou6joeng4/boss-harness/issues/2542)
+- 离线合成探针覆盖预算同步与越界拒绝，修复前后行为均已验证；全部检查通过。版本推进到 npm `0.2.0-rc.209` / Python `0.2.0rc209`。不执行发布动作。
+
 ## 0.2.0-rc.208 - 2026-11-18
 
 rc.208 源码候选统一自动压缩切点与回执的保留长度估算。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
