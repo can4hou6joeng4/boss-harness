@@ -1,3 +1,10 @@
+## 0.2.0-rc.196 - 2026-11-18
+
+rc.196 源码候选增加重复同参工具调用提醒。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `loop_guard.py`：只在单次回合内存中观察连续同名同参调用，第 3、5 次命中时追加一条合成用户提醒；不阻断执行、不新增 RPC / 工具 / 协议 / 持久化条目，并在 steering 注入、超大或不可序列化参数时重置。[Issue #2516](https://github.com/can4hou6joeng4/boss-harness/issues/2516)
+- 假 provider / 假 handler 行为探针核对第 4、5 次请求各见 1 条提醒、不同参数与 steering 重置、6 次工具调用均实际执行；README、技术参考、状态说明与发布约定同步。版本推进到 npm `0.2.0-rc.196` / Python `0.2.0rc196`。不执行发布动作。
+
 ## 0.2.0-rc.195 - 2026-11-18
 
 rc.195 文档候选刷新项目定位与社区介绍草稿。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
