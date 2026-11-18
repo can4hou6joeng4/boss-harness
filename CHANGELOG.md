@@ -1,3 +1,19 @@
+## 0.2.0-rc.88 - 2026-11-18
+
+本节汇总第八十八个候选版本的源码与交付内容。相对 rc.87，本候选在 README 稳定能力地图中补充会话用量与按预算恢复说明。rc.16 至 rc.88 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- README 能力地图补充会话用量统计 / CSV 与按响应预算分页的会话恢复说明，不在项目概览中累积逐版本发布记录（#2280、#2281）。
+- 同步 npm / Python 版本到 `0.2.0-rc.88` / `0.2.0rc88`（#2282）。
+
+升级注意：不改变 JSON-RPC 协议、工具权限、会话持久化格式或存储键；rc.87 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2280](https://github.com/can4hou6joeng4/boss-harness/issues/2280)：补充 README 用量与持久化能力概览。
+- [Issue #2282](https://github.com/can4hou6joeng4/boss-harness/issues/2282)：准备 rc.88 源码候选并同步版本来源。
+
 ## 0.2.0-rc.87 - 2026-11-18
 
 本节汇总第八十七个候选版本的源码与交付内容。rc.86 与 rc.87 之间的后台差分探针曾报告搜索归一化大量不一致；复核确认探针把原始码点数组与归一化文本直接比较，属于无效比较。使用当前 main 的桌面 `kernelSearchText` 与内核 `search_normalize` 重新对照，三组 90,000 条语料均为 0 mismatches。rc.16 至 rc.87 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
