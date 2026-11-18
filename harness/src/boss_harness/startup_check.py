@@ -15,6 +15,7 @@ from boss_harness.models import ModelConfig
 from boss_harness.models.capabilities import ModelCatalog
 from boss_harness.models.config_errors import ModelConfigError
 from boss_harness.private_files import check_private_directory
+from boss_harness.protocol import PROTOCOL_VERSION
 from boss_harness.resources import AttachmentStore
 from boss_harness.turn_limits import model_request_limit_from_environment
 from boss_harness.tools.boss_cli import binary_available, resolve_binary, resolve_browser_source_override
@@ -166,6 +167,7 @@ def startup_report(
     return {
         "schemaVersion": 1,
         "version": __version__,
+        "protocolVersion": PROTOCOL_VERSION,
         "pythonVersion": ".".join(str(part) for part in sys.version_info[:3]),
         "ok": all(check["status"] != "error" for check in checks),
         "checks": checks,

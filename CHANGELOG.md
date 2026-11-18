@@ -1,3 +1,10 @@
+## 0.2.0-rc.118 - 2026-11-18
+
+rc.118 源码候选在本地自检报告中加入协议版本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `boss-harness --check` 的 JSON 报告增加 `protocolVersion`，直接引用内核唯一的 `PROTOCOL_VERSION`；`schemaVersion: 1`、`ok` 与 `checks` 结构不变。[Issue #2360](https://github.com/can4hou6joeng4/boss-harness/issues/2360)
+- 使用指南同步报告字段；候选版本号和使用指南同步为 npm `0.2.0-rc.118` / Python `0.2.0rc118`。
+
 ## 0.2.0-rc.117 - 2026-11-18
 
 rc.117 源码候选收紧 CI checkout 的凭据存储。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
