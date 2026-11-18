@@ -1,3 +1,10 @@
+## 0.2.0-rc.100 - 2026-11-18
+
+rc.100 源码候选加入握手能力字段核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_protocol.py` 用 AST 提取内核 `on_initialize` 的 `capabilities` 键，并与 `InitializeResponse.capabilities` 的布尔字段双向比对。[Issue #2323](https://github.com/can4hou6joeng4/boss-harness/issues/2323)
+- README 与发布约定说明检查范围。候选版本号和使用指南同步为 npm `0.2.0-rc.100` / Python `0.2.0rc100`。
+
 ## 0.2.0-rc.99 - 2026-11-18
 
 rc.99 源码候选统一内核协议版本来源。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

@@ -98,6 +98,61 @@ def _typescript_protocol_version(text: str) -> str:
     return match.group(1)
 
 
+def _kernel_capabilities() -> set[str]:
+    try:
+        tree = ast.parse(_read(APPLICATION))
+    except SyntaxError:
+        raise ValueError(f"无法解析 {APPLICATION}") from None
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef) or node.name != "on_initialize":
+            continue
+        for child in ast.walk(node):
+            if not isinstance(child, ast.Dict):
+                continue
+            for key, value in zip(child.keys, child.values):
+                if (isinstance(key, ast.Constant) and key.value == "capabilities"
+                        and isinstance(value, ast.Dict)):
+                    names = {
+                        item.value for item in value.keys
+                        if isinstance(item, ast.Constant) and isinstance(item.value, str)
+                    }
+                    if names:
+                        return names
+    raise ValueError(f"{APPLICATION} 未找到 on_initialize 的 capabilities 字典")
+
+
+def _typescript_capabilities(text: str) -> set[str]:
+    start = text.find("export interface InitializeResponse {")
+    if start < 0:
+        raise ValueError(f"{PROTOCOL} 缺少 InitializeResponse")
+    marker = text.find("capabilities?: {", start)
+    if marker < 0:
+        raise ValueError(f"{PROTOCOL} 的 InitializeResponse 缺少 capabilities")
+    tail = re.sub(r"/\*.*?\*/", "", text[marker:], flags=re.DOTALL)
+    tail = re.sub(r"//.*", "", tail)
+    opening = tail.find("{")
+    depth = 0
+    for index in range(opening, len(tail)):
+        if tail[index] == "{":
+            depth += 1
+        elif tail[index] == "}":
+            depth -= 1
+            if depth == 0:
+                names = set(re.findall(r"(\w+)\??:\s*boolean\b", tail[opening + 1:index]))
+                if names:
+                    return names
+                break
+    raise ValueError(f"{PROTOCOL} 的 capabilities 没有布尔字段")
+
+
+def _check_capabilities(protocol: str) -> int:
+    kernel = _kernel_capabilities()
+    declared = _typescript_capabilities(protocol)
+    if kernel != declared:
+        raise ValueError("InitializeResponse.capabilities 与内核不一致：" + _describe(kernel - declared, declared - kernel))
+    return len(kernel)
+
+
 def _registered_methods() -> set[str]:
     try:
         tree = ast.parse(_read(APPLICATION))
@@ -190,7 +245,7 @@ def _describe(missing: set[str], extra: set[str]) -> str:
     return "；".join(parts)
 
 
-def check_protocol() -> tuple[str, int, int, int, int, int]:
+def check_protocol() -> tuple[str, int, int, int, int, int, int]:
     protocol = _read(PROTOCOL)
     python_protocol = _python_protocol_version()
     typescript_protocol = _typescript_protocol_version(protocol)
@@ -215,17 +270,18 @@ def check_protocol() -> tuple[str, int, int, int, int, int]:
     if missing_requests:
         raise ValueError("ServerRequests 缺少内核发送的请求：" + "、".join(sorted(missing_requests)))
     renderer, thread = _check_desktop(client)
-    return python_protocol, len(client), len(notifications), len(requests), renderer, thread
+    capabilities = _check_capabilities(protocol)
+    return python_protocol, len(client), len(notifications), len(requests), capabilities, renderer, thread
 
 
 def main() -> int:
     try:
-        version, methods, notifications, requests, renderer, thread = check_protocol()
+        version, methods, notifications, requests, capabilities, renderer, thread = check_protocol()
     except ValueError as error:
         print(f"协议常量核对失败，{error}", file=sys.stderr)
         return 2
     print(f"协议 {version}、{methods} 个方法、{notifications} 个通知、{requests} 个服务端请求、"
-          f"{renderer} 个渲染层方法、{thread} 个线程方法")
+          f"{capabilities} 个能力、{renderer} 个渲染层方法、{thread} 个线程方法")
     return 0
 
 
