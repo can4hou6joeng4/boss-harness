@@ -354,6 +354,29 @@ def _check_preload_imports() -> int:
     return checked
 
 
+SESSION_EXPORT_FRAGMENTS = (
+    "trustedSender(event)",
+    "validateSessionExportRequest(payload)",
+    "validateThreadExportResponse(response, request)",
+    "writeSessionExport(choice.filePath, exported.content)",
+    "basename(choice.filePath)",
+)
+
+
+def _check_session_export() -> int:
+    text = _main_text("harness.ts")
+    match = re.search(r'ipcMain\.handle\(\s*"session-export:save"', text)
+    if match is None:
+        raise ValueError("apps/desktop/src/main/harness.ts 缺少 session-export:save 处理器")
+    body = _arrow_body(text, match.end())
+    if not body:
+        raise ValueError("session-export:save 处理器缺少主体")
+    missing = [fragment for fragment in SESSION_EXPORT_FRAGMENTS if fragment not in body]
+    if missing:
+        raise ValueError("session-export:save 处理器缺少：" + "、".join(missing))
+    return len(SESSION_EXPORT_FRAGMENTS)
+
+
 def _channel_diff(label: str, expected: set[str], actual: set[str]) -> str:
     missing = sorted(expected - actual)
     extra = sorted(actual - expected)
@@ -525,6 +548,7 @@ def check_desktop_security() -> tuple[int, int, int]:
     preload = _check_preload_bridge()
     exposure = _check_preload_exposure()
     imports = _check_preload_imports()
+    export = _check_session_export()
     ipc = _check_ipc_channels()
     boundary = _check_renderer_boundary()
     csp = _check_renderer_csp()
@@ -532,7 +556,7 @@ def check_desktop_security() -> tuple[int, int, int]:
     origins = _check_origin_policies()
     return (len(EXPECTED), checked,
             allowlist + handlers + navigation + external + preload + exposure + imports
-            + ipc + boundary + csp + trusted + origins)
+            + export + ipc + boundary + csp + trusted + origins)
 
 
 def main() -> int:
