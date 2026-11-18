@@ -104,14 +104,16 @@ def _fit_projection(projected: dict[str, Any], max_bytes: int) -> dict[str, Any]
     """固定字段同样受预算约束：超长 command 保留前缀并标注，可选 source 在必要时让位。"""
     if _fits(projected, max_bytes):
         return projected
-    # 固定字段中只有 command 与 source 可能无界。保留 source 时连空命令都放不下，
-    # 才丢弃仅用于溯源的 source；丢弃后完整命令已能放下时也不必误标截断。
-    if not _fits({**projected, "command": ""}, max_bytes):
-        without_source = {key: value for key, value in projected.items() if key != "source"}
+    # 截断标记也要计入预算；在加入标记前判断 source 是否放得下，避免标记本身
+    # 把恰好合格的投影顶出预算。不可信的持久记录里其他固定字段也可能无界，
+    # 因此返回前必须再次核对，而不是由调用方的最终兜底兜住超长内容。
+    flagged = {**projected, "commandTruncated": True}
+    if not _fits({**flagged, "command": ""}, max_bytes):
+        without_source = {key: value for key, value in flagged.items() if key != "source"}
         if _fits(without_source, max_bytes):
             return without_source
-        projected = without_source
-    projected = {**projected, "commandTruncated": True}
+        flagged = {**without_source, "commandTruncated": True}
+    projected = flagged
     # 留一半预算给结果预览；二分查找 JSON 转义后仍能放下的最长前缀。
     text = _command_text(projected.get("command"))
     low, high = 0, min(len(text), max_bytes // 2)
@@ -149,22 +151,32 @@ def model_result_content(result: dict, item_id: str | None, *, source: dict | No
     if size is not None and size <= max_bytes:
         return json.dumps(payload, ensure_ascii=False, allow_nan=False)
 
+    ok = result.get("ok")
     projected: dict[str, Any] = {
-        "ok": result.get("ok"),
+        "ok": ok if type(ok) is bool else None,
         "command": result.get("command"),
         "resultOmitted": True,
         **outcome,
     }
     if source is not None:
         projected["source"] = source
-    if item_id is not None:
+    if item_id is not None and 0 < len(item_id) <= 128 and not any(
+            "\ud800" <= char <= "\udfff" for char in item_id):
         text = reference_text if reference_text is not None else result_text(result)
         reference = result_reference("", item_id, text)
         projected["resultRef"] = {key: reference[key] for key in
                                   ("itemId", "sha256", "byteLength", "characterLength")}
     else:
+        # 超出 read_session_tool_result 可接受的 itemId 无法形成有效引用；
+        # 不给模型一个必然失败的读取入口。
         projected["resultUnavailable"] = True
     projected = _fit_projection(projected, max_bytes)
+    if not _fits(projected, max_bytes):
+        # 极端损坏记录仍须守住硬预算；预览与来源都是可丢弃的展示细节。
+        minimal = {"ok": projected["ok"], "resultOmitted": True, **outcome,
+                   "resultUnavailable": True}
+        projected = {key: value for key, value in minimal.items()
+                     if value is not None or key == "ok"}
 
     preview = preview if isinstance(preview, str) else ""
     keep = min(len(preview), max_bytes // 2)
@@ -179,7 +191,11 @@ def model_result_content(result: dict, item_id: str | None, *, source: dict | No
             pass
         projected.pop("resultPreview", None)
         if keep <= 1:
-            return json.dumps(projected, ensure_ascii=True, allow_nan=False)
+            escaped = json.dumps(projected, ensure_ascii=True, allow_nan=False)
+            if len(escaped.encode("ascii")) <= max_bytes:
+                return escaped
+            return json.dumps({"ok": projected["ok"], "resultOmitted": True,
+                               "resultUnavailable": True}, ensure_ascii=True, allow_nan=False)
         keep //= 2
 
 
@@ -250,7 +266,7 @@ def model_result_for_item(item: dict, write_tools: frozenset[str] = LEGACY_WRITE
     result = item.get("result")
     if isinstance(result, dict) and isinstance(item.get("id"), str):
         source = item.get("source")
-        return model_result_content(result, item["id"],
+        return model_result_content(wire_value(result), item["id"],
                                     source=wire_value(source) if isinstance(source, dict) else source,
                                     max_bytes=limit, preview=preview,
                                     execution_state=execution_state, disposition=disposition,
@@ -342,7 +358,10 @@ def wire_size(value: Any) -> int:
 
 def _cursor(reference: dict, offset: int) -> str:
     data = [reference["threadId"], reference["itemId"], reference["sha256"], offset]
-    return "tr1_" + base64.urlsafe_b64encode(result_text(data).encode("utf-8")).decode().rstrip("=")
+    # 标识符可能来自损坏记录；ASCII 转义让孤立代理项不破坏游标生成，
+    # 解码后仍与原始标识符相等，绑定校验无需放宽。
+    encoded = json.dumps(data, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
+    return "tr1_" + base64.urlsafe_b64encode(encoded.encode("ascii")).decode().rstrip("=")
 
 
 def canonical_result_text(result: dict) -> str:
