@@ -24,6 +24,7 @@ FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 CLOSING_HASHES = re.compile(r"[ \t]+#+$")
 HTML_TAG = re.compile(r"<[^>]+>")
 LINK_TEXT = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
+COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
 def _strip_fences(text: str, name: str) -> str:
@@ -62,6 +63,7 @@ def _links(path: Path) -> list[str]:
         raise ValueError(f"无法读取 {path.relative_to(ROOT).as_posix()}") from None
     # 示例代码与行内代码里的方括号不是文档链接。
     text = _strip_fences(text, path.relative_to(ROOT).as_posix())
+    text = COMMENT.sub("", text)
     text = re.sub(r"`[^`\n]*`", "", text)
     return LINK.findall(text) + DEFINITION.findall(text)
 
@@ -84,6 +86,7 @@ def _headings(path: Path) -> set[str]:
     except OSError:
         raise ValueError(f"无法读取 {path.relative_to(ROOT).as_posix()}") from None
     text = _strip_fences(text, path.relative_to(ROOT).as_posix())
+    text = COMMENT.sub("", text)
     slugs: set[str] = set()
     for match in HEADING.finditer(text):
         base = _slug(match.group(1))
