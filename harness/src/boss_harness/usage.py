@@ -145,7 +145,7 @@ _BRANCH_SUMMARY = "branch_summary"
 CACHE_MISS_FLOOR = 1024
 
 
-def boundedbounded_identifier(value: Any) -> str | None:
+def bounded_identifier(value: Any) -> str | None:
     """有界标识的共享规范化：先校验长度，再按会话读取规则降级文本。"""
     if not isinstance(value, str) or not 0 < len(value) <= 128:
         return None
@@ -221,7 +221,7 @@ def summarize_usage(entries: Iterable[dict], active_turn_ids: set[str] | None = 
                 cache_prev_prompt = None
                 cache_reported = False
         elif kind == "model_usage":
-            turn_id = boundedbounded_identifier(payload.get("turnId"))
+            turn_id = bounded_identifier(payload.get("turnId"))
             if turn_id is None:
                 continue
             if active_turn_ids is not None and turn_id not in active_turn_ids:
