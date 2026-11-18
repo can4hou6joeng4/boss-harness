@@ -363,6 +363,23 @@ SESSION_EXPORT_FRAGMENTS = (
 )
 
 
+PROCESS_BOUNDARIES = (
+    ("apps/desktop/src/main", "../renderer", "主进程不得导入渲染层源码"),
+    ("apps/desktop/src/preload", "../main", "preload 不得导入主进程源码"),
+)
+
+
+def _check_process_boundaries() -> int:
+    for area, marker, message in PROCESS_BOUNDARIES:
+        for path in sorted((ROOT / area).rglob("*.ts")):
+            for specifier in PRELOAD_IMPORT.findall(path.read_text(encoding="utf-8")):
+                if marker in specifier:
+                    raise ValueError(
+                        f"{message}：{path.relative_to(ROOT).as_posix()} → {specifier}"
+                    )
+    return len(PROCESS_BOUNDARIES)
+
+
 def _check_session_export() -> int:
     text = _main_text("harness.ts")
     match = re.search(r'ipcMain\.handle\(\s*"session-export:save"', text)
@@ -548,6 +565,7 @@ def check_desktop_security() -> tuple[int, int, int]:
     preload = _check_preload_bridge()
     exposure = _check_preload_exposure()
     imports = _check_preload_imports()
+    boundaries = _check_process_boundaries()
     export = _check_session_export()
     ipc = _check_ipc_channels()
     boundary = _check_renderer_boundary()
@@ -556,7 +574,7 @@ def check_desktop_security() -> tuple[int, int, int]:
     origins = _check_origin_policies()
     return (len(EXPECTED), checked,
             allowlist + handlers + navigation + external + preload + exposure + imports
-            + export + ipc + boundary + csp + trusted + origins)
+            + boundaries + export + ipc + boundary + csp + trusted + origins)
 
 
 def main() -> int:
