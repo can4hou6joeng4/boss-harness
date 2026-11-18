@@ -1,3 +1,10 @@
+## 0.2.0-rc.167 - 2026-11-18
+
+rc.167 源码候选禁止渲染层入口嵌入与远程资源。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求 `index.html` 不得包含 `iframe` / `webview` / `object` / `embed`，且 `src` / `href` / `action` 不得引用远程或协议相对 URL；桌面防护计数达到 121。[Issue #2458](https://github.com/can4hou6joeng4/boss-harness/issues/2458)
+- 嵌入元素与远程样式两个负向探针均触发对应错误；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.167` / Python `0.2.0rc167`。
+
 ## 0.2.0-rc.166 - 2026-11-18
 
 rc.166 源码候选限制主进程的脚本执行与调试器入口。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
