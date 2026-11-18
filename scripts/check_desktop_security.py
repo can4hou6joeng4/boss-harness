@@ -15,6 +15,12 @@ PRELOAD_INVOKE = re.compile(r'ipcRenderer\.invoke\(\s*"([^"]+)"')
 PRELOAD_LISTEN = re.compile(r'ipcRenderer\.on\(\s*"([^"]+)"')
 MAIN_HANDLE = re.compile(r'ipcMain\.handle\(\s*"([^"]+)"')
 MAIN_SEND = re.compile(r'\b(?:send|sendWhenLoaded)\(\s*(?:[^,()]+,\s*)?"([^"]+)"')
+CHANNEL_CALLS = (
+    (re.compile(r'\bipcRenderer\.invoke\(\s*(?!")'), "ipcRenderer.invoke"),
+    (re.compile(r'\bipcRenderer\.on\(\s*(?!")'), "ipcRenderer.on"),
+    (re.compile(r'\bipcRenderer\.removeListener\(\s*(?!")'), "ipcRenderer.removeListener"),
+    (re.compile(r'\bipcMain\.handle\(\s*(?!")'), "ipcMain.handle"),
+)
 EXPECTED: dict[str, dict[str, bool]] = {
     "window.ts": {
         "contextIsolation": True,
@@ -582,6 +588,19 @@ def _check_ipc_channels() -> int:
     return len(handled) * 2 + len(sent) + 2
 
 
+def _check_channel_literals() -> int:
+    for area in (MAIN, ROOT / "apps/desktop/src/preload"):
+        for path in sorted(area.rglob("*.ts")):
+            text = path.read_text(encoding="utf-8")
+            for pattern, name in CHANNEL_CALLS:
+                if pattern.search(text):
+                    raise ValueError(
+                        "IPC 通道必须使用双引号字符串字面量："
+                        f"{path.relative_to(ROOT).as_posix()} 的 {name}"
+                    )
+    return len(CHANNEL_CALLS)
+
+
 ORIGIN_POLICIES: dict[str, tuple[str, ...]] = {
     "isTrustedRendererUrl": (
         'actual.protocol === "file:"',
@@ -655,6 +674,7 @@ def check_desktop_security() -> tuple[int, int, int]:
     boundaries = _check_process_boundaries()
     export = _check_session_export()
     ipc = _check_ipc_channels()
+    literals = _check_channel_literals()
     boundary = _check_renderer_boundary()
     csp = _check_renderer_csp()
     bootstrap = _check_renderer_bootstrap()
@@ -663,7 +683,8 @@ def check_desktop_security() -> tuple[int, int, int]:
     origins = _check_origin_policies()
     return (len(EXPECTED), checked,
             allowlist + handlers + navigation + external + preload + exposure + imports
-            + boundaries + export + ipc + boundary + csp + bootstrap + embed + trusted + origins)
+            + boundaries + export + ipc + literals + boundary + csp + bootstrap + embed
+            + trusted + origins)
 
 
 def main() -> int:

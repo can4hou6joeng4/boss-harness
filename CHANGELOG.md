@@ -1,3 +1,10 @@
+## 0.2.0-rc.170 - 2026-11-18
+
+rc.170 源码候选固定 IPC 通道为双引号字符串字面量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求 `ipcRenderer.invoke` / `on` / `removeListener` 与 `ipcMain.handle` 的首个参数为双引号字符串字面量，模板字符串或变量不再绕过通道集合核对；桌面防护计数达到 129。[Issue #2464](https://github.com/can4hou6joeng4/boss-harness/issues/2464)
+- 模板字符串与变量传参两个负向探针均触发对应错误；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.170` / Python `0.2.0rc170`。
+
 ## 0.2.0-rc.169 - 2026-11-18
 
 rc.169 源码候选限制 preload 的进程能力面。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
