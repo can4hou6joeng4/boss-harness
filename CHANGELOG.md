@@ -1,3 +1,10 @@
+## 0.2.0-rc.153 - 2026-11-18
+
+rc.153 源码候选核对主进程与渲染层的导入方向。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 扫描 `apps/desktop/src/main` 的导入，出现 `../renderer` 路径即失败；扫描 preload 的导入，出现 `../main` 路径即失败。[Issue #2430](https://github.com/can4hou6joeng4/boss-harness/issues/2430)
+- 两个方向各做负向探针均触发对应失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.153` / Python `0.2.0rc153`。
+
 ## 0.2.0-rc.152 - 2026-11-18
 
 rc.152 源码候选要求工作流 action 引用固定到主版本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
