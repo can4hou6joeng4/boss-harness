@@ -125,7 +125,8 @@ export function turnOf(value: unknown): ThreadUsageTurn | null {
   if (!bucket) return null;
   const raw = value as Record<string, unknown>;
   const providers = strings(raw.providers, 8), models = strings(raw.models, 8);
-  if (typeof raw.turnId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(raw.turnId) || !providers || !models) return null;
+  const turnId = turnIdOrNull(raw.turnId);
+  if (!turnId || !providers || !models) return null;
   const compactionPolicy = compactionPolicyOf(raw.compactionPolicy);
   const skillIds = skillIdsOf(raw.skillIds);
   const timing: Partial<ThreadUsageTurn> = {};
@@ -133,7 +134,7 @@ export function turnOf(value: unknown): ThreadUsageTurn | null {
   if (startedAt) timing.startedAt = startedAt;
   if (completedAt) timing.completedAt = completedAt;
   if (typeof raw.status === "string" && TURN_STATUSES.has(raw.status)) timing.status = raw.status as ThreadUsageTurn["status"];
-  return { ...bucket, turnId: raw.turnId, providers, models,
+  return { ...bucket, turnId, providers, models,
     ...(skillIds ? { skillIds } : {}),
     ...timing,
     ...(compactionPolicy ? { compactionPolicy } : {}) };
@@ -141,6 +142,12 @@ export function turnOf(value: unknown): ThreadUsageTurn | null {
 
 const idOrNull = (value: unknown): string | null | undefined => value === null ? null
   : typeof value === "string" && value.length > 0 && value.length <= 128 ? value : undefined;
+
+/**
+ * 回合用量标识与内核 `bounded_identifier` 一致：非空、有界文本即可，不额外限制
+ * 字符集。持久记录中的空格等字符只影响展示，不能让整页用量读取失败。
+ */
+const turnIdOrNull = idOrNull;
 
 /**
  * 分页结束后的整组校验：同一回合只能出现一次；未截断时必须覆盖内核声明的全部回合。
