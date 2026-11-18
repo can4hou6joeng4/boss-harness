@@ -21,11 +21,12 @@ uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python -e ./harness build packaging
 .venv/bin/python scripts/check_versions.py
 .venv/bin/python scripts/check_protocol.py
+.venv/bin/python scripts/check_search_unicode.py
 .venv/bin/python -m build ./harness --outdir dist/python
 git diff --check
 ```
 
-以上命令用于开发检查，允许使用工作树中的未提交改动；发布构建必须按 [RELEASING.md](RELEASING.md) 从指定提交的 `git archive` 隔离目录执行，避免未跟踪文件进入资产。两个检查脚本与 CI 在安装依赖前运行的版本检查、协议检查一致。
+以上命令用于开发检查，允许使用工作树中的未提交改动；发布构建必须按 [RELEASING.md](RELEASING.md) 从指定提交的 `git archive` 隔离目录执行，避免未跟踪文件进入资产。三个检查脚本与 CI 在安装依赖前运行的版本检查、协议检查、搜索归一化检查一致。
 
 变更还需完成适用的工具契约、执行状态、中断、审批、异常恢复和上游兼容验证。离线验证使用模拟工具、脱敏数据和独立临时目录，避免调用真实平台或读取真实会话。
 

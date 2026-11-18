@@ -1,3 +1,10 @@
+## 0.2.0-rc.106 - 2026-11-18
+
+rc.106 源码候选加入双端搜索归一化的全码点核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_search_unicode.py`：Python 侧按 `needs_extra` 选择补表路径，Node 侧导入桌面 `caseFold.ts`，对全部 Unicode 标量值按 0x1000 分块比较 SHA-256 摘要；不一致时列出码点区间并以退出码 2 失败。[Issue #2335](https://github.com/can4hou6joeng4/boss-harness/issues/2335)
+- CI 在安装依赖前运行该检查；CONTRIBUTING、README、发布约定与技术参考补充入口和覆盖范围。候选版本号和使用指南同步为 npm `0.2.0-rc.106` / Python `0.2.0rc106`。
+
 ## 0.2.0-rc.105 - 2026-11-18
 
 rc.105 源码候选补齐宿主通知与未使用协议常量的核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
