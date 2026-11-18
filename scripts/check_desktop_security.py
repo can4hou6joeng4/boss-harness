@@ -148,6 +148,22 @@ def _check_permission_handlers() -> int:
     return checked
 
 
+def _check_preload_bridge() -> int:
+    relative = "apps/desktop/src/preload/index.ts"
+    path = ROOT / relative
+    if not path.is_file():
+        raise ValueError(f"缺少桌面 preload 文件 {relative}")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        raise ValueError(f"无法读取 {relative}") from None
+    if "contextBridge.exposeInMainWorld(" not in text:
+        raise ValueError(f"{relative} 必须通过 contextBridge.exposeInMainWorld 暴露 API")
+    if re.search(r"exposeInMainWorld\([^;]*\bipcRenderer\b", text):
+        raise ValueError(f"{relative} 不得直接暴露 ipcRenderer")
+    return 2
+
+
 def check_desktop_security() -> tuple[int, int, int]:
     checked = 0
     for name, expected in EXPECTED.items():
@@ -157,7 +173,8 @@ def check_desktop_security() -> tuple[int, int, int]:
         raise ValueError("未登记的 webPreferences：" + "、".join(unregistered))
     allowlist = _check_permission_allowlist()
     handlers = _check_permission_handlers()
-    return len(EXPECTED), checked, allowlist + handlers
+    preload = _check_preload_bridge()
+    return len(EXPECTED), checked, allowlist + handlers + preload
 
 
 def main() -> int:
@@ -166,7 +183,7 @@ def main() -> int:
     except (OSError, ValueError) as error:
         print(f"桌面安全配置核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"桌面安全配置一致：{blocks} 个 webPreferences 块、{checked} 项布尔值、{guards} 项权限与导航防护")
+    print(f"桌面安全配置一致：{blocks} 个 webPreferences 块、{checked} 项布尔值、{guards} 项权限、导航与桥接防护")
     return 0
 
 
