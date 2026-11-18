@@ -1,3 +1,10 @@
+## 0.2.0-rc.110 - 2026-11-18
+
+rc.110 源码候选把桌面方法字面量纳入协议核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_protocol.py` 扫描 `apps/desktop/src` 中含 `/` 的 `method` 比较与对象字段字面量，要求全部出现在 `ClientMethods` 或 `ServerNotifications`；当前 53 个方法名通过。[Issue #2343](https://github.com/can4hou6joeng4/boss-harness/issues/2343)
+- 技术参考的不变量清单更新为七类；发布约定补充桌面方法字面量范围。候选版本号和使用指南同步为 npm `0.2.0-rc.110` / Python `0.2.0rc110`。
+
 ## 0.2.0-rc.109 - 2026-11-18
 
 rc.109 源码候选加入用户文档相对链接核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
