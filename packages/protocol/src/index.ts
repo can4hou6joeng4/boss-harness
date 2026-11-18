@@ -1373,7 +1373,9 @@ export interface ThreadUsageSummaryJob extends ThreadUsageBucket {
   turnId: string | null;
   /** 压缩摘要实际覆盖到的回合；分支摘要或无记录时为 null，旧内核不返回。 */
   throughTurnId?: string | null;
+  /** 自动压缩的触发原因；手动压缩与分支摘要为 null。 */
   reason: "threshold" | "budget" | "overflow" | null;
+  /** 摘要作者（模型生成或用户提供），不表示手动 / 自动触发；手动压缩同样由模型生成。 */
   origin: "user" | "model" | null;
   /** 当前分支上验证通过并生效的压缩摘要任务；旧内核或非生效任务不返回。 */
   active?: boolean;

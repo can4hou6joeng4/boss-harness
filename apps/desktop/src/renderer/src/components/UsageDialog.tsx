@@ -111,7 +111,7 @@ export function UsageDialog({ isOpen, onClose, state, messages, target, branchVi
           <div className="usage-table-wrap"><table className="usage-table">
             <thead><tr><th>摘要任务</th><th>回合</th><th>模型</th><th>请求</th><th>输入</th><th>输出</th></tr></thead>
             <tbody>{data.summaryJobs.map(job => <tr key={job.jobId} data-usage-summary-job={job.jobId}>
-              <td><span>{usageJobSource(job)}</span>{job.active && <span className="usage-active-badge" data-usage-field="active" title="当前分支上已验证生效的压缩摘要任务">当前生效</span>}<small title={job.jobId}>{[job.reason ? USAGE_JOB_REASONS[job.reason] ?? job.reason : "", job.origin === "user" ? "手动" : job.origin === "model" ? "自动" : ""].filter(Boolean).join(" · ") || job.jobId}</small></td>
+              <td><span>{usageJobSource(job)}</span>{job.active && <span className="usage-active-badge" data-usage-field="active" title="当前分支上已验证生效的压缩摘要任务">当前生效</span>}<small title={job.jobId}>{[job.reason ? USAGE_JOB_REASONS[job.reason] ?? job.reason : "", job.jobId].filter(Boolean).join(" · ")}</small></td>
               <td><span>{job.turnId ? turnLabelById(job.turnId) : DASH}</span>{job.throughTurnId && job.throughTurnId !== job.turnId && <small data-usage-field="throughTurnId">摘要至 {turnLabelById(job.throughTurnId)}</small>}</td>
               <td><span>{job.models.join("、") || DASH}</span><small>{job.providers.join("、")}</small></td>
               <td data-usage-field="requests">{number(job.requests)}{usageUnreported(job) > 0 && <small title="provider 未上报用量，不是 0">未上报 {number(usageUnreported(job))}</small>}{job.unverifiedRequests > usageUnreported(job) && <small title={`未计入：${reasons(job)}`}>不计入 {number(job.unverifiedRequests - usageUnreported(job))}</small>}</td>
