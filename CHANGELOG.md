@@ -1,3 +1,19 @@
+## 0.2.0-rc.90 - 2026-11-18
+
+本节汇总第九十个候选版本的源码与交付内容。相对 rc.89，本候选在技术参考中补充服务端通知清单。rc.16 至 rc.90 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 技术参考按回合、流式内容、工具与审批、会话、队列、上下文和宿主连接分组列出 34 个 `ServerNotifications` 方法，说明 `toolCall/executing` 的可选性及双向审批使用 `item/tool/requestApproval` 服务端请求（#2290、#2291）。
+- 同步 npm / Python 版本到 `0.2.0-rc.90` / `0.2.0rc90`（#2292）。
+
+升级注意：不改变 JSON-RPC 协议版本、工具权限、会话持久化格式或存储键；rc.89 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2290](https://github.com/can4hou6joeng4/boss-harness/issues/2290)：补充服务端通知清单与兼容边界。
+- [Issue #2292](https://github.com/can4hou6joeng4/boss-harness/issues/2292)：准备 rc.90 源码候选并同步版本来源。
+
 ## 0.2.0-rc.89 - 2026-11-18
 
 本节汇总第八十九个候选版本的源码与交付内容。相对 rc.88，本候选补齐内核实际发送的 `toolCall/executing` 协议通知常量。rc.16 至 rc.89 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
