@@ -12,10 +12,10 @@ Garay 大写字母，Python ≤ 3.11 不分解 Unicode 15 的西里尔修饰字�
 运行时已应用映射时原码点不再出现，重复套用保持幂等；Unicode 的大小写映射与
 已分配码点的分解一经分配即保持稳定。
 
-映射以桌面运行时为准。升级 Node 的 Unicode 版本或调整最低 Python 版本后，对
-全部码点逐一比较 ``search_normalize(chr(cp))`` 与桌面 ``kernelSearchText``，
-按差异增删条目；半角假名、谚文组合等跨码点规则由 ``session._search_clusters``
-负责，不在这两张表内。
+映射以桌面运行时为准。升级 Node 的 Unicode 版本或调整最低 Python 版本后，
+运行 ``scripts/check_search_unicode.py`` 对照全部码点，按差异增删条目；脚本比较
+``search_normalize(chr(cp))`` 与桌面 ``caseFold.ts`` 的 NFKC + casefold 结果。
+半角假名、谚文组合等跨码点规则由 ``session._search_clusters`` 负责，不在这些表内。
 
 ``_GRAPHEME_EXTEND_EXTRA`` 与 ``_CCC_EXTRA`` 处理另一层差异：桌面按
 Unicode 17 的字素属性合并组合记号，并按组合类做规范排序；受支持 Python

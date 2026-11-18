@@ -34,6 +34,8 @@ jobs:
           printf 'python=%s\n' "$SOURCE_VERSION" >> "$GITHUB_OUTPUT"
       - name: Verify protocol constants
         run: python scripts/check_protocol.py
+      - name: Verify search normalization
+        run: python scripts/check_search_unicode.py
       - run: npm ci
       # 生产产物不打包开发依赖；生产树按 moderate 阻断，开发树仍按 critical 阻断，
       # 避免上游尚无修复版的高危构建工具公告长期冻结所有源码 PR。
