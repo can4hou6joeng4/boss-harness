@@ -11,6 +11,7 @@
 | 搜索、审批、通知、队列与会话界面 | [桌面交互指南](docs/DESKTOP_GUIDE.md) |
 | 请求边界、预算、恢复与 RPC 契约 | [内核与业务契约参考](docs/TECHNICAL_REFERENCE.md) |
 | 版本范围与实际发布资产 | [CHANGELOG](CHANGELOG.md) 与 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) |
+| 当前实现与待验收范围 | [项目状态与待验收范围](docs/STATUS.md) |
 
 `none` 线路不调用模型，但仍可能调用 `boss-agent-cli`。本仓库当前从源码构建桌面，不提供独立签名安装包；真实模型、招聘平台与安装包验收需要单独进行。
 
