@@ -1,3 +1,11 @@
+## 0.2.0-rc.198 - 2026-11-18
+
+rc.198 源码候选支持把排队消息原子转为当前回合。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `queue/steer` 与 `queueSteer` 能力：只在当前回合存在且 `expectedTurnId` 匹配时，把 `queued` 的 follow-up 在同一条队列记录上改为 steering，保留 id / 正文 / 请求编号，不产生重复队列项。[Issue #2520](https://github.com/can4hou6joeng4/boss-harness/issues/2520)
+- 带 `skillIds` 或自动压缩覆盖的项明确拒绝；桌面队列面板增加「转为当前回合」按钮，无运行回合、断连或批量操作时禁用并说明原因。
+- 状态机探针覆盖成功转换、错误回合、覆盖选项拒绝与注入落库；全部检查通过。版本推进到 npm `0.2.0-rc.198` / Python `0.2.0rc198`。不执行发布动作。
+
 ## 0.2.0-rc.197 - 2026-11-18
 
 rc.197 源码候选加固版本元数据校验。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

@@ -340,6 +340,32 @@ class TurnQueue:
                 "clientUserMessageId": client_id, "skillIds": skill_ids,
                 **({"autoCompaction": auto_compaction} if auto_compaction is not None else {})})
 
+    def promote_to_steering(self, thread_id: str, queue_id: str, turn_id: str) -> dict:
+        """Atomically turn an unclaimed follow-up into steering for the active turn.
+
+        The queue id is preserved so the existing steering claim / delivery path
+        can append the message once, without a second queue record.
+        """
+        if not isinstance(turn_id, str) or not turn_id or len(turn_id) > 128:
+            raise ValueError("expectedTurnId 格式无效")
+        with self.lock:
+            self.settle_pauses(thread_id)
+            item = self.get(thread_id, queue_id)
+            if item.get("status") != "queued":
+                raise ValueError("只有排队中的消息可以转为当前回合")
+            if item.get("kind") != "followUp":
+                raise ValueError("只有后续回合消息可以转为当前回合")
+            if item.get("skillIds"):
+                raise ValueError("带技能的消息不能转为当前回合")
+            if item.get("autoCompaction") is not None:
+                raise ValueError("带自动压缩覆盖的消息不能转为当前回合")
+            promoted = {"id": item["id"], "kind": "steering", "input": item["input"],
+                        "status": "queued", "expectedTurnId": turn_id, "skillIds": []}
+            client_id = item.get("clientUserMessageId")
+            if isinstance(client_id, str):
+                promoted["clientUserMessageId"] = client_id
+            return self._save(thread_id, promoted)
+
     def update_input(self, thread_id: str, queue_id: str, text: str) -> dict:
         """Replace the text of an unclaimed queue item without touching its identity."""
         if not isinstance(text, str) or not text.strip() or len(text) > MAX_QUEUE_INPUT_CHARS:

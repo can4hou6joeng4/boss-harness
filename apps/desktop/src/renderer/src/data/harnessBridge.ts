@@ -30,6 +30,7 @@ import {
   type AutoCompactionSetResponse,
   type TurnSteerParams,
   type QueueAddParams,
+  type QueueSteerParams,
   type QueueItem,
   type QueueItemResponse,
   type QueueListResponse,
@@ -465,6 +466,14 @@ export async function updateQueuedItem(threadId: string, queueId: string, input:
   const api = bridge();
   if (!api) throw new Error("本地 Harness 未连接");
   const response = await api.request<QueueItemResponse>(ClientMethods.queueUpdate, { threadId, queueId, input });
+  return requireQueueItem(response);
+}
+
+/** 仅内核声明 `queueSteer` 后调用；把排队 follow-up 原子转为当前回合 steering。 */
+export async function steerQueuedItem(params: QueueSteerParams): Promise<QueueItem> {
+  const api = bridge();
+  if (!api) throw new Error("本地 Harness 未连接");
+  const response = await contextRequest<QueueItemResponse>(ClientMethods.queueSteer, params);
   return requireQueueItem(response);
 }
 

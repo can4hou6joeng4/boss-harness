@@ -13,6 +13,8 @@ export interface QueueActionState {
   pendingRetryId: string | null;
   /** 正在撤回的队列项；同一会话同一时间只允许一个队列写操作。 */
   pendingRemoveId: string | null;
+  /** 正在转为当前回合 steering 的队列项；与撤回、重新排队共用一把锁。 */
+  pendingSteerId: string | null;
   /** 面板级提示：刷新、读取或重新排队的失败与待核对原因。 */
   error: string;
   /** 撤回确认框的提示；确认框未打开时并入面板级提示，避免背景失败不可见。 */
@@ -20,7 +22,7 @@ export interface QueueActionState {
 }
 
 function createActions() {
-  let state: QueueActionState = { pendingRetryId: null, pendingRemoveId: null, error: "", removeMessage: "" };
+  let state: QueueActionState = { pendingRetryId: null, pendingRemoveId: null, pendingSteerId: null, error: "", removeMessage: "" };
   const listeners = new Set<() => void>();
   const update = (next: QueueActionState) => {
     if (next === state) return;
@@ -41,6 +43,11 @@ function createActions() {
     settleRemove: (itemId: string, removeMessage: string) => {
       if (state.pendingRemoveId !== itemId) return;
       update({ ...state, pendingRemoveId: null, removeMessage });
+    },
+    beginSteer: (itemId: string) => update({ ...state, pendingSteerId: itemId, error: "", removeMessage: "" }),
+    settleSteer: (itemId: string, error: string) => {
+      if (state.pendingSteerId !== itemId) return;
+      update({ ...state, pendingSteerId: null, error });
     },
     setError: (error: string) => update({ ...state, error }),
     setRemoveMessage: (removeMessage: string) => update({ ...state, removeMessage }),
@@ -64,5 +71,6 @@ export function useQueueActions(threadId?: string) {
   const store = threadId ? queueActionsFor(threadId) : local;
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
   return { ...state, getState: store.getSnapshot, beginRetry: store.beginRetry, settleRetry: store.settleRetry,
-    beginRemove: store.beginRemove, settleRemove: store.settleRemove, setError: store.setError, setRemoveMessage: store.setRemoveMessage };
+    beginRemove: store.beginRemove, settleRemove: store.settleRemove, beginSteer: store.beginSteer,
+    settleSteer: store.settleSteer, setError: store.setError, setRemoveMessage: store.setRemoveMessage };
 }

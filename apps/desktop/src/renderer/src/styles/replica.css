@@ -152,6 +152,8 @@ kbd { font: 10px var(--font-sans); color: var(--text-faint); }
 .turn-queue li>button.turn-queue-retry:hover { background: var(--btn-ghost-hover); }
 .turn-queue li>button.turn-queue-edit { flex: 0 0 auto; width: auto; padding: 0 7px; font-size: 10px; white-space: nowrap; color: var(--accent-color); }
 .turn-queue li>button.turn-queue-edit:hover { background: var(--btn-ghost-hover); }
+.turn-queue li>button.turn-queue-steer { flex: 0 0 auto; width: auto; padding: 0 7px; font-size: 10px; white-space: nowrap; color: var(--accent-color); }
+.turn-queue li>button.turn-queue-steer:hover { background: var(--btn-ghost-hover); }
 .turn-queue li>button:hover { color: var(--accent-warning); background: var(--btn-ghost-hover); }
 .turn-queue li>button:disabled { opacity: .45; cursor: wait; }
 .turn-queue-item-copy>button.turn-queue-expand { grid-column: 1 / -1; justify-self: start; padding: 0; border: 0; border-radius: 3px; background: transparent; color: var(--accent-color); font-size: 10px; cursor: pointer; }

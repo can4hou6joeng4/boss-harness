@@ -20,7 +20,7 @@ import { parseThemePreference, resolveDarkTheme, serializeThemePreference, type 
 import { branchSupport, branchSwitchBlock, useSessionBranches } from "./data/useSessionBranches";
 import { IconClose } from "./components/Icons";
 import { MOCK_PROJECT_FOLDERS, MOCK_CONVERSATION_THREAD, type ProjectFolder, type SessionItem, type MessageItem, type ConversationMode } from "./data/mockData";
-import { HARNESS_PROJECT_ID, HARNESS_PROJECT_NAME, archiveThread, configuredModels, deleteThread, harnessErrorText, harnessStatus, isHarnessRpcRejection, forkThread, interruptTurn, listThreads, listQueue, readTurnSkillIds, queueFollowUp, readQueueItem, reconnectHarness, removeQueuedItem, renameThread, respondApproval, sendTurn, setThreadModel, startThread, steerTurn, readTurnContinuation, continueTurn, unarchiveThread, updateQueuedItem } from "./data/harnessBridge";
+import { HARNESS_PROJECT_ID, HARNESS_PROJECT_NAME, archiveThread, configuredModels, deleteThread, harnessErrorText, harnessStatus, isHarnessRpcRejection, forkThread, interruptTurn, listThreads, listQueue, readTurnSkillIds, queueFollowUp, readQueueItem, reconnectHarness, removeQueuedItem, renameThread, respondApproval, sendTurn, setThreadModel, startThread, steerTurn, steerQueuedItem, readTurnContinuation, continueTurn, unarchiveThread, updateQueuedItem } from "./data/harnessBridge";
 import { approvalRejectionNotice, approvalRejectionRefreshes, approvalUnconfirmedNotice, autoApprovalRejectionNotice } from "./data/approvalFailure";
 import { approvalSubmissionFor } from "./data/approvalSubmission";
 import { deleteThreadFailure } from "./data/deleteThreadError";
@@ -1135,6 +1135,33 @@ export function App(): JSX.Element {
     }
     return updated;
   }, [applyQueuePage, harnessUp]);
+  const handleSteerQueueItem = useCallback(async (item: QueueItem): Promise<QueueActionOutcome> => {
+    const session = activeRef.current;
+    if (!session || session.projectId !== HARNESS_PROJECT_ID) return { status: "skipped", reason: "当前会话不连接本机内核" };
+    if (!harnessUp) return { status: "skipped", reason: "本机内核未连接" };
+    if (session.archived === true) return { status: "skipped", reason: "会话已归档，请先在侧栏恢复会话" };
+    if (!runningRef.current.has(session.id)) return { status: "skipped", reason: "当前没有运行中的回合" };
+    if (item.kind !== "followUp" || item.status !== "queued") {
+      return { status: "skipped", reason: "只有排队中的后续消息可以转为当前回合" };
+    }
+    if ((item.skillIds?.length ?? 0) > 0) return { status: "skipped", reason: "带技能的消息不能转为当前回合" };
+    if (item.autoCompaction) return { status: "skipped", reason: "带自动压缩覆盖的消息不能转为当前回合" };
+    const expectedTurnId = turnIds.current.get(session.id);
+    if (!expectedTurnId) return { status: "skipped", reason: "当前回合标识尚未就绪" };
+    let updated: QueueItem;
+    try {
+      updated = await steerQueuedItem({ threadId: session.id, queueId: item.id, expectedTurnId });
+    } catch (cause) {
+      const rejection = queueRetryRejection(cause);
+      if (rejection) return rejection;
+      throw cause;
+    }
+    if (activeRef.current?.id === session.id) {
+      queueReads.current.invalidate(session.id);
+      applyQueuePage(patchQueuePage(queueCache.current.get(session.id), updated), session.id);
+    }
+    return { status: "done" };
+  }, [applyQueuePage, harnessUp]);
   const handleInterrupt = useCallback(() => {
     const id = activeRef.current?.id; if (!id || !runningRef.current.has(id)) return;
     const timer = timers.current.get(id);
@@ -1264,7 +1291,7 @@ export function App(): JSX.Element {
   return <>
     <AppShell isDark={isDark} theme={theme} onToggleTheme={() => setTheme(isDark ? "light" : "dark")} onThemeChange={setTheme} isSidebarOpen={isSidebarOpen} onToggleSidebar={() => setIsSidebarOpen(previous => !previous)}
       folders={folders} activeSession={activeSession} isHomeView={isHomeView} messages={messages} turnSkillIds={turnSkillIds} currentMode={currentMode} onModeChange={setCurrentMode} completedUnread={completedUnread} loadingHistory={activeSession !== null && loadingHistory === activeSession.id}
-      onSelectSession={handleSelectSession} onNewTask={handleNewTask} onDeleteSession={handleDeleteSession} onArchiveSession={handleArchiveSession} onRenameSession={window.boss ? handleRenameSession : undefined} onSendMessage={handleSendMessage} onQueueMessage={handleQueueMessage} onCheckQueueSubmission={handleCheckQueueSubmission} queueItems={queueItems} queueTotalItems={queueMeta.totalItems} queueActiveItems={queueMeta.activeItems} queueTruncated={queueMeta.truncated} onRemoveQueueItem={handleRemoveQueueItem} onRetryQueueItem={handleRetryQueueItem} onReadQueueItem={handleReadQueueItem} onUpdateQueueItem={capabilities?.queueUpdate === true ? handleUpdateQueueItem : undefined} onRefreshQueue={handleRefreshQueue} autoCompactionConfig={capabilities?.autoCompactionConfig === true} simulateLocal={preview} harnessUp={harnessUp} sessionsLoaded={sessionsLoaded}
+      onSelectSession={handleSelectSession} onNewTask={handleNewTask} onDeleteSession={handleDeleteSession} onArchiveSession={handleArchiveSession} onRenameSession={window.boss ? handleRenameSession : undefined} onSendMessage={handleSendMessage} onQueueMessage={handleQueueMessage} onCheckQueueSubmission={handleCheckQueueSubmission} queueItems={queueItems} queueTotalItems={queueMeta.totalItems} queueActiveItems={queueMeta.activeItems} queueTruncated={queueMeta.truncated} onRemoveQueueItem={handleRemoveQueueItem} onRetryQueueItem={handleRetryQueueItem} onReadQueueItem={handleReadQueueItem} onUpdateQueueItem={capabilities?.queueUpdate === true ? handleUpdateQueueItem : undefined} onSteerQueueItem={capabilities?.queueSteer === true ? handleSteerQueueItem : undefined} steerAvailable={Boolean(activeSession && runningThreadIds.has(activeSession.id))} onRefreshQueue={handleRefreshQueue} autoCompactionConfig={capabilities?.autoCompactionConfig === true} simulateLocal={preview} harnessUp={harnessUp} sessionsLoaded={sessionsLoaded}
       onCreateConnectionSession={createConnectionSession}
       sessionReasoning={contextThreadId ? sessionReasoning : undefined}
       running={Boolean(activeSession && runningThreadIds.has(activeSession.id))} stopping={Boolean(activeSession && stoppingThreadIds.has(activeSession.id))} taskBlocked={startingSession || branchSummaryRunning}
