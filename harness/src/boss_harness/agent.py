@@ -20,7 +20,7 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 
-from boss_harness.context import ContextBudgetExceeded, messages_from_items
+from boss_harness.context import ContextBudgetExceeded, messages_from_items, request_fingerprint
 from boss_harness.compaction import ContextCompactionFailed
 from boss_harness.hooks import LifecycleHooks
 from boss_harness.item_content import wire_value
@@ -1001,6 +1001,7 @@ class TurnRunner:
                     except ModelRequestRejected as exc:
                         return self._request_rejected(thread_id, exc)
                     self._record_preparation(thread_id, request, request_budget)
+                steering_applied = bool(staged and staged[0])
                 try:
                     request = check_model_request(self.lifecycle_hooks, self.config, request, request_budget,
                         purpose="turn", request_index=_round, cancel_event=self._cancel,
@@ -1014,6 +1015,11 @@ class TurnRunner:
                         commit()
                 elif staged is not None:
                     staged[1]()
+                if steering_applied and self.request_preparer is not None:
+                    # Committed steering is part of the request actually sent.
+                    # Persist its boundary before a stream error can interrupt
+                    # the turn; continuation selects the latest budget cutoff.
+                    self._record_preparation(thread_id, request, request_budget, steering=True)
                 self._record_phase("model_request", _round + 1)
                 tool_batch_id = uuid.uuid4().hex[:12]
                 assistant, error, interrupted, assistant_item_id = self._stream_round(
@@ -1225,8 +1231,12 @@ class TurnRunner:
         })
         return "error"
 
-    def _record_preparation(self, thread_id: str, request: ModelRequest, budget: dict[str, Any]) -> None:
+    def _record_preparation(self, thread_id: str, request: ModelRequest, budget: dict[str, Any],
+                            *, steering: bool = False) -> None:
         snapshot = {**budget, "provider": self.config.provider, "turnId": self.turn_id}
+        if steering:
+            snapshot["requestFingerprint"] = request_fingerprint(self.config.provider, request)
+            snapshot["steeringApplied"] = True
         self.sessions.append(thread_id, Entry(type="context_budget", payload=snapshot))
         self.last_preparation = (request, snapshot)
 

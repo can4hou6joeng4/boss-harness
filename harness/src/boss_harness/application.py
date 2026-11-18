@@ -3345,6 +3345,16 @@ class ApplicationService:
                 return fail("CONTINUATION_BOUNDARY_INVALID", "没有可验证的模型请求或工具结果边界。")
 
             boundary_ordinal, boundary_entry_id, boundary_kind = max(candidates, key=lambda candidate: candidate[0])
+            steering_items = [item for item in source_items if item.get("kind") == "userMessage"
+                              and item.get("source") == "steering"]
+            orphaned = []
+            for item in steering_items:
+                index = next((i for i, entry in enumerate(entries) if entry.get("id") == item["id"]), None)
+                if index is not None and index > boundary_ordinal:
+                    orphaned.append(item["id"])
+            if orphaned:
+                return fail("CONTINUATION_STEERING_OUTSIDE_BOUNDARY",
+                    "已投递的转向消息不在可验证请求边界内，请新建回合继续。")
             prefix = entries[:boundary_ordinal + 1]
             boundary_digest = self._continuation_entries_digest(prefix)
             if inherited_boundary_id == boundary_entry_id and inherited_boundary_digest != boundary_digest:
