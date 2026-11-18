@@ -108,6 +108,39 @@ def _check_changelog(npm_version: str) -> None:
             )
 
 
+def _check_license(root: dict) -> None:
+    manifests = ["package.json"]
+    patterns = root.get("workspaces")
+    if not isinstance(patterns, list) or not patterns:
+        raise ValueError("package.json 缺少 workspaces")
+    for pattern in patterns:
+        if not isinstance(pattern, str) or not pattern:
+            raise ValueError("package.json 的 workspaces 必须是字符串列表")
+        manifests.extend(
+            (path / "package.json").relative_to(ROOT).as_posix()
+            for path in sorted(ROOT.glob(pattern))
+            if (path / "package.json").is_file()
+        )
+    for relative in manifests:
+        manifest = _read(relative, json.loads)
+        license_value = manifest.get("license") if isinstance(manifest, dict) else None
+        if license_value != "MIT":
+            raise ValueError(f"{relative} 的 license 必须是 MIT")
+    config = _read("harness/pyproject.toml", tomllib.loads)
+    project = config.get("project") if isinstance(config, dict) else None
+    if not isinstance(project, dict):
+        raise ValueError("harness/pyproject.toml 缺少 project")
+    if project.get("license") != "MIT":
+        raise ValueError("harness/pyproject.toml 的 project.license 必须是 MIT")
+    if project.get("license-files") != ["LICENSE"]:
+        raise ValueError('harness/pyproject.toml 的 project.license-files 必须是 ["LICENSE"]')
+    text = _read("LICENSE", lambda value: value)
+    if not text.startswith("MIT License"):
+        raise ValueError("LICENSE 必须以 MIT License 开头")
+    if "Permission is hereby granted, free of charge" not in text:
+        raise ValueError("LICENSE 缺少 MIT 许可正文")
+
+
 def check_versions() -> str:
     root = _read("package.json", json.loads)
     root_name = root.get("name") if isinstance(root, dict) else None
@@ -119,6 +152,7 @@ def check_versions() -> str:
         raise ValueError("package.json 的版本须采用 MAJOR.MINOR.PATCH 或 MAJOR.MINOR.PATCH-rc.N")
     release, candidate = match.groups()
     python_version = release if candidate is None else f"{release}rc{candidate}"
+    _check_license(root)
 
     lock = _read("package-lock.json", json.loads)
     packages = lock.get("packages") if isinstance(lock, dict) else None
