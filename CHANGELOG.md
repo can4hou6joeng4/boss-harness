@@ -1,3 +1,10 @@
+## 0.2.0-rc.206 - 2026-11-18
+
+rc.206 源码候选为搜索片段与桌面高亮增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_search_snippet.py` 并接入 CI：核对命中区间原样保留、两侧空白折叠、预算不足时优先保留命中词，以及桌面内核归一化高亮与 `hit.snippet` 调用链，共 24 项防护。[Issue #2536](https://github.com/can4hou6joeng4/boss-harness/issues/2536)
+- 负向探针覆盖命中折叠、预算归零与高亮标记移除；全部检查通过。版本推进到 npm `0.2.0-rc.206` / Python `0.2.0rc206`。不执行发布动作。
+
 ## 0.2.0-rc.205 - 2026-11-18
 
 rc.205 源码候选为审批裁决路径增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
