@@ -182,7 +182,9 @@ def _check_metadata(root: dict, manifests: list[str]) -> None:
         raise ValueError("harness/pyproject.toml 的 build-backend 必须是 hatchling.build")
     tool = config.get("tool") if isinstance(config, dict) else None
     hatch = tool.get("hatch") if isinstance(tool, dict) else None
-    wheel = hatch.get("build", {}).get("targets", {}).get("wheel") if isinstance(hatch, dict) else None
+    build = hatch.get("build") if isinstance(hatch, dict) else None
+    targets = build.get("targets") if isinstance(build, dict) else None
+    wheel = targets.get("wheel") if isinstance(targets, dict) else None
     if not isinstance(wheel, dict) or wheel.get("packages") != ["src/boss_harness"]:
         raise ValueError("harness/pyproject.toml 的 wheel 包路径必须是 src/boss_harness")
 

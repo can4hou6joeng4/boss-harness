@@ -1,3 +1,10 @@
+## 0.2.0-rc.197 - 2026-11-18
+
+rc.197 源码候选加固版本元数据校验。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_versions.py` 的 `tool.hatch.build.targets.wheel` 读取改为逐层类型判断；嵌套配置被改成字符串或列表时返回受控的 `ValueError`，不再抛 `AttributeError`。[Issue #2518](https://github.com/can4hou6joeng4/boss-harness/issues/2518)
+- 负向探针覆盖 `build` 与 `targets` 非映射及合法配置对照；全部检查通过。版本推进到 npm `0.2.0-rc.197` / Python `0.2.0rc197`。不执行发布动作。
+
 ## 0.2.0-rc.196 - 2026-11-18
 
 rc.196 源码候选增加重复同参工具调用提醒。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
