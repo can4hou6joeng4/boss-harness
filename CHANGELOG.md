@@ -1,3 +1,10 @@
+## 0.2.0-rc.202 - 2026-11-18
+
+rc.202 源码候选为连接检查生命周期增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_connection_lifecycle.py` 并接入 CI：核对模型检查的取消 / 中止线程所有权、超时与状态迁移、CLI / 平台桥接释放、空闲回收与关闭等待顺序，共 50 项防护。[Issue #2528](https://github.com/can4hou6joeng4/boss-harness/issues/2528)
+- 负向探针覆盖归属判断弱化、终态提前退休与关闭等待删除；全部检查通过。版本推进到 npm `0.2.0-rc.202` / Python `0.2.0rc202`。不执行发布动作。
+
 ## 0.2.0-rc.201 - 2026-11-18
 
 rc.201 源码候选为浏览器来源覆盖增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
