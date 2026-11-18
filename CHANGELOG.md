@@ -1,3 +1,10 @@
+## 0.2.0-rc.178 - 2026-11-18
+
+rc.178 源码候选新增会话导出默认脱敏核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_export_privacy.py`：核对 `EXPORT_FORMATS` 为 markdown / json / html、`thread/export` 请求字段白名单与 `includeToolResults` 默认 `False`、四个脱敏标记与 `redact_secrets(` 保留，且 `session_export.py` 不包含写盘 API。[Issue #2480](https://github.com/can4hou6joeng4/boss-harness/issues/2480)
+- CI 增加导出隐私核对步骤，工作流检查覆盖 8 个脚本；默认值改为 `True` 与修改脱敏标记两个负向探针均触发对应错误；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.178` / Python `0.2.0rc178`。
+
 ## 0.2.0-rc.177 - 2026-11-18
 
 rc.177 文档候选对齐 README 英文概览与桌面能力。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
