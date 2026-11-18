@@ -90,6 +90,11 @@ SEARCH_FILTER_VALUES: dict[str, tuple[str, ...]] = {
 }
 
 
+def _non_blank_string(description: str) -> dict[str, Any]:
+    """必填字符串的公开契约：空白值在注册表校验阶段即被拒绝。"""
+    return {"type": "string", "minLength": 1, "pattern": r"\S", "description": description}
+
+
 def _search_set_schema(field: str, description: str) -> dict[str, Any]:
     labels = list(SEARCH_FILTER_VALUES[field])
     return {
@@ -446,7 +451,7 @@ TOOLS: tuple[dict[str, Any], ...] = (
         "input_schema": {
             "type": "object",
             "properties": {
-                "security_id": {"type": "string", "description": "职位安全 ID (securityId)"},
+                "security_id": _non_blank_string("职位安全 ID (securityId)"),
                 "job_id": {"type": "string", "description": "职位加密 ID (jobId)，可选"},
             },
             "required": ["security_id"],
@@ -528,7 +533,7 @@ TOOLS: tuple[dict[str, Any], ...] = (
         "input_schema": {
             "type": "object",
             "properties": {
-                "enc_job_id": {"type": "string", "description": "职位的加密 ID（encryptJobId）"},
+                "enc_job_id": _non_blank_string("职位的加密 ID（encryptJobId）"),
             },
             "required": ["enc_job_id"],
             "additionalProperties": False,
@@ -542,7 +547,7 @@ TOOLS: tuple[dict[str, Any], ...] = (
         "input_schema": {
             "type": "object",
             "properties": {
-                "job_id": {"type": "string", "description": "招聘职位的加密 ID"},
+                "job_id": _non_blank_string("招聘职位的加密 ID"),
                 "page": {"type": "integer", "minimum": 1, "description": "页码，从 1 开始", "default": 1},
             },
             "required": ["job_id"],
@@ -585,9 +590,9 @@ TOOLS: tuple[dict[str, Any], ...] = (
         "input_schema": {
             "type": "object",
             "properties": {
-                "geek_id": {"type": "string", "description": "候选人 geek_id"},
-                "job_id": {"type": "string", "description": "关联职位 ID"},
-                "security_id": {"type": "string", "description": "候选人 security_id"},
+                "geek_id": _non_blank_string("候选人 geek_id"),
+                "job_id": _non_blank_string("关联职位 ID"),
+                "security_id": _non_blank_string("候选人 security_id"),
             },
             "required": ["geek_id", "job_id", "security_id"],
             "additionalProperties": False,
@@ -601,12 +606,12 @@ TOOLS: tuple[dict[str, Any], ...] = (
         "input_schema": {
             "type": "object",
             "properties": {
-                "geek_id": {"type": "string", "description": "推荐卡片 encryptGeekId"},
-                "job_id": {"type": "string", "description": "推荐卡片 encryptJobId"},
-                "expect_id": {"type": "string", "description": "推荐卡片 expectId"},
-                "lid": {"type": "string", "description": "推荐卡片 lid"},
-                "security_id": {"type": "string", "description": "推荐卡片 securityId"},
-                "message": {"type": "string", "description": "打招呼内容文本"},
+                "geek_id": _non_blank_string("推荐卡片 encryptGeekId"),
+                "job_id": _non_blank_string("推荐卡片 encryptJobId"),
+                "expect_id": _non_blank_string("推荐卡片 expectId"),
+                "lid": _non_blank_string("推荐卡片 lid"),
+                "security_id": _non_blank_string("推荐卡片 securityId"),
+                "message": _non_blank_string("打招呼内容文本"),
             },
             "required": ["geek_id", "job_id", "expect_id", "lid", "security_id", "message"],
             "additionalProperties": False,
