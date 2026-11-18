@@ -2,6 +2,8 @@
 
 本页说明 BOSS Harness 当前可核实的能力、尚未完成的范围与不承诺的事项。版本号以根 [package.json](../package.json) 和 [CHANGELOG](../CHANGELOG.md) 为准；实际发布以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 为准。
 
+> **English summary**: `main` is the development branch. The latest published prerelease is `v0.2.0-rc.15`; the desktop is built from source and has no standalone installer. npm / PyPI publishing, real-model and real-platform acceptance, and signed installers remain pending. See the [English overview](../README.md#english-overview) for architecture and setup.
+
 ## 发布状态
 
 - `main` 是开发分支，源码候选号随合并推进，不等同于已发布版本。

@@ -27,6 +27,7 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 - **Model routes**: OpenAI Responses (Codex or an explicit endpoint), Anthropic Messages, or `none`, sharing the same turn and tool contract.
 - **Desktop**: host-validated IPC, an isolated browser partition for platform login, sanitized session export, and an offline `--check` preflight.
 - **Design notes**: the kernel follows Pi's agent-harness / durable design ideas but implements this project's recruiting safety contract independently. A read-only review log of external reference repositories is kept in [UPSTREAM.md](UPSTREAM.md); those projects are not upstreams and their links do not imply endorsement.
+- **Status**: source candidates on `main` are not releases; [project status](docs/STATUS.md) lists implemented, pending and non-goal boundaries.
 
 `main` is the development branch; use GitHub Releases for published versions. The desktop is built from source and has no standalone installer yet. Documentation: [README](README.md) · [user guide](docs/USER_GUIDE.md) · [desktop guide](docs/DESKTOP_GUIDE.md) · [technical reference](docs/TECHNICAL_REFERENCE.md).
 

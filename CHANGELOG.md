@@ -1,3 +1,10 @@
+## 0.2.0-rc.121 - 2026-11-18
+
+rc.121 源码候选补充状态页的英文与支持入口。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `docs/STATUS.md` 顶部增加英文摘要并链接 README 的 English overview；README 的 English overview 增加状态页入口，SUPPORT 的文档表加入状态页。[Issue #2366](https://github.com/can4hou6joeng4/boss-harness/issues/2366)
+- 候选版本号和使用指南同步为 npm `0.2.0-rc.121` / Python `0.2.0rc121`。
+
 ## 0.2.0-rc.120 - 2026-11-18
 
 rc.120 源码候选增加公开项目状态页。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
