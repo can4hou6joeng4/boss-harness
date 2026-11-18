@@ -1,3 +1,19 @@
+## 0.2.0-rc.91 - 2026-11-18
+
+本节汇总第九十一个候选版本的源码与交付内容。相对 rc.90，本候选统一招聘工具必填字符串参数的公开 schema 与执行校验。rc.16 至 rc.91 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- `boss_detail`、`boss_hr_jobs_detail`、`boss_hr_recommendations`、`boss_hr_resume`、`boss_hr_greet` 的必填字符串参数在 `input_schema` 中声明 `minLength: 1` 与 `pattern: \S`，与内核执行前的空白检查一致；`tool/list` 与模型请求不再接受执行时必然失败的空白值（#2295、#2296）。
+- 同步 npm / Python 版本到 `0.2.0-rc.91` / `0.2.0rc91`（#2297）。
+
+升级注意：不改变 JSON-RPC 协议版本、工具数量、审批要求、会话持久化格式或存储键；通过 `tool/list` 读取的 schema 对必填字符串更严格，rc.90 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2295](https://github.com/can4hou6joeng4/boss-harness/issues/2295)：统一必填字符串参数的空白约束。
+- [Issue #2297](https://github.com/can4hou6joeng4/boss-harness/issues/2297)：准备 rc.91 源码候选并同步版本来源。
+
 ## 0.2.0-rc.90 - 2026-11-18
 
 本节汇总第九十个候选版本的源码与交付内容。相对 rc.89，本候选在技术参考中补充服务端通知清单。rc.16 至 rc.90 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
