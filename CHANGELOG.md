@@ -1,3 +1,10 @@
+## 0.2.0-rc.97 - 2026-11-18
+
+rc.97 源码候选加入协议常量自动核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_protocol.py`：比对内核 `_register()` 与 `ClientMethods`，并要求字面量通知与服务端请求都出现在 `ServerNotifications` / `ServerRequests`。Source build 在安装依赖前运行。[Issue #2317](https://github.com/can4hou6joeng4/boss-harness/issues/2317)
+- 补齐 `ClientMethods.shutdown`；技术参考说明它不要求完成握手，调用后返回 `{ "stopped": true }`。候选版本号和使用指南同步为 npm `0.2.0-rc.97` / Python `0.2.0rc97`。
+
 ## 0.2.0-rc.96 - 2026-11-18
 
 rc.96 源码候选把使用指南纳入构建前版本核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
