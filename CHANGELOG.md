@@ -1,3 +1,10 @@
+## 0.2.0-rc.107 - 2026-11-18
+
+rc.107 源码候选把双端归一化核对扩展到全部受支持 Python 版本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `Search normalization` CI job，在 Python 3.10、3.11、3.12、3.13、3.14 上分别以 Node 24 运行 `scripts/check_search_unicode.py`；本机另在 3.11 与 3.14 上验证通过。[Issue #2337](https://github.com/can4hou6joeng4/boss-harness/issues/2337)
+- README、CONTRIBUTING、发布约定与技术参考记录跨版本覆盖范围。候选版本号和使用指南同步为 npm `0.2.0-rc.107` / Python `0.2.0rc107`。
+
 ## 0.2.0-rc.106 - 2026-11-18
 
 rc.106 源码候选加入双端搜索归一化的全码点核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
