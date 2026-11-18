@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.213` / Python `0.2.0rc213` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.214` / Python `0.2.0rc214` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -66,7 +66,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 选择 `none` 时（显式 `--provider none`、`BOSS_HARNESS_PROVIDER=none` 或没有可用凭据时自动回退），内核不读取模型名与推理档位：握手、`config/read`、`model/list` 与新建会话统一使用 `none · none`，设置 `BOSS_HARNESS_MODEL` 或 `BOSS_HARNESS_EFFORT` 不会改变该线路，也不会发起模型请求。`none` 仍可调用招聘 CLI 与上游只读工具。桌面「设置 → 模型与连接」的「模型服务」卡片把这条默认线路标为「未启用」，并注明招聘 CLI 仍可运行、可能访问平台；它不表示离线。
 
-显式指定 `none` 与自动回退为 `none` 的含义不同。显式指定（`--provider none`，或未传 `--provider` 时 `BOSS_HARNESS_PROVIDER=none`）是进程级开关：整个进程不构造模型传输，`model/list` 只会列出 `none · none`，不能在会话里改选其他线路；记录在真实线路上的旧会话在本进程内读上下文、发回合或续接都会被拒绝并说明原因，切到 `none` 线路后仍可使用只读指令，摘要线路（含另配的 `BOSS_HARNESS_COMPACTION` 摘要 provider）同样不可用，`summaryAvailable` 为 `false`。需要模型时改用具体 provider 重新启动，旧会话在对应线路进程内保持可用。自动回退只是没有默认线路：没有可用凭据时进程默认落在 `none · none`，环境中另已配置的线路仍会出现在 `model/list`，可在会话里选用。桌面只经环境变量传线路，因此桌面启动要以具体 provider 运行才能获得其他可选线路。
+显式指定 `none` 与自动回退为 `none` 的含义不同。显式指定（`--provider none`，或未传 `--provider` 时 `BOSS_HARNESS_PROVIDER=none`）是进程级开关：整个进程不构造模型传输，`model/list` 只会列出 `none · none`，不能在会话里改选其他线路；记录在真实线路上的旧会话在本进程内读上下文、发回合或续接都会被拒绝并说明原因，切到 `none` 线路后仍可使用只读指令，摘要线路（含另配的 `BOSS_HARNESS_COMPACTION` 摘要 provider）同样不可用，`summaryAvailable` 为 `false`。需要模型时改用具体 provider 重新启动，旧会话在对应线路进程内保持可用。自动回退只是没有默认线路：没有可用凭据时进程默认落在 `none · none`，环境中另已配置的线路仍会出现在 `model/list`，可在会话里选用。桌面只经环境变量传线路，因此桌面启动要以具体 provider 运行才能获得其他可选线路。握手与 `config/read` 都返回 `modelCallsDisabled` 字段：显式指定时为 `true`，自动回退与真实默认线路为 `false`；桌面据此在模型菜单为空时区分「进程以 none 启动」（需要换启动方式）与「没有可用的本机模型线路配置」（可补配置或换线路）。
 
 缺少任一项时才读取 `BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 或默认 `~/.codex/config.toml`，按此顺序选择文件，显式字段仍优先。读取 TOML 需要 Python 3.11+；已有文件不可读或语法损坏时明确报错，不退到其他 provider。文件不存在或缺少可用 profile 时继续检查端点与凭据，缺项会报错；未提供模型且没有可用文件模型时保留既有 `DEFAULT_MODEL`。
 

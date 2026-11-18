@@ -71,7 +71,7 @@ export interface ConversationAreaProps {
   /** 离开会话、再次搜索或用户点击后清除搜索高亮。 */
   onDismissSearchHighlight?: () => void;
   threadId?: string;
-  configuredModelLabel?: string; readOnly?: boolean; /** 内核已归档：只读查看历史，恢复后才能继续对话。 */ archived?: boolean;
+  configuredModelLabel?: string; modelCallsDisabled?: boolean; readOnly?: boolean; /** 内核已归档：只读查看历史，恢复后才能继续对话。 */ archived?: boolean;
   continuationCheck?: { threadId: string; sourceTurnId: string; loading: boolean; submitting?: boolean;
     uncertain?: boolean; response?: TurnContinuationReadResponse; error?: string } | null;
   onContinueInterruptedTurn?: () => void;
@@ -106,7 +106,7 @@ function scrollRangeIntoCenter(range: Range): boolean {
 }
 export const ConversationArea: React.FC<ConversationAreaProps> = ({
   messages: initialMessages, readOnly = false, archived = false, currentMode, onModeChange, onSendMessage, onQueueMessage, onCheckQueueSubmission, queueItems = [], queueTotalItems, queueActiveItems, queueTruncated, onRemoveQueueItem, onRetryQueueItem, onReadQueueItem, onUpdateQueueItem, onSteerQueueItem, steerAvailable = false, onRefreshQueue, simulateLocal = true, harnessUp = false,
-  running = false, taskBlocked = false, draft, onDraftChange, models, activeModelProvider, activeModelId, configuredModelLabel, onSelectModel, onOpenSettings, sessionReasoning,
+  running = false, taskBlocked = false, draft, onDraftChange, models, activeModelProvider, activeModelId, configuredModelLabel, modelCallsDisabled, onSelectModel, onOpenSettings, sessionReasoning,
   onInterrupt, stopping, onApprovalDecision, onReviewDiff, onRevertDiff, onOpenRewind, onOpenContextEdit, loginGuide, onLogin,
   skills = [], skillCatalogState = "unavailable", skillCatalogError, onRefreshSkills, skillProblems = [],
   skillSkillsTruncated = false,
@@ -1122,7 +1122,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
           </div>}
           <div className="thread-composer-input"><Composer ref={textareaRef} threadId={threadId} value={inputText} onChange={setInputText} onSend={onSendMessage} onQueue={simulateLocal ? undefined : onQueueMessage} onCheckQueueSubmission={simulateLocal ? undefined : onCheckQueueSubmission} draft={composerDraft} onDraftChange={updateDraft} skills={skills} skillCatalogState={skillCatalogState} skillCatalogError={skillCatalogError} onRefreshSkills={onRefreshSkills} skillProblems={skillProblems} skillsTruncated={skillSkillsTruncated} history={recallHistory}
             readOnly={readOnly} archived={archived} isRunning={running} blocked={taskBlocked} onInterrupt={onInterrupt} stopping={stopping} preview={simulateLocal}
-            currentMode={currentMode} onModeChange={onModeChange} models={models} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel}
+            currentMode={currentMode} onModeChange={onModeChange} models={models} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel} modelCallsDisabled={modelCallsDisabled}
             onSelectModel={onSelectModel} sessionReasoning={sessionReasoning} onOpenSettings={onOpenSettings} onLogin={onLogin} /></div>
         </div>
       </div>

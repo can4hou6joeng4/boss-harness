@@ -124,6 +124,8 @@ export function App(): JSX.Element {
   const [modelOptions, setModelOptions] = useState<ModelDescriptor[]>([]);
   const [defaultModel, setDefaultModel] = useState<{ provider: string; model: string } | null>(null);
   const [configuredModelLabel, setConfiguredModelLabel] = useState<string>();
+  // 握手回执的进程级禁用标志：显式 none 启动时模型菜单与连接设置据此说明原因。
+  const [modelCallsDisabled, setModelCallsDisabled] = useState(false);
   const [messages, setMessages] = useState<MessageItem[]>([]);
   // 正在读取历史的会话：本地无缓存时先显示加载提示，避免把未加载的会话展示成空会话。
   const [loadingHistory, setLoadingHistory] = useState<string | null>(null);
@@ -521,6 +523,8 @@ export function App(): JSX.Element {
         const processDefault = status.modelBridge
           ? { provider: status.modelBridge.provider, model: status.modelBridge.model }
           : null;
+        // 握手缺禁用字段时保持上一次值：旧内核显式 none 下没有该字段，不能误报为「未禁用」以外的新事实。
+        if (status.modelBridge?.modelCallsDisabled !== undefined) setModelCallsDisabled(status.modelBridge.modelCallsDisabled === true);
         if (processDefault) {
           setDefaultModel(processDefault);
           // 首页没有会话承载模型线路：用户手动选择过就保留，只有显式新建会话或线路失效才回退默认。
@@ -1313,7 +1317,7 @@ export function App(): JSX.Element {
           setIsBranchesOpen(true);
         },
         onCancelSummary: activeBranchControl.cancelSummary, onDismissSummary: activeBranchControl.dismissSummaryJob } : undefined}
-      onInterrupt={handleInterrupt} onApprovalDecision={handleApproval} onContextEditChanged={recordContextEdit} onStartSessionWithPrompt={handleStartSessionWithPrompt} models={modelOptions} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel} onSelectModel={handleSelectModel}
+      onInterrupt={handleInterrupt} onApprovalDecision={handleApproval} onContextEditChanged={recordContextEdit} onStartSessionWithPrompt={handleStartSessionWithPrompt} models={modelOptions} activeModelProvider={activeModelProvider} activeModelId={activeModelId} configuredModelLabel={configuredModelLabel} modelCallsDisabled={modelCallsDisabled} onSelectModel={handleSelectModel}
       skillsReadable={capabilities?.skillsRead === true} skillsCreatable={capabilities?.skillsCreate === true} skillsWritable={capabilities?.skillsWrite === true} skillsDeletable={capabilities?.skillsDelete === true} threadSearchable={capabilities?.threadSearch === true} threadSearchArchived={capabilities?.threadSearchArchived === true} workspaceInstructionsEditable={capabilities?.workspaceInstructionsEdit === true} onOpenCockpit={() => setIsCockpitOpen(true)} onOpenSideChat={() => setIsSideChatOpen(previous => !previous)} onOpenRewind={openRewind} onOpenContext={contextThreadId ? openContext : undefined}
       onOpenUsage={usageSupported && contextThreadId && !preview ? openUsage : undefined}
       onOpenExport={exportSupported && contextThreadId && !preview ? () => setExportTarget({ threadId: contextThreadId, title: activeSession?.title ?? "" }) : undefined}

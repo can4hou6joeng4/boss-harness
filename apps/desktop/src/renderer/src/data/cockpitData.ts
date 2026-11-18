@@ -14,6 +14,8 @@ export interface CockpitConfig {
   protocolVersion?: string;
   provider?: string;
   model?: string;
+  /** 进程以显式 none 启动；旧内核或自动回退不返回该字段。 */
+  modelCallsDisabled?: boolean;
   maxOutputTokens?: number;
   parallelThreads?: number;
   maxRetainedTurns?: number;
@@ -134,6 +136,7 @@ export function readCockpitConfig(value: unknown): CockpitConfig {
     ...(integer(response.maxRetainedTurns) !== undefined ? { maxRetainedTurns: integer(response.maxRetainedTurns) } : {}),
     ...(integer(response.maxModelRequests) !== undefined ? { maxModelRequests: integer(response.maxModelRequests) } : {}),
     ...(text(response.steeringMode) ? { steeringMode: text(response.steeringMode) } : {}),
+    ...(response.modelCallsDisabled === true ? { modelCallsDisabled: true } : {}),
     ...(integer(response.maxAttachmentStorageBytes) !== undefined ? { maxAttachmentStorageBytes: integer(response.maxAttachmentStorageBytes) } : {}),
     ...(integer(response.maxAttachmentStorageObjects) !== undefined ? { maxAttachmentStorageObjects: integer(response.maxAttachmentStorageObjects) } : {}),
     ...(text(response.toolBundleId) ? { toolBundleId: text(response.toolBundleId) } : {}),

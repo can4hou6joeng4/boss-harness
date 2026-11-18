@@ -110,9 +110,14 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
 
   const loginBusy = Boolean(login && loginActive(login));
   const cliBusy = report?.cli.state === "checking" || report?.platform.state === "checking" || loginBusy;
+  // 进程级禁用与「未配置默认线路」的处理办法不同：前者要换启动方式，后者要补配置或换线路；
+  // 握手的 modelBridge 是连接状态的一部分，失败时不得把「未知」当成「未禁用」。
+  const modelCallsDisabled = connection?.modelBridge?.modelCallsDisabled === true;
   const rows: Array<{ target: ConnectionTarget; title: string; description: string; check: ConnectionCheck | undefined; action: string }> = [
     { target: "local", title: "本机 CLI", description: "检查可执行文件、协议与本地登录态，不访问平台", check: report?.cli, action: "检查本机" },
-    { target: "model", title: "模型服务", description: report?.model.model ? `${report.model.provider} · ${report.model.model}` : "由本机模型配置决定", check: report?.model, action: "测试模型" },
+    { target: "model", title: "模型服务", description: modelCallsDisabled
+      ? "进程以 none 线路启动，不调用模型；需要模型时改用具体 provider 重新启动"
+      : report?.model.model ? `${report.model.provider} · ${report.model.model}` : "由本机模型配置决定", check: report?.model, action: "测试模型" },
     { target: "platform", title: "BOSS 直聘账号", description: `本地认证信息：${AUTH_LABELS[report?.platform.authState ?? "unknown"] ?? "未检测"}；账号验证结果以标注时间为准`, check: report?.platform, action: "验证账号" },
   ];
   // 未连接的原因与本地自检明细；已连接或仍在首次启动时不显示。
