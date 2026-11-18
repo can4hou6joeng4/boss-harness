@@ -1,3 +1,10 @@
+## 0.2.0-rc.98 - 2026-11-18
+
+rc.98 源码候选把桌面方法白名单纳入协议检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_protocol.py` 核对 `RENDERER_METHODS`、`THREAD_METHODS` 与 `ClientMethods`：白名单不得含协议外方法，仅主进程方法须在脚本中显式登记，线程方法必须是渲染层方法的子集。[Issue #2319](https://github.com/can4hou6joeng4/boss-harness/issues/2319)
+- README 与发布约定说明检查范围。候选版本号和使用指南同步为 npm `0.2.0-rc.98` / Python `0.2.0rc98`。
+
 ## 0.2.0-rc.97 - 2026-11-18
 
 rc.97 源码候选加入协议常量自动核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
