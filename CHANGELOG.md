@@ -1,3 +1,10 @@
+## 0.2.0-rc.191 - 2026-11-18
+
+rc.191 源码候选核对会话导出工具数据边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_export_privacy.py` 新增 26 项工具投影核对：默认安全参数白名单、40 个参数 / 64 字符键名上限、`MAX_SCRUB_DEPTH = 64`、个人信息收集来源、完整结果与结构摘要双分支，以及按转义字节二分截断的导出预算。[Issue #2506](https://github.com/can4hou6joeng4/boss-harness/issues/2506)
+- 五个负向探针均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.191` / Python `0.2.0rc191`。
+
 ## 0.2.0-rc.190 - 2026-11-18
 
 rc.190 源码候选核对会话导出脱敏管线顺序。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
