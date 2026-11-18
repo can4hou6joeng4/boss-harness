@@ -1,3 +1,10 @@
+## 0.2.0-rc.132 - 2026-11-18
+
+rc.132 源码候选让文档检查忽略 HTML 注释。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_docs_links.py` 在提取链接与标题前移除跨行 `<!-- ... -->` 注释，注释中的示例链接与标题不再参与校验。[Issue #2388](https://github.com/can4hou6joeng4/boss-harness/issues/2388)
+- 技术参考补充该覆盖边界；版本推进到 npm `0.2.0-rc.132` / Python `0.2.0rc132`。
+
 ## 0.2.0-rc.131 - 2026-11-18
 
 rc.131 源码候选在启动自检摘要中补充 Python 版本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
