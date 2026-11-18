@@ -1,3 +1,10 @@
+## 0.2.0-rc.176 - 2026-11-18
+
+rc.176 源码候选固定工具子进程不开 shell。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `tools/boss_cli.py` 的 `Popen` 显式设置 `shell=False`；`scripts/check_harness_tools.py` 扫描 `harness/src/boss_harness` 下的 Python 源码，禁止 `shell=True`、`create_subprocess_shell`、`os.system` 与 `os.popen`。[Issue #2476](https://github.com/can4hou6joeng4/boss-harness/issues/2476)
+- 注入 `os.system` 与删除显式 `shell=False` 两个负向探针均触发对应错误；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.176` / Python `0.2.0rc176`。
+
 ## 0.2.0-rc.175 - 2026-11-18
 
 rc.175 源码候选固定 app-client 的内核子进程不开 shell。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

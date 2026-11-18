@@ -12,6 +12,13 @@ TOOLS_SOURCE = ROOT / "harness/src/boss_harness/tools/boss_cli.py"
 CONTEXT_SOURCE = ROOT / "harness/src/boss_harness/context.py"
 TOOL_RESULTS_SOURCE = ROOT / "harness/src/boss_harness/tool_results.py"
 BUNDLE_SOURCE = ROOT / "harness/src/boss_harness/tools/bundle.py"
+HARNESS_PACKAGE = ROOT / "harness/src/boss_harness"
+SHELL_APIS = (
+    ("shell=True", "不得以 shell=True 启动子进程"),
+    ("create_subprocess_shell(", "不得使用 create_subprocess_shell"),
+    ("os.system(", "不得使用 os.system"),
+    ("os.popen(", "不得使用 os.popen"),
+)
 BUNDLE_FRAGMENTS = (
     "handlers = tool_handlers()",
     "approval_required = approval_required_tools()",
@@ -178,7 +185,7 @@ def _write_tools_default(path: Path) -> set[str]:
     raise ValueError(f"{path.name} 缺少 write_tools 默认值")
 
 
-def check_harness_tools() -> tuple[int, int, int, int]:
+def check_harness_tools() -> tuple[int, int, int, int, int]:
     tree = ast.parse(
         TOOLS_SOURCE.read_text(encoding="utf-8"), filename=str(TOOLS_SOURCE)
     )
@@ -235,12 +242,27 @@ def check_harness_tools() -> tuple[int, int, int, int]:
             "bundle.py 的工具组合必须沿用 TOOLS 与审批标记："
             + "、".join(missing)
         )
-    return len(names), len(names) - len(approval), len(write_sets), len(BUNDLE_FRAGMENTS)
+    for path in sorted(HARNESS_PACKAGE.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for token, message in SHELL_APIS:
+            if token in text:
+                raise ValueError(
+                    f"{message}：{path.relative_to(ROOT).as_posix()}"
+                )
+    if "shell=False" not in TOOLS_SOURCE.read_text(encoding="utf-8"):
+        raise ValueError("boss_cli.py 的 subprocess.Popen 必须显式设置 shell=False")
+    return (
+        len(names),
+        len(names) - len(approval),
+        len(write_sets),
+        len(BUNDLE_FRAGMENTS),
+        len(SHELL_APIS) + 1,
+    )
 
 
 def main() -> int:
     try:
-        total, read_only, write_sets, bundle = check_harness_tools()
+        total, read_only, write_sets, bundle, shell = check_harness_tools()
     except (OSError, SyntaxError, ValueError) as error:
         print(f"内核工具允许清单核对失败，{error}", file=sys.stderr)
         return 2
@@ -248,7 +270,7 @@ def main() -> int:
         f"内核工具允许清单一致：{total} 个工具"
         f"（{read_only} 个只读、{total - read_only} 个需批准）、"
         f"schema 边界完整、{write_sets} 处写工具集合一致、"
-        f"bundle 保留 {bundle} 项审批投影"
+        f"bundle 保留 {bundle} 项审批投影、工具子进程 {shell} 项 shell 边界完整"
     )
     return 0
 
