@@ -11,6 +11,16 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOLS_SOURCE = ROOT / "harness/src/boss_harness/tools/boss_cli.py"
 CONTEXT_SOURCE = ROOT / "harness/src/boss_harness/context.py"
 TOOL_RESULTS_SOURCE = ROOT / "harness/src/boss_harness/tool_results.py"
+BUNDLE_SOURCE = ROOT / "harness/src/boss_harness/tools/bundle.py"
+BUNDLE_FRAGMENTS = (
+    "handlers = tool_handlers()",
+    "approval_required = approval_required_tools()",
+    'name=spec["name"]',
+    'description=spec["description"]',
+    'input_schema=spec["input_schema"]',
+    'requires_approval=spec["name"] in approval_required',
+    "for spec in TOOLS",
+)
 EXPECTED_TOOLS = frozenset({
     "boss_search",
     "boss_detail",
@@ -168,7 +178,7 @@ def _write_tools_default(path: Path) -> set[str]:
     raise ValueError(f"{path.name} 缺少 write_tools 默认值")
 
 
-def check_harness_tools() -> tuple[int, int, int]:
+def check_harness_tools() -> tuple[int, int, int, int]:
     tree = ast.parse(
         TOOLS_SOURCE.read_text(encoding="utf-8"), filename=str(TOOLS_SOURCE)
     )
@@ -218,19 +228,27 @@ def check_harness_tools() -> tuple[int, int, int]:
                 f"{label} 应恰为 boss_hr_greet，实际为："
                 + ("、".join(sorted(values)) or "无")
             )
-    return len(names), len(names) - len(approval), len(write_sets)
+    bundle_text = BUNDLE_SOURCE.read_text(encoding="utf-8")
+    missing = [fragment for fragment in BUNDLE_FRAGMENTS if fragment not in bundle_text]
+    if missing:
+        raise ValueError(
+            "bundle.py 的工具组合必须沿用 TOOLS 与审批标记："
+            + "、".join(missing)
+        )
+    return len(names), len(names) - len(approval), len(write_sets), len(BUNDLE_FRAGMENTS)
 
 
 def main() -> int:
     try:
-        total, read_only, write_sets = check_harness_tools()
+        total, read_only, write_sets, bundle = check_harness_tools()
     except (OSError, SyntaxError, ValueError) as error:
         print(f"内核工具允许清单核对失败，{error}", file=sys.stderr)
         return 2
     print(
         f"内核工具允许清单一致：{total} 个工具"
         f"（{read_only} 个只读、{total - read_only} 个需批准）、"
-        f"schema 边界完整、{write_sets} 处写工具集合一致"
+        f"schema 边界完整、{write_sets} 处写工具集合一致、"
+        f"bundle 保留 {bundle} 项审批投影"
     )
     return 0
 
