@@ -16,7 +16,9 @@ EXPORT = "harness/src/boss_harness/session_export.py"
 SECURITY = "apps/desktop/src/main/security.ts"
 SOURCE_ROOT = "harness/src/boss_harness"
 APP_CLIENT = "packages/app-client/src"
+DESKTOP_ROOT = "apps/desktop/src"
 EMITTERS = frozenset({"emit", "emit_until", "_emit_committed", "notify"})
+METHOD_LITERAL = re.compile(r'method\s*(?:[!=]==?|:)\s*"([^"]+/[^"]*)"')
 # 内核经变量或元组发送、静态扫描无法识别的通知。新增此类路径时在此显式登记。
 DYNAMIC_KERNEL_NOTIFICATIONS = frozenset({"thread/deleted", "turn/completed"})
 # 经协议暴露、但只允许主进程调用的方法。新增此类方法时在此显式登记。
@@ -252,6 +254,19 @@ def _host_notifications() -> set[str]:
     return messages
 
 
+def _desktop_method_literals() -> set[str]:
+    """桌面比较或构造的协议方法字面量；类型判断等不含 ``/`` 的值不参与。"""
+    literals: set[str] = set()
+    try:
+        paths = [*sorted((ROOT / DESKTOP_ROOT).rglob("*.ts")),
+                 *sorted((ROOT / DESKTOP_ROOT).rglob("*.tsx"))]
+        for path in paths:
+            literals.update(METHOD_LITERAL.findall(path.read_text(encoding="utf-8")))
+    except OSError:
+        raise ValueError(f"无法读取 {DESKTOP_ROOT}") from None
+    return literals
+
+
 def _describe(missing: set[str], extra: set[str]) -> str:
     parts = []
     if missing:
@@ -292,6 +307,10 @@ def check_protocol() -> tuple[str, int, int, int, int, int, int]:
     unused = notifications - emitted - host - DYNAMIC_KERNEL_NOTIFICATIONS
     if unused:
         raise ValueError("ServerNotifications 含未登记发送方的通知：" + "、".join(sorted(unused)))
+    literals = _desktop_method_literals()
+    unknown_literals = literals - client - notifications
+    if unknown_literals:
+        raise ValueError("桌面引用了协议之外的方法：" + "、".join(sorted(unknown_literals)))
     renderer, thread = _check_desktop(client)
     capabilities = _check_capabilities(protocol)
     return python_protocol, len(client), len(notifications), len(requests), capabilities, renderer, thread
