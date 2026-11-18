@@ -348,6 +348,29 @@ def _check_ipc_channels() -> int:
     return len(handled) + len(sent) + 2
 
 
+TRUSTED_SENDER_FRAGMENTS = (
+    "event.senderFrame !== event.sender.mainFrame",
+    "event.senderFrame.url",
+    "isTrustedRendererUrl(",
+    "webContents === event.sender",
+)
+
+
+def _check_trusted_sender() -> int:
+    relative = "apps/desktop/src/main/harness.ts"
+    body = _named_body(_main_text("harness.ts"), "trustedSender")
+    if not body:
+        raise ValueError(f"{relative} 缺少 trustedSender")
+    missing = [fragment for fragment in TRUSTED_SENDER_FRAGMENTS if fragment not in body]
+    if missing:
+        raise ValueError(f"{relative} 的 trustedSender 缺少：" + "、".join(missing))
+    if len(re.findall(r"\bthrow new Error\(", body)) < 2:
+        raise ValueError(
+            f"{relative} 的 trustedSender 必须分别拒绝非主窗口 / 非主框架与非受信来源"
+        )
+    return len(TRUSTED_SENDER_FRAGMENTS) + 1
+
+
 def check_desktop_security() -> tuple[int, int, int]:
     checked = 0
     for name, expected in EXPECTED.items():
@@ -361,7 +384,8 @@ def check_desktop_security() -> tuple[int, int, int]:
     external = _check_external_links()
     preload = _check_preload_bridge()
     ipc = _check_ipc_channels()
-    return len(EXPECTED), checked, allowlist + handlers + navigation + external + preload + ipc
+    trusted = _check_trusted_sender()
+    return len(EXPECTED), checked, allowlist + handlers + navigation + external + preload + ipc + trusted
 
 
 def main() -> int:
