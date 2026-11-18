@@ -1,3 +1,10 @@
+## 0.2.0-rc.154 - 2026-11-18
+
+rc.154 源码候选禁止渲染层 CSP 引用远程来源。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求 CSP 任何指令的 token 不得含 `://`，`img-src`、`style-src` 等不能再加入远程主机。[Issue #2432](https://github.com/can4hou6joeng4/boss-harness/issues/2432)
+- 远程图片与远程样式两个负向探针均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.154` / Python `0.2.0rc154`。
+
 ## 0.2.0-rc.153 - 2026-11-18
 
 rc.153 源码候选核对主进程与渲染层的导入方向。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

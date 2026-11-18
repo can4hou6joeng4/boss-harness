@@ -454,8 +454,8 @@ def _check_renderer_csp() -> int:
             "渲染层 CSP 的 script-src 应恰为 'self'，不得含 'unsafe-inline'、'unsafe-eval' 或远程来源"
         )
     for name, tokens in directives.items():
-        if "'unsafe-eval'" in tokens or "*" in tokens:
-            raise ValueError(f"渲染层 CSP 的 {name} 不得包含 'unsafe-eval' 或 *")
+        if "'unsafe-eval'" in tokens or "*" in tokens or any("://" in token for token in tokens):
+            raise ValueError(f"渲染层 CSP 的 {name} 不得包含 'unsafe-eval'、* 或远程来源")
     if INLINE_SCRIPT.search(text):
         raise ValueError("apps/desktop/src/renderer/index.html 不得包含无 src 的内联脚本")
     return 4
