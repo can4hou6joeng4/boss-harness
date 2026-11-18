@@ -35,6 +35,45 @@ FORBIDDEN_WRITES = (
     "unlink(",
     "mkdir(",
 )
+SENSITIVE_PIPELINE = (
+    "self.secrets = sorted({value for value in secrets if isinstance(value, str) and len(value) >= 6}",
+    "self.paths = sorted({value.rstrip(\"/\\\\\") for value in paths",
+    'self.counts = {"secrets": 0, "environment": 0, "paths": 0, "personalInfo": 0}',
+    "if depth > 32 or len(self.pii_values) >= MAX_PII_VALUES:",
+    "if _normalize_key(key) in _PII_KEYS:",
+    "if 2 <= len(text) <= 4_000 and text not in self.pii_values:",
+    "self.pii_values.sort(key=len, reverse=True)",
+    "self.counts[counter] += count",
+    'self.counts["paths"] += count',
+    "if value in text:",
+    'self.counts["secrets"] += text.count(value)',
+    "text = text.replace(value, SECRET_MARK)",
+    "scrubbed = redact_secrets(text)",
+    'scrubbed.count("<redacted>")',
+    'scrubbed.replace("<redacted>", SECRET_MARK)',
+    "text = self._sub(_TOKEN_PATTERNS[0], SECRET_MARK, text, \"secrets\")",
+    "text = self._sub(_TOKEN_PATTERNS[1],",
+    "text = self._sub(_TOKEN_PATTERNS[2],",
+    "text = self._sub(_KEY_PATTERN, SECRET_MARK, text, \"secrets\")",
+    "text = self._sub(_URL_USERINFO,",
+    "text = self._sub(_ENV_ASSIGNMENT,",
+    "for pattern in self.path_patterns:",
+    "text = self._sub_paths(_ABSOLUTE_PATH, text)",
+    "text = self._sub_paths(_SINGLE_SEGMENT_PATH, text)",
+    "return self._sub(_TOKEN_PATTERNS[3], SECRET_MARK, text, \"secrets\")",
+    "for value in self.pii_values:",
+    'self.counts["personalInfo"] += text.count(value)',
+    "text = text.replace(value, PII_MARK)",
+    "text = self._sub(_PII_PATTERNS[0], PII_MARK, text, \"personalInfo\")",
+    "text = self._sub(_PII_PATTERNS[1], PII_MARK, text, \"personalInfo\")",
+    "text = self._sub(_PII_PATTERNS[2], PII_MARK, text, \"personalInfo\")",
+    "return self._sub(_PII_PATTERNS[3],",
+    "return _clip(self.personal(self.sensitive(value)), limit)",
+    "_PII_KEYS = frozenset({",
+    "_PII_PATTERNS = (",
+    "_TOKEN_PATTERNS = (",
+    '_SENSITIVE_ENV = re.compile(r"(?i)(key|token|secret|password|passwd|cookie|auth|credential|session)")',
+)
 
 
 def _module_assignment(tree: ast.Module, name: str) -> ast.AST:
@@ -65,6 +104,46 @@ def _ts_product(literal: str) -> int:
     for part in literal.split("*"):
         value *= int(part.strip())
     return value
+
+
+def _method_source(tree: ast.Module, source: str, method_name: str) -> str:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == method_name:
+            segment = ast.get_source_segment(source, node)
+            if segment is not None:
+                return segment
+    raise ValueError(f"session_export.py 缺少 Redactor.{method_name}")
+
+
+def _ordered_steps(body: str, steps: tuple[str, ...], name: str) -> None:
+    positions = [body.find(fragment) for fragment in steps]
+    missing = [fragment for fragment, position in zip(steps, positions) if position < 0]
+    if missing:
+        raise ValueError(f"{name} 缺少脱敏步骤：" + "、".join(missing))
+    if positions != sorted(positions):
+        raise ValueError(f"{name} 的脱敏步骤顺序被改变")
+
+
+def _check_sensitive_pipeline(tree: ast.Module, source: str) -> int:
+    _ordered_steps(_method_source(tree, source, "sensitive"), (
+        "if value in text:",
+        "scrubbed = redact_secrets(text)",
+        "text = self._sub(_TOKEN_PATTERNS[0],",
+        "text = self._sub(_ENV_ASSIGNMENT,",
+        "for pattern in self.path_patterns:",
+        "text = self._sub_paths(_ABSOLUTE_PATH, text)",
+        "return self._sub(_TOKEN_PATTERNS[3],",
+    ), "sensitive()")
+    _ordered_steps(_method_source(tree, source, "personal"), (
+        "for value in self.pii_values:",
+        "text = text.replace(value, PII_MARK)",
+        "text = self._sub(_PII_PATTERNS[0],",
+        "return self._sub(_PII_PATTERNS[3],",
+    ), "personal()")
+    missing = [fragment for fragment in SENSITIVE_PIPELINE if fragment not in source]
+    if missing:
+        raise ValueError("会话导出脱敏管线缺少：" + "、".join(missing))
+    return len(SENSITIVE_PIPELINE) + 2
 
 
 def check_export_privacy() -> int:
@@ -127,7 +206,8 @@ def check_export_privacy() -> int:
     writes = [token for token in FORBIDDEN_WRITES if token in export_text]
     if writes:
         raise ValueError("session_export.py 不得触碰目标文件：" + "、".join(writes))
-    return 7
+    pipeline = _check_sensitive_pipeline(tree, export_text)
+    return 7 + pipeline
 
 
 def main() -> int:
@@ -138,7 +218,7 @@ def main() -> int:
         return 2
     print(
         "会话导出隐私边界一致：3 种格式、请求字段与默认脱敏、"
-        f"4 个脱敏标记、字节上限有序且低于 1 MiB 并与主进程一致、导出模块不写盘（{guards} 项）"
+        f"4 个脱敏标记、字节上限有序且低于 1 MiB 并与主进程一致、脱敏管线顺序与导出模块不写盘（{guards} 项）"
     )
     return 0
 
