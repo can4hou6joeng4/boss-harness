@@ -911,10 +911,14 @@ class ApplicationService:
             return result
 
     @staticmethod
-    def _check_response_budget(result: dict) -> None:
+    def _check_response_budget(result: dict, *, usage: bool = False) -> None:
         if wire_size(result) > MAX_PAGE_BYTES:
-            raise RpcError(-32010, "会话响应过大，请用 thread/resume snapshot=true 后分页读取条目",
-                           {"code": "RESPONSE_TOO_LARGE", "recoveryMethod": "thread/resume", "snapshot": True})
+            hint = ("用量响应过大；请减小 limit 后重新读取，已加载的分页保持不变"
+                    if usage else "会话响应过大，请用 thread/resume snapshot=true 后分页读取条目")
+            recovery = ({"code": "RESPONSE_TOO_LARGE", "recoveryMethod": "thread/usage/read", "retryWithSmallerLimit": True}
+                        if usage else
+                        {"code": "RESPONSE_TOO_LARGE", "recoveryMethod": "thread/resume", "snapshot": True})
+            raise RpcError(-32010, hint, recovery)
 
     def on_thread_read(self, params: dict | None) -> dict:
         params = params or {}
@@ -1631,7 +1635,7 @@ class ApplicationService:
             result = self.sessions.usage_page(thread_id, branch=_branch_view(params),
                                               cursor=params.get("cursor"), limit=params.get("limit", 50),
                                               active_summary_job_id=active_job_id, entries=entries)
-        self._check_response_budget(result)
+        self._check_response_budget(result, usage=True)
         return result
 
     def on_thread_search(self, params: dict | None) -> dict:
