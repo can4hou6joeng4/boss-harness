@@ -11,6 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 MAIN = ROOT / "apps/desktop/src/main"
 RENDERER = ROOT / "apps/desktop/src/renderer/src"
 EXTERNAL_SCHEMES = re.compile(r'EXTERNAL_SCHEMES\s*=\s*\[([^\]]*)\]')
+PRELOAD_INVOKE = re.compile(r'ipcRenderer\.invoke\(\s*"([^"]+)"')
+PRELOAD_LISTEN = re.compile(r'ipcRenderer\.on\(\s*"([^"]+)"')
+MAIN_HANDLE = re.compile(r'ipcMain\.handle\(\s*"([^"]+)"')
+MAIN_SEND = re.compile(r'\b(?:send|sendWhenLoaded)\(\s*(?:[^,()]+,\s*)?"([^"]+)"')
 EXPECTED: dict[str, dict[str, bool]] = {
     "window.ts": {
         "contextIsolation": True,
@@ -114,12 +118,9 @@ def _main_text(name: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _handler_body(text: str, name: str) -> str:
-    """取出事件处理器的主体：支持块语句与单表达式两种箭头函数。"""
-    match = re.search(rf'\bon\(\s*"{re.escape(name)}"', text)
-    if match is None:
-        return ""
-    arrow = text.find("=>", match.end())
+def _arrow_body(text: str, start: int) -> str:
+    """从 start 起找到箭头函数主体；块语句按大括号配对，单表达式取到行尾。"""
+    arrow = text.find("=>", start)
     if arrow == -1:
         return ""
     index = arrow + 2
@@ -137,6 +138,12 @@ def _handler_body(text: str, name: str) -> str:
         return ""
     end = text.find("\n", index)
     return text[index:] if end == -1 else text[index:end]
+
+
+def _handler_body(text: str, name: str) -> str:
+    """取出事件处理器的主体：支持块语句与单表达式两种箭头函数。"""
+    match = re.search(rf'\bon\(\s*"{re.escape(name)}"', text)
+    return _arrow_body(text, match.end()) if match else ""
 
 
 def _check_navigation_handlers() -> int:
@@ -300,6 +307,47 @@ def _check_preload_bridge() -> int:
     return 7
 
 
+def _channel_diff(label: str, expected: set[str], actual: set[str]) -> str:
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    return (label + "不一致；缺少：" + ("、".join(missing) or "无")
+            + "；多出：" + ("、".join(extra) or "无"))
+
+
+def _check_ipc_channels() -> int:
+    relative = "apps/desktop/src/preload/index.ts"
+    text = (ROOT / relative).read_text(encoding="utf-8")
+    invokes = set(PRELOAD_INVOKE.findall(text))
+    listens = set(PRELOAD_LISTEN.findall(text))
+    if not invokes or not listens:
+        raise ValueError(f"{relative} 缺少 ipcRenderer.invoke 或 on 通道")
+    handled: set[str] = set()
+    sent: set[str] = set()
+    for file in sorted(MAIN.rglob("*.ts")):
+        source = file.read_text(encoding="utf-8")
+        sent.update(MAIN_SEND.findall(source))
+        for match in MAIN_HANDLE.finditer(source):
+            channel = match.group(1)
+            if channel in handled:
+                raise ValueError(f"IPC 通道重复注册：{channel}")
+            handled.add(channel)
+            body = _arrow_body(source, match.end())
+            if not body:
+                raise ValueError(
+                    f"{file.relative_to(ROOT).as_posix()} 的 {channel} 处理器缺少主体"
+                )
+            if "trustedSender(event)" not in body:
+                raise ValueError(
+                    f"{file.relative_to(ROOT).as_posix()} 的 {channel} 处理器"
+                    "必须在入口调用 trustedSender(event)"
+                )
+    if invokes != handled:
+        raise ValueError(_channel_diff("preload invoke 与 ipcMain.handle 通道", invokes, handled))
+    if listens != sent:
+        raise ValueError(_channel_diff("preload 订阅与主进程发送通道", listens, sent))
+    return len(handled) + len(sent) + 2
+
+
 def check_desktop_security() -> tuple[int, int, int]:
     checked = 0
     for name, expected in EXPECTED.items():
@@ -312,7 +360,8 @@ def check_desktop_security() -> tuple[int, int, int]:
     navigation = _check_navigation_handlers()
     external = _check_external_links()
     preload = _check_preload_bridge()
-    return len(EXPECTED), checked, allowlist + handlers + navigation + external + preload
+    ipc = _check_ipc_channels()
+    return len(EXPECTED), checked, allowlist + handlers + navigation + external + preload + ipc
 
 
 def main() -> int:

@@ -1,3 +1,10 @@
+## 0.2.0-rc.140 - 2026-11-18
+
+rc.140 源码候选核对 IPC 通道与发送方校验。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 解析 preload 的 `ipcRenderer.invoke` / `on` 与主进程 `ipcMain.handle`、`send` / `sendWhenLoaded` 通道，要求 invoke 与 handle、订阅与发送集合完全一致，同一通道不得重复注册。[Issue #2404](https://github.com/can4hou6joeng4/boss-harness/issues/2404)
+- 每个 `ipcMain.handle` 处理器主体必须在入口调用 `trustedSender(event)`；负向探针改通道名、删发送方与移除校验均触发失败。README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.140` / Python `0.2.0rc140`。
+
 ## 0.2.0-rc.139 - 2026-11-18
 
 rc.139 源码候选统一 preload 暴露面的类型来源。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
