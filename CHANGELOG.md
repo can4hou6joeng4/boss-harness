@@ -1,3 +1,11 @@
+## 0.2.0-rc.116 - 2026-11-18
+
+rc.116 源码候选为桌面窗口安全配置增加静态回归检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_desktop_security.py`：核对主窗口与平台登录视图的 `webPreferences` 隔离、沙箱、Node 集成、Web 安全、登录视图 `devTools` 等 17 项布尔值，并拒绝未登记文件。[Issue #2356](https://github.com/can4hou6joeng4/boss-harness/issues/2356)
+- Source build 增加该检查；README、CONTRIBUTING、技术参考与发布约定同步。
+- 候选版本号和使用指南同步为 npm `0.2.0-rc.116` / Python `0.2.0rc116`。
+
 ## 0.2.0-rc.115 - 2026-11-18
 
 rc.115 源码候选补充贡献流程的 PR 标题与关闭关联约定。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

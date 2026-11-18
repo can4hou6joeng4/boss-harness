@@ -34,6 +34,8 @@ jobs:
           printf 'python=%s\n' "$SOURCE_VERSION" >> "$GITHUB_OUTPUT"
       - name: Verify protocol constants
         run: python scripts/check_protocol.py
+      - name: Verify desktop security settings
+        run: python scripts/check_desktop_security.py
       - name: Verify search normalization
         run: python scripts/check_search_unicode.py
       - name: Verify documentation links
