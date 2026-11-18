@@ -27,7 +27,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ## 服务端通知
 
-`packages/protocol` 的 `ServerNotifications` 是内核主动发送的通知方法集合；协议版本仍为 `0.2.0`。客户端应忽略未知方法，并通过后续读取或终态通知补齐状态。`toolCall/executing` 是可选通知，旧内核不发送时客户端仍可从 `toolCall/started` 进入等待或执行状态，并以 `toolCall/completed` 收尾。
+`packages/protocol` 的 `ServerNotifications` 是内核主动发送的通知方法集合；协议版本仍为 `0.2.0`。客户端应忽略未知方法，并通过后续读取或终态通知补齐状态。`toolCall/executing` 是可选通知，旧内核不发送时客户端仍可从 `toolCall/started` 进入等待或执行状态，并以 `toolCall/completed` 收尾。`kernel/shutdown` 也是可选通知：仅在宿主注入事件观察 hook、且关闭期限仍有余量时随关闭流程发送；客户端不得依赖它判断进程已退出。
 
 | 类别 | 方法 | 说明 |
 | --- | --- | --- |
@@ -37,7 +37,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 会话 | `thread/created`、`thread/updated`、`thread/leafChanged`、`thread/archived`、`thread/deleted`、`thread/unarchived`、`thread/renamed`、`thread/reasoning/updated`、`thread/model/updated` | 会话生命周期、分支叶变化、归档 / 删除 / 恢复、标题、推理档位与模型线路变更。 |
 | 队列 | `queue/updated` | 队列项新增、状态变化或投递结果；客户端应重读 `queue/list`，不要把通知本身当成完整队列快照。 |
 | 上下文 | `context/compacted`、`context/compactionStarted`、`context/compactionProgress`、`context/compactionCompleted`、`context/compactionFailed`、`context/edited` | 摘要任务进度 / 终态、上下文已压缩与消息上下文编辑。任务详情仍经 `context/compact/read` 核对。 |
-| 宿主连接 | `harness/disconnected`、`harness/connectionStatus`、`kernel/hookError` | 宿主连接状态与 hook 诊断。连接状态由宿主发布；内核通知流中的同名帧不应覆盖宿主状态。 |
+| 宿主连接 | `harness/disconnected`、`harness/connectionStatus`、`kernel/hookError`、`kernel/shutdown` | 宿主连接状态、hook 诊断与关闭生命周期观测。连接状态由宿主发布；内核通知流中的同名帧不应覆盖宿主状态；`kernel/shutdown` 仅在宿主注入事件观察 hook 时发送，不能作为进程退出信号。 |
 
 `ServerNotifications` 是方法名常量，不是完整参数 schema；方法参数仍以 `packages/protocol` 的类型和对应读取接口为准。
 
