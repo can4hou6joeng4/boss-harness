@@ -1,3 +1,10 @@
+## 0.2.0-rc.210 - 2026-11-19
+
+rc.210 源码候选修复自动摘要期间补领转向缺少请求边界的问题。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `TurnRunner.run()` 汇总首批与摘要后补领的转向批次，提交后按最终请求指纹补写请求边界；中断续接不会把已投递的补领转向判为边界之外。[Issue #2544](https://github.com/can4hou6joeng4/boss-harness/issues/2544)
+- 预算失败、压缩错误与请求拒绝仍保留原记录顺序；新增 `scripts/check_catchup_boundary.py` 与 CI 守卫。离线合成探针验证修复前后边界位置，负向守卫验证旧条件会失败，全部检查通过。版本推进到 npm `0.2.0-rc.210` / Python `0.2.0rc210`。不执行发布动作。
+
 ## 0.2.0-rc.209 - 2026-11-19
 
 rc.209 源码候选修复中断续接可能丢失已投递转向消息的问题。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
