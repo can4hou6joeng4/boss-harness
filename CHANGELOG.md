@@ -1,3 +1,10 @@
+## 0.2.0-rc.192 - 2026-11-18
+
+rc.192 源码候选核对工具参数 schema 与注册表投影边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_tool_schema.py`：核对 8 个预算常量、关键字 / 类型白名单、结构化字符串解码与最终校验顺序，以及 `tool_bundle.py` 的名称 / 执行模式 / 预算 / 注册与只读投影边界。[Issue #2508](https://github.com/can4hou6joeng4/boss-harness/issues/2508)
+- CI 接入后覆盖 13 个检查脚本；六个负向探针均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.192` / Python `0.2.0rc192`。
+
 ## 0.2.0-rc.191 - 2026-11-18
 
 rc.191 源码候选核对会话导出工具数据边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
