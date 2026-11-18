@@ -1,3 +1,10 @@
+## 0.2.0-rc.163 - 2026-11-18
+
+rc.163 源码候选核对会话导出保存对话框属性。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 的 `session-export:save` 不变量新增 `createDirectory` 与 `showOverwriteConfirmation` 两个片段；桌面防护计数达到 108。[Issue #2450](https://github.com/can4hou6joeng4/boss-harness/issues/2450)
+- 两个负向探针分别删除对应属性均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.163` / Python `0.2.0rc163`。
+
 ## 0.2.0-rc.162 - 2026-11-18
 
 rc.162 源码候选限定 `shell.openExternal` 唯一调用点。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
