@@ -1,3 +1,10 @@
+## 0.2.0-rc.94 - 2026-11-18
+
+rc.94 源码候选加入构建前版本检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- Source build 在 `npm ci` 前核对根包、工作区、锁文件与 Python 内核版本。资产清单、隔离安装的包元数据与 CLI 显示版本使用同一个核对结果。[Issue #2308](https://github.com/can4hou6joeng4/boss-harness/issues/2308) · [PR #2309](https://github.com/can4hou6joeng4/boss-harness/pull/2309)
+- README 与发布约定说明本地版本检查入口。候选版本号和使用指南同步为 npm `0.2.0-rc.94` / Python `0.2.0rc94`。[Issue #2310](https://github.com/can4hou6joeng4/boss-harness/issues/2310)
+
 ## 0.2.0-rc.93 - 2026-11-18
 
 本节汇总第九十三个候选版本的源码与交付内容。相对 rc.92，本候选补齐关闭生命周期通知的协议常量与说明。rc.16 至 rc.93 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
