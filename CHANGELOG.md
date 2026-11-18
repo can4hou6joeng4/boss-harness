@@ -1,3 +1,10 @@
+## 0.2.0-rc.200 - 2026-11-18
+
+rc.200 源码候选为重复同参工具调用提醒增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_loop_guard.py` 并接入 CI：核对提醒阈值、规范化 SHA-256 摘要、参数上限与回退、纯内存状态，以及 `agent.py` 在工具结果后且有下一次模型请求时才注入的边界，共 32 项防护。[Issue #2524](https://github.com/can4hou6joeng4/boss-harness/issues/2524)
+- 负向探针覆盖阈值改写、提醒越界与观察位置漂移；全部检查通过。版本推进到 npm `0.2.0-rc.200` / Python `0.2.0rc200`。不执行发布动作。
+
 ## 0.2.0-rc.199 - 2026-11-18
 
 rc.199 源码候选为 rc.198 的 `queue/steer` 增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
