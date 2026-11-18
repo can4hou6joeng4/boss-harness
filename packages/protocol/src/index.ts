@@ -153,6 +153,14 @@ export const ClientMethods = {
   runtimeResourcesRead: "runtime/resources/read",
   connectionRead: "connection/read",
   connectionCheck: "connection/check",
+  /**
+   * 平台扫码登录只允许宿主主进程调用：`complete` 携带官方登录态，
+   * 不进入渲染层请求白名单，也不写会话或事件日志。
+   */
+  platformLoginStart: "platform/login/start",
+  platformLoginRead: "platform/login/read",
+  platformLoginComplete: "platform/login/complete",
+  platformLoginCancel: "platform/login/cancel",
   skillsList: "skills/list",
   skillsRead: "skills/read",
   skillsCreate: "skills/create",

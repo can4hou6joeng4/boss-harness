@@ -63,6 +63,8 @@ Harness 可通过进程环境变量 `BOSS_HARNESS_BROWSER_SOURCE` 显式传递�
 
 该覆盖不会读取 Chrome Cookie 数据库或 Keychain，也不修改共享上游配置；但 `auto` 仍允许上游的浏览器行为。Harness 无法约束忽略或误解该选项的任意二进制，也不能保证上游不会通过其他路径访问本地状态。浏览器来源策略不替代独立的请求预算或认证刷新契约；需要这些保证时，应使用明确支持并验证相应行为的上游版本。
 
+平台扫码登录使用 `platform/login/start`、`platform/login/read`、`platform/login/complete` 与 `platform/login/cancel` 四个请求方法，对应 `packages/protocol` 的 `ClientMethods` 常量。它们只由宿主主进程调用，不在渲染层请求白名单内；`complete` 的 cookies 与 userAgent 由内核按官方登录态格式校验后直接交给业务 CLI 验证，不写会话、事件或错误日志。渲染层只经主进程的登录状态机取得脱敏后的 `PlatformLoginStatus`，本协议不向模型暴露这些方法。
+
 固定调用链、可观察范围及后续能力接入条件见 [UPSTREAM.md](../UPSTREAM.md)。
 
 ## 平台暂停与聊天部分结果

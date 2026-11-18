@@ -1,3 +1,10 @@
+## 0.2.0-rc.95 - 2026-11-18
+
+rc.95 源码候选补齐平台登录的协议方法常量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `ClientMethods` 增加 `platform/login/start`、`platform/login/read`、`platform/login/complete` 与 `platform/login/cancel`；桌面主进程改用常量调用，不改变 RPC 行为。[Issue #2313](https://github.com/can4hou6joeng4/boss-harness/issues/2313)
+- 技术参考说明这些方法仅由宿主主进程使用，`complete` 携带的官方登录态不写入会话或日志。候选版本号和使用指南同步为 npm `0.2.0-rc.95` / Python `0.2.0rc95`。
+
 ## 0.2.0-rc.94 - 2026-11-18
 
 rc.94 源码候选加入构建前版本检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
