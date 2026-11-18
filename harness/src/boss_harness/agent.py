@@ -24,6 +24,7 @@ from boss_harness.context import ContextBudgetExceeded, messages_from_items
 from boss_harness.compaction import ContextCompactionFailed
 from boss_harness.hooks import LifecycleHooks
 from boss_harness.item_content import wire_value
+from boss_harness.loop_guard import LoopGuard
 from boss_harness.request_policy import ModelRequestRejected, check_model_request, record_model_rejection
 from boss_harness.models import (
     AssistantMessage,
@@ -927,6 +928,7 @@ class TurnRunner:
         self._blocked = None
         self.last_preparation = None
         recovery_budget = ModelRecoveryBudget()
+        loop_guard = LoopGuard()
 
         try:
             messages = list(self.history(thread_id))
@@ -943,9 +945,14 @@ class TurnRunner:
                 if self.stage_steering is not None:
                     staged = pending_steering if pending_steering is not None else self.stage_steering()
                     pending_steering = None
+                    if staged[0]:
+                        loop_guard.reset()
                     messages.extend(staged[0])
                 elif self.drain_steering is not None:
-                    messages.extend(self.drain_steering())
+                    steering = self.drain_steering()
+                    if steering:
+                        loop_guard.reset()
+                    messages.extend(steering)
                 if self.context_check is not None:
                     self.context_check(messages, self.system_prompt)
 
@@ -974,6 +981,7 @@ class TurnRunner:
                                          and staged is not None and staged[0])):
                             catch_up, commit = self.stage_steering()
                             if catch_up:
+                                loop_guard.reset()
                                 messages.extend(catch_up)
                                 request = replace(request, messages=tuple(messages))
                                 request, request_budget = self.request_preparer(request)
@@ -1088,11 +1096,13 @@ class TurnRunner:
                     if self.stage_steering is not None and _round + 1 < max_model_requests:
                         pending_steering = self.stage_steering()
                         if pending_steering[0]:
+                            loop_guard.reset()
                             messages.append(assistant)
                             continue
                     steering = (self.drain_steering() if self.drain_steering is not None
                                 and self.stage_steering is None and _round + 1 < max_model_requests else [])
                     if steering:
+                        loop_guard.reset()
                         messages.append(assistant)
                         messages.extend(steering)
                         continue
@@ -1169,6 +1179,11 @@ class TurnRunner:
                     assistant_item_id=assistant_item_id,
                     request_fingerprint=request_fingerprint if isinstance(request_fingerprint, str) else None)
                 messages.append(ToolResultsMessage(results=tuple(results)))
+                if _round + 1 < max_model_requests:
+                    for call in calls:
+                        reminder = loop_guard.observe(call.name, dict(call.arguments))
+                        if reminder is not None:
+                            messages.append(UserMessage(text=reminder))
 
             message = (f"已达到模型调用上限（{max_model_requests} 次请求），本回合已暂停。"
                        "已执行的工具结果已保留；请核对后明确发起新回合，不会自动继续或重试。")
