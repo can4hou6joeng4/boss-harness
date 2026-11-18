@@ -232,6 +232,10 @@ def summarize_usage(entries: Iterable[dict], active_turn_ids: set[str] | None = 
                 bucket = turns[turn_id] = {"turnId": turn_id, "providers": [], "models": [], **_empty()}
                 policy = verified_policy((turn_policies or {}).get(turn_id))
                 if policy is not None:
+                    # 持久压缩策略的 model 只校验长度与空白，可能含损坏代理项；
+                    # 用量响应仍须可编码，展示值与来源字段使用同一降级规则。
+                    policy = {key: wire_text(value) if isinstance(value, str) else value
+                              for key, value in policy.items()}
                     bucket["compactionPolicy"] = policy
             normalized = _add(bucket, payload.get("provider"), payload.get("model"), payload.get("usage"))
             if not track_cache or normalized is None:
