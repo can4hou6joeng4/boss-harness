@@ -1,3 +1,11 @@
+## 0.2.0-rc.123 - 2026-11-18
+
+rc.123 源码候选补齐本地自检报告的用户与技术说明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 使用指南增加自检报告顶层字段表：区分源码版本、协议版本与 Python 版本，并说明 `ok` 与 `checks` 的一致性。[Issue #2370](https://github.com/can4hou6joeng4/boss-harness/issues/2370)
+- 技术参考新增「启动自检报告」章节，记录桌面解析器的固定字段、限制与不覆盖范围，并加入快速导航。
+- 候选版本号同步为 npm `0.2.0-rc.123` / Python `0.2.0rc123`。
+
 ## 0.2.0-rc.122 - 2026-11-18
 
 rc.122 源码候选让宿主默认协议版本引用唯一常量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
