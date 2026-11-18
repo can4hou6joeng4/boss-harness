@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 import re
 import sys
@@ -20,6 +21,7 @@ DESKTOP_ROOT = "apps/desktop/src"
 EMITTERS = frozenset({"emit", "emit_until", "_emit_committed", "notify"})
 METHOD_LITERAL = re.compile(r'method\s*(?:[!=]==?|:)\s*"([^"]+/[^"]*)"')
 PROTOCOL_DEFAULT = re.compile(r'protocolVersion\s*\?\?\s*"(\d+\.\d+\.\d+)"')
+WORKSPACE_IMPORT = re.compile(r'(?:from\s+|import\(\s*)"(@boss-harness/[^"]+)"')
 # 内核经变量或元组发送、静态扫描无法识别的通知。新增此类路径时在此显式登记。
 DYNAMIC_KERNEL_NOTIFICATIONS = frozenset({"thread/deleted", "turn/completed"})
 # 经协议暴露、但只允许主进程调用的方法。新增此类方法时在此显式登记。
@@ -283,6 +285,54 @@ def _default_protocol_versions() -> list[tuple[str, str]]:
     return found
 
 
+def _workspace_dependencies() -> int:
+    """工作区源码导入的 @boss-harness 包必须在其 package.json 中声明。"""
+    try:
+        root = json.loads(_read("package.json"))
+    except (ValueError, json.JSONDecodeError):
+        raise ValueError("无法解析根 package.json") from None
+    patterns = root.get("workspaces") if isinstance(root, dict) else None
+    if not isinstance(patterns, list) or not patterns:
+        raise ValueError("根 package.json 缺少 workspaces")
+    workspaces: list[Path] = []
+    for pattern in patterns:
+        if not isinstance(pattern, str) or not pattern:
+            raise ValueError("根 package.json 的 workspaces 必须是字符串列表")
+        workspaces.extend(sorted(path for path in ROOT.glob(pattern)
+                                 if path.is_dir() and (path / "package.json").is_file()))
+    if not workspaces:
+        raise ValueError("根 package.json 的 workspaces 没有匹配到工作区")
+    checked = 0
+    for directory in workspaces:
+        relative = directory.relative_to(ROOT).as_posix()
+        try:
+            manifest = json.loads((directory / "package.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            raise ValueError(f"无法解析 {relative}/package.json") from None
+        name = manifest.get("name") if isinstance(manifest, dict) else None
+        if not isinstance(name, str) or not name:
+            raise ValueError(f"{relative}/package.json 缺少名称")
+        declared: set[str] = set()
+        for key in ("dependencies", "devDependencies"):
+            values = manifest.get(key)
+            if isinstance(values, dict):
+                declared.update(values)
+        imported: set[str] = set()
+        source = directory / "src"
+        if source.is_dir():
+            try:
+                for path in (*sorted(source.rglob("*.ts")), *sorted(source.rglob("*.tsx"))):
+                    imported.update(WORKSPACE_IMPORT.findall(path.read_text(encoding="utf-8")))
+            except OSError:
+                raise ValueError(f"无法读取 {relative}/src") from None
+        imported.discard(name)
+        missing = imported - declared
+        if missing:
+            raise ValueError(f"{relative} 未声明工作区包依赖：" + "、".join(sorted(missing)))
+        checked += len(imported)
+    return checked
+
+
 def _describe(missing: set[str], extra: set[str]) -> str:
     parts = []
     if missing:
@@ -305,6 +355,7 @@ def check_protocol() -> tuple[str, int, int, int, int, int, int]:
     if defaults:
         raise ValueError("协议版本默认值必须引用 PROTOCOL_VERSION：" + "、".join(
             f'{path} 的 "{literal}"' for path, literal in defaults))
+    _workspace_dependencies()
 
     client = _protocol_constants(protocol, "ClientMethods")
     registered = _registered_methods()
