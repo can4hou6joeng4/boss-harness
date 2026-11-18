@@ -1,3 +1,10 @@
+## 0.2.0-rc.180 - 2026-11-18
+
+rc.180 源码候选限制桌面与 app-client 的子进程 API。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求主进程与 app-client 的 `node:child_process` 只允许具名导入 `spawn` 与类型，且不得调用 `exec` / `execFile` / `execSync` / `execFileSync` / `spawnSync` / `fork`；桌面防护计数达到 147。[Issue #2484](https://github.com/can4hou6joeng4/boss-harness/issues/2484)
+- 注入 `exec` 具名导入、默认导入与 `execSync` 调用三个负向探针均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.180` / Python `0.2.0rc180`。
+
 ## 0.2.0-rc.179 - 2026-11-18
 
 rc.179 源码候选核对会话导出字节上限。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
