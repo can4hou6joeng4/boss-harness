@@ -31,7 +31,7 @@ from typing import Any, TypeVar
 from boss_harness.persistence import PersistenceIndex, SCHEMA_VERSION
 from boss_harness.private_files import ensure_private_directory, open_private_file, restrict_private_file
 from boss_harness.queue_view import ACTIVE_QUEUE_STATUSES, queue_record
-from boss_harness.search_unicode import needs_extra, search_normalize
+from boss_harness.search_unicode import extra_combining_class, is_grapheme_extend, needs_extra, search_normalize
 from boss_harness.models.capabilities import REASONING_EFFORTS
 
 _T = TypeVar("_T")
@@ -103,7 +103,7 @@ def _search_clusters(value: str, normalize: Callable[[str], str] | None = None
         end = index + 1
         hangul = _is_hangul_letter(value[index]) or _is_hangul_syllable(value[index])
         while end < length and (
-            unicodedata.combining(value[end])
+            is_grapheme_extend(ord(value[end]))
             or (hangul and _is_hangul_letter(value[end]))
             or value[end] in _HALFWIDTH_VOICED_MARKS
         ):
