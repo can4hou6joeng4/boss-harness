@@ -1,3 +1,10 @@
+## 0.2.0-rc.157 - 2026-11-18
+
+rc.157 源码候选核对 CHANGELOG 版本链严格递减。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_versions.py` 收集全部 `## <版本> - <日期>` 标题，按 `(major, minor, patch, rc)` 要求严格递减且首条等于源码版本。[Issue #2438](https://github.com/can4hou6joeng4/boss-harness/issues/2438)
+- 重复版本与乱序条目两个负向探针均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.157` / Python `0.2.0rc157`。
+
 ## 0.2.0-rc.156 - 2026-11-18
 
 rc.156 源码候选要求工作流保留依赖审计命令。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

@@ -14,6 +14,8 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[1]
 NUMBER = r"(?:0|[1-9][0-9]*)"
 NPM_VERSION = re.compile(rf"({NUMBER}\.{NUMBER}\.{NUMBER})(?:-rc\.({NUMBER}))?")
+CHANGELOG_HEADING = re.compile(r"^## (\S+) - \d{4}-\d{2}-\d{2}$", re.MULTILINE)
+CANDIDATE_VERSION = re.compile(rf"({NUMBER})\.({NUMBER})\.({NUMBER})-rc\.({NUMBER})")
 
 
 def _read(relative: str, parse):
@@ -70,13 +72,26 @@ def _check_guide(npm_version: str, python_version: str) -> None:
         raise ValueError(f"{path} 的源码版本行不是 {expected}")
 
 
+def _candidate_key(version: str) -> tuple[int, ...]:
+    match = CANDIDATE_VERSION.fullmatch(version)
+    if match is None:
+        raise ValueError(f"CHANGELOG.md 的版本条目 {version} 不是 MAJOR.MINOR.PATCH-rc.N 形式")
+    return tuple(int(part) for part in match.groups())
+
+
 def _check_changelog(npm_version: str) -> None:
     path = "CHANGELOG.md"
-    match = re.search(r"^## (\S+)", _read(path, lambda text: text), re.MULTILINE)
-    if match is None:
-        raise ValueError(f"{path} 缺少二级标题")
-    if match.group(1) != npm_version:
-        raise ValueError(f"{path} 的首条版本是 {match.group(1)}，预期为 {npm_version}")
+    headings = CHANGELOG_HEADING.findall(_read(path, lambda text: text))
+    if not headings:
+        raise ValueError(f"{path} 缺少版本条目")
+    if headings[0] != npm_version:
+        raise ValueError(f"{path} 的首条版本是 {headings[0]}，预期为 {npm_version}")
+    keys = [_candidate_key(version) for version in headings]
+    for index in range(1, len(keys)):
+        if keys[index] >= keys[index - 1]:
+            raise ValueError(
+                f"{path} 的版本条目必须严格递减：{headings[index]} 位于 {headings[index - 1]} 之后"
+            )
 
 
 def check_versions() -> str:
