@@ -1,3 +1,10 @@
+## 0.2.0-rc.193 - 2026-11-18
+
+rc.193 源码候选核对发布资产清单守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_release_assets.py`：核对清单 schema、保留名、身份 / 摘要校验链、安全读取与 CI 构建步骤原样保留（2 个常量、46 项防护）。[Issue #2510](https://github.com/can4hou6joeng4/boss-harness/issues/2510)
+- CI 接入后覆盖 14 个检查脚本；五个负向探针均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.193` / Python `0.2.0rc193`。本轮不执行任何发布动作。
+
 ## 0.2.0-rc.192 - 2026-11-18
 
 rc.192 源码候选核对工具参数 schema 与注册表投影边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
