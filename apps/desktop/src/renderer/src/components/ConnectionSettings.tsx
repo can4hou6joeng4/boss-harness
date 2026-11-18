@@ -117,7 +117,8 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
   const startupDiagnosis = notice ? connection?.startupDiagnosis : undefined;
   const reportMeta = startupDiagnosis?.kind === "report"
     ? [startupDiagnosis.version ? `内核 ${startupDiagnosis.version}` : "",
-      startupDiagnosis.protocolVersion ? `协议 ${startupDiagnosis.protocolVersion}` : ""].filter(Boolean).join(" · ")
+      startupDiagnosis.protocolVersion ? `协议 ${startupDiagnosis.protocolVersion}` : "",
+      startupDiagnosis.pythonVersion ? `Python ${startupDiagnosis.pythonVersion}` : ""].filter(Boolean).join(" · ")
     : "";
   const hasCheckError = startupChecks.some(check => check.status === "error");
   const canReconnect = !harnessUp && Boolean(window.boss) && connection?.state === "disconnected";

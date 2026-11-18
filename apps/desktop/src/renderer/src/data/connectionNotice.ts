@@ -75,10 +75,12 @@ function diagnosisOf(value: unknown): StartupDiagnosis | undefined {
   }
   const version = typeof raw.version === "string" && raw.version ? raw.version : undefined;
   const protocolVersion = typeof raw.protocolVersion === "string" && raw.protocolVersion ? raw.protocolVersion : undefined;
+  const pythonVersion = typeof raw.pythonVersion === "string" && raw.pythonVersion ? raw.pythonVersion : undefined;
   return {
     kind: "report", ok: raw.ok, checks,
     ...(version ? { version } : {}),
     ...(protocolVersion ? { protocolVersion } : {}),
+    ...(pythonVersion ? { pythonVersion } : {}),
   };
 }
 
