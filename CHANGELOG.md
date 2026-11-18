@@ -1,3 +1,11 @@
+## 0.2.0-rc.115 - 2026-11-18
+
+rc.115 源码候选补充贡献流程的 PR 标题与关闭关联约定。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `.github/PULL_REQUEST_TEMPLATE.md` 提醒标题使用 `type(scope): 中文描述`，正文用单独一行 `Closes #N` 关联 Issue；squash 合并后 PR 标题会成为主干提交主题。[Issue #2354](https://github.com/can4hou6joeng4/boss-harness/issues/2354)
+- CONTRIBUTING 的提交和 PR 小节同步关闭关键字要求。
+- 候选版本号和使用指南同步为 npm `0.2.0-rc.115` / Python `0.2.0rc115`。
+
 ## 0.2.0-rc.114 - 2026-11-18
 
 rc.114 源码候选加固文档检查的围栏与锚点边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
