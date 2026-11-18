@@ -1,3 +1,24 @@
+## 0.2.0-rc.83 - 2026-11-18
+
+本节汇总第八十三个候选版本的源码与交付内容。相对 rc.82，本候选对齐桌面用量原因汇总、码点计数与 CSV 导出字段。rc.16 至 rc.83 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 桌面用量原因键保留原文，超过展示上限时汇总为“其他”，原因合计始终等于未计入请求（#2246、#2249）。
+- 标识、技能 id 与压缩策略 model 按 Unicode 码点计数，补充平面标识不再让整页用量失败；来源文本不再静默截断（#2246、#2249）。
+- `unreportedRequests` 与 reason `missing` 一致，旧内核缺失时由原因表补齐；CSV 摘要任务无元数据时回退显示 `jobId`（#2247、#2248、#2249）。
+- 内核契约同步上述边界（#2249）。
+- 同步 npm / Python 版本到 `0.2.0-rc.83` / `0.2.0rc83`（#2250）。
+
+升级注意：不改变 JSON-RPC 协议、工具权限、会话持久化格式或存储键；rc.82 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2246](https://github.com/can4hou6joeng4/boss-harness/issues/2246)：对齐用量原因合计与码点计数。
+- [Issue #2247](https://github.com/can4hou6joeng4/boss-harness/issues/2247)：用 missing 原因补齐未上报请求。
+- [Issue #2248](https://github.com/can4hou6joeng4/boss-harness/issues/2248)：CSV 摘要任务回退显示 jobId。
+- [Issue #2250](https://github.com/can4hou6joeng4/boss-harness/issues/2250)：准备 rc.83 源码候选并同步版本来源。
+
 ## 0.2.0-rc.82 - 2026-11-18
 
 本节汇总第八十二个候选版本的源码与交付内容。相对 rc.81，本候选对齐桌面用量回合标识字符集规则。rc.16 至 rc.82 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
