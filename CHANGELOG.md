@@ -1,3 +1,10 @@
+## 0.2.0-rc.143 - 2026-11-18
+
+rc.143 源码候选核对检查脚本全部接入 CI。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_workflows.py` 收集 `scripts/check_*.py` 与工作流中的脚本引用，要求集合完全一致；未接入 CI 的检查脚本或引用不存在的脚本都会失败并列出差异。[Issue #2410](https://github.com/can4hou6joeng4/boss-harness/issues/2410)
+- 输出增加检查脚本覆盖数量；负向探针新增临时脚本、替换工作流引用均触发失败。README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.143` / Python `0.2.0rc143`。
+
 ## 0.2.0-rc.142 - 2026-11-18
 
 rc.142 源码候选让文档检查覆盖全部约定位置的 Markdown。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
