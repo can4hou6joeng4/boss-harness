@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""核对源码包版本，成功时向 stdout 输出 Python 版本。"""
+
+from __future__ import annotations
+
+import ast
+import json
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tomllib
+
+ROOT = Path(__file__).resolve().parents[1]
+NUMBER = r"(?:0|[1-9][0-9]*)"
+NPM_VERSION = re.compile(rf"({NUMBER}\.{NUMBER}\.{NUMBER})(?:-rc\.({NUMBER}))?")
+
+
+def _read(relative: str, parse):
+    try:
+        return parse((ROOT / relative).read_text(encoding="utf-8"))
+    except (OSError, ValueError, SyntaxError, RecursionError):
+        raise ValueError(f"无法读取或解析 {relative}") from None
+
+
+def _check_version(actual: object, expected: str, source: str) -> None:
+    if actual != expected:
+        raise ValueError(f"{source} 的版本不匹配，预期为 {expected}")
+
+
+def _npm_versions() -> dict:
+    npm = "npm.cmd" if sys.platform == "win32" else "npm"
+    try:
+        result = subprocess.run(
+            [npm, "pkg", "get", "version", "--workspaces", "--include-workspace-root", "--json"],
+            cwd=ROOT, capture_output=True, check=True,
+        )
+        versions = json.loads(result.stdout)
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        raise ValueError("无法从 npm 读取工作区版本，请核对 npm 和根包的 workspaces 配置") from None
+    if not isinstance(versions, dict):
+        raise ValueError("npm 未返回按包名组织的工作区版本")
+    return versions
+
+
+def _runtime_version() -> str:
+    path = "harness/src/boss_harness/__init__.py"
+    module = _read(path, ast.parse)
+    assignments = []
+    for node in module.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if any(isinstance(target, ast.Name) and target.id == "__version__" for target in targets):
+            assignments.append(node.value)
+    if len(assignments) == 1:
+        value = assignments[0]
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            return value.value
+    raise ValueError(f"{path} 必须包含唯一的顶层 __version__ 字符串声明")
+
+
+def check_versions() -> str:
+    root = _read("package.json", json.loads)
+    root_name = root.get("name") if isinstance(root, dict) else None
+    npm_version = root.get("version") if isinstance(root, dict) else None
+    match = NPM_VERSION.fullmatch(npm_version) if isinstance(npm_version, str) else None
+    if not isinstance(root_name, str) or not root_name.strip():
+        raise ValueError("package.json 缺少根包名称")
+    if match is None:
+        raise ValueError("package.json 的版本须采用 MAJOR.MINOR.PATCH 或 MAJOR.MINOR.PATCH-rc.N")
+    release, candidate = match.groups()
+    python_version = release if candidate is None else f"{release}rc{candidate}"
+
+    lock = _read("package-lock.json", json.loads)
+    packages = lock.get("packages") if isinstance(lock, dict) else None
+    if not isinstance(packages, dict):
+        raise ValueError("package-lock.json 缺少 packages 对象")
+    _check_version(lock.get("version"), npm_version, "package-lock.json 根字段")
+    root_entry = packages.get("")
+    _check_version(root_entry.get("version") if isinstance(root_entry, dict) else None,
+                   npm_version, 'package-lock.json 的 packages[""]')
+
+    versions = _npm_versions()
+    if versions.get(root_name) != npm_version or len(versions) < 2:
+        raise ValueError("npm 未返回根包与工作区的有效版本列表")
+    for name, version in versions.items():
+        if name == root_name:
+            continue
+        _check_version(version, npm_version, f"工作区 {name} 的 package.json")
+        link = packages.get(f"node_modules/{name}")
+        target = link.get("resolved") if isinstance(link, dict) and link.get("link") is True else None
+        if not isinstance(target, str) or not target:
+            raise ValueError(f"package-lock.json 缺少工作区 {name} 的链接")
+        entry = packages.get(target)
+        _check_version(entry.get("version") if isinstance(entry, dict) else None,
+                       npm_version, f"package-lock.json 中工作区 {name} 的记录")
+
+    config = _read("harness/pyproject.toml", tomllib.loads)
+    project = config.get("project")
+    _check_version(project.get("version") if isinstance(project, dict) else None,
+                   python_version, "harness/pyproject.toml 的 project.version")
+    _check_version(_runtime_version(), python_version, "harness/src/boss_harness/__init__.py 的 __version__")
+    return python_version
+
+
+def main() -> int:
+    try:
+        version = check_versions()
+    except ValueError as error:
+        print(f"源码版本核对失败，{error}", file=sys.stderr)
+        return 2
+    print(version)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
