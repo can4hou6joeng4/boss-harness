@@ -1,3 +1,22 @@
+## 0.2.0-rc.85 - 2026-11-18
+
+本节汇总第八十五个候选版本的源码与交付内容。相对 rc.84，本候选修正摘要任务触发方式标注，并让用量分页遵守响应预算。rc.16 至 rc.85 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 压缩任务按 `reason` 是否存在区分自动与手动；`origin` 只表示摘要作者，桌面明细、CSV 与内核会话导出不再把手动压缩误标为自动（#2260、#2261）。
+- 用量分页按约 1 MiB 响应预算增量缩减本页条目数，游标绑定实际返回条数；超预算恢复提示改为用量专属信息（#2262、#2263）。
+- 技术参考与协议注释同步摘要任务字段语义与用量分页边界（#2261、#2263）。
+- 同步 npm / Python 版本到 `0.2.0-rc.85` / `0.2.0rc85`（#2264）。
+
+升级注意：不改变 JSON-RPC 协议、工具权限、会话持久化格式或存储键；rc.84 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2260](https://github.com/can4hou6joeng4/boss-harness/issues/2260)：摘要任务按触发原因区分手动与自动。
+- [Issue #2262](https://github.com/can4hou6joeng4/boss-harness/issues/2262)：用量页超预算时缩小分页。
+- [Issue #2264](https://github.com/can4hou6joeng4/boss-harness/issues/2264)：准备 rc.85 源码候选并同步版本来源。
+
 ## 0.2.0-rc.84 - 2026-11-18
 
 本节汇总第八十四个候选版本的源码与交付内容。相对 rc.83，本候选对齐桌面摘要任务明细的本地兜底截断方向。rc.16 至 rc.84 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
