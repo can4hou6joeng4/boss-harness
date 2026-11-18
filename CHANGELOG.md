@@ -1,3 +1,10 @@
+## 0.2.0-rc.156 - 2026-11-18
+
+rc.156 源码候选要求工作流保留依赖审计命令。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_workflows.py` 在工作流聚合文本中要求同时出现 `npm audit --audit-level=moderate --omit=dev` 与 `npm audit --audit-level=critical`，删除任一步骤都会失败。[Issue #2436](https://github.com/can4hou6joeng4/boss-harness/issues/2436)
+- 两条命令各做负向探针均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.156` / Python `0.2.0rc156`。
+
 ## 0.2.0-rc.155 - 2026-11-18
 
 rc.155 源码候选刷新英文概览与工程检查描述。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

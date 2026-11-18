@@ -15,6 +15,10 @@ USES = re.compile(r"(?m)^\s*(?:-\s*)?uses:\s*(\S+)\s*$")
 PERMISSIONS = re.compile(r"(?m)^( *)permissions:\s*(.*)$")
 CHECK_SCRIPT = re.compile(r"scripts/(check_[A-Za-z0-9_]+\.py)")
 ACTION_REF = re.compile(r"^actions/[A-Za-z0-9_-]+@v\d+$")
+AUDIT_COMMANDS = (
+    "npm audit --audit-level=moderate --omit=dev",
+    "npm audit --audit-level=critical",
+)
 
 
 def _steps(text: str) -> list[str]:
@@ -86,8 +90,11 @@ def check_workflows() -> tuple[int, int, int, int]:
     if not scripts:
         raise ValueError("scripts 下没有 check_*.py")
     referenced: set[str] = set()
+    combined: list[str] = []
     for path in paths:
-        referenced.update(CHECK_SCRIPT.findall(path.read_text(encoding="utf-8")))
+        text = path.read_text(encoding="utf-8")
+        combined.append(text)
+        referenced.update(CHECK_SCRIPT.findall(text))
     missing = sorted(scripts - referenced)
     unknown = sorted(referenced - scripts)
     if missing or unknown:
@@ -95,6 +102,9 @@ def check_workflows() -> tuple[int, int, int, int]:
             "CI 检查脚本覆盖不一致：未接入 " + ("、".join(missing) or "无")
             + "；引用不存在 " + ("、".join(unknown) or "无")
         )
+    absent = [command for command in AUDIT_COMMANDS if command not in "\n".join(combined)]
+    if absent:
+        raise ValueError("工作流缺少依赖审计命令：" + "、".join(absent))
     return len(paths), checkouts, actions, len(scripts)
 
 
