@@ -1,3 +1,10 @@
+## 0.2.0-rc.129 - 2026-11-18
+
+rc.129 源码候选核对工作区源码的协议包依赖声明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_protocol.py` 扫描根 `package.json` 声明的所有工作区，源码导入 `@boss-harness/*` 时必须在该工作区的 `dependencies` 或 `devDependencies` 中声明，避免独立打包时运行时缺包。[Issue #2382](https://github.com/can4hou6joeng4/boss-harness/issues/2382)
+- 技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.129` / Python `0.2.0rc129`。
+
 ## 0.2.0-rc.128 - 2026-11-18
 
 rc.128 源码候选核对桌面权限处理器的实际语义。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
