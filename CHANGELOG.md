@@ -1,3 +1,23 @@
+## 0.2.0-rc.80 - 2026-11-18
+
+本节汇总第八十个候选版本的源码与交付内容。相对 rc.79，本候选修正冻结快照与普通读取在修订载荷、编辑标识和恢复方法名上的差异。rc.16 至 rc.80 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 修订载荷在合并前按普通投影规则清理，避免非法编号字段或 `approval` 覆盖原条目合法值（#2226、#2228）。
+- 冻结快照分页与 `edit_state` 接受空字符串编辑标识，与普通展示投影一致（#2226、#2228）。
+- 分支快照超限拒绝的 `recoveryMethod` 统一为 `thread/resume`（#2227、#2228）。
+- 内核契约同步上述边界（#2229、#2230）。
+- 同步 npm / Python 版本到 `0.2.0-rc.80` / `0.2.0rc80`（#2231）。
+
+升级注意：不改变 JSON-RPC 协议、工具权限、会话持久化格式或存储键；rc.79 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2226](https://github.com/can4hou6joeng4/boss-harness/issues/2226)：对齐修订载荷清理与空编辑标识。
+- [Issue #2227](https://github.com/can4hou6joeng4/boss-harness/issues/2227)：统一快照超限恢复方法名。
+- [Issue #2231](https://github.com/can4hou6joeng4/boss-harness/issues/2231)：准备 rc.80 源码候选并同步版本来源。
+
 ## 0.2.0-rc.79 - 2026-11-18
 
 本节汇总第七十九个候选版本的源码与交付内容。相对 rc.78，本候选对齐搜索 Unicode 17 规范分解与合成，并让冻结快照按普通读取规则清理无效编号字段。rc.16 至 rc.79 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
