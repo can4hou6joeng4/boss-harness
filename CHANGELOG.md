@@ -1,3 +1,10 @@
+## 0.2.0-rc.185 - 2026-11-18
+
+rc.185 源码候选核对会话导出上限的双端一致。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_export_privacy.py` 解析主进程 `security.ts` 的 `EXPORT_MAX_BYTES`，要求与内核 `MAX_EXPORT_BYTES` 相等，并保留按 UTF-8 字节数核对导出正文长度的判定。[Issue #2494](https://github.com/can4hou6joeng4/boss-harness/issues/2494)
+- 改动主进程副本与删除长度判定两个负向探针均触发对应错误；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.185` / Python `0.2.0rc185`。
+
 ## 0.2.0-rc.184 - 2026-11-18
 
 rc.184 源码候选核对工作区技能加载边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
