@@ -184,6 +184,7 @@ export const ServerNotifications = {
   itemStarted: "item/started",
   itemCompleted: "item/completed",
   toolCallStarted: "toolCall/started",
+  toolCallExecuting: "toolCall/executing",
   toolCallCompleted: "toolCall/completed",
   approvalRequested: "approval/requested",
   approvalDecided: "approval/decided",
