@@ -33,6 +33,9 @@ EXPECTED: dict[str, dict[str, bool]] = {
     },
 }
 PRELOAD_FILES = frozenset({"window.ts"})
+PERMISSION_ALLOWLIST = frozenset({"clipboard-sanitized-write"})
+PERMISSION_FILES = ("window.ts", "platformLogin.ts")
+PERMISSION_HANDLERS = ("setPermissionRequestHandler", "setPermissionCheckHandler")
 
 
 def _blocks(text: str) -> list[str]:
@@ -90,23 +93,63 @@ def _unregistered() -> list[str]:
     return found
 
 
-def check_desktop_security() -> tuple[int, int]:
+def _main_text(name: str) -> str:
+    path = MAIN / name
+    if not path.is_file():
+        raise ValueError(f"缺少桌面主进程文件 apps/desktop/src/main/{name}")
+    return path.read_text(encoding="utf-8")
+
+
+def _check_permission_allowlist() -> int:
+    text = _main_text("permissionPolicy.ts")
+    match = re.search(r"MAIN_WINDOW_PERMISSIONS[^=]*=\s*new Set\(\[(.*?)\]\)", text, re.DOTALL)
+    if match is None:
+        raise ValueError("apps/desktop/src/main/permissionPolicy.ts 缺少 MAIN_WINDOW_PERMISSIONS")
+    values = set(re.findall(r'"([^"]+)"', match.group(1)))
+    if values != PERMISSION_ALLOWLIST:
+        raise ValueError(
+            "主窗口权限白名单应恰为 " + "、".join(sorted(PERMISSION_ALLOWLIST))
+            + "，实际为 " + ("、".join(sorted(values)) if values else "空")
+        )
+    return len(values)
+
+
+def _check_permission_handlers() -> int:
+    checked = 0
+    for name in PERMISSION_FILES:
+        text = _main_text(name)
+        for handler in PERMISSION_HANDLERS:
+            if handler not in text:
+                raise ValueError(f"apps/desktop/src/main/{name} 缺少 {handler}")
+            checked += 1
+        if not re.search(r"setWindowOpenHandler\([\s\S]{0,240}?action:\s*\"deny\"", text):
+            raise ValueError(f"apps/desktop/src/main/{name} 的 setWindowOpenHandler 应返回 deny")
+        checked += 1
+        if not re.search(r"on\(\"will-attach-webview\",[^\n]*preventDefault\(\)", text):
+            raise ValueError(f"apps/desktop/src/main/{name} 的 will-attach-webview 应 preventDefault")
+        checked += 1
+    return checked
+
+
+def check_desktop_security() -> tuple[int, int, int]:
     checked = 0
     for name, expected in EXPECTED.items():
         checked += _check_file(name, expected)
     unregistered = _unregistered()
     if unregistered:
         raise ValueError("未登记的 webPreferences：" + "、".join(unregistered))
-    return len(EXPECTED), checked
+    allowlist = _check_permission_allowlist()
+    handlers = _check_permission_handlers()
+    return len(EXPECTED), checked, allowlist + handlers
 
 
 def main() -> int:
     try:
-        blocks, checked = check_desktop_security()
+        blocks, checked, guards = check_desktop_security()
     except (OSError, ValueError) as error:
         print(f"桌面安全配置核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"桌面安全配置一致：{blocks} 个 webPreferences 块、{checked} 项布尔值")
+    print(f"桌面安全配置一致：{blocks} 个 webPreferences 块、{checked} 项布尔值、{guards} 项权限与导航防护")
     return 0
 
 

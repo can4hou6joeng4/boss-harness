@@ -1,3 +1,10 @@
+## 0.2.0-rc.126 - 2026-11-18
+
+rc.126 源码候选为桌面权限与导航防护增加静态核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 新增强制核对：主窗口权限白名单恰为 `clipboard-sanitized-write`；主窗口与平台登录视图都注册权限请求 / 检查处理器、`setWindowOpenHandler` 返回 `deny`、`will-attach-webview` 调用 `preventDefault`。[Issue #2376](https://github.com/can4hou6joeng4/boss-harness/issues/2376)
+- README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.126` / Python `0.2.0rc126`。
+
 ## 0.2.0-rc.125 - 2026-11-18
 
 rc.125 源码候选收紧 CI 工作流权限的静态检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
