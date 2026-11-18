@@ -1,3 +1,10 @@
+## 0.2.0-rc.207 - 2026-11-18
+
+rc.207 源码候选澄清自动压缩保留目标的估算口径与边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 使用指南与技术参考明确 `keepRecentTokens` 是 token 口径的预算估算而非精确 tokenizer 结果：可信 `model_usage` 前缀优先校准，否则按字符保守估算；切点只落在完整回合边界，当前运行回合及已被摘要覆盖的来源不重复摘要。[Issue #2538](https://github.com/can4hou6joeng4/boss-harness/issues/2538)
+- 不改变运行时行为或工具权限；文档链接与版本一致性检查通过。版本推进到 npm `0.2.0-rc.207` / Python `0.2.0rc207`。不执行发布动作。
+
 ## 0.2.0-rc.206 - 2026-11-18
 
 rc.206 源码候选为搜索片段与桌面高亮增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
