@@ -1442,7 +1442,11 @@ class SessionStore:
             if entry.get("type") != "item":
                 continue
             payload = dict(entry.get("payload") or {})
-            entry_id = str(entry.get("id") or "")
+            # 空 id 与缺 id 一样无法作为编辑、内容引用和快照分页的稳定定位键；
+            # 普通读取与冻结快照都跳过这类记录，不让一条坏记录使整次恢复失败。
+            entry_id = _record_id(entry.get("id")) or ""
+            if not entry_id:
+                continue
             target_id = _record_id(payload.get("revises")) or ""
             if not target_id and payload.get("kind") == "toolCall" and payload.get("status") != "running":
                 parent_id = str(entry.get("parentId") or "")
