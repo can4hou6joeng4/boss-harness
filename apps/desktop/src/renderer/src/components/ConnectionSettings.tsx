@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { PROTOCOL_VERSION, type ConnectionCheck, type ConnectionReport, type ConnectionTarget, type PlatformLoginStatus } from "@boss-harness/protocol";
 import { harnessErrorText, connectionReport, harnessStatus, reconnectHarness } from "../data/harnessBridge";
-import { connectionNoticeParts, connectionViewOf, mergeConnectionView, startupCheckRows, type ConnectionView } from "../data/connectionNotice";
+import { connectionNoticeParts, connectionViewOf, mergeConnectionView, startupCheckRows, startupDiagnostics, type ConnectionView } from "../data/connectionNotice";
+import { useClipboardCopy } from "../data/clipboardCopy";
 import { loginActive, loginSettled, platformLoginStatusOf } from "../data/platformLoginState";
 import { formatIsoClock } from "../data/timeFormat";
 
@@ -25,6 +26,7 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
   const [connection, setConnection] = useState<ConnectionView | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const [reconnectError, setReconnectError] = useState("");
+  const clipboard = useClipboardCopy();
   const mounted = useRef(true);
   const version = useRef(0);
   useEffect(() => {
@@ -124,6 +126,12 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
   const protocolMismatch = reportProtocol && reportProtocol !== PROTOCOL_VERSION
     ? `协议版本不一致：内核自检报告 ${reportProtocol}，桌面支持 ${PROTOCOL_VERSION}；请确认桌面与内核来自同一构建。`
     : "";
+  // 新的自检结论作废旧回执：迟到的写入结果不能显示在当前报告旁边。
+  useEffect(() => { clipboard.reset(); }, [startupDiagnosis, notice?.headline, clipboard.reset]);
+  const copyStartup = (): void => {
+    if (!notice) return;
+    void clipboard.copy(startupDiagnostics(notice, startupDiagnosis, reportMeta, protocolMismatch), "startup-diagnostics");
+  };
   const hasCheckError = startupChecks.some(check => check.status === "error");
   const canReconnect = !harnessUp && Boolean(window.boss) && connection?.state === "disconnected";
   const badge = <span className={`settings-badge${harnessUp ? " is-connected" : ""}`}><span className="settings-status-dot" />{harnessUp ? "运行中" : "未连接"}</span>;
@@ -139,6 +147,10 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
           <span>{check.text}<code>{check.code}</code></span>
         </li>)}</ul>}
         {notice.recovery && <p className="settings-row-description">{notice.recovery}</p>}
+        <div className="connection-startup-actions">
+          <button type="button" className="settings-button" onClick={copyStartup}>复制自检结果</button>
+          {clipboard.feedback?.key === "startup-diagnostics" && <span className={`settings-about-copy${clipboard.feedback.ok ? "" : " is-error"}`} role="status">{clipboard.feedback.ok ? "自检结果已复制" : `复制失败：${clipboard.feedback.reason ?? "剪贴板不可用"}`}</span>}
+        </div>
       </div>}
       {reconnectError && <p className="connection-login-status" role="alert">{reconnectError}</p>}
     </div>{notice ? <div className="connection-check-controls">{badge}
