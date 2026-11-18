@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.212` / Python `0.2.0rc212` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.213` / Python `0.2.0rc213` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -66,6 +66,8 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 选择 `none` 时（显式 `--provider none`、`BOSS_HARNESS_PROVIDER=none` 或没有可用凭据时自动回退），内核不读取模型名与推理档位：握手、`config/read`、`model/list` 与新建会话统一使用 `none · none`，设置 `BOSS_HARNESS_MODEL` 或 `BOSS_HARNESS_EFFORT` 不会改变该线路，也不会发起模型请求。`none` 仍可调用招聘 CLI 与上游只读工具。桌面「设置 → 模型与连接」的「模型服务」卡片把这条默认线路标为「未启用」，并注明招聘 CLI 仍可运行、可能访问平台；它不表示离线。
 
+显式指定 `none` 与自动回退为 `none` 的含义不同。显式指定（`--provider none`，或未传 `--provider` 时 `BOSS_HARNESS_PROVIDER=none`）是进程级开关：整个进程不构造模型传输，`model/list` 只会列出 `none · none`，不能在会话里改选其他线路；记录在真实线路上的旧会话在本进程内读上下文、发回合或续接都会被拒绝并说明原因，切到 `none` 线路后仍可使用只读指令，摘要线路（含另配的 `BOSS_HARNESS_COMPACTION` 摘要 provider）同样不可用，`summaryAvailable` 为 `false`。需要模型时改用具体 provider 重新启动，旧会话在对应线路进程内保持可用。自动回退只是没有默认线路：没有可用凭据时进程默认落在 `none · none`，环境中另已配置的线路仍会出现在 `model/list`，可在会话里选用。桌面只经环境变量传线路，因此桌面启动要以具体 provider 运行才能获得其他可选线路。
+
 缺少任一项时才读取 `BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 或默认 `~/.codex/config.toml`，按此顺序选择文件，显式字段仍优先。读取 TOML 需要 Python 3.11+；已有文件不可读或语法损坏时明确报错，不退到其他 provider。文件不存在或缺少可用 profile 时继续检查端点与凭据，缺项会报错；未提供模型且没有可用文件模型时保留既有 `DEFAULT_MODEL`。
 
 当前文件适配要求文件自身同时提供 `model`、`model_provider` 及该 provider 的 `base_url` 才形成可用 profile；凭据支持 provider 的 `experimental_bearer_token`，或由 `env_key` 指定环境变量名并从该变量读取；显式 `BOSS_HARNESS_OPENAI_API_KEY` 优先于文件凭据，文件内 `experimental_bearer_token` 优先于 `env_key`。OpenAI 线路仅支持 Responses：profile 的 `wire_api` 缺省或为空白时使用 `responses`，显式值忽略首尾空白并按不区分大小写处理；其他值或非字符串会以 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝，不自动改用其他协议。应选择支持 Responses 的端点，不能仅修改标识来适配只支持 Chat Completions 的服务。尚未适配 Codex 的 OAuth。配置解析只读本地文件，不探测真实服务。
@@ -89,7 +91,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 | 检查项 | 固定检查码 | 检查范围与限制 |
 | --- | --- | --- |
-| 模型配置 | `MODEL_CONFIG_VALID` / `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` / `MODEL_CONFIG_INVALID` / `MODEL_CONFIG_INCOMPLETE`，以及下表的具体错误码 | 只复用本地解析，不构造 SDK 或发起请求；缺少必需配置、文件损坏或非正输出上限记为错误，显式 `none` 与自动回退分别记为禁用模型、未配置模型警告。 |
+| 模型配置 | `MODEL_CONFIG_VALID` / `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` / `MODEL_CONFIG_INVALID` / `MODEL_CONFIG_INCOMPLETE`，以及下表的具体错误码 | 只复用本地解析，不构造 SDK 或发起请求；缺少必需配置、文件损坏或非正输出上限记为错误，显式 `none` 与自动回退分别记为禁用模型、未配置模型警告。禁用模型的处理建议是改用具体 provider 重新启动；自动回退只影响默认线路，不阻止其他已配置线路在会话内选用。 |
 | 业务 CLI | `BOSS_CLI_FOUND` / `BOSS_CLI_UNAVAILABLE` | 只发现可执行文件，不执行 `boss schema`、版本查询、登录或任何工具；未发现可执行文件记为警告，文件存在不证明 CLI 能正常运行。 |
 | 浏览器来源 | `BROWSER_SOURCE_VALID` / `BROWSER_SOURCE_INVALID` | 只校验 `BOSS_HARNESS_BROWSER_SOURCE` 的取值，不读取浏览器或 Cookie，也不验证上游是否支持该选项。 |
 | 状态目录 | `STATE_DIRECTORY_VALID` 及下文的目录错误码 | 只读核对实际状态路径的目录类型、所有权、父目录与 ACL 安全规则，以及基本访问条件；缺失路径只核对已有父目录，不创建或试写。 |
@@ -328,7 +330,7 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 
 内核默认启用自动压缩：输入预算使用达到 80% 时生成摘要，并尽量保留最近 20000 token。这里的「token」是预算估算口径，不是供应商 tokenizer 的精确计数：有同一业务线路的可信 `model_usage` 前缀时按 usage 增量校准各回合，否则按消息长度保守估算；切点只落在完整回合边界，且不会摘要当前运行回合。没有新增可压缩内容时计划会被拒绝，不会生成空摘要。桌面「设置 → 上下文」可查看并修改这三项默认值；内核侧对应 `config/autoCompaction/set`（能力 `autoCompactionConfig`），只接受 `enabled`、`triggerPercent`（1–100）与 `keepRecentTokens`（1–1000000）。保存后立即在当前进程生效，并原子写入内核状态目录下的 `config.json`；重启后仍生效，其他顶层配置键保持不变。摘要使用的 provider、model、effort 不在此界面修改，仍由启动配置决定。
 
-摘要可以使用与业务回合不同的 provider 或模型。自动压缩与上下文溢出恢复均在提交前，按业务回合实际使用的 provider/model 检查摘要、保留历史、当前输入及工具定义的完整预算。容纳不下时以 `COMPACTION_INSUFFICIENT` 暂停，不保存新摘要检查点、不继续业务请求，原始记录与既有检查点保留；可减少当前输入或保留目标，或新建会话后明确继续。摘要线路本身不可用时，例如配置为 `none`、本机缺少对应凭据或摘要模型不支持指定推理档位，当前回合也会以明确压缩错误码暂停，而不是笼统报成回合执行失败；先修正摘要配置或显式关闭自动压缩，再核对会话并明确发起下一步。暂停不自动重试或继续业务请求，也不撤销已执行的工具或外部操作。
+摘要可以使用与业务回合不同的 provider 或模型。自动压缩与上下文溢出恢复均在提交前，按业务回合实际使用的 provider/model 检查摘要、保留历史、当前输入及工具定义的完整预算。容纳不下时以 `COMPACTION_INSUFFICIENT` 暂停，不保存新摘要检查点、不继续业务请求，原始记录与既有检查点保留；可减少当前输入或保留目标，或新建会话后明确继续。摘要线路本身不可用时，例如配置为 `none`、进程以显式 `none` 启动、本机缺少对应凭据或摘要模型不支持指定推理档位，当前回合也会以明确压缩错误码暂停，而不是笼统报成回合执行失败；先修正摘要配置或显式关闭自动压缩，再核对会话并明确发起下一步。暂停不自动重试或继续业务请求，也不撤销已执行的工具或外部操作。
 
 策略来源经 `config/read` 的 `autoCompactionSource` 如实返回：`environment` 表示由 `BOSS_HARNESS_COMPACTION` 管理，`stored` 表示来自 `config.json`，`default` 表示内置默认，`explicit` 表示调用方在构造内核时显式指定。环境变量优先于持久配置；此时设置页只读，直接调用 `config/autoCompaction/set` 会以 `AUTO_COMPACTION_ENV_MANAGED` 拒绝，不会静默覆盖环境变量；显式构造的内核以 `AUTO_COMPACTION_EXPLICIT` 拒绝写入。配置文件缺失或字段非法时按内置默认读取；文件存在但不可读或不是 JSON 对象时，保存会明确失败而不是覆盖原文件。单回合覆盖的语义不变：它优先于默认值，发送一次后消耗，不写入会话或 `config.json`。
 

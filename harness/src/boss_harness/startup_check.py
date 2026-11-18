@@ -45,7 +45,8 @@ def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str
         if requested_provider.strip().lower() == "none":
             return _check(
                 "model", "warning", "MODEL_DISABLED", "已显式禁用模型调用。",
-                "需要模型回合时配置模型线路；none 不会禁止招聘 CLI 或平台网络。",
+                "本进程不使用任何模型线路，其他已配置线路与摘要线路同样不可用；需要模型回合时改用具体 provider 启动。"
+                "none 不会禁止招聘 CLI 或平台网络。",
             )
         return _check(
             "model", "warning", "MODEL_NOT_CONFIGURED", "未配置默认模型线路，自动回退为 none。",

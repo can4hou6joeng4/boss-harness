@@ -62,6 +62,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy) |
+| 模型线路 | [`check_model_disable.py`](#check_model_disablepy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_attachments.py`](#check_attachmentspy) |
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_snippet.py`](#check_search_snippetpy) |
@@ -125,6 +126,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_catchup_boundary.py`
 
 `scripts/check_catchup_boundary.py` 核对摘要后补领转向的提交批次、最终请求指纹与续接拒绝条件；它是 AST 与文本扫描，不替代真实模型或桌面操作。
+
+### `check_model_disable.py`
+
+`scripts/check_model_disable.py` 核对显式 `none`（`--provider none` 或 `BOSS_HARNESS_PROVIDER=none`）禁用模型调用的进程级边界：`ApplicationService` 的构造校验、模型目录发现门禁、`_configured_route` 的拒绝提示、`_provider_for` 对真实线路的最后拦截、`_summary_available`、摘要线路解析门禁、分支摘要与续接预检的拒绝提示，以及入口 `_requested_provider` 与启动自检 `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` 的措辞。它还核对结构边界：`provider_factory` 在 `application.py` 只经 `_provider_for` 调用、在 `connections.py` 只经 `_run` 调用，`build_provider` 只允许入口调用，`AnthropicProvider` / `OpenAIResponsesProvider` 只允许在 `models/provider.py` 构造，模型检查卡片对 `none` 默认线路保持 `disabled` 且不再发起检查。它是静态扫描，不证明运行时行为；嵌入方自带的 `provider_factory` 不经入口，不在该脚本的边界内，仍受 `_provider_for` 的结构拦截约束。
 
 ### `check_private_files.py`
 
@@ -220,6 +225,8 @@ OpenAI Responses 的 `response.completed` / `response.incomplete` 与 Anthropic 
 
 进程的生效默认线路取自模型目录：`none` provider 在目录中规范为 `model=none`、无推理档位，`initialize.modelBridge`、`config/read`、`model/list` 与 `thread/start` 使用同一份配置，新建会话不再因握手模型名与可选目录不一致被 `MODEL_ROUTE_UNAVAILABLE` 拒绝。显式 none、自动回退及残留的模型 / 档位变量都落到该目录项，不发起模型请求；`anthropic` / `openai` 等真实线路仍使用解析出的原配置，不迁移或改写既有会话。显式覆盖其他线路模型时，解析与校验规则不变。
 
+显式 `none` 是进程级开关，与自动回退不同：以 `--provider none`（或未传 `--provider` 时 `BOSS_HARNESS_PROVIDER=none`）启动后，目录只保留 `none · none`，不发现其他已配置线路；摘要线路不再独立解析，`summaryAvailable` 为 `false`；记录在真实线路上的旧会话读取上下文、发起回合或续接会被 `MODEL_PROVIDER_UNAVAILABLE` / `CONTINUATION_PROVIDER_UNAVAILABLE` 拒绝，这类会话仍可切到 `none` 线路使用只读指令。自动回退得到的 `none` 只是本机没有默认线路，其他已配置线路仍会进入目录并可在会话内选用。构造方以 `ApplicationService(model_calls_disabled=True)` 显式指定时，要求默认线路为 `none` 且不注入 provider 实例。
+
 内核在每次模型请求前估算完整输入，包括 system/技能、用户材料、消息与思考、工具调用及结果、工具 schema 和请求选项。输出预留受模型声明的上限约束，输入增长不会静默缩小输出；保留 4096 token 安全余量。接近或超过预算时可先自动摘要更早的完整回合；仍无法容纳时以 `blocked / CONTEXT_BUDGET_EXCEEDED` 或明确的压缩错误暂停，不请求业务模型、不自动启动后续队列，已有工具结果继续保留。steering 只有在下一请求通过预算检查后才标记已投递；预算失败时保留为暂停项。
 
 通过启动环境变量 `BOSS_HARNESS_MODEL_LIMITS` 配置精确的 `provider/model` 容量，例如：
@@ -232,7 +239,7 @@ export BOSS_HARNESS_MODEL_LIMITS='{"openai/custom-model":{"contextWindow":128000
 
 未知模型使用 200000/64000 的兼容预算，返回 `capabilitySource=legacy-default`、`capacityIsEstimate=true`；这是本地假设，不能证明真实服务容量。请求输出大于此默认上限时会裁剪到 64000，需要更高额度时应显式配置。显式容量标记为 `configured`，仍由部署者核对模型及网关约束，不自动探测或下载模型目录。
 
-`context/read` 传 `threadId` 可查看完整预算；空闲时还可传与下一回合一致的 `model`、`input`、`skillIds`、`attachmentIds` 做预览。运行中返回当前已准备请求的快照，并拒绝预览参数。`requestSource` 区分 `active`、`preview`、`default`；准备完成前的 `active` 是按当前回合配置生成的候选预算。`summaryAvailable` 表示当前摘要策略有非 `none` 线路且宿主提供了独立 provider factory。`requestedOutputTokens` 保留原请求值，`outputReserve` 是裁剪后的值；`breakdown` 分列 system/messages/tools/options。每次请求记录预算，重启后 `lastBudget` 可追溯最后一次准入或拒绝，读取不会执行模型或工具。
+`context/read` 传 `threadId` 可查看完整预算；空闲时还可传与下一回合一致的 `model`、`input`、`skillIds`、`attachmentIds` 做预览。运行中返回当前已准备请求的快照，并拒绝预览参数。`requestSource` 区分 `active`、`preview`、`default`；准备完成前的 `active` 是按当前回合配置生成的候选预算。`summaryAvailable` 表示当前摘要策略有非 `none` 线路、宿主提供了独立 provider factory，且进程未以显式 `none` 禁用模型调用。`requestedOutputTokens` 保留原请求值，`outputReserve` 是裁剪后的值；`breakdown` 分列 system/messages/tools/options。每次请求记录预算，重启后 `lastBudget` 可追溯最后一次准入或拒绝，读取不会执行模型或工具。
 
 会话菜单可通过 `thread/reasoning/read` 读取模型声明的推理档位，并用 `thread/reasoning/set` 保存当前会话选择；传 `null` 恢复启动配置。设置追加到会话历史，不修改环境变量或 Codex profile；会话分支继承创建时的设置。设置在下一次请求准备边界生效，已经准备或正在传输的请求保持原档位。业务回合与上下文预算使用当前会话的有效档位；摘要默认继承该档位，显式设置摘要 effort 后则使用独立档位。当活动模型与摘要模型的能力集合不一致时，只显示两者交集，避免档位设置使业务回合无法执行。重启后若部署的能力表移除了已保存档位，读取会标记为不受支持，用户可恢复继承配置。
 

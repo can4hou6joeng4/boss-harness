@@ -43,6 +43,16 @@ def _build_config(args: argparse.Namespace) -> ModelConfig:
     return resolve_config(environ=env, provider=explicit)
 
 
+def _requested_provider(args: argparse.Namespace) -> str:
+    """用户点名的 provider：命令行优先，其次环境变量，未指定时为空串。
+
+    归一化与 `resolve_config` 一致。启动自检与正式启动共用这一个判断，
+    「显式 none」的自检结论（`MODEL_DISABLED`）和内核的实际开关才不会各说各话。
+    """
+    raw = args.provider if args.provider != "auto" else os.environ.get("BOSS_HARNESS_PROVIDER", "")
+    return raw.strip().lower()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="boss-harness", description="BOSS Harness Agent Harness 内核")
     parser.add_argument("--listen", default="stdio://", help="传输端点，当前仅支持 stdio://")
@@ -54,7 +64,8 @@ def main(argv: list[str] | None = None) -> int:
         "--provider",
         default="auto",
         choices=["auto", "anthropic", "openai", "codex", "none"],
-        help="模型供应商；openai 与其别名 codex 走 Codex 配置里的 Responses 线路，none 表示不调用模型的确定性回合（仍可调用招聘 CLI）",
+        help="模型供应商；openai 与其别名 codex 走 Responses 线路（显式 BOSS_HARNESS_OPENAI_* 或 Codex 配置），"
+             "none 表示整个进程不调用模型、回合走确定性路径（仍可调用招聘 CLI）",
     )
     parser.add_argument("--model", default=None, help=f"模型 id，默认 {DEFAULT_MODEL}")
     parser.add_argument("--version", action="version", version=f"boss-harness {__version__}")
@@ -62,8 +73,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.check:
         from boss_harness.startup_check import startup_report
-        requested = args.provider if args.provider != "auto" else os.environ.get("BOSS_HARNESS_PROVIDER", "")
-        report = startup_report(lambda: _build_config(args), state_dir=Path(args.state_dir), requested_provider=requested)
+        report = startup_report(lambda: _build_config(args), state_dir=Path(args.state_dir),
+                                requested_provider=_requested_provider(args))
         print(json.dumps(report, ensure_ascii=False))
         return 0 if report["ok"] else 2
 
@@ -99,10 +110,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[harness] 浏览器来源配置不可用（{type(exc).__name__}）：{exc}", file=sys.stderr)
         return 2
     server = JsonRpcServer()
+    # 显式 none 是进程级开关：不列出其他线路、不解析摘要线路，整个进程不构造模型传输。
+    # 未指定 provider 而自动回退得到的 none 只是没有默认线路，其他已配置线路照常可选。
+    model_calls_disabled = _requested_provider(args) == "none"
     try:
         # 构造 Harness 会创建会话目录；state-dir 不可写同样是启动期的配置问题，应当走同一个干净
         # 退出码，而不是把回溯打到 stdout（stdout 只走协议）并以 1 结束。
-        harness = Harness(server, Path(args.state_dir), config, provider, provider_factory=build_provider)
+        harness = Harness(server, Path(args.state_dir), config, provider, provider_factory=build_provider,
+                          model_calls_disabled=model_calls_disabled)
     except (OSError, ValueError) as exc:
         print(f"[harness] 启动失败（{type(exc).__name__}）：{exc}", file=sys.stderr)
         # 固定文字，不带路径或取值：自检不联网、不写入，能把同一条件映射为检查码与处理建议。
@@ -113,7 +128,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"[harness] listening on stdio, state={args.state_dir}, "
         f"boss binary={bridge.binary} (source={bridge.source}, available={bridge.available()}), "
-        f"model provider={harness.config.provider} model={harness.config.model} driven={harness.provider is not None}",
+        f"model provider={harness.config.provider} model={harness.config.model} driven={harness.provider is not None} "
+        f"model_calls_disabled={harness.model_calls_disabled}",
         file=sys.stderr,
     )
     harness.serve_forever()
