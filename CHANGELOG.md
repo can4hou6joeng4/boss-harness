@@ -1,3 +1,10 @@
+## 0.2.0-rc.124 - 2026-11-18
+
+rc.124 源码候选修正公开状态页对桌面能力的描述。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `docs/STATUS.md` 将已落地的任务队列面板、技能选择器 / 工作区技能管理与自动压缩策略设置移入「已具备」，待完成列表只保留真实未落地或待验收事项。[Issue #2372](https://github.com/can4hou6joeng4/boss-harness/issues/2372)
+- 候选版本号同步为 npm `0.2.0-rc.124` / Python `0.2.0rc124`。
+
 ## 0.2.0-rc.123 - 2026-11-18
 
 rc.123 源码候选补齐本地自检报告的用户与技术说明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
