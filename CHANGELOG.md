@@ -1,3 +1,10 @@
+## 0.2.0-rc.151 - 2026-11-18
+
+rc.151 源码候选核对会话导出处理器不变量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 取出 `session-export:save` 处理器主体，要求保留受信发送方校验、`validateSessionExportRequest(payload)`、`validateThreadExportResponse(response, request)`、`writeSessionExport(choice.filePath, exported.content)` 与 `basename(choice.filePath)` 返回。[Issue #2426](https://github.com/can4hou6joeng4/boss-harness/issues/2426)
+- 四类负向探针分别触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.151` / Python `0.2.0rc151`。
+
 ## 0.2.0-rc.150 - 2026-11-18
 
 rc.150 源码候选核对 preload 暴露调用与导入来源。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
