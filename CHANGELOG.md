@@ -1,3 +1,19 @@
+## 0.2.0-rc.93 - 2026-11-18
+
+本节汇总第九十三个候选版本的源码与交付内容。相对 rc.92，本候选补齐关闭生命周期通知的协议常量与说明。rc.16 至 rc.93 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- `ServerNotifications` 增加 `kernelShutdown: "kernel/shutdown"`；技术参考说明它仅在宿主注入事件观察 hook、且关闭期限仍有余量时发送，客户端不得依赖它判断进程已退出（#2304、#2305）。
+- 同步 npm / Python 版本到 `0.2.0-rc.93` / `0.2.0rc93`（#2306）。
+
+升级注意：不改变 JSON-RPC 协议版本、工具数量、审批要求、内核发送时机、会话持久化格式或存储键；rc.92 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2304](https://github.com/can4hou6joeng4/boss-harness/issues/2304)：补齐 `kernel/shutdown` 生命周期通知的协议常量与说明。
+- [Issue #2306](https://github.com/can4hou6joeng4/boss-harness/issues/2306)：准备 rc.93 源码候选并同步版本来源。
+
 ## 0.2.0-rc.92 - 2026-11-18
 
 本节汇总第九十二个候选版本的源码与交付内容。相对 rc.91，本候选在技术参考中补全工具参数 schema 子集与校验边界。rc.16 至 rc.92 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
