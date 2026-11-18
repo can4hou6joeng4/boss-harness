@@ -1,3 +1,11 @@
+## 0.2.0-rc.112 - 2026-11-18
+
+rc.112 源码候选修正只读工具表述并扩展文档检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- README 与使用指南把只读会话的工具描述改为「13 个只读工具（含能力发现）和 1 个只读内核结果分段读取工具」，与注册表一致。[Issue #2347](https://github.com/can4hou6joeng4/boss-harness/issues/2347)
+- `scripts/check_docs_links.py` 纳入 `CHANGELOG.md` 与 `docs/changelog-rc15-details.md`，并核对 `docs/README.md` 索引覆盖 `docs/` 下其余 Markdown 文件；当前 93 个链接、4 篇文档索引通过。
+- 技术参考、发布约定与 README 同步检查范围。候选版本号和使用指南同步为 npm `0.2.0-rc.112` / Python `0.2.0rc112`。
+
 ## 0.2.0-rc.111 - 2026-11-18
 
 rc.111 源码候选把 Python 矩阵扩展到源码编译。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
