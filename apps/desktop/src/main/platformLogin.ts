@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { BrowserWindow, WebContentsView, session, type Session } from "electron";
 import type { PlatformLoginStatus, PlatformLoginContext } from "@boss-harness/protocol";
+import { ClientMethods } from "@boss-harness/protocol";
 import { isLoginVerificationUrl, isOfficialLoginUrl, loginCaptureReadiness, loginViewBounds } from "./security";
 import { loginFailureDetail, loginViewGoneSummary } from "./loginFailure";
 import { selectLoginCookies } from "./loginCookies";
@@ -77,17 +78,17 @@ export class PlatformLogin {
     const generation = ++this.generation;
     this.update({ state: "opening", phase: "scan", identity: "unknown", summary: "正在准备官方页面，请稍候…" });
     try {
-      const raw = await this.request<unknown>("platform/login/start");
+      const raw = await this.request<unknown>(ClientMethods.platformLoginStart);
       if (generation !== this.generation) {
         const id = attemptIdOf(raw);
-        if (id) void this.request("platform/login/cancel", { id }).catch(() => {});
+        if (id) void this.request(ClientMethods.platformLoginCancel, { id }).catch(() => {});
         return this.read();
       }
       const attempt = loginAttemptOf(raw);
       if (!attempt) {
         // 无法识别的回执不能写入状态机；内核可能已创建 attempt，按合法 id 补发取消。
         const id = attemptIdOf(raw);
-        if (id) void this.request("platform/login/cancel", { id }).catch(() => {});
+        if (id) void this.request(ClientMethods.platformLoginCancel, { id }).catch(() => {});
         this.update({ state: "failed", code: "LOGIN_OPEN_FAILED",
           summary: "官方登录页回执无法识别，请检查本机连接与内核版本后重试" });
         this.closeBrowser();
@@ -119,7 +120,7 @@ export class PlatformLogin {
       this.createBrowser(parent, generation);
     } catch (error) {
       if (generation === this.generation) {
-        if (this.attempt) void this.request("platform/login/cancel", { id: this.attempt }).catch(() => {});
+        if (this.attempt) void this.request(ClientMethods.platformLoginCancel, { id: this.attempt }).catch(() => {});
         const failure = loginFailureDetail(error);
         this.update({ state: "failed", code: failure.code ?? "LOGIN_OPEN_FAILED",
           summary: `无法打开官方页面${failure.message ? `：${failure.message}` : ""}，请确认本机连接后重试` });
@@ -253,7 +254,7 @@ export class PlatformLogin {
         return;
       }
       this.update({ state: "saving", summary: readiness.summary, phase: readiness.phase, identity: readiness.identity });
-      const result = await this.request<unknown>("platform/login/complete", {
+      const result = await this.request<unknown>(ClientMethods.platformLoginComplete, {
         id: this.attempt, cookies, userAgent: view.webContents.getUserAgent(),
       });
       if (generation !== this.generation) return;
@@ -262,7 +263,7 @@ export class PlatformLogin {
         // 保存回执无法识别：保存结果未知，不能写入状态机；取消内核 attempt 后结束本次登录。
         this.update({ state: "failed", code: "LOGIN_SAVE_FAILED",
           summary: "登录保存回执无法识别，保存结果未知，请检查本机登录态" });
-        void this.request("platform/login/cancel", { id: this.attempt }).catch(() => {});
+        void this.request(ClientMethods.platformLoginCancel, { id: this.attempt }).catch(() => {});
         this.closeBrowser();
         return;
       }
@@ -273,7 +274,7 @@ export class PlatformLogin {
         const failure = loginFailureDetail(error);
         this.update({ state: "failed", code: failure.code ?? "LOGIN_SAVE_FAILED",
           summary: `未能完成登录保存${failure.message ? `：${failure.message}` : ""}，请检查本机连接后重新打开官方页面` });
-        void this.request("platform/login/cancel", { id: this.attempt }).catch(() => {});
+        void this.request(ClientMethods.platformLoginCancel, { id: this.attempt }).catch(() => {});
         this.closeBrowser();
       }
     }
@@ -288,7 +289,7 @@ export class PlatformLogin {
     }
     this.pollTimer = setTimeout(() => {
       this.pollTimer = undefined;
-      void this.request<unknown>("platform/login/read").then(raw => {
+      void this.request<unknown>(ClientMethods.platformLoginRead).then(raw => {
         if (generation !== this.generation) return;
         const result = loginAttemptOf(raw);
         if (!result) {
@@ -314,7 +315,7 @@ export class PlatformLogin {
     const base = wasSaving ? "保存已停止，登录态可能已更新，请手动检查" : "已取消扫码登录";
     const active = ["opening", "waiting", "saving"].includes(this.status.state);
     ++this.generation;
-    if (this.attempt && this.status.state !== "succeeded") void this.request("platform/login/cancel", { id: this.attempt }).catch(error => {
+    if (this.attempt && this.status.state !== "succeeded") void this.request(ClientMethods.platformLoginCancel, { id: this.attempt }).catch(error => {
       // 取消请求没送达时内核可能仍持有这次登录：界面若只说「已取消」，再次打开会莫名撞上「登录已被占用」。
       if (this.status.state !== "cancelled" || this.status.summary !== base) return;
       const detail = loginFailureDetail(error).message;
