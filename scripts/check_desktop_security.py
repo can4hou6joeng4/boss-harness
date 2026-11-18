@@ -463,6 +463,20 @@ def _check_renderer_csp() -> int:
     return 4
 
 
+def _check_renderer_bootstrap() -> int:
+    text = RENDERER_HTML.read_text(encoding="utf-8")
+    tags = re.findall(r"<script\b([^>]*)>", text, re.IGNORECASE)
+    if len(tags) != 1:
+        raise ValueError("apps/desktop/src/renderer/index.html 应恰好包含一个 script 标签")
+    attributes = tags[0]
+    if 'type="module"' not in attributes:
+        raise ValueError('渲染层入口的 script 必须标注 type="module"')
+    match = re.search(r'\bsrc="([^"]+)"', attributes)
+    if match is None or not match.group(1).startswith("./src/"):
+        raise ValueError("渲染层入口的 script src 必须指向本地 ./src/ 模块")
+    return 3
+
+
 def _check_ipc_channels() -> int:
     relative = "apps/desktop/src/preload/index.ts"
     text = (ROOT / relative).read_text(encoding="utf-8")
@@ -572,11 +586,12 @@ def check_desktop_security() -> tuple[int, int, int]:
     ipc = _check_ipc_channels()
     boundary = _check_renderer_boundary()
     csp = _check_renderer_csp()
+    bootstrap = _check_renderer_bootstrap()
     trusted = _check_trusted_sender()
     origins = _check_origin_policies()
     return (len(EXPECTED), checked,
             allowlist + handlers + navigation + external + preload + exposure + imports
-            + boundaries + export + ipc + boundary + csp + trusted + origins)
+            + boundaries + export + ipc + boundary + csp + bootstrap + trusted + origins)
 
 
 def main() -> int:

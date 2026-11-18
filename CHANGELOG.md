@@ -1,3 +1,10 @@
+## 0.2.0-rc.159 - 2026-11-18
+
+rc.159 源码候选核对渲染层入口模块脚本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求 `index.html` 恰好包含一个 `<script>`，必须 `type="module"` 且 `src` 以 `./src/` 开头；桌面防护计数达到 103。[Issue #2442](https://github.com/can4hou6joeng4/boss-harness/issues/2442)
+- 缺 `type="module"`、远程 `src` 与第二个脚本三个负向探针均触发对应失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.159` / Python `0.2.0rc159`。
+
 ## 0.2.0-rc.158 - 2026-11-18
 
 rc.158 源码候选禁止渲染层使用动态代码执行。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
