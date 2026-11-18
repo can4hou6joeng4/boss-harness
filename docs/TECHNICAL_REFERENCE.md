@@ -77,6 +77,8 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 `scripts/check_queue_steer.py` 为 `queue/steer` 提供专项源码守卫：内核侧核对 `promote_to_steering` 只接受 `queued` 的 `followUp`、拒绝技能 / 自动压缩覆盖，并通过持久 `_save` 保留原 id、正文与请求编号；`on_queue_steer` 必须校验 active turn、`expectedTurnId`、取消状态与 `STEER_UNAVAILABLE`。脚本还核对 `queueSteer` 能力、协议参数类型、主进程两份白名单与方法参数校验、RPC 错误保留、渲染层 bridge 与面板按钮状态。它是 AST 与文本扫描，不替代状态机探针或真实桌面操作。
 
+`scripts/check_approval.py` 核对审批裁决边界：`application.py` 的请求必须只有 `approvalId` 与有界 `approved`，遍历活动 runner 时调用持久回调，并将服务端请求取消与恢复 / 执行中回执分开；`agent.py` 只在未裁决、未取消且未过期时接受决定，并在回合清理时丢弃待决集合；`session.py` 必须校验审批 id 格式、索引唯一性、归档与 owner 状态、重复冲突和到期判定。脚本是源码扫描，不执行工具或验证真实用户裁决。
+
 `scripts/check_connection_report.py` 核对连接报告字段投影：内核 `connections.read()` 是 `connection/read` 与 `connection/check` 的共同数据源，报告固定为 `cli` / `model` / `platform` 三卡；渲染层解析器必须收口状态、浏览器来源与认证状态枚举，并限制正文、代码、时间与文本字段长度，未知值整份拒绝而非显示空白。脚本同时核对桌面 bridge 与 `connection/check` 目标白名单。它是静态扫描，不证明运行时报告内容一定可信。
 
 `scripts/check_loop_guard.py` 固定重复调用提醒的阈值 `(3, 5)`、512 字符上限与 64 KiB 规范化参数上限；`_argument_digest` 必须规范化排序、禁用 NaN、不可安全序列化时回退，`observe` 只按工具名与参数摘要计数，提醒不含参数或结果。脚本还核对 `agent.py` 在工具结果之后、仍有下一次模型请求时观察，且 steering / 无调用后续消息路径会重置。它不执行模型、不写入会话，也不验证模型是否真的响应提醒。
