@@ -1,3 +1,10 @@
+## 0.2.0-rc.189 - 2026-11-18
+
+rc.189 源码候选核对工具结果分页与引用边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_tool_results.py`：核对内联 64 KiB / 单页 1 MiB、默认 16,384 / 最大 32,768 码点、模型 8,192 码点及其关系；核对 RPC 字段白名单、摘要与游标归属、`STALE_RESULT` 恢复信息与模型工具 schema 边界。[Issue #2502](https://github.com/can4hou6joeng4/boss-harness/issues/2502)
+- CI 接入后覆盖 12 个检查脚本；六个负向探针均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.189` / Python `0.2.0rc189`。
+
 ## 0.2.0-rc.188 - 2026-11-18
 
 rc.188 文档候选重排 README 的 CI 检查说明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
