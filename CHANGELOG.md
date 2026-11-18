@@ -1,3 +1,10 @@
+## 0.2.0-rc.161 - 2026-11-18
+
+rc.161 源码候选核对渲染层外部链接判定函数。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 取出 `RichMarkdown.tsx` 的 `externalTarget`，要求保留 `EXTERNAL_SCHEMES.includes(` 与 `new URL(url).protocol`；桌面防护计数达到 105。[Issue #2446](https://github.com/can4hou6joeng4/boss-harness/issues/2446)
+- 删除协议集合判定与 URL 解析两个负向探针均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.161` / Python `0.2.0rc161`。
+
 ## 0.2.0-rc.160 - 2026-11-18
 
 rc.160 源码候选核对 CHANGELOG 条目日期。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
