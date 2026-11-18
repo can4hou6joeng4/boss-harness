@@ -1,3 +1,10 @@
+## 0.2.0-rc.187 - 2026-11-18
+
+rc.187 源码候选核对附件读取分页与存储配额。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_attachments.py`：核对存储默认值 / 上限、`DEFAULT_READ_CHARS = 16,384` 与 `MAX_READ_CHARS = 32,768`、`attachment/read` 请求字段白名单、单页预算守卫与 `RESPONSE_TOO_LARGE` 恢复信息，以及两个配额环境变量名。[Issue #2498](https://github.com/can4hou6joeng4/boss-harness/issues/2498)
+- CI 接入后覆盖 11 个检查脚本；放大默认分段、删除单页守卫与改写环境变量名三个负向探针均触发对应错误；README、技术参考、状态说明与发布约定同步；版本推进到 npm `0.2.0-rc.187` / Python `0.2.0rc187`。
+
 ## 0.2.0-rc.186 - 2026-11-18
 
 rc.186 源码候选核对桌面会话恢复边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
