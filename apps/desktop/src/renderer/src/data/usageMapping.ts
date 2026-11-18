@@ -217,7 +217,7 @@ export function summaryJobsOf(
     || (page.summaryJobsTruncated !== undefined && typeof page.summaryJobsTruncated !== "boolean")) {
     throw new Error("内核返回的摘要任务用量格式无法识别");
   }
-  const jobs = page.summaryJobs.slice(0, MAX_SUMMARY_JOBS).map(summaryJobOf);
+  const jobs = page.summaryJobs.slice(-MAX_SUMMARY_JOBS).map(summaryJobOf);
   if (jobs.some(job => !job)) throw new Error("内核返回的摘要任务用量格式无法识别");
   // 表格按 jobId 作为 key：重复标识会让行错置或复用错误状态，与回合明细同一口径拒绝。
   const seen = new Set<string>();
