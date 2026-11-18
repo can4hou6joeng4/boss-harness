@@ -1,3 +1,10 @@
+## 0.2.0-rc.117 - 2026-11-18
+
+rc.117 源码候选收紧 CI checkout 的凭据存储。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- Source build 与 Python matrix 的 `actions/checkout` 都设置 `persist-credentials: false`，不再把工作流令牌写入 `.git/config`；工作流仍只有 `contents: read` 权限。[Issue #2358](https://github.com/can4hou6joeng4/boss-harness/issues/2358)
+- 候选版本号和使用指南同步为 npm `0.2.0-rc.117` / Python `0.2.0rc117`。
+
 ## 0.2.0-rc.116 - 2026-11-18
 
 rc.116 源码候选为桌面窗口安全配置增加静态回归检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
