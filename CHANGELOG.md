@@ -1,3 +1,10 @@
+## 0.2.0-rc.136 - 2026-11-18
+
+rc.136 源码候选把导航与卸载拦截处理器纳入桌面静态安全检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求主窗口注册 `will-navigate` / `will-frame-navigate` 并调用 `isTrustedRendererUrl` 后阻止，登录视图注册 `will-navigate` / `will-frame-navigate` / `will-redirect` / `will-prevent-unload` 并调用 `isOfficialLoginUrl` 或阻止卸载；删除或放行处理器会使检查失败。[Issue #2396](https://github.com/can4hou6joeng4/boss-harness/issues/2396)
+- README、技术参考与发布约定同步覆盖范围；版本推进到 npm `0.2.0-rc.136` / Python `0.2.0rc136`。
+
 ## 0.2.0-rc.135 - 2026-11-18
 
 rc.135 源码候选在启动自检中提示协议版本不一致。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
