@@ -1,3 +1,10 @@
+## 0.2.0-rc.204 - 2026-11-18
+
+rc.204 源码候选为连接报告字段投影增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_connection_report.py` 并接入 CI：核对内核报告源、`connection/read` / `connection/check` 路径、协议字段与渲染层白名单（状态、浏览器来源、认证状态与有界文本）共 51 项防护。[Issue #2532](https://github.com/can4hou6joeng4/boss-harness/issues/2532)
+- 负向探针覆盖认证状态白名单、三卡完整性与报告读取路径变异；全部检查通过。版本推进到 npm `0.2.0-rc.204` / Python `0.2.0rc204`。不执行发布动作。
+
 ## 0.2.0-rc.203 - 2026-11-18
 
 rc.203 源码候选补齐专项守卫的技术参考。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
