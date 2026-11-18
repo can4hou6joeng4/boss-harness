@@ -414,6 +414,8 @@ RENDERER_BOUNDARY: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bdangerouslySetInnerHTML\b"), "不得使用 dangerouslySetInnerHTML"),
     (re.compile(r"\binnerHTML\b"), "不得直接读写 innerHTML"),
     (re.compile(r"\b(?:outerHTML|insertAdjacentHTML)\b"), "不得直接写入 HTML"),
+    (re.compile(r"\beval\s*\("), "不得使用 eval"),
+    (re.compile(r"\bnew\s+Function\s*\("), "不得使用 new Function"),
 )
 
 
