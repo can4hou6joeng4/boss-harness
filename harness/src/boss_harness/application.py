@@ -78,6 +78,8 @@ MAX_CONTINUATION_HISTORY_BYTES = 64 * 1024 * 1024
 MAX_RESTORED_STREAM_CHARS = 1_000_000
 CONTINUATION_WARNING = ("续接会发起新的模型请求，可能重复调用并产生额外费用；已完成工具结果会沿用，"
                         "不会再次执行旧工具，新写操作仍需逐次审批。")
+# 入口以显式 none 启动时各处拒绝提示的共同前缀，与启动自检 `MODEL_DISABLED` 的用词一致。
+MODEL_CALLS_DISABLED = "当前进程已显式禁用模型调用（provider=none）"
 
 
 def _skill_catalog_root(workspace: Path) -> Path:
@@ -283,7 +285,8 @@ class ApplicationService:
                  expose_tool_results_to_hooks: bool = False,
                  max_model_requests: int | None = None,
                  prompt_preamble: str | None = None,
-                 steering_mode: str | None = None) -> None:
+                 steering_mode: str | None = None,
+                 model_calls_disabled: bool = False) -> None:
         self.server, self.config, self.provider = server, config, provider
         # "all" keeps the historical drain-everything behavior; "one-at-a-time"
         # injects only the oldest queued steering input per drain point.
@@ -321,6 +324,14 @@ class ApplicationService:
         self.registry = ToolRegistry(tool_bundle.tools)
         model_tool_specs(self.registry.specs())
         self.provider_factory = provider_factory
+        # 显式禁用模型调用是进程级开关：模型目录只保留 none 线路，摘要线路不再独立解析，
+        # `_provider_for` 也不为真实线路构造 provider。自动回退得到的 none 不在此列，
+        # 那只是没有默认线路，其他已配置线路照常可选。
+        if type(model_calls_disabled) is not bool:
+            raise ValueError("model_calls_disabled 必须是布尔值")
+        if model_calls_disabled and (config.provider != "none" or provider is not None):
+            raise ValueError("model_calls_disabled 只能用于 none 默认线路，且不能同时提供 provider")
+        self.model_calls_disabled = model_calls_disabled
         self._model_configs = self._discover_model_configs()
         # 握手、配置读取与运行器共用目录中的生效默认线路（none 已规范为 model=none）。
         config = self.config = self._model_configs[config.provider]
@@ -728,7 +739,7 @@ class ApplicationService:
         routes = {self.config.provider: self.config}
         if self.config.provider == "none":
             routes["none"] = replace(self.config, model="none", effort=None)
-        if self.provider_factory is None:
+        if self.provider_factory is None or self.model_calls_disabled:
             return routes
 
         environ = dict(os.environ)
@@ -772,14 +783,34 @@ class ApplicationService:
     def _configured_route(self, provider: str) -> ModelConfig:
         config = self._model_configs.get(provider)
         if config is None or not self._route_available(provider):
-            raise RpcError(-32013, "本机没有可用的该模型线路配置",
-                           {"code": "MODEL_PROVIDER_UNAVAILABLE", "provider": provider})
+            # 显式禁用与「本机没有配置」的处理办法不同：前者要换线路或换启动方式，后者要补配置。
+            if self.model_calls_disabled and provider in {"anthropic", "openai"}:
+                message = (f"{MODEL_CALLS_DISABLED}，{provider} 线路不可用；"
+                           f"可改用 none 线路，或以 {provider} 线路重新启动")
+            else:
+                message = "本机没有可用的该模型线路配置"
+            raise RpcError(-32013, message, {"code": "MODEL_PROVIDER_UNAVAILABLE", "provider": provider})
         return config
 
     def _route_available(self, provider: str) -> bool:
         return (provider in self._model_configs and
                 (provider == "none" or self.provider_factory is not None or
                  (provider == self.config.provider and self.provider is not None)))
+
+    def _provider_for(self, config: ModelConfig) -> Provider | None:
+        """唯一调用 `provider_factory` 的位置；调用方须先确认工厂存在。
+
+        显式禁用模型调用时只放行 none 线路。模型目录与摘要线路解析已在更早处拒绝真实线路，
+        这里是结构上的最后一道：以后新增的路径即使漏了前置判断，也拿不到模型传输。
+        """
+        if self.model_calls_disabled and config.provider != "none":
+            raise RpcError(-32013, MODEL_CALLS_DISABLED + "，不构造模型供应商",
+                           {"code": "MODEL_PROVIDER_UNAVAILABLE", "provider": config.provider})
+        return self.provider_factory(config)
+
+    def _summary_available(self, policy: CompactionPolicy, base_provider: str) -> bool:
+        return (self.provider_factory is not None and not self.model_calls_disabled
+                and (policy.provider or base_provider) != "none")
 
     def on_model_list(self, params: dict | None) -> dict:
         models = []
@@ -1775,8 +1806,10 @@ class ApplicationService:
         except RpcError as exc:
             data = dict(exc.data or {}) if isinstance(getattr(exc, "data", None), dict) else {}
             if data.get("code") == "COMPACTION_MODEL_UNAVAILABLE":
-                raise RpcError(-32013, "被放弃分支摘要需要可用模型线路（当前 provider="
-                               + str(data.get("provider")) + "）；分支未切换，可不带 summarize 重试",
+                # 显式禁用时点名原因：「需要可用模型线路」会让人去补配置，而配置并不缺。
+                reason = (MODEL_CALLS_DISABLED + "，无法生成被放弃分支摘要" if self.model_calls_disabled
+                          else "被放弃分支摘要需要可用模型线路（当前 provider=" + str(data.get("provider")) + "）")
+                raise RpcError(-32013, reason + "；分支未切换，可不带 summarize 重试",
                                {**data, "code": "BRANCH_SUMMARY_MODEL_UNAVAILABLE"}) from None
             raise
         if self.provider_factory is None:
@@ -1956,10 +1989,9 @@ class ApplicationService:
                 entries = self.sessions.read_entries_snapshot(thread_id)
                 metadata = self.context.read(thread_id, entries=entries)
                 if runner.last_preparation is not None:
-                    policy = job["compactionPolicy"]
-                    summary_provider = policy.provider or runner.config.provider
                     return {**metadata, **runner.last_preparation[1], "requestSource": "active",
-                            "summaryAvailable": self.provider_factory is not None and summary_provider != "none",
+                            "summaryAvailable": self._summary_available(job["compactionPolicy"],
+                                                                        runner.config.provider),
                             "compactionJob": self._compaction_reference(thread_id),
                             "systemPromptInfo": self._system_prompt_info(runner.system_prompt),
                             "workspaceInstructions": workspace_instructions}
@@ -1987,9 +2019,8 @@ class ApplicationService:
             result = self.context.read(thread_id, request=request,
                                        capabilities=self.model_catalog.resolve(config.provider, config.model),
                                        provider=config.provider, entries=entries)
-            summary_provider = policy.provider or config.provider
             return {**result, "provider": config.provider, "requestSource": "active" if job else "preview" if preview else "default",
-                    "summaryAvailable": self.provider_factory is not None and summary_provider != "none",
+                    "summaryAvailable": self._summary_available(policy, config.provider),
                     "compactionJob": self._compaction_reference(thread_id),
                     "systemPromptInfo": prompt_info,
                     "workspaceInstructions": workspace_instructions}
@@ -2443,7 +2474,7 @@ class ApplicationService:
         if self.provider_factory is None:
             raise ValueError("模型摘要需要 provider_factory 创建独立供应商实例")
         try:
-            provider = self.provider_factory(config)
+            provider = self._provider_for(config)
         except Exception as exc:
             secret = config.api_key.get() if config.api_key else ""
             raise ValueError(redact_secrets(str(exc), extra=(secret,))) from None
@@ -2457,6 +2488,10 @@ class ApplicationService:
                                  *, model_override: str | None = None,
                                  session_effort: str | None = None) -> ModelConfig:
         provider = policy.provider or base.provider
+        if self.model_calls_disabled:
+            # 摘要线路不经模型目录、可独立从环境解析，必须在解析之前拒绝。
+            raise RpcError(-32013, MODEL_CALLS_DISABLED + "，无法生成摘要",
+                           {"code": "COMPACTION_MODEL_UNAVAILABLE", "provider": provider})
         if provider == "none":
             raise RpcError(-32013, "摘要不能使用 none 模型线路",
                            {"code": "COMPACTION_MODEL_UNAVAILABLE", "provider": provider})
@@ -3050,7 +3085,7 @@ class ApplicationService:
         if self.provider_factory is not None:
             bridge = self._new_bridge()
             try:
-                provider = self.provider_factory(config)
+                provider = self._provider_for(config)
                 if provider is not None:
                     if provider is self.provider or provider is self.runner.provider:
                         raise RpcError(-32005, "模型供应商工厂必须返回独立于应用主实例的 provider")
@@ -3391,6 +3426,8 @@ class ApplicationService:
                     or not isinstance(source_provider, str) or source_provider == "none"
                     or type(source_max_requests) is not int or not 1 <= source_max_requests <= self.max_model_requests):
                 return fail("CONTINUATION_SOURCE_UNVERIFIABLE", "来源模型配置不可用或已超过当前请求上限。")
+            if self.model_calls_disabled:
+                return fail("CONTINUATION_PROVIDER_UNAVAILABLE", MODEL_CALLS_DISABLED + "，无法续接。")
             if self.provider_factory is None and self.provider is None:
                 return fail("CONTINUATION_PROVIDER_UNAVAILABLE", "当前内核没有可复用的模型供应商实例。")
             try:

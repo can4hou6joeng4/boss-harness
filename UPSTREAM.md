@@ -1,5 +1,13 @@
 # 上游吸收记录
 
+## 显式禁用模型调用的进程级边界（Issue #2550）
+
+沿用 #1182、#1186 已核对的 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/src/core/model-registry.ts`：模型注册表按已配置鉴权列出可用线路，目录即宿主可见能力，没有 `none` provider 或「禁用模型调用」的概念。所读材料不提供「名义禁用但环境另有凭据」的处理办法；本轮独立决定显式 `none` 是进程级开关：进程内不构造任何模型传输，而不是只把默认线路落在 `none`。自动回退得到的 `none` 语义不变，其他已配置线路仍可选。不推断上游存在同类缺陷，不复制源码、不引入依赖。
+
+适配约定：`ApplicationService` 新增 `model_calls_disabled` 构造参数，由入口在用户点名 `none` 时传入；`--provider` 命令行与 `BOSS_HARNESS_PROVIDER` 环境变量的判定在 `_requested_provider` 单点归一化，启动自检与正式启动共用。模型目录发现、摘要线路解析、续接预检先拒绝真实线路，`_provider_for` 保持结构上的最后拦截：`application.py` 内 `provider_factory` 只在该方法调用。错误数据码沿用 `MODEL_PROVIDER_UNAVAILABLE`、`COMPACTION_MODEL_UNAVAILABLE`、`BRANCH_SUMMARY_MODEL_UNAVAILABLE`、`CONTINUATION_PROVIDER_UNAVAILABLE`，只调整提示文字。协议、握手与 `config/read` 字段不变，`none` 线路自身的回合与招聘 CLI 调用不变。
+
+离线核对：以主干 rc.212 源码与改动后源码各运行同一探针（真实入口进程、本机替身模型端点、占位凭据、替身 CLI，不联网、不调用真实模型或招聘平台），覆盖显式 none 的环境变量 / 命令行 / 大小写混写 / 优先级、无凭据、旧会话、续接、摘要线路、自动回退、真实默认线路与 `none` 线路自身回合共 14 个场景：改动前显式 none 仍可经 `model/list` 选到 anthropic 并发出带凭据头的请求、旧会话与续接发出含历史的请求、摘要请求被接受；改动后这些路径全部被拒绝且零模型请求，自动回退与真实默认线路行为不变。新增静态守卫 `scripts/check_model_disable.py` 固化边界，协议与内核仍为 `0.2.0`。
+
 ## 补领转向的请求边界（Issue #2544）
 
 固定核对 Pi MIT 提交 `d5b3de22d0e24a3e9c38a9410d3329b099717283` 的 `packages/agent/src/agent-loop.ts`：准备阶段可能耗时，若首批 steering 为空，下一请求前再次领取；`transformContext` 在流入口前执行。该入口没有本项目的 `context_budget` 持久边界或中断续接约定。本轮独立补齐本仓库补领转向的请求边界，不推断上游存在同类缺陷，不复制源码、不引入依赖。

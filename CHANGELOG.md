@@ -1,3 +1,14 @@
+## 0.2.0-rc.213 - 2026-11-19
+
+rc.213 源码候选把显式 `none` 收紧为禁用模型调用的进程级开关。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 此前显式 `none`（`--provider none` 或 `BOSS_HARNESS_PROVIDER=none`）只把默认线路设为 `none`：环境另有凭据时 `model/list` 仍列出其他线路并可在会话内选用，真实线路上的旧会话、续接与摘要仍会发起模型请求，而文档与 `--check` 的 `MODEL_DISABLED` 都描述为「已显式禁用模型调用」。[Issue #2550](https://github.com/can4hou6joeng4/boss-harness/issues/2550)
+- 现在显式 `none` 是进程级开关：模型目录只保留 `none · none`，摘要线路不再独立解析，`summaryAvailable` 为 `false`；旧会话读上下文、发回合或续接以既有错误码拒绝并说明恢复办法，仍可切到 `none` 线路使用只读指令。自动回退得到的 `none` 语义不变，其他已配置线路仍可选；`--provider` 高于环境变量；`none` 线路自身的回合与招聘 CLI 调用不变。
+- 行为影响：以显式 `none` 启动后不能再靠会话内切换使用其他线路，需改用具体 provider 重新启动；真实线路上的旧会话需在对应线路进程内继续，或在本进程切到 `none` 线路使用只读指令。桌面只经环境变量传线路，同一约束适用。
+- `--provider` 帮助与 `MODEL_DISABLED` 处理建议按新语义改写；入口以 `_requested_provider` 单点归一化命令行与环境变量，启动自检与正式启动共用同一判定。`model_calls_disabled` 构造参数要求默认线路为 `none` 且不注入 provider 实例。
+- 新增静态守卫 `check_model_disable.py`：模型供应商工厂在内核只经 `_provider_for` 调用、`build_provider` 只允许入口调用、provider 实例只在 `models/provider.py` 构造，并核对目录、摘要、续接与入口防护的先后顺序。
+- 以主干 rc.212 源码为基线的 14 场景离线探针（替身模型端点与替身 CLI）核对修改前后：显式 none 的环境变量 / 命令行 / 大小写混写 / 优先级、无凭据、旧会话、续接、摘要线路、自动回退、真实默认线路与 `none` 线路自身回合全部符合预期，改动后零模型请求；显式 none 重启后旧会话排队消息与 `thread/fork` 未单独覆盖。使用指南与技术参考说明显式与自动回退的区别，`UPSTREAM.md` 记录与 Pi 模型目录职责的对照。全部检查通过。版本推进到 npm `0.2.0-rc.213` / Python `0.2.0rc213`。不执行发布动作。
+
 ## 0.2.0-rc.212 - 2026-11-19
 
 rc.212 源码候选修正无模型线路在连接设置中被称为「离线」的问题。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
