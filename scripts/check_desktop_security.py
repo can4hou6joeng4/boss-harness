@@ -386,6 +386,10 @@ PROCESS_BOUNDARIES = (
     ("apps/desktop/src/main", "../renderer", "主进程不得导入渲染层源码"),
     ("apps/desktop/src/preload", "../main", "preload 不得导入主进程源码"),
 )
+PROCESS_ROLE_SYMBOLS = (
+    ("apps/desktop/src/main", "ipcRenderer", "主进程不得使用 ipcRenderer"),
+    ("apps/desktop/src/preload", "ipcMain", "preload 不得使用 ipcMain"),
+)
 
 
 def _check_process_boundaries() -> int:
@@ -396,7 +400,11 @@ def _check_process_boundaries() -> int:
                     raise ValueError(
                         f"{message}：{path.relative_to(ROOT).as_posix()} → {specifier}"
                     )
-    return len(PROCESS_BOUNDARIES)
+    for area, symbol, message in PROCESS_ROLE_SYMBOLS:
+        for path in sorted((ROOT / area).rglob("*.ts")):
+            if symbol in path.read_text(encoding="utf-8"):
+                raise ValueError(f"{message}：{path.relative_to(ROOT).as_posix()}")
+    return len(PROCESS_BOUNDARIES) + len(PROCESS_ROLE_SYMBOLS)
 
 
 def _check_session_export() -> int:

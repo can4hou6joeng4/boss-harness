@@ -1,3 +1,10 @@
+## 0.2.0-rc.165 - 2026-11-18
+
+rc.165 源码候选核对主进程与 preload 的 IPC 角色符号。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求 `apps/desktop/src/main` 不得出现 `ipcRenderer`，`apps/desktop/src/preload` 不得出现 `ipcMain`；桌面防护计数达到 117。[Issue #2454](https://github.com/can4hou6joeng4/boss-harness/issues/2454)
+- 两个方向的负向探针均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.165` / Python `0.2.0rc165`。
+
 ## 0.2.0-rc.164 - 2026-11-18
 
 rc.164 源码候选要求 IPC 处理器先校验发送方再工作。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
