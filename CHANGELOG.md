@@ -1,3 +1,20 @@
+## 0.2.0-rc.92 - 2026-11-18
+
+本节汇总第九十二个候选版本的源码与交付内容。相对 rc.91，本候选在技术参考中补全工具参数 schema 子集与校验边界。rc.16 至 rc.92 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
+
+### 本版概览
+
+- 技术参考记录注册期接受的受限 JSON Schema 关键字、注册时拒绝的 `$ref` / `oneOf` / `allOf`，以及 schema 128 KiB、参数 1 MiB、JSON 深度 64、节点 32768、嵌套 schema 32 层等上限（#2300、#2301）。
+- 说明运行期只校验、不填 `default`、不做隐式标量转换，并记录必填字符串的非空白声明约定与 `tool/list` 共用规范化 schema 的行为。
+- 同步 npm / Python 版本到 `0.2.0-rc.92` / `0.2.0rc92`（#2302）。
+
+升级注意：不改变 JSON-RPC 协议版本、工具数量、审批要求、会话持久化格式或存储键；rc.91 源码无需迁移。交付范围为 MIT 许可的源码与 Python 内核 wheel / sdist，桌面继续从源码构建；真实模型、招聘平台、跨平台与独立签名安装包仍未验收。候选准备不代表已创建 tag、Release、资产上传或注册表发布。
+
+### 变更
+
+- [Issue #2300](https://github.com/can4hou6joeng4/boss-harness/issues/2300)：补充工具参数 schema 子集与校验边界。
+- [Issue #2302](https://github.com/can4hou6joeng4/boss-harness/issues/2302)：准备 rc.92 源码候选并同步版本来源。
+
 ## 0.2.0-rc.91 - 2026-11-18
 
 本节汇总第九十一个候选版本的源码与交付内容。相对 rc.90，本候选统一招聘工具必填字符串参数的公开 schema 与执行校验。rc.16 至 rc.91 均为候选准备，最新实际发布仍为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)，以远程 tag 与资产为准。
