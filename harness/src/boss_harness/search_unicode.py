@@ -15,6 +15,10 @@ casefold 之后。运行时已应用映射时原码点不再出现，重复套�
 全部码点逐一比较 ``search_normalize(chr(cp))`` 与桌面 ``kernelSearchText``，
 按差异增删条目；半角假名、谚文组合等跨码点规则由 ``session._search_clusters``
 负责，不在这两张表内。
+
+``_GRAPHEME_EXTEND_EXTRA`` 与 ``_CCC_EXTRA`` 处理另一层差异：桌面按
+Unicode 17 的字素属性合并组合记号，并按组合类做规范排序；受支持 Python
+相对缺少部分码点与类别。两表用于让簇切分和排序跟随同一份桌面数据。
 """
 from __future__ import annotations
 
@@ -151,10 +155,83 @@ _CASEFOLD_EXTRA = str.maketrans({
 })
 
 
+# 桌面 Unicode 17 字素属性中可并入前一簇、但受支持 Python 未识别为组合记号
+# (Extend / ZWJ / SpacingMark) 的码点；由 Node 24 的 Intl.Segmenter 与
+# Unicode 17 GraphemeBreakProperty.txt 对齐生成。
+_GRAPHEME_EXTEND_EXTRA = frozenset(
+    code for group in (
+        0x897,
+        0xE33,
+        0xEB3,
+        range(0x1ACF, 0x1ADD + 1),
+        range(0x1AE0, 0x1AEB + 1),
+        range(0x200C, 0x200D + 1),
+        range(0xFF9E, 0xFF9F + 1),
+        range(0x10D69, 0x10D6D + 1),
+        range(0x10EFA, 0x10EFC + 1),
+        range(0x113B8, 0x113C0 + 1),
+        0x113C2,
+        0x113C5,
+        range(0x113C7, 0x113CA + 1),
+        range(0x113CC, 0x113D0 + 1),
+        0x113D2,
+        range(0x113E1, 0x113E2 + 1),
+        range(0x11B60, 0x11B67 + 1),
+        0x11F5A,
+        range(0x1611E, 0x1612F + 1),
+        range(0x1E5EE, 0x1E5EF + 1),
+        0x1E6E3,
+        0x1E6E6,
+        range(0x1E6EE, 0x1E6EF + 1),
+        0x1E6F5,
+        range(0x1F3FB, 0x1F3FF + 1),
+        range(0xE0020, 0xE007F + 1),
+    ) for code in (group if isinstance(group, range) else (group,))
+)
+
+# 上述码点中 Unicode 17 仍带非零组合类的部分；其余按 ccc=0 处理。
+# Python NFKC 对未知码点不作规范排序，补表后需要按此类别重排。
+_CCC_EXTRA = {
+    0x897: 230, 0x1ACF: 230, 0x1AD0: 230, 0x1AD1: 230, 0x1AD2: 230, 0x1AD3: 230, 0x1AD4: 230, 0x1AD5: 230, 0x1AD6: 230, 0x1AD7: 230, 0x1AD8: 230, 0x1AD9: 230, 0x1ADA: 230, 0x1ADB: 230, 0x1ADC: 230, 0x1ADD: 220, 0x1AE0: 230, 0x1AE1: 230, 0x1AE2: 230, 0x1AE3: 230, 0x1AE4: 230, 0x1AE5: 230, 0x1AE6: 220, 0x1AE7: 230, 0x1AE8: 230, 0x1AE9: 230, 0x1AEA: 230, 0x1AEB: 234, 0x10D69: 230, 0x10D6A: 230, 0x10D6B: 230, 0x10D6C: 230, 0x10D6D: 230, 0x10EFA: 220, 0x10EFB: 220, 0x113CE: 9, 0x113CF: 9, 0x113D0: 9, 0x1612F: 9, 0x1E5EE: 230, 0x1E5EF: 220, 0x1E6E3: 230, 0x1E6E6: 230, 0x1E6EE: 230, 0x1E6EF: 230, 0x1E6F5: 230,
+}
+
+
+# Unicode 17 已把这些旧版记号移出 Extend/SpacingMark；内核不应再按 Python
+# 运行时的旧类别把它们并入前一簇，否则桌面会把它们当独立字素，命中映射不同。
+_GRAPHEME_EXTEND_RETIRED = frozenset((
+    code for group in (
+        0x102B, 0x102C, 0x1038,
+        range(0x1062, 0x1064 + 1),
+        range(0x1067, 0x106D + 1),
+        0x1083,
+        range(0x1087, 0x108C + 1),
+        0x108F,
+        range(0x109A, 0x109C + 1),
+        range(0x11720, 0x11721 + 1),
+        0x1A61, 0x1A63, 0x1A64, 0xAA7B, 0xAA7D,
+    ) for code in (group if isinstance(group, range) else (group,))
+))
+
+
+def is_grapheme_extend(code: int) -> bool:
+    """该码点是否应按桌面字素规则并入前一簇。"""
+    if code in _GRAPHEME_EXTEND_RETIRED:
+        return False
+    codepoint = chr(code)
+    return (bool(unicodedata.combining(codepoint))
+            or unicodedata.category(codepoint) in {"Mn", "Mc", "Me"}
+            or code in _GRAPHEME_EXTEND_EXTRA)
+
+
+def extra_combining_class(code: int) -> int:
+    """桌面 Unicode 17 的组合类；运行时已有数据时以运行时为准。"""
+    return unicodedata.combining(chr(code)) or _CCC_EXTRA.get(code, 0)
+
+
 def _extra_pattern() -> re.Pattern[str]:
     """合并两张表的源码点为字符类，用于快速判断文本是否可能命中补表。"""
     ranges: list[list[int]] = []
-    for code in sorted({*_NFKC_EXTRA, *_CASEFOLD_EXTRA}):
+    for code in sorted({*_NFKC_EXTRA, *_CASEFOLD_EXTRA, *_GRAPHEME_EXTEND_EXTRA}):
         if ranges and code == ranges[-1][1] + 1:
             ranges[-1][1] = code
         else:
@@ -174,10 +251,12 @@ def needs_extra(value: str) -> bool:
 
 
 def search_normalize(value: str) -> str:
-    """NFKC + casefold，并补齐运行时 Unicode 数据尚未覆盖的映射。
+    """NFKC + 规范排序 + casefold，并补齐运行时 Unicode 数据尚未覆盖的映射。
 
     补表后要再过一次 NFKC：新字母的兼容分解可能与紧随的组合记号重新合成
     （如 U+A7F1 + 组合锐音符 → ``ś``），只在替换后归一化才能与桌面一致。
+    桌面运行时对新记号已有组合类，Python 的 NFKC 仍按 ccc=0 留下原顺序；
+    这里按桌面类别做稳定排序，避免组合顺序不同的查询漏命中。
     """
     normalized = unicodedata.normalize("NFKC", value)
     translated = normalized.translate(_NFKC_EXTRA)
@@ -185,4 +264,16 @@ def search_normalize(value: str) -> str:
         normalized = unicodedata.normalize("NFKC", translated)
     else:
         normalized = translated
-    return normalized.casefold().translate(_CASEFOLD_EXTRA)
+    chars = list(normalized)
+    for index in range(1, len(chars)):
+        code = ord(chars[index])
+        if extra_combining_class(code):
+            current = extra_combining_class(code)
+            position = index
+            while position > 0:
+                previous = extra_combining_class(ord(chars[position - 1]))
+                if not previous or previous <= current:
+                    break
+                chars[position], chars[position - 1] = chars[position - 1], chars[position]
+                position -= 1
+    return "".join(chars).casefold().translate(_CASEFOLD_EXTRA)
