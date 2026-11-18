@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""核对源码包版本，成功时向 stdout 输出 Python 版本。"""
+"""核对源码包与使用指南的版本，成功时向 stdout 输出 Python 版本。"""
 
 from __future__ import annotations
 
@@ -63,6 +63,13 @@ def _runtime_version() -> str:
     raise ValueError(f"{path} 必须包含唯一的顶层 __version__ 字符串声明")
 
 
+def _check_guide(npm_version: str, python_version: str) -> None:
+    path = "docs/USER_GUIDE.md"
+    expected = f"npm `{npm_version}` / Python `{python_version}`"
+    if expected not in _read(path, lambda text: text):
+        raise ValueError(f"{path} 的源码版本行不是 {expected}")
+
+
 def check_versions() -> str:
     root = _read("package.json", json.loads)
     root_name = root.get("name") if isinstance(root, dict) else None
@@ -104,6 +111,7 @@ def check_versions() -> str:
     _check_version(project.get("version") if isinstance(project, dict) else None,
                    python_version, "harness/pyproject.toml 的 project.version")
     _check_version(_runtime_version(), python_version, "harness/src/boss_harness/__init__.py 的 __version__")
+    _check_guide(npm_version, python_version)
     return python_version
 
 
