@@ -966,6 +966,7 @@ class TurnRunner:
                     thinking=self.config.thinking,
                     recovery_budget=recovery_budget,
                 )
+                steering_batches = [staged[0]] if staged is not None and staged[0] else []
                 request_budget: dict[str, Any] = {}
                 if self.request_preparer is not None:
                     try:
@@ -975,18 +976,22 @@ class TurnRunner:
                         messages = list(request.messages)
                         # A summary can take long enough for new steering to arrive.
                         # Catch up once, before consuming either batch or calling a model.
-                        commits = [staged[1]] if staged is not None else []
-                        if (request.messages != before.messages and self.stage_steering is not None
+                        commits: list[Callable[[], None]] = []
+                        if staged is not None:
+                            commits.append(staged[1])
+                        prepared_history = request.messages != before.messages
+                        if (prepared_history and self.stage_steering is not None
                                 and not (self.steering_mode == "one-at-a-time"
                                          and staged is not None and staged[0])):
-                            catch_up, commit = self.stage_steering()
+                            catch_up, catch_up_commit = self.stage_steering()
                             if catch_up:
                                 loop_guard.reset()
+                                steering_batches.append(catch_up)
                                 messages.extend(catch_up)
                                 request = replace(request, messages=tuple(messages))
                                 request, request_budget = self.request_preparer(request)
                                 messages = list(request.messages)
-                                commits.append(commit)
+                                commits.append(catch_up_commit)
                     except ContextBudgetExceeded as exc:
                         self._record_preparation(thread_id, request, exc.budget)
                         if self.cancelled():
@@ -1001,7 +1006,6 @@ class TurnRunner:
                     except ModelRequestRejected as exc:
                         return self._request_rejected(thread_id, exc)
                     self._record_preparation(thread_id, request, request_budget)
-                steering_applied = bool(staged and staged[0])
                 try:
                     request = check_model_request(self.lifecycle_hooks, self.config, request, request_budget,
                         purpose="turn", request_index=_round, cancel_event=self._cancel,
@@ -1015,7 +1019,7 @@ class TurnRunner:
                         commit()
                 elif staged is not None:
                     staged[1]()
-                if steering_applied and self.request_preparer is not None:
+                if steering_batches and self.request_preparer is not None:
                     # Committed steering is part of the request actually sent.
                     # Persist its boundary before a stream error can interrupt
                     # the turn; continuation selects the latest budget cutoff.
