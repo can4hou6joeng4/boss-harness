@@ -41,6 +41,18 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 `ServerNotifications` 是方法名常量，不是完整参数 schema；方法参数仍以 `packages/protocol` 的类型和对应读取接口为准。
 
+## 构建前协议核对
+
+`scripts/check_protocol.py` 在安装依赖前运行，失败时退出码 2。它核对五类静态不变量：
+
+- `ApplicationService._register()` 注册的方法集合与 `ClientMethods` 双向一致；
+- 内核以字面量或模块常量发送的通知、`self.server.request` 字面量请求分别出现在 `ServerNotifications`、`ServerRequests` 中；
+- `on_initialize` 返回的 `capabilities` 键与 `InitializeResponse.capabilities` 的布尔字段一致；
+- `RENDERER_METHODS` 是 `ClientMethods` 的子集，仅主进程方法在脚本的 `MAIN_ONLY_METHODS` 中显式登记，`THREAD_METHODS` 是渲染层方法的子集；
+- 内核 `protocol.py` 的 `PROTOCOL_VERSION` 与协议包常量相同，且 `application.py` / `session_export.py` 不重复定义。
+
+检查是静态扫描：通过变量拼接的方法名、运行时注册或动态生成的字段不在覆盖范围；新增此类路径时仍需人工核对协议常量。版本一致性由 `scripts/check_versions.py` 单独核对。
+
 ## 业务 CLI 请求与认证边界
 
 本项目按工具契约派发一次业务 CLI 进程调用，不自动展开组合或追加页面；其中的网络尝试、认证刷新、缓存及摘要补取由所配置的业务 CLI 决定。“只读”描述招聘业务动作，不表示单次网络请求，也不表示不维护本地状态。

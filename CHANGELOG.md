@@ -1,3 +1,10 @@
+## 0.2.0-rc.101 - 2026-11-18
+
+rc.101 源码候选在技术参考记录构建前协议核对范围。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `docs/TECHNICAL_REFERENCE.md` 新增「构建前协议核对」，列出方法、通知、能力、桌面白名单与协议版本五类不变量，并说明静态扫描不覆盖动态方法名。[Issue #2325](https://github.com/can4hou6joeng4/boss-harness/issues/2325)
+- 候选版本号和使用指南同步为 npm `0.2.0-rc.101` / Python `0.2.0rc101`。
+
 ## 0.2.0-rc.100 - 2026-11-18
 
 rc.100 源码候选加入握手能力字段核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
