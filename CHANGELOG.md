@@ -1,3 +1,10 @@
+## 0.2.0-rc.150 - 2026-11-18
+
+rc.150 源码候选核对 preload 暴露调用与导入来源。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求 preload 恰好一次调用 `contextBridge.exposeInMainWorld("boss", api)`，非相对导入只允许 `electron` 与 `@boss-harness/protocol`、`shared`、`app-client`。[Issue #2424](https://github.com/can4hou6joeng4/boss-harness/issues/2424)
+- 负向探针增加第二个全局、改动全局名、导入 `node:fs` 与直接暴露 `ipcRenderer` 均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.150` / Python `0.2.0rc150`。
+
 ## 0.2.0-rc.149 - 2026-11-18
 
 rc.149 源码候选禁止渲染层直接写入 HTML。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

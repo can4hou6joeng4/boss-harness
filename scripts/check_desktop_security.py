@@ -39,6 +39,16 @@ EXPECTED: dict[str, dict[str, bool]] = {
     },
 }
 PRELOAD_FILES = frozenset({"window.ts"})
+PRELOAD_EXPOSURE = re.compile(
+    r'contextBridge\.exposeInMainWorld\(\s*"([^"]+)"\s*,\s*([A-Za-z_$][\w$]*)\s*\)'
+)
+PRELOAD_IMPORT = re.compile(r'(?:from\s+|import\s*\(\s*)["\']([^"\']+)["\']')
+PRELOAD_ALLOWED_MODULES = frozenset({
+    "electron",
+    "@boss-harness/protocol",
+    "@boss-harness/shared",
+    "@boss-harness/app-client",
+})
 PERMISSION_ALLOWLIST = frozenset({"clipboard-sanitized-write"})
 PERMISSION_FILES = ("window.ts", "platformLogin.ts")
 PERMISSION_HANDLERS = ("setPermissionRequestHandler", "setPermissionCheckHandler")
@@ -316,6 +326,34 @@ def _check_preload_bridge() -> int:
     return 7
 
 
+def _check_preload_exposure() -> int:
+    relative = "apps/desktop/src/preload/index.ts"
+    text = (ROOT / relative).read_text(encoding="utf-8")
+    exposures = PRELOAD_EXPOSURE.findall(text)
+    if exposures != [("boss", "api")]:
+        shown = "、".join(f'"{name}" ← {target}' for name, target in exposures) or "无"
+        raise ValueError(
+            f'{relative} 必须恰好一次调用 contextBridge.exposeInMainWorld("boss", api)，实际为 {shown}'
+        )
+    return 1
+
+
+def _check_preload_imports() -> int:
+    checked = 0
+    for name in ("index.ts", "bridge.ts"):
+        relative = f"apps/desktop/src/preload/{name}"
+        path = ROOT / relative
+        if not path.is_file():
+            raise ValueError(f"缺少桌面 preload 文件 {relative}")
+        for specifier in PRELOAD_IMPORT.findall(path.read_text(encoding="utf-8")):
+            if specifier.startswith("."):
+                continue
+            if specifier not in PRELOAD_ALLOWED_MODULES:
+                raise ValueError(f"{relative} 不得导入未登记模块 {specifier}")
+            checked += 1
+    return checked
+
+
 def _channel_diff(label: str, expected: set[str], actual: set[str]) -> str:
     missing = sorted(expected - actual)
     extra = sorted(actual - expected)
@@ -485,13 +523,16 @@ def check_desktop_security() -> tuple[int, int, int]:
     navigation = _check_navigation_handlers()
     external = _check_external_links()
     preload = _check_preload_bridge()
+    exposure = _check_preload_exposure()
+    imports = _check_preload_imports()
     ipc = _check_ipc_channels()
     boundary = _check_renderer_boundary()
     csp = _check_renderer_csp()
     trusted = _check_trusted_sender()
     origins = _check_origin_policies()
     return (len(EXPECTED), checked,
-            allowlist + handlers + navigation + external + preload + ipc + boundary + csp + trusted + origins)
+            allowlist + handlers + navigation + external + preload + exposure + imports
+            + ipc + boundary + csp + trusted + origins)
 
 
 def main() -> int:
