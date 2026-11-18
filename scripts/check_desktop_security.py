@@ -523,11 +523,19 @@ def _check_ipc_channels() -> int:
                     f"{file.relative_to(ROOT).as_posix()} 的 {channel} 处理器"
                     "必须在入口调用 trustedSender(event)"
                 )
+            inner = body.strip()
+            if inner.startswith("{") and inner.endswith("}"):
+                inner = inner[1:-1].lstrip()
+            if not inner.startswith("trustedSender(event)"):
+                raise ValueError(
+                    f"{file.relative_to(ROOT).as_posix()} 的 {channel} 处理器"
+                    "必须在任何工作之前先调用 trustedSender(event)"
+                )
     if invokes != handled:
         raise ValueError(_channel_diff("preload invoke 与 ipcMain.handle 通道", invokes, handled))
     if listens != sent:
         raise ValueError(_channel_diff("preload 订阅与主进程发送通道", listens, sent))
-    return len(handled) + len(sent) + 2
+    return len(handled) * 2 + len(sent) + 2
 
 
 ORIGIN_POLICIES: dict[str, tuple[str, ...]] = {

@@ -1,3 +1,10 @@
+## 0.2.0-rc.164 - 2026-11-18
+
+rc.164 源码候选要求 IPC 处理器先校验发送方再工作。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求每个 `ipcMain.handle` 主体剥离大括号后以 `trustedSender(event)` 开头；桌面防护计数达到 115。[Issue #2452](https://github.com/can4hou6joeng4/boss-harness/issues/2452)
+- 把 `session-export:save` 的校验移到参数解析之后的负向探针触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.164` / Python `0.2.0rc164`。
+
 ## 0.2.0-rc.163 - 2026-11-18
 
 rc.163 源码候选核对会话导出保存对话框属性。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
