@@ -84,7 +84,7 @@ BOSS_HARNESS_PROVIDER=none npm run dev
 5. 回合运行中发送新消息，选择转向当前回合，或将它排到当前回合结束后的队列。
 6. 按 `⌘⇧K` 打开「运行状态」，核对内核线路、并发与保留回合、待审批调用、工具与模型目录。更多界面行为见[桌面交互指南](docs/DESKTOP_GUIDE.md)。
 
-桌面新建的会话固定使用只读工具策略：内核向模型提供 13 个只读招聘工具和 1 个只读内核结果分段读取工具，`boss_hr_greet` 不在该会话的工具清单中，也不会出现写操作审批卡；输入区「执行权限」菜单只展示这一固定策略，当前版本不提供切换入口。逐次审批只出现在以审批策略创建的会话中（`thread/start` 的 `toolPolicy: "approval"`，也是该参数缺省时的取值）：这类会话由其他客户端创建后，桌面会同样列出、读取并在聊天中展示审批卡，从它创建的分支沿用同一策略。
+桌面新建的会话固定使用只读工具策略：内核向模型提供 13 个只读工具（含能力发现）和 1 个只读内核结果分段读取工具，`boss_hr_greet` 不在该会话的工具清单中，也不会出现写操作审批卡；输入区「执行权限」菜单只展示这一固定策略，当前版本不提供切换入口。逐次审批只出现在以审批策略创建的会话中（`thread/start` 的 `toolPolicy: "approval"`，也是该参数缺省时的取值）：这类会话由其他客户端创建后，桌面会同样列出、读取并在聊天中展示审批卡，从它创建的分支沿用同一策略。
 
 <details>
 <summary>展开：这条搜索请求经过了什么</summary>
@@ -181,7 +181,7 @@ git diff --check
 
 以上命令用于开发检查，允许使用工作树中的未提交改动；发布构建必须按 [RELEASING.md](RELEASING.md) 从指定提交的 `git archive` 隔离目录执行，避免未跟踪文件进入资产。
 
-CI 在安装依赖前核对 npm 根包、工作区、锁文件、Python 内核、变更记录首条与使用指南的源码版本，并核对内核注册方法、协议常量（含宿主通知）、握手能力与桌面渲染层方法白名单；双端搜索归一化还会在全部 Unicode 码点上对照，并在 Python 3.10–3.14 上分别运行与编译内核源码；用户与贡献者文档的相对链接也会核对。本地可分别运行 `.venv/bin/python scripts/check_versions.py`、`.venv/bin/python scripts/check_protocol.py`、`.venv/bin/python scripts/check_search_unicode.py` 与 `.venv/bin/python scripts/check_docs_links.py` 执行同一检查。操作步骤见[发布约定](RELEASING.md#版本与文档一起准备)。
+CI 在安装依赖前核对 npm 根包、工作区、锁文件、Python 内核、变更记录首条与使用指南的源码版本，并核对内核注册方法、协议常量（含宿主通知）、握手能力与桌面渲染层方法白名单；双端搜索归一化还会在全部 Unicode 码点上对照，并在 Python 3.10–3.14 上分别运行与编译内核源码；用户与贡献者文档的相对链接与 docs 索引也会核对。本地可分别运行 `.venv/bin/python scripts/check_versions.py`、`.venv/bin/python scripts/check_protocol.py`、`.venv/bin/python scripts/check_search_unicode.py` 与 `.venv/bin/python scripts/check_docs_links.py` 执行同一检查。操作步骤见[发布约定](RELEASING.md#版本与文档一起准备)。
 
 CI 随后执行 npm 依赖审计、TypeScript 检查、Electron 源码构建及 Python wheel / sdist 构建。两个 Python 包分别隔离安装，核对安装版本与命令显示版本后运行 `boss-harness --check --provider none`。`scripts/release_assets.py` 生成构建清单和 SHA-256 摘要，随 `python-dist` 工作流产物上传。真实模型、招聘平台、桌面 UI 和已签名安装包需要分别验收。提交与 PR 流程见[贡献与验证](CONTRIBUTING.md)。
 

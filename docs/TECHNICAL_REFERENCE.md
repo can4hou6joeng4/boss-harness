@@ -57,7 +57,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 `scripts/check_search_unicode.py` 同样在安装依赖前运行：Python 侧按内核 `needs_extra` 选择补表归一化路径，Node 侧导入桌面 `caseFold.ts`，对全部 Unicode 标量值按 `0x1000` 分块计算 SHA-256 摘要并比较；不一致时列出码点区间。它验证映射表与两端 Unicode 数据的组合结果，不覆盖按字素簇切分的文本级行为。Source build 在 Python 3.12 上运行一次，独立的 Python matrix job 另在 Python 3.10、3.11、3.12、3.13、3.14 上分别运行，均使用 Node 24；同一 job 还用 `python -m compileall -q harness/src scripts` 验证这些解释器能编译内核与脚本源码（不导入依赖、不联网）。全量核对报告分块差异，可加 `--block 0xN` 只比较该 0x1000 分块并逐码点列出 Python 与 Node 的结果。
 
-`scripts/check_docs_links.py` 扫描 README、贡献与发布约定、安全与支持文档及 docs 下的用户文档：跳过代码块、行内代码、外链与纯锚点，核对相对文件路径存在。它不检查远程 URL 是否可访问，也不校验页内锚点。
+`scripts/check_docs_links.py` 扫描 README、贡献与发布约定、安全与支持文档、CHANGELOG、归档记录及 docs 下的用户文档：跳过代码块、行内代码、外链与纯锚点，核对相对文件路径存在，并要求 `docs/README.md` 索引 `docs/` 下其余 Markdown 文件。它不检查远程 URL 是否可访问，也不校验页内锚点。
 
 ## 业务 CLI 请求与认证边界
 

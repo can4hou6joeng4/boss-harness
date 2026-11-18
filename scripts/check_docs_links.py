@@ -11,9 +11,11 @@ from urllib.parse import unquote
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = (
     "README.md", "CONTRIBUTING.md", "RELEASING.md", "SECURITY.md", "SUPPORT.md",
-    "CODE_OF_CONDUCT.md", "UPSTREAM.md", "docs/README.md", "docs/USER_GUIDE.md",
-    "docs/DESKTOP_GUIDE.md", "docs/TECHNICAL_REFERENCE.md",
+    "CODE_OF_CONDUCT.md", "UPSTREAM.md", "CHANGELOG.md", "docs/README.md",
+    "docs/USER_GUIDE.md", "docs/DESKTOP_GUIDE.md", "docs/TECHNICAL_REFERENCE.md",
+    "docs/changelog-rc15-details.md",
 )
+INDEX = "docs/README.md"
 LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 DEFINITION = re.compile(r"^\[[^\]]+\]:\s*(\S+)", re.MULTILINE)
 EXTERNAL = ("http://", "https://", "mailto:", "tel:", "#")
@@ -30,7 +32,24 @@ def _links(path: Path) -> list[str]:
     return LINK.findall(text) + DEFINITION.findall(text)
 
 
-def check_docs_links() -> int:
+def _check_index() -> int:
+    path = ROOT / INDEX
+    linked = set()
+    for raw in _links(path):
+        if raw.startswith(EXTERNAL):
+            continue
+        target = unquote(raw.split("#", 1)[0])
+        if target:
+            linked.add((path.parent / target).resolve())
+    documents = sorted((ROOT / "docs").glob("*.md"))
+    missing = [document.name for document in documents
+               if document.name != "README.md" and document.resolve() not in linked]
+    if missing:
+        raise ValueError(f"{INDEX} 未索引：" + "、".join(missing))
+    return len(documents) - 1
+
+
+def check_docs_links() -> tuple[int, int]:
     broken: list[str] = []
     checked = 0
     for relative in SOURCES:
@@ -49,16 +68,16 @@ def check_docs_links() -> int:
                 broken.append(f"{relative} -> {target}")
     if broken:
         raise ValueError("相对链接不存在：" + "；".join(sorted(broken)))
-    return checked
+    return checked, _check_index()
 
 
 def main() -> int:
     try:
-        checked = check_docs_links()
+        checked, indexed = check_docs_links()
     except ValueError as error:
         print(f"文档链接核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"文档相对链接一致：{checked} 个链接")
+    print(f"文档相对链接一致：{checked} 个链接；索引覆盖 {indexed} 篇文档")
     return 0
 
 

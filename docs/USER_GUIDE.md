@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.111` / Python `0.2.0rc111` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.112` / Python `0.2.0rc112` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -222,7 +222,7 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 
 ## 桌面会话的执行权限
 
-桌面新建的会话固定使用只读工具策略：内核向模型提供 13 个只读招聘工具和 1 个只读内核结果分段读取工具，`boss_hr_greet` 不在工具清单中，因此不会出现写操作审批卡或写操作请求；输入区左侧「执行权限」菜单显示「只读会话」，并说明该限制随会话保存、重启和创建分支后继续生效。当前版本不提供在桌面切换策略的入口。
+桌面新建的会话固定使用只读工具策略：内核向模型提供 13 个只读工具（含能力发现）和 1 个只读内核结果分段读取工具，`boss_hr_greet` 不在工具清单中，因此不会出现写操作审批卡或写操作请求；输入区左侧「执行权限」菜单显示「只读会话」，并说明该限制随会话保存、重启和创建分支后继续生效。当前版本不提供在桌面切换策略的入口。
 
 逐次审批只出现在以审批策略创建的会话中：调用 `thread/start` 时传 `toolPolicy: "approval"`（该参数缺省时即 `approval`，`readOnly` 为只读）。这类会话由其他客户端创建后，桌面会像只读会话一样列出并读取，在聊天中展示审批卡并接受裁决；从它们创建的分支沿用来历会话的策略。审批结论只代表操作获准，工具是否执行及结果如何仍需按「审批回执与核对」核对。
 
