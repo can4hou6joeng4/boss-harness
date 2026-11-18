@@ -1,34 +1,9 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { ApprovalFocusTarget, BadgeCountResult, InitializeResponse, JsonRpcNotification, NotificationTestResult,
+import type { ApprovalFocusTarget, BadgeCountResult, JsonRpcNotification, NotificationTestResult,
   PlatformLoginStatus, PlatformLoginAction, PlatformLoginContext, SessionExportSaveRequest,
-  SessionExportSaveResult, StartupDiagnosis, ThreadFocusTarget } from "@boss-harness/protocol";
+  SessionExportSaveResult, ThreadFocusTarget } from "@boss-harness/protocol";
 import { createFocusRelay } from "@boss-harness/shared";
-
-interface HarnessStatus {
-  running: boolean;
-  repoRoot: string;
-  hostId: string;
-  state: "cold" | "starting" | "initializing" | "ready" | "disconnected" | "stopped";
-  generation: number;
-  reconnectAttempt: number;
-  /** 最近一次连接在握手完成前结束。 */
-  startupFailed: boolean;
-  /** 本次运行中内核曾经就绪；断开后可能留有结果未确认的操作。 */
-  wasReady: boolean;
-  /** 已断开且自动恢复尚未用尽。 */
-  willRetry: boolean;
-  retryAt?: number;
-  modelBridge?: { provider: string; model: string; driven: boolean };
-  capabilities?: InitializeResponse["capabilities"];
-  error?: string;
-  /** 握手前失败后的本地自检结论；连接恢复或显式重连后不再返回。 */
-  startupDiagnosis?: StartupDiagnosis;
-}
-
-/**
- * 渲染层只可请求允许清单里的内核方法，订阅通知、查询连接和显式重连。
- * 不暴露 ipcRenderer 本体，也不暴露 Node 能力。
- */
+import type { BossBridge, DesktopHarnessStatus } from "./bridge";
 /**
  * 窗口重建时主进程在页面加载完成后才发送定位载荷；渲染层尚未挂载时先缓存，监听注册后回放。
  * 载荷只在真正交付成功后清除：订阅者在同一个 tick 内卸载（StrictMode 开发期双调用）时不丢失。
@@ -44,15 +19,19 @@ ipcRenderer.on("harness:focus-thread", (_event: IpcRendererEvent, target: Thread
   threadFocus.receive(target);
 });
 
-const api = {
+/**
+ * 渲染层只可请求允许清单里的内核方法，订阅通知、查询连接和显式重连。
+ * 不暴露 ipcRenderer 本体，也不暴露 Node 能力。
+ */
+const api: BossBridge = {
   request<T>(method: string, params?: unknown): Promise<T> {
     return ipcRenderer.invoke("harness:request", { method, params }) as Promise<T>;
   },
-  status(): Promise<HarnessStatus> {
-    return ipcRenderer.invoke("harness:status") as Promise<HarnessStatus>;
+  status(): Promise<DesktopHarnessStatus> {
+    return ipcRenderer.invoke("harness:status") as Promise<DesktopHarnessStatus>;
   },
-  reconnect(): Promise<HarnessStatus> {
-    return ipcRenderer.invoke("harness:reconnect") as Promise<HarnessStatus>;
+  reconnect(): Promise<DesktopHarnessStatus> {
+    return ipcRenderer.invoke("harness:reconnect") as Promise<DesktopHarnessStatus>;
   },
   /** 导出会话：主进程向内核取脱敏文本并经保存对话框写盘；返回文件名与统计，不返回正文或路径。 */
   exportSession(request: SessionExportSaveRequest): Promise<SessionExportSaveResult> {
@@ -96,7 +75,5 @@ const api = {
     platform: process.platform,
   },
 };
-
-export type BossBridge = typeof api;
 
 contextBridge.exposeInMainWorld("boss", api);
