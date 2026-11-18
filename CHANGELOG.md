@@ -1,3 +1,10 @@
+## 0.2.0-rc.205 - 2026-11-18
+
+rc.205 源码候选为审批裁决路径增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_approval.py` 并接入 CI：核对审批字段白名单、活动 runner 归属与持久回调、会话层重复决策 / 归档 / 过期 / owner 约束以及启动过期回收，共 47 项防护。[Issue #2534](https://github.com/can4hou6joeng4/boss-harness/issues/2534)
+- 负向探针覆盖字段校验、active turn owner 与过期判定变异；全部检查通过。版本推进到 npm `0.2.0-rc.205` / Python `0.2.0rc205`。不执行发布动作。
+
 ## 0.2.0-rc.204 - 2026-11-18
 
 rc.204 源码候选为连接报告字段投影增加专项静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

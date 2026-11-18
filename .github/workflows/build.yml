@@ -64,6 +64,8 @@ jobs:
         run: python scripts/check_connection_lifecycle.py
       - name: Verify connection report boundaries
         run: python scripts/check_connection_report.py
+      - name: Verify approval decision boundaries
+        run: python scripts/check_approval.py
       - name: Verify release asset boundaries
         run: python scripts/check_release_assets.py
       - name: Verify search normalization
