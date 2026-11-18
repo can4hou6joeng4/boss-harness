@@ -409,6 +409,18 @@ PRELOAD_FORBIDDEN = (
     ("process.argv", "preload 不得读取启动参数"),
     ("process.cwd", "preload 不得读取工作目录"),
 )
+PROCESS_EXEC_AREAS = (
+    (MAIN, "主进程"),
+    (APP_CLIENT, "app-client"),
+)
+PROCESS_EXEC_NAMES = ("execFileSync", "execFile", "execSync", "spawnSync", "fork", "exec")
+PROCESS_EXEC_CALL = re.compile(
+    r"(?<![.\w$])(" + "|".join(PROCESS_EXEC_NAMES) + r")\s*\("
+)
+CHILD_PROCESS_IMPORT = re.compile(
+    r'import\s*\{([^}]*)\}\s*from\s*"node:child_process"'
+)
+CHILD_PROCESS_SPECIFIER = re.compile(r'["\']node:child_process["\']')
 
 
 def _check_process_boundaries() -> int:
@@ -460,6 +472,33 @@ def _check_process_spawn() -> int:
     ) + _check_spawn(
         APP_CLIENT, APP_CLIENT_SPAWN_OWNER, "app-client", "packages/app-client/src"
     )
+
+
+def _check_process_exec() -> int:
+    for area, label in PROCESS_EXEC_AREAS:
+        for path in sorted(area.rglob("*.ts")):
+            relative = path.relative_to(ROOT).as_posix()
+            text = path.read_text(encoding="utf-8")
+            match = PROCESS_EXEC_CALL.search(text)
+            if match is not None:
+                raise ValueError(
+                    f"{label}子进程只允许 spawn，不得调用 {match.group(1)}：{relative}"
+                )
+            imports = CHILD_PROCESS_IMPORT.findall(text)
+            if len(CHILD_PROCESS_SPECIFIER.findall(text)) != len(imports):
+                raise ValueError(
+                    f"{label}必须以具名导入引入 node:child_process：{relative}"
+                )
+            for names in imports:
+                for name in names.split(","):
+                    name = name.strip()
+                    if not name or name == "spawn" or name.startswith("type "):
+                        continue
+                    raise ValueError(
+                        f"{label}的 node:child_process 只允许导入 spawn 与类型："
+                        f"{relative}（{name}）"
+                    )
+    return len(PROCESS_EXEC_AREAS) * (len(PROCESS_EXEC_NAMES) + 1)
 
 
 def _check_session_export() -> int:
@@ -699,6 +738,7 @@ def check_desktop_security() -> tuple[int, int, int]:
     imports = _check_preload_imports()
     boundaries = _check_process_boundaries()
     spawn = _check_process_spawn()
+    exec_guard = _check_process_exec()
     export = _check_session_export()
     ipc = _check_ipc_channels()
     literals = _check_channel_literals()
@@ -710,8 +750,8 @@ def check_desktop_security() -> tuple[int, int, int]:
     origins = _check_origin_policies()
     return (len(EXPECTED), checked,
             allowlist + handlers + navigation + external + preload + exposure + imports
-            + boundaries + spawn + export + ipc + literals + boundary + csp + bootstrap
-            + embed + trusted + origins)
+            + boundaries + spawn + exec_guard + export + ipc + literals + boundary + csp
+            + bootstrap + embed + trusted + origins)
 
 
 def main() -> int:
