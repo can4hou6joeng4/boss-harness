@@ -728,29 +728,26 @@ class ContextService:
                 _retention_provider, _retention_request, entries,
                 messages=retained_messages, owners=mapped_owners)
         per_turn_estimate: dict[str, int] = {turn["turnId"]: 0 for turn in turns}
+        # One estimator for both the cut-point scan and the returned estimate:
+        # calibrated messages use their own usage delta, uncalibrated messages
+        # keep the character estimate, and excluded context edits never add a
+        # phantom empty message to the retained tail.
         calibrated_indexes = {index for start, finish in usage_intervals
                               for index in range(start, finish)}
         for turn in turns:
             turn_id = turn["turnId"]
             indexes = [index for index, owner in enumerate(mapped_owners) if owner == turn_id]
-            if any(index in calibrated_indexes for index in indexes):
-                per_turn_estimate[turn_id] = sum(message_estimates[index] for index in indexes)
-            else:
-                per_turn_estimate[turn_id] = estimate_tokens(
-                    messages_from_items(by_turn[turn_id]))
+            estimates = [message_estimates[index] if index in calibrated_indexes
+                         else estimate_tokens([mapped_messages[index]])
+                         for index in indexes if index < len(mapped_messages)]
+            per_turn_estimate[turn_id] = sum(estimates)
         if through_turn_id is None:
             retained_size = 0
             first_kept = len(turns) - 1
             for index in range(len(turns) - 1, previous_index, -1):
                 first_kept = index
-                turn_id = turns[index]["turnId"]
-                if usage_intervals:
-                    retained_size += per_turn_estimate[turn_id]
-                    reached = retained_size >= keep
-                else:
-                    retained_size += _message_size(messages_from_items(by_turn[turn_id]))
-                    reached = (retained_size + 1) // 2 >= keep
-                if reached:
+                retained_size += per_turn_estimate[turns[index]["turnId"]]
+                if retained_size >= keep:
                     break
             if first_kept <= previous_index + 1:
                 raise NoCompactionSource("保留近期完整回合后，没有更早的可压缩内容")
@@ -786,6 +783,12 @@ class ContextService:
             if any(owner in retained_turn_set for owner in mapped_owners[start:finish]):
                 used_anchors.update((start, finish))
         retention_usage_applied = bool(used_anchors)
+        retained_indexes = [index for index, owner in enumerate(mapped_owners)
+                            if owner in retained_turn_set]
+        estimated_retained = sum(
+            message_estimates[index] if index in calibrated_indexes
+            else estimate_tokens([mapped_messages[index]])
+            for index in retained_indexes if index < len(mapped_messages))
         retention_usage = {
             "retentionEstimateMethod": (
                 "verified-provider-usage-delta+characters/2+message-overhead"
@@ -802,10 +805,7 @@ class ContextService:
                 "keepRecentTokens": keep, "retainedItemCount": len(retained),
                 "retainedTurnIds": retained_turn_ids,
                 "firstKeptItemId": retained[0]["id"] if retained else None,
-                "estimatedRetainedTokens": (sum(per_turn_estimate[turn_id]
-                                                  for turn_id in retained_turn_ids)
-                                             if retention_usage_applied
-                                             else estimate_tokens(messages_from_items(retained))),
+                "estimatedRetainedTokens": estimated_retained,
                 **retention_usage,
                 "checkpointDigest": _digest(checkpoint) if checkpoint is not None else None}
         return plan, selected, checkpoint, items

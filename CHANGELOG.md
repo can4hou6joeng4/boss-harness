@@ -1,3 +1,10 @@
+## 0.2.0-rc.208 - 2026-11-18
+
+rc.208 源码候选统一自动压缩切点与回执的保留长度估算。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `ContextManager._compaction_snapshot()` 让切点扫描与 `estimatedRetainedTokens` 共用同一可见尾部估算：已校准消息按用量增量、未校准消息按字符估算，排除的上下文编辑不再产生空消息开销；摘要来源集合与条目计数仍按原始记录计算。[Issue #2540](https://github.com/can4hou6joeng4/boss-harness/issues/2540)
+- 离线合成探针覆盖旧用量锚点与排除消息场景，修复前后偏差与一致性均已验证；全部检查通过。版本推进到 npm `0.2.0-rc.208` / Python `0.2.0rc208`。不执行发布动作。
+
 ## 0.2.0-rc.207 - 2026-11-18
 
 rc.207 源码候选澄清自动压缩保留目标的估算口径与边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
