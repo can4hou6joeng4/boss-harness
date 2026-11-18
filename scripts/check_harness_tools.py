@@ -9,6 +9,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS_SOURCE = ROOT / "harness/src/boss_harness/tools/boss_cli.py"
+CONTEXT_SOURCE = ROOT / "harness/src/boss_harness/context.py"
+TOOL_RESULTS_SOURCE = ROOT / "harness/src/boss_harness/tool_results.py"
 EXPECTED_TOOLS = frozenset({
     "boss_search",
     "boss_detail",
@@ -112,7 +114,61 @@ def _check_schema(node: ast.AST, where: str) -> None:
         raise ValueError(f"{where} 的 input_schema.additionalProperties 必须是 False")
 
 
-def check_harness_tools() -> tuple[int, int]:
+def _frozenset_literal(node: ast.AST, where: str) -> set[str]:
+    if (
+        not isinstance(node, ast.Call)
+        or not isinstance(node.func, ast.Name)
+        or node.func.id != "frozenset"
+        or len(node.args) != 1
+        or node.keywords
+    ):
+        raise ValueError(f"{where} 必须是 frozenset 字面量")
+    items = node.args[0]
+    if not isinstance(items, (ast.Set, ast.List, ast.Tuple)):
+        raise ValueError(f"{where} 必须是 frozenset 字面量")
+    values: set[str] = set()
+    for item in items.elts:
+        if not isinstance(item, ast.Constant) or not isinstance(item.value, str):
+            raise ValueError(f"{where} 只能包含字符串字面量")
+        values.add(item.value)
+    return values
+
+
+def _assigned_frozenset(path: Path, name: str) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if not any(
+            isinstance(target, ast.Name) and target.id == name for target in targets
+        ):
+            continue
+        return _frozenset_literal(node.value, f"{path.name} 的 {name}")
+    raise ValueError(f"{path.name} 缺少 {name}")
+
+
+def _write_tools_default(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        positional = node.args.posonlyargs + node.args.args
+        defaults = node.args.defaults
+        if not defaults:
+            continue
+        for argument, default in zip(positional[-len(defaults):], defaults):
+            if argument.arg == "write_tools":
+                return _frozenset_literal(
+                    default, f"{path.name} 的 write_tools 默认值"
+                )
+    raise ValueError(f"{path.name} 缺少 write_tools 默认值")
+
+
+def check_harness_tools() -> tuple[int, int, int]:
     tree = ast.parse(
         TOOLS_SOURCE.read_text(encoding="utf-8"), filename=str(TOOLS_SOURCE)
     )
@@ -148,18 +204,33 @@ def check_harness_tools() -> tuple[int, int]:
             "TOOLS 的需批准工具应恰为 boss_hr_greet，实际为："
             + ("、".join(sorted(approval)) or "无")
         )
-    return len(names), len(names) - len(approval)
+    write_sets = (
+        ("context.py 的 _WRITE_TOOLS", _assigned_frozenset(CONTEXT_SOURCE, "_WRITE_TOOLS")),
+        ("context.py 的 write_tools 默认值", _write_tools_default(CONTEXT_SOURCE)),
+        (
+            "tool_results.py 的 LEGACY_WRITE_TOOLS",
+            _assigned_frozenset(TOOL_RESULTS_SOURCE, "LEGACY_WRITE_TOOLS"),
+        ),
+    )
+    for label, values in write_sets:
+        if values != WRITE_TOOLS:
+            raise ValueError(
+                f"{label} 应恰为 boss_hr_greet，实际为："
+                + ("、".join(sorted(values)) or "无")
+            )
+    return len(names), len(names) - len(approval), len(write_sets)
 
 
 def main() -> int:
     try:
-        total, read_only = check_harness_tools()
+        total, read_only, write_sets = check_harness_tools()
     except (OSError, SyntaxError, ValueError) as error:
         print(f"内核工具允许清单核对失败，{error}", file=sys.stderr)
         return 2
     print(
         f"内核工具允许清单一致：{total} 个工具"
-        f"（{read_only} 个只读、{total - read_only} 个需批准）、schema 边界完整"
+        f"（{read_only} 个只读、{total - read_only} 个需批准）、"
+        f"schema 边界完整、{write_sets} 处写工具集合一致"
     )
     return 0
 

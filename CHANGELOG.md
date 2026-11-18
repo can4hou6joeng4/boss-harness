@@ -1,3 +1,10 @@
+## 0.2.0-rc.172 - 2026-11-18
+
+rc.172 源码候选核对写工具集合一致性。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_harness_tools.py` 解析 `context.py` 的 `_WRITE_TOOLS`、`write_tools` 默认值与 `tool_results.py` 的 `LEGACY_WRITE_TOOLS`，要求三处均恰为 `boss_hr_greet`。[Issue #2468](https://github.com/can4hou6joeng4/boss-harness/issues/2468)
+- 给默认值与 `LEGACY_WRITE_TOOLS` 各增加一个工具的两个负向探针均触发对应错误；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.172` / Python `0.2.0rc172`。
+
 ## 0.2.0-rc.171 - 2026-11-18
 
 rc.171 源码候选新增内核默认工具允许清单核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
