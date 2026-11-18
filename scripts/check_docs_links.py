@@ -14,8 +14,10 @@ SOURCES = (
     "CODE_OF_CONDUCT.md", "UPSTREAM.md", "CHANGELOG.md", "docs/README.md",
     "docs/USER_GUIDE.md", "docs/DESKTOP_GUIDE.md", "docs/TECHNICAL_REFERENCE.md",
     "docs/STATUS.md", "docs/changelog-rc15-details.md",
+    "harness/README.md", ".github/PULL_REQUEST_TEMPLATE.md",
 )
 INDEX = "docs/README.md"
+MARKDOWN_DIRS = ("", "docs", "harness", ".github")
 LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 DEFINITION = re.compile(r"^\[[^\]]+\]:\s*(\S+)", re.MULTILINE)
 EXTERNAL = ("http://", "https://", "mailto:", "tel:")
@@ -118,7 +120,23 @@ def _check_index() -> int:
     return len(documents) - 1
 
 
-def check_docs_links() -> tuple[int, int, int]:
+def _check_coverage() -> int:
+    """仓库内约定位置的 Markdown 必须全部登记，避免新增文档漏检。"""
+    found: set[str] = set()
+    for directory in MARKDOWN_DIRS:
+        base = ROOT / directory if directory else ROOT
+        for path in base.glob("*.md"):
+            found.add(path.relative_to(ROOT).as_posix())
+    missing = sorted(found - set(SOURCES))
+    if missing:
+        raise ValueError("文档检查未覆盖：" + "、".join(missing))
+    absent = sorted(set(SOURCES) - found)
+    if absent:
+        raise ValueError("登记文档不在约定位置：" + "、".join(absent))
+    return len(found)
+
+
+def check_docs_links() -> tuple[int, int, int, int]:
     broken: list[str] = []
     bad_anchors: list[str] = []
     checked = 0
@@ -148,16 +166,19 @@ def check_docs_links() -> tuple[int, int, int]:
         raise ValueError("相对链接不存在：" + "；".join(sorted(broken)))
     if bad_anchors:
         raise ValueError("页内锚点不存在：" + "；".join(sorted(bad_anchors)))
-    return checked, anchors, _check_index()
+    return checked, anchors, _check_index(), _check_coverage()
 
 
 def main() -> int:
     try:
-        checked, anchors, indexed = check_docs_links()
+        checked, anchors, indexed, covered = check_docs_links()
     except ValueError as error:
         print(f"文档链接核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"文档相对链接一致：{checked} 个链接、{anchors} 个页内锚点；索引覆盖 {indexed} 篇文档")
+    print(
+        f"文档相对链接一致：{checked} 个链接、{anchors} 个页内锚点；"
+        f"索引覆盖 {indexed} 篇文档，检查覆盖 {covered} 篇 Markdown"
+    )
     return 0
 
 

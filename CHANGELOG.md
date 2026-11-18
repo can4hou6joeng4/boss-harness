@@ -1,3 +1,10 @@
+## 0.2.0-rc.142 - 2026-11-18
+
+rc.142 源码候选让文档检查覆盖全部约定位置的 Markdown。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_docs_links.py` 加入 `harness/README.md` 与 `.github/PULL_REQUEST_TEMPLATE.md`，并扫描根目录、`docs/`、`harness/`、`.github/` 下的 Markdown，要求全部登记；未登记或登记后移出约定位置都会失败。[Issue #2408](https://github.com/can4hou6joeng4/boss-harness/issues/2408)
+- 输出增加检查覆盖篇数；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.142` / Python `0.2.0rc142`。
+
 ## 0.2.0-rc.141 - 2026-11-18
 
 rc.141 源码候选核对受信发送方判定。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
