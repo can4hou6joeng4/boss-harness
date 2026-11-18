@@ -1,3 +1,10 @@
+## 0.2.0-rc.96 - 2026-11-18
+
+rc.96 源码候选把使用指南纳入构建前版本核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_versions.py` 要求 `docs/USER_GUIDE.md` 出现与包版本一致的 `npm <版本> / Python <版本>` 片段；缺失或不一致时退出码 2 并指出文件。[Issue #2315](https://github.com/can4hou6joeng4/boss-harness/issues/2315)
+- README 与发布约定说明检查范围。候选版本号和使用指南同步为 npm `0.2.0-rc.96` / Python `0.2.0rc96`。
+
 ## 0.2.0-rc.95 - 2026-11-18
 
 rc.95 源码候选补齐平台登录的协议方法常量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
