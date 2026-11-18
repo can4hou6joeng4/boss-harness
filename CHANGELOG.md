@@ -1,3 +1,10 @@
+## 0.2.0-rc.102 - 2026-11-18
+
+rc.102 源码候选补齐贡献指南的本地检查命令。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `CONTRIBUTING.md` 的本地验证命令加入 `scripts/check_versions.py` 与 `scripts/check_protocol.py`，与 CI 的构建前检查一致。[Issue #2327](https://github.com/can4hou6joeng4/boss-harness/issues/2327)
+- 候选版本号和使用指南同步为 npm `0.2.0-rc.102` / Python `0.2.0rc102`。
+
 ## 0.2.0-rc.101 - 2026-11-18
 
 rc.101 源码候选在技术参考记录构建前协议核对范围。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
