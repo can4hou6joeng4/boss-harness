@@ -1,3 +1,10 @@
+## 0.2.0-rc.111 - 2026-11-18
+
+rc.111 源码候选把 Python 矩阵扩展到源码编译。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 原 `Search normalization` 矩阵 job 改名为 `Python <版本>`，在 Python 3.10–3.14 上除运行 `check_search_unicode.py` 外，再执行 `python -m compileall -q harness/src scripts`，验证源码语法兼容。[Issue #2345](https://github.com/can4hou6joeng4/boss-harness/issues/2345)
+- README、CONTRIBUTING、发布约定与技术参考同步矩阵范围。候选版本号和使用指南同步为 npm `0.2.0-rc.111` / Python `0.2.0rc111`。
+
 ## 0.2.0-rc.110 - 2026-11-18
 
 rc.110 源码候选把桌面方法字面量纳入协议核对。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

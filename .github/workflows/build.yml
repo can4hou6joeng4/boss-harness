@@ -83,8 +83,8 @@ jobs:
           path: dist/python
           if-no-files-found: error
 
-  search-unicode:
-    name: Search normalization ${{ matrix.python-version }}
+  python-matrix:
+    name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -101,3 +101,5 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Verify search normalization
         run: python scripts/check_search_unicode.py
+      - name: Compile kernel and scripts
+        run: python -m compileall -q harness/src scripts
