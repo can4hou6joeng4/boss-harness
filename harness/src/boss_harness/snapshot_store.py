@@ -17,7 +17,8 @@ from boss_harness.private_files import ensure_private_directory, open_private_fi
 from boss_harness.queue_view import (ACTIVE_QUEUE_STATUSES, MAX_QUEUE_VIEW_ITEMS,
                                      MAX_QUEUE_VIEW_TERMINAL_ITEMS, project_queue, queue_record)
 from boss_harness.rpc import RpcError
-from boss_harness.session import MAX_SESSION_LINE_BYTES, _decode_session_record, _fsync_directory
+from boss_harness.session import (MAX_SESSION_LINE_BYTES, _ITEM_ID_FIELDS, _decode_session_record,
+                                  _fsync_directory, _record_id)
 
 MAX_SNAPSHOT_RECORD_BYTES = MAX_SESSION_LINE_BYTES
 MAX_SNAPSHOT_SOURCE_BYTES = 1024 * 1024 * 1024
@@ -206,6 +207,17 @@ def _lines(source: BinaryIO, size: int):
         raise ValueError("会话记录超过冻结快照读取上限")
 
 
+def _clean_item_fields(payload: dict) -> dict:
+    """按普通会话投影的同一规则清理不可信编号字段。"""
+    cleaned = dict(payload)
+    for field in _ITEM_ID_FIELDS:
+        if field in cleaned and not isinstance(cleaned[field], str):
+            del cleaned[field]
+    if "approval" in cleaned and not isinstance(cleaned["approval"], dict):
+        del cleaned["approval"]
+    return cleaned
+
+
 class SnapshotBuilder:
     def __init__(self, path: Path, thread_id: str, snapshot_id: str) -> None:
         self.path = path
@@ -267,9 +279,9 @@ class SnapshotBuilder:
         if entry_type == "item":
             if not isinstance(payload, dict):
                 return
-            target_id = str(payload.get("revises") or "")
+            target_id = _record_id(payload.get("revises")) or ""
             if not target_id and payload.get("kind") == "toolCall" and payload.get("status") != "running":
-                parent_id = str(entry.get("parentId") or "")
+                parent_id = _record_id(entry.get("parentId")) or ""
                 parent_ordinal = self._alias(parent_id) if parent_id else None
                 if parent_ordinal is not None and self._read_item(parent_ordinal).get("kind") == "toolCall":
                     target_id = parent_id
@@ -279,7 +291,8 @@ class SnapshotBuilder:
                 previous_size = len(json.dumps(current, ensure_ascii=False, allow_nan=False,
                                                 separators=(",", ":")).encode("utf-8"))
                 merged = {**current, **payload, "id": current["id"], "threadId": self.thread_id}
-                self._write_item(ordinal, merged, is_new=False, previous_size=previous_size)
+                self._write_item(ordinal, _clean_item_fields(merged), is_new=False,
+                                 previous_size=previous_size)
             else:
                 if self._alias(entry_id) is not None:
                     # 与 `_project_items` 一致：同一编号的顶层条目重复出现（外部改写或
@@ -288,7 +301,7 @@ class SnapshotBuilder:
                     return
                 ordinal = self.count
                 merged = {**payload, "id": entry_id, "threadId": self.thread_id}
-                self._write_item(ordinal, merged, is_new=True)
+                self._write_item(ordinal, _clean_item_fields(merged), is_new=True)
             self.connection.execute("INSERT INTO aliases(alias,ordinal) VALUES(?,?) "
                                     "ON CONFLICT(alias) DO UPDATE SET ordinal=excluded.ordinal",
                                     (entry_id, ordinal))
