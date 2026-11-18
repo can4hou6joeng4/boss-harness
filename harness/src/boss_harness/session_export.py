@@ -29,6 +29,7 @@ from boss_harness.compaction import verified_policy
 from boss_harness.context import tool_execution_status
 from boss_harness.item_content import wire_text
 from boss_harness.models.secret import redact_secrets
+from boss_harness.protocol import PROTOCOL_VERSION
 from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, SessionStore, bounded_skill_ids,
                                   branch_summary_issue)
 from boss_harness.usage import SOURCE as USAGE_SOURCE, summarize_usage
@@ -699,7 +700,7 @@ class _Exporter:
     def meta(self, server_version: str) -> dict:
         return {
             "schema": EXPORT_SCHEMA, "exportedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "serverVersion": server_version, "protocolVersion": "0.2.0",
+            "serverVersion": server_version, "protocolVersion": PROTOCOL_VERSION,
             "threadId": self.thread_id, "title": " ".join(self.redactor.text(self.thread.get("title"), limit=200).split()),
             "createdAt": self.thread.get("createdAt"), "view": "branch" if self.branch else "log",
             "branched": self.leaf["branched"], "turnCount": len(self.turns),
