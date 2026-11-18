@@ -445,6 +445,10 @@ CSP_META = re.compile(
     r'<meta[^>]*http-equiv="Content-Security-Policy"[^>]*content="([^"]+)"', re.DOTALL
 )
 INLINE_SCRIPT = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>", re.IGNORECASE)
+EMBED_ELEMENT = re.compile(r"<\s*(?:iframe|webview|object|embed)\b", re.IGNORECASE)
+REMOTE_RESOURCE = re.compile(
+    r"""\b(?:src|href|action)\s*=\s*["'](?:https?:)?//""", re.IGNORECASE
+)
 RENDERER_BOUNDARY: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bipcRenderer\b"), "不得引用 ipcRenderer"),
     (re.compile(r'(?:from\s+|import\s*\(\s*)["\']electron["\']'), "不得直接导入 electron"),
@@ -514,6 +518,15 @@ def _check_renderer_bootstrap() -> int:
     if match is None or not match.group(1).startswith("./src/"):
         raise ValueError("渲染层入口的 script src 必须指向本地 ./src/ 模块")
     return 3
+
+
+def _check_renderer_embed() -> int:
+    text = RENDERER_HTML.read_text(encoding="utf-8")
+    if EMBED_ELEMENT.search(text):
+        raise ValueError("渲染层入口不得包含 iframe / webview / object / embed 嵌入元素")
+    if REMOTE_RESOURCE.search(text):
+        raise ValueError("渲染层入口的 src / href / action 不得引用远程或协议相对 URL")
+    return 2
 
 
 def _check_ipc_channels() -> int:
@@ -634,11 +647,12 @@ def check_desktop_security() -> tuple[int, int, int]:
     boundary = _check_renderer_boundary()
     csp = _check_renderer_csp()
     bootstrap = _check_renderer_bootstrap()
+    embed = _check_renderer_embed()
     trusted = _check_trusted_sender()
     origins = _check_origin_policies()
     return (len(EXPECTED), checked,
             allowlist + handlers + navigation + external + preload + exposure + imports
-            + boundaries + export + ipc + boundary + csp + bootstrap + trusted + origins)
+            + boundaries + export + ipc + boundary + csp + bootstrap + embed + trusted + origins)
 
 
 def main() -> int:
