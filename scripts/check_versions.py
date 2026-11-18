@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+from datetime import date
 import json
 from pathlib import Path
 import re
@@ -14,7 +15,7 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[1]
 NUMBER = r"(?:0|[1-9][0-9]*)"
 NPM_VERSION = re.compile(rf"({NUMBER}\.{NUMBER}\.{NUMBER})(?:-rc\.({NUMBER}))?")
-CHANGELOG_HEADING = re.compile(r"^## (\S+) - \d{4}-\d{2}-\d{2}$", re.MULTILINE)
+CHANGELOG_HEADING = re.compile(r"^## (\S+) - (\d{4}-\d{2}-\d{2})$", re.MULTILINE)
 CANDIDATE_VERSION = re.compile(rf"({NUMBER})\.({NUMBER})\.({NUMBER})-rc\.({NUMBER})")
 
 
@@ -81,9 +82,10 @@ def _candidate_key(version: str) -> tuple[int, ...]:
 
 def _check_changelog(npm_version: str) -> None:
     path = "CHANGELOG.md"
-    headings = CHANGELOG_HEADING.findall(_read(path, lambda text: text))
-    if not headings:
+    entries = CHANGELOG_HEADING.findall(_read(path, lambda text: text))
+    if not entries:
         raise ValueError(f"{path} 缺少版本条目")
+    headings = [version for version, _ in entries]
     if headings[0] != npm_version:
         raise ValueError(f"{path} 的首条版本是 {headings[0]}，预期为 {npm_version}")
     keys = [_candidate_key(version) for version in headings]
@@ -91,6 +93,18 @@ def _check_changelog(npm_version: str) -> None:
         if keys[index] >= keys[index - 1]:
             raise ValueError(
                 f"{path} 的版本条目必须严格递减：{headings[index]} 位于 {headings[index - 1]} 之后"
+            )
+    dates: list[date] = []
+    for version, value in entries:
+        try:
+            dates.append(date.fromisoformat(value))
+        except ValueError:
+            raise ValueError(f"{path} 的版本条目 {version} 日期不合法：{value}") from None
+    for index in range(1, len(dates)):
+        if dates[index] > dates[index - 1]:
+            raise ValueError(
+                f"{path} 的版本条目日期不得晚于上一条："
+                f"{headings[index]} 的 {entries[index][1]} 位于 {entries[index - 1][1]} 之后"
             )
 
 

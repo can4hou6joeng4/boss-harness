@@ -1,3 +1,10 @@
+## 0.2.0-rc.160 - 2026-11-18
+
+rc.160 源码候选核对 CHANGELOG 条目日期。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_versions.py` 解析每个版本条目的 ISO 日期，要求合法且不晚于上一条，同日允许多个候选。[Issue #2444](https://github.com/can4hou6joeng4/boss-harness/issues/2444)
+- 非法日期与晚于上一条的日期两个负向探针均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.160` / Python `0.2.0rc160`。
+
 ## 0.2.0-rc.159 - 2026-11-18
 
 rc.159 源码候选核对渲染层入口模块脚本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
