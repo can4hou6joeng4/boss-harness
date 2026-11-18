@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ConnectionCheck, ConnectionReport, ConnectionTarget, PlatformLoginStatus } from "@boss-harness/protocol";
+import { PROTOCOL_VERSION, type ConnectionCheck, type ConnectionReport, type ConnectionTarget, type PlatformLoginStatus } from "@boss-harness/protocol";
 import { harnessErrorText, connectionReport, harnessStatus, reconnectHarness } from "../data/harnessBridge";
 import { connectionNoticeParts, connectionViewOf, mergeConnectionView, startupCheckRows, type ConnectionView } from "../data/connectionNotice";
 import { loginActive, loginSettled, platformLoginStatusOf } from "../data/platformLoginState";
@@ -120,6 +120,10 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
       startupDiagnosis.protocolVersion ? `协议 ${startupDiagnosis.protocolVersion}` : "",
       startupDiagnosis.pythonVersion ? `Python ${startupDiagnosis.pythonVersion}` : ""].filter(Boolean).join(" · ")
     : "";
+  const reportProtocol = startupDiagnosis?.kind === "report" ? startupDiagnosis.protocolVersion : undefined;
+  const protocolMismatch = reportProtocol && reportProtocol !== PROTOCOL_VERSION
+    ? `协议版本不一致：内核自检报告 ${reportProtocol}，桌面支持 ${PROTOCOL_VERSION}；请确认桌面与内核来自同一构建。`
+    : "";
   const hasCheckError = startupChecks.some(check => check.status === "error");
   const canReconnect = !harnessUp && Boolean(window.boss) && connection?.state === "disconnected";
   const badge = <span className={`settings-badge${harnessUp ? " is-connected" : ""}`}><span className="settings-status-dot" />{harnessUp ? "运行中" : "未连接"}</span>;
@@ -128,6 +132,7 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
       {notice && <div className="connection-startup" role="status">
         <p className="connection-startup-headline">{notice.headline}</p>
         {reportMeta && <p className="settings-row-description">自检报告：{reportMeta}</p>}
+        {protocolMismatch && <p className="settings-row-description connection-startup-warning" role="alert">{protocolMismatch}</p>}
         {notice.diagnosis && !hasCheckError && <p className="settings-row-description">{notice.diagnosis}</p>}
         {startupChecks.length > 0 && <ul className="connection-startup-checks" aria-label="本地配置自检结果">{startupChecks.map(check => <li key={check.key} className={`is-${check.status}`}>
           <span className="connection-startup-check-title">{check.title}</span><span className="connection-startup-check-status">{check.label}</span>

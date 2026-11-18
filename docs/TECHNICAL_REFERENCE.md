@@ -30,7 +30,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 `boss-harness --check` 只读取本地配置并向 stdout 输出单份 JSON：`schemaVersion: 1`、`version`、`protocolVersion`、`pythonVersion`、`ok` 与 `checks`。桌面主进程在握手前启动失败时运行同一命令，解析器只接受这些字段中的报告结构、`schemaVersion: 1`、布尔 `ok`、非空且不超过 16 项的 `checks` 列表，以及可选的单行 `version` / `protocolVersion` / `pythonVersion`；每项的名称、检查码、消息与建议必须符合固定格式，且同一报告中名称不重复。若 `ok` 与「所有检查项均非 error」不一致，整份报告作废，不向界面展示部分内容。
 
-解析器不据此判断报告是否可信于真实运行环境，也不读取 stderr、内核会话或任何凭据；自检超时、输出超限、非 UTF-8 或进程异常退出时统一归入不可用原因。字段含义与用户处理建议见[使用指南](USER_GUIDE.md#本地配置自检)，桌面展示路径见[桌面指南](DESKTOP_GUIDE.md#界面偏好与恢复)。
+解析器不据此判断报告是否可信于真实运行环境，也不读取 stderr、内核会话或任何凭据；自检超时、输出超限、非 UTF-8 或进程异常退出时统一归入不可用原因。设置页展示报告时，若 `protocolVersion` 存在且与桌面协议包导出的 `PROTOCOL_VERSION` 不同，会并列显示两个版本并提示可能来自不同构建；字段缺失或一致时不追加提示。字段含义与用户处理建议见[使用指南](USER_GUIDE.md#本地配置自检)，桌面展示路径见[桌面指南](DESKTOP_GUIDE.md#界面偏好与恢复)。
 
 ## 服务端通知
 

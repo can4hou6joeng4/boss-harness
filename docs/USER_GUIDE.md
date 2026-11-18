@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.134` / Python `0.2.0rc134` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.135` / Python `0.2.0rc135` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -146,7 +146,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 - 自检使用与内核相同的解释器、工作目录与环境（只额外设置输出编码），因此结论与内核实际使用的配置一致；它不调用模型、不执行业务 CLI、不访问招聘平台。
 - 错误项的说明与建议显示在底部提示条，以及「设置 → 模型与连接」的「招聘 Harness」行；后者按「错误 → 警告 → 通过」列出明细与检查码，同类项保留自检报告的原始顺序，方便先找到导致启动失败的原因。命令行报告顺序不变。
-- 报告带 `version` / `protocolVersion` / `pythonVersion` 时，「招聘 Harness」行会在明细前显示「自检报告：内核 … · 协议 … · Python …」，便于核对桌面、内核与解释器是否同源；字段缺失或不合规时不显示，不猜测版本。
+- 报告带 `version` / `protocolVersion` / `pythonVersion` 时，「招聘 Harness」行会在明细前显示「自检报告：内核 … · 协议 … · Python …」，便于核对桌面、内核与解释器是否同源；字段缺失或不合规时不显示，不猜测版本。报告中的协议版本与桌面使用的协议常量不一致时，同一位置会给出「协议版本不一致」提示并列出两侧版本，提示桌面与内核可能来自不同构建。
 - 提示条区分「内核未能完成启动」与「就绪后断开」：前者说明自动重试是否仍会继续；后者保留「结果未确认的对外操作请先核对平台状态」，自动恢复重新就绪后清除。
 - 界面不展示内核 stderr、异常原文、端点、凭据或本机路径，只使用上表的固定检查码与静态建议。
 - 自检未发现配置错误时仍可能启动失败，说明问题在已返回检查项的范围之外（例如依赖未装好、实际写入失败、磁盘空间不足或目录已被另一内核占用），请按提示逐项排查。

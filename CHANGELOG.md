@@ -1,3 +1,10 @@
+## 0.2.0-rc.135 - 2026-11-18
+
+rc.135 源码候选在启动自检中提示协议版本不一致。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 「设置 → 模型与连接」在自检报告带 `protocolVersion` 且与桌面协议常量不一致时，并列显示内核报告值与桌面支持值，并提示二者可能来自不同构建；一致或字段缺失时不显示。[Issue #2394](https://github.com/can4hou6joeng4/boss-harness/issues/2394)
+- 用户指南、桌面指南、技术参考与状态页同步；版本推进到 npm `0.2.0-rc.135` / Python `0.2.0rc135`。
+
 ## 0.2.0-rc.134 - 2026-11-18
 
 rc.134 源码候选同步启动自检版本展示的公开说明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
