@@ -323,6 +323,11 @@ def _channel_diff(label: str, expected: set[str], actual: set[str]) -> str:
             + "；多出：" + ("、".join(extra) or "无"))
 
 
+RENDERER_HTML = ROOT / "apps/desktop/src/renderer/index.html"
+CSP_META = re.compile(
+    r'<meta[^>]*http-equiv="Content-Security-Policy"[^>]*content="([^"]+)"', re.DOTALL
+)
+INLINE_SCRIPT = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>", re.IGNORECASE)
 RENDERER_BOUNDARY: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bipcRenderer\b"), "不得引用 ipcRenderer"),
     (re.compile(r'(?:from\s+|import\s*\(\s*)["\']electron["\']'), "不得直接导入 electron"),
@@ -342,6 +347,37 @@ def _check_renderer_boundary() -> int:
             if pattern.search(text):
                 raise ValueError(f"渲染层{message}：{relative}")
     return len(RENDERER_BOUNDARY)
+
+
+def _csp_directives(content: str) -> dict[str, tuple[str, ...]]:
+    directives: dict[str, tuple[str, ...]] = {}
+    for part in content.split(";"):
+        tokens = part.split()
+        if tokens:
+            directives[tokens[0].lower()] = tuple(tokens[1:])
+    return directives
+
+
+def _check_renderer_csp() -> int:
+    if not RENDERER_HTML.is_file():
+        raise ValueError("缺少渲染层入口 apps/desktop/src/renderer/index.html")
+    text = RENDERER_HTML.read_text(encoding="utf-8")
+    match = CSP_META.search(text)
+    if match is None:
+        raise ValueError("apps/desktop/src/renderer/index.html 缺少 Content-Security-Policy meta")
+    directives = _csp_directives(match.group(1))
+    if directives.get("default-src") != ("'self'",):
+        raise ValueError("渲染层 CSP 的 default-src 应恰为 'self'")
+    if directives.get("script-src") != ("'self'",):
+        raise ValueError(
+            "渲染层 CSP 的 script-src 应恰为 'self'，不得含 'unsafe-inline'、'unsafe-eval' 或远程来源"
+        )
+    for name, tokens in directives.items():
+        if "'unsafe-eval'" in tokens or "*" in tokens:
+            raise ValueError(f"渲染层 CSP 的 {name} 不得包含 'unsafe-eval' 或 *")
+    if INLINE_SCRIPT.search(text):
+        raise ValueError("apps/desktop/src/renderer/index.html 不得包含无 src 的内联脚本")
+    return 4
 
 
 def _check_ipc_channels() -> int:
@@ -448,10 +484,11 @@ def check_desktop_security() -> tuple[int, int, int]:
     preload = _check_preload_bridge()
     ipc = _check_ipc_channels()
     boundary = _check_renderer_boundary()
+    csp = _check_renderer_csp()
     trusted = _check_trusted_sender()
     origins = _check_origin_policies()
     return (len(EXPECTED), checked,
-            allowlist + handlers + navigation + external + preload + ipc + boundary + trusted + origins)
+            allowlist + handlers + navigation + external + preload + ipc + boundary + csp + trusted + origins)
 
 
 def main() -> int:
