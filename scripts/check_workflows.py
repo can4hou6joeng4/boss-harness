@@ -13,6 +13,7 @@ CHECKOUT = "actions/checkout@"
 STEP = re.compile(r"^ {6}- ")
 USES = re.compile(r"(?m)^\s*(?:-\s*)?uses:\s*(\S+)\s*$")
 PERMISSIONS = re.compile(r"(?m)^( *)permissions:\s*(.*)$")
+CHECK_SCRIPT = re.compile(r"scripts/(check_[A-Za-z0-9_]+\.py)")
 
 
 def _steps(text: str) -> list[str]:
@@ -67,7 +68,7 @@ def _check_workflow(path: Path) -> tuple[int, int]:
     return checkouts, len(actions)
 
 
-def check_workflows() -> tuple[int, int, int]:
+def check_workflows() -> tuple[int, int, int, int]:
     paths = sorted(WORKFLOWS.glob("*.yml")) + sorted(WORKFLOWS.glob("*.yaml"))
     if not paths:
         raise ValueError(".github/workflows 下没有工作流")
@@ -77,16 +78,32 @@ def check_workflows() -> tuple[int, int, int]:
         count, total = _check_workflow(path)
         checkouts += count
         actions += total
-    return len(paths), checkouts, actions
+    scripts = {path.name for path in (ROOT / "scripts").glob("check_*.py")}
+    if not scripts:
+        raise ValueError("scripts 下没有 check_*.py")
+    referenced: set[str] = set()
+    for path in paths:
+        referenced.update(CHECK_SCRIPT.findall(path.read_text(encoding="utf-8")))
+    missing = sorted(scripts - referenced)
+    unknown = sorted(referenced - scripts)
+    if missing or unknown:
+        raise ValueError(
+            "CI 检查脚本覆盖不一致：未接入 " + ("、".join(missing) or "无")
+            + "；引用不存在 " + ("、".join(unknown) or "无")
+        )
+    return len(paths), checkouts, actions, len(scripts)
 
 
 def main() -> int:
     try:
-        workflows, checkouts, actions = check_workflows()
+        workflows, checkouts, actions, scripts = check_workflows()
     except (OSError, ValueError) as error:
         print(f"CI 工作流安全配置核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"CI 工作流安全配置一致：{workflows} 个工作流、{checkouts} 个 checkout、{actions} 个 action")
+    print(
+        f"CI 工作流安全配置一致：{workflows} 个工作流、{checkouts} 个 checkout、"
+        f"{actions} 个 action、{scripts} 个检查脚本全覆盖"
+    )
     return 0
 
 
