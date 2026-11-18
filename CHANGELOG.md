@@ -1,3 +1,11 @@
+## 0.2.0-rc.114 - 2026-11-18
+
+rc.114 源码候选加固文档检查的围栏与锚点边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_docs_links.py` 改用共享围栏解析：识别 ``` 与 ~~~、最多 3 个前导空格，关闭标记不得短于开启标记且不得带信息串；未闭合时以文件名报错并退出码 2。[Issue #2352](https://github.com/can4hou6joeng4/boss-harness/issues/2352)
+- 标题锚点改为全局去重，重复标题依次追加 `-1`、`-2`，与 GitHub 对字面 `-1` 标题的处理一致；现有 141 个链接、63 个页内锚点仍通过。
+- 技术参考同步检查范围。候选版本号和使用指南同步为 npm `0.2.0-rc.114` / Python `0.2.0rc114`。
+
 ## 0.2.0-rc.113 - 2026-11-18
 
 rc.113 源码候选把文档检查扩展到页内锚点。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

@@ -20,9 +20,39 @@ LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 DEFINITION = re.compile(r"^\[[^\]]+\]:\s*(\S+)", re.MULTILINE)
 EXTERNAL = ("http://", "https://", "mailto:", "tel:")
 HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)[ \t]*$", re.MULTILINE)
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 CLOSING_HASHES = re.compile(r"[ \t]+#+$")
 HTML_TAG = re.compile(r"<[^>]+>")
 LINK_TEXT = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
+
+
+def _strip_fences(text: str, name: str) -> str:
+    """移除 ``` 与 ~~~ 代码围栏；未闭合时拒绝整份文档。"""
+    kept: list[str] = []
+    fence: str | None = None
+    width = 0
+    for line in text.splitlines(keepends=True):
+        content = line.rstrip("\r\n")
+        match = FENCE.match(content)
+        if fence is None:
+            if match is None:
+                kept.append(line)
+                continue
+            marker, info = match.groups()
+            if marker[0] == "`" and "`" in info:
+                kept.append(line)
+                continue
+            fence = marker[0]
+            width = len(marker)
+            kept.append("\n" if line.endswith("\n") else "")
+            continue
+        if (match is not None and match.group(1)[0] == fence
+                and len(match.group(1)) >= width and not match.group(2).strip()):
+            fence = None
+        kept.append("\n" if line.endswith("\n") else "")
+    if fence is not None:
+        raise ValueError(f"{name} 存在未闭合的代码围栏")
+    return "".join(kept)
 
 
 def _links(path: Path) -> list[str]:
@@ -31,7 +61,7 @@ def _links(path: Path) -> list[str]:
     except OSError:
         raise ValueError(f"无法读取 {path.relative_to(ROOT).as_posix()}") from None
     # 示例代码与行内代码里的方括号不是文档链接。
-    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+    text = _strip_fences(text, path.relative_to(ROOT).as_posix())
     text = re.sub(r"`[^`\n]*`", "", text)
     return LINK.findall(text) + DEFINITION.findall(text)
 
@@ -53,16 +83,18 @@ def _headings(path: Path) -> set[str]:
         text = path.read_text(encoding="utf-8")
     except OSError:
         raise ValueError(f"无法读取 {path.relative_to(ROOT).as_posix()}") from None
-    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+    text = _strip_fences(text, path.relative_to(ROOT).as_posix())
     slugs: set[str] = set()
-    seen: dict[str, int] = {}
     for match in HEADING.finditer(text):
         base = _slug(match.group(1))
         if not base:
             continue
-        count = seen.get(base, 0)
-        seen[base] = count + 1
-        slugs.add(base if count == 0 else f"{base}-{count}")
+        slug = base
+        suffix = 0
+        while slug in slugs:
+            suffix += 1
+            slug = f"{base}-{suffix}"
+        slugs.add(slug)
     return slugs
 
 
