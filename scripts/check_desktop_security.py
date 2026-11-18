@@ -280,7 +280,24 @@ def _check_preload_bridge() -> int:
         raise ValueError(f"{relative} 必须通过 contextBridge.exposeInMainWorld 暴露 API")
     if re.search(r"exposeInMainWorld\([^;]*\bipcRenderer\b", text):
         raise ValueError(f"{relative} 不得直接暴露 ipcRenderer")
-    return 2
+    if 'from "./bridge"' not in text:
+        raise ValueError(f"{relative} 必须引用 bridge.ts 的共享桥接类型")
+    bridge = ROOT / "apps/desktop/src/preload/bridge.ts"
+    if not bridge.is_file():
+        raise ValueError("缺少桌面桥接类型文件 apps/desktop/src/preload/bridge.ts")
+    if "export interface BossBridge" not in bridge.read_text(encoding="utf-8"):
+        raise ValueError("apps/desktop/src/preload/bridge.ts 必须导出 BossBridge")
+    if re.search(r"const api:\s*BossBridge\s*=", text) is None:
+        raise ValueError(f"{relative} 的 api 必须标注为 BossBridge")
+    declaration = ROOT / "apps/desktop/src/renderer/src/env.d.ts"
+    if not declaration.is_file():
+        raise ValueError("缺少渲染层声明 apps/desktop/src/renderer/src/env.d.ts")
+    declared = declaration.read_text(encoding="utf-8")
+    if 'from "../../preload/bridge"' not in declared:
+        raise ValueError("env.d.ts 必须引用 preload/bridge.ts 的共享桥接类型")
+    if "boss: BossBridge" not in declared:
+        raise ValueError("env.d.ts 的 Window.boss 必须声明为 BossBridge")
+    return 7
 
 
 def check_desktop_security() -> tuple[int, int, int]:

@@ -1,3 +1,10 @@
+## 0.2.0-rc.139 - 2026-11-18
+
+rc.139 源码候选统一 preload 暴露面的类型来源。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `apps/desktop/src/preload/bridge.ts`，集中定义 `BossBridge` 与 `DesktopHarnessStatus`；preload 的 `api` 标注该类型，渲染层 `env.d.ts` 直接声明 `boss: BossBridge`，不再复制方法列表。[Issue #2402](https://github.com/can4hou6joeng4/boss-harness/issues/2402)
+- `scripts/check_desktop_security.py` 要求共享类型文件存在、preload 与声明侧引用同一类型，回退到手工列表时失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.139` / Python `0.2.0rc139`。
+
 ## 0.2.0-rc.138 - 2026-11-18
 
 rc.138 源码候选支持复制启动自检结果。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
