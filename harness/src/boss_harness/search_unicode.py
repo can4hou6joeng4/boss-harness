@@ -276,4 +276,9 @@ def search_normalize(value: str) -> str:
                     break
                 chars[position], chars[position - 1] = chars[position - 1], chars[position]
                 position -= 1
-    return "".join(chars).casefold().translate(_CASEFOLD_EXTRA)
+    # 按桌面组合类重排后要再次 NFKC：排序可能把可合成记号移到基字符旁，
+    # Python 首次 NFKC 因不认识新记号的组合类而未合成。
+    sorted_text = "".join(chars)
+    if sorted_text != normalized:
+        sorted_text = unicodedata.normalize("NFKC", sorted_text)
+    return sorted_text.casefold().translate(_CASEFOLD_EXTRA)
