@@ -209,10 +209,17 @@ def _check_external_links() -> int:
     renderer = RENDERER / "components/RichMarkdown.tsx"
     if not renderer.is_file():
         raise ValueError("缺少渲染层链接组件 apps/desktop/src/renderer/src/components/RichMarkdown.tsx")
-    renderer_match = EXTERNAL_SCHEMES.search(renderer.read_text(encoding="utf-8"))
+    renderer_text = renderer.read_text(encoding="utf-8")
+    renderer_match = EXTERNAL_SCHEMES.search(renderer_text)
     if renderer_match is None:
         raise ValueError("apps/desktop/src/renderer/src/components/RichMarkdown.tsx 缺少 EXTERNAL_SCHEMES")
     renderer_schemes = _schemes(renderer_match.group(0), "RichMarkdown.tsx 的 EXTERNAL_SCHEMES")
+    target_body = _named_body(renderer_text, "externalTarget")
+    if not target_body:
+        raise ValueError("apps/desktop/src/renderer/src/components/RichMarkdown.tsx 缺少 externalTarget")
+    for fragment in ("EXTERNAL_SCHEMES.includes(", "new URL(url).protocol"):
+        if fragment not in target_body:
+            raise ValueError(f"RichMarkdown.tsx 的 externalTarget 缺少 {fragment}")
     main_body = _named_body(_main_text("security.ts"), "isAllowedExternalUrl")
     if not main_body:
         raise ValueError("apps/desktop/src/main/security.ts 缺少 isAllowedExternalUrl")
@@ -233,7 +240,7 @@ def _check_external_links() -> int:
             raise ValueError(f"window.ts 的 openExternal 缺少 {fragment}")
     if re.search(r"setWindowOpenHandler\([\s\S]{0,240}?openExternal\(", window) is None:
         raise ValueError("window.ts 的 setWindowOpenHandler 应调用 openExternal")
-    return 6
+    return 8
 
 
 def _check_permission_allowlist() -> int:
