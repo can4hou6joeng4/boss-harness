@@ -231,9 +231,12 @@ def extra_combining_class(code: int) -> int:
 
 
 def _extra_pattern() -> re.Pattern[str]:
-    """合并两张表的源码点为字符类，用于快速判断文本是否可能命中补表。"""
+    """合并所有补表码点；规范分解键与部件也要触发慢路径。"""
+    canon_codes = set(_CANON_DECOMP_EXTRA)
+    for parts in _CANON_DECOMP_EXTRA.values():
+        canon_codes.update(parts)
     ranges: list[list[int]] = []
-    for code in sorted({*_NFKC_EXTRA, *_CASEFOLD_EXTRA, *_GRAPHEME_EXTEND_EXTRA}):
+    for code in sorted({*_NFKC_EXTRA, *_CASEFOLD_EXTRA, *_GRAPHEME_EXTEND_EXTRA, *canon_codes}):
         if ranges and code == ranges[-1][1] + 1:
             ranges[-1][1] = code
         else:
@@ -242,6 +245,11 @@ def _extra_pattern() -> re.Pattern[str]:
         re.escape(chr(low)) if low == high else f"{re.escape(chr(low))}-{re.escape(chr(high))}"
         for low, high in ranges)
     return re.compile(f"[{body}]")
+
+
+# 桌面 Unicode 17 字素规则中的 Kirat Rai V：相邻的 V 必须与前面的 V/L/V
+# 留在同一簇，否则逐簇归一化无法合成 U+16D68 / U+16D69 / U+16D6A。
+GRAPHEME_V_EXTRA = frozenset((0x16D63, 0x16D67, 0x16D68, 0x16D69, 0x16D6A))
 
 
 _CANON_DECOMP_EXTRA = {
@@ -277,19 +285,23 @@ def _expand_canonical(code: int, seen: frozenset[int] = frozenset()) -> str:
 
 
 def _canonical_order(chars: list[str]) -> list[str]:
-    """按桌面 Unicode 17 的组合类做稳定规范排序。"""
-    for index in range(1, len(chars)):
-        current = extra_combining_class(ord(chars[index]))
-        if not current:
-            continue
-        position = index
-        while position > 0:
-            previous = extra_combining_class(ord(chars[position - 1]))
-            if not previous or previous <= current:
-                break
-            chars[position - 1], chars[position] = chars[position], chars[position - 1]
-            position -= 1
-    return chars
+    """按桌面 Unicode 17 的组合类稳定合并记号，不改变 starter 的相对位置。"""
+    if len(chars) < 2:
+        return list(chars)
+    result: list[str] = []
+    pending: list[tuple[int, str]] = []
+    for char in chars:
+        value = extra_combining_class(ord(char))
+        if value == 0:
+            if pending:
+                result.extend(item[1] for item in sorted(pending, key=lambda item: item[0]))
+                pending.clear()
+            result.append(char)
+        else:
+            pending.append((value, char))
+    if pending:
+        result.extend(item[1] for item in sorted(pending, key=lambda item: item[0]))
+    return result
 
 
 def _compose_pair(first: str, second: str, cache: dict[tuple[str, str], str | None]) -> str | None:
@@ -306,27 +318,25 @@ def _compose_pair(first: str, second: str, cache: dict[tuple[str, str], str | No
 
 
 def _canonical_compose(chars: list[str]) -> str:
-    """按桌面 Unicode 17 的组合类与合成表做规范合成。"""
-    out = list(chars)
+    """按桌面 Unicode 17 的组合类与合成表单遍合成。"""
+    result: list[str] = []
     starter = -1
     last_class = 0
-    index = 0
     cache: dict[tuple[str, str], str | None] = {}
-    while index < len(out):
-        char = out[index]
+    for char in chars:
         canonical_class = extra_combining_class(ord(char))
         composed = None
-        if starter >= 0 and (index == starter + 1 or (canonical_class and last_class < canonical_class)):
-            composed = _compose_pair(out[starter], char, cache)
+        if starter >= 0 and (len(result) == starter + 1
+                             or (canonical_class and last_class < canonical_class)):
+            composed = _compose_pair(result[starter], char, cache)
         if composed is not None:
-            out[starter] = composed
-            del out[index]
+            result[starter] = composed
             continue
         if canonical_class == 0:
-            starter = index
+            starter = len(result)
+        result.append(char)
         last_class = canonical_class
-        index += 1
-    return "".join(out)
+    return "".join(result)
 
 
 def search_normalize(value: str) -> str:
