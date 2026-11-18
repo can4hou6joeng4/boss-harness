@@ -65,7 +65,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 `scripts/check_desktop_security.py` 扫描 `apps/desktop/src/main` 中的 `webPreferences` 对象字面量，核对主窗口与平台登录视图的隔离、沙箱、Node 集成、Web 安全、登录视图 `devTools` 等设置；出现未登记文件或布尔值不符时以文件名与配置项失败。检查是静态对象字面量扫描，动态生成或包装后的配置仍需人工核对。
 
-`scripts/check_workflows.py` 扫描 `.github/workflows` 下的 YAML：要求顶层 `permissions` 含 `contents: read` 且不含 `write`，`concurrency` 启用 `cancel-in-progress: true`，每个 `actions/checkout` 步骤带 `persist-credentials: false`，并禁止 `pull_request_target` 与非 `actions/` 的 `uses`。检查是文本静态扫描，不解析完整 YAML 语义；复用工作流或动态表达式仍需人工核对。
+`scripts/check_workflows.py` 扫描 `.github/workflows` 下的 YAML：要求顶层 `permissions` 含 `contents: read` 且不含 `write`，且顶层之外不得再声明 `permissions`（job 级或 step 级声明同样会使检查失败）；`concurrency` 启用 `cancel-in-progress: true`，每个 `actions/checkout` 步骤带 `persist-credentials: false`，并禁止 `pull_request_target` 与非 `actions/` 的 `uses`。检查是文本静态扫描，不解析完整 YAML 语义；复用工作流或动态表达式仍需人工核对。
 
 `scripts/check_search_unicode.py` 同样在安装依赖前运行：Python 侧按内核 `needs_extra` 选择补表归一化路径，Node 侧导入桌面 `caseFold.ts`，对全部 Unicode 标量值按 `0x1000` 分块计算 SHA-256 摘要并比较；不一致时列出码点区间。它验证映射表与两端 Unicode 数据的组合结果，不覆盖按字素簇切分的文本级行为。Source build 在 Python 3.12 上运行一次，独立的 Python matrix job 另在 Python 3.10、3.11、3.12、3.13、3.14 上分别运行，均使用 Node 24；同一 job 还用 `python -m compileall -q harness/src scripts` 验证这些解释器能编译内核与脚本源码（不导入依赖、不联网）。全量核对报告分块差异，可加 `--block 0xN` 只比较该 0x1000 分块并逐码点列出 Python 与 Node 的结果。
 
