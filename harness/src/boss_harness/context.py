@@ -27,7 +27,7 @@ from boss_harness.models.types import (
 from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, CheckpointCommittedError, Entry, SessionStore,
                                   branch_summary_issue)
 from boss_harness.tool_results import model_result_for_item
-from boss_harness.usage import MAX_REQUEST_TOKENS
+from boss_harness.usage import MAX_REQUEST_TOKENS, bounded_identifier
 
 
 _FINISHED_TURN_STATUSES = frozenset({"completed", "interrupted", "blocked", "error"})
@@ -1113,8 +1113,7 @@ class ContextService:
             return None
         if checkpoint is None:
             return None
-        job_id = checkpoint["payload"].get("summaryJobId")
-        return job_id if isinstance(job_id, str) and 0 < len(job_id) <= 128 else None
+        return bounded_identifier(checkpoint["payload"].get("summaryJobId"))
 
     def compaction_prompt(self, thread_id: str, through_turn_id: str,
                           source_digest: str | None = None) -> tuple[dict[str, Any], str]:
