@@ -1,3 +1,10 @@
+## 0.2.0-rc.148 - 2026-11-18
+
+rc.148 源码候选核对渲染层 CSP 与内联脚本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 解析渲染层入口 `index.html` 的 CSP meta，要求 `default-src` 与 `script-src` 恰为 `'self'`，任何指令不得含 `'unsafe-eval'` 或 `*`，且不得出现无 `src` 的内联脚本。[Issue #2420](https://github.com/can4hou6joeng4/boss-harness/issues/2420)
+- 负向探针删除 meta、放宽 `default-src` / `script-src`、加入 `'unsafe-eval'` 与内联脚本均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.148` / Python `0.2.0rc148`。
+
 ## 0.2.0-rc.147 - 2026-11-18
 
 rc.147 源码候选禁止渲染层直接导入 Electron 与 Node 模块。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
