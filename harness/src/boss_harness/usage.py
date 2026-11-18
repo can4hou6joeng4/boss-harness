@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from boss_harness.compaction import verified_policy
+from boss_harness.item_content import wire_text
 
 # 单次请求合理上限：远大于任何已知上下文窗口，用于拒绝明显异常的中转数据。
 MAX_REQUEST_TOKENS = 50_000_000
@@ -89,11 +90,15 @@ def _empty() -> dict:
 MAX_PROVENANCE_ITEMS = 8
 MAX_PROVIDER_CHARS = 64
 MAX_MODEL_CHARS = 200
+MAX_TURN_ID_CHARS = 128
 
 
 def _provenance(values: list, value: Any, limit: int) -> None:
     if len(values) >= MAX_PROVENANCE_ITEMS or not isinstance(value, str):
         return
+    # 持久记录可能含外部改写或 surrogateescape 路径留下的孤立代理项；
+    # 与会话读取共用降级规则，避免一条坏来源让整个用量响应无法编码。
+    value = wire_text(value)
     if not 0 < len(value) <= limit or value in values:
         return
     values.append(value)
@@ -142,7 +147,10 @@ CACHE_MISS_FLOOR = 1024
 
 
 def _identifier(value: Any) -> str | None:
-    return value if isinstance(value, str) and 0 < len(value) <= 128 else None
+    if not isinstance(value, str) or not 0 < len(value) <= 128:
+        return None
+    value = wire_text(value)
+    return value if value else None
 
 
 def _job_metadata(entry_type: str, payload: dict) -> dict:
@@ -214,7 +222,10 @@ def summarize_usage(entries: Iterable[dict], active_turn_ids: set[str] | None = 
                 cache_reported = False
         elif kind == "model_usage":
             turn_id = payload.get("turnId")
-            if not isinstance(turn_id, str) or (active_turn_ids is not None and turn_id not in active_turn_ids):
+            if not isinstance(turn_id, str) or not 0 < len(turn_id) <= MAX_TURN_ID_CHARS:
+                continue
+            turn_id = wire_text(turn_id)
+            if active_turn_ids is not None and turn_id not in active_turn_ids:
                 continue
             bucket = turns.get(turn_id)
             if bucket is None:
