@@ -14,6 +14,7 @@ STEP = re.compile(r"^ {6}- ")
 USES = re.compile(r"(?m)^\s*(?:-\s*)?uses:\s*(\S+)\s*$")
 PERMISSIONS = re.compile(r"(?m)^( *)permissions:\s*(.*)$")
 CHECK_SCRIPT = re.compile(r"scripts/(check_[A-Za-z0-9_]+\.py)")
+ACTION_REF = re.compile(r"^actions/[A-Za-z0-9_-]+@v\d+$")
 
 
 def _steps(text: str) -> list[str]:
@@ -65,6 +66,9 @@ def _check_workflow(path: Path) -> tuple[int, int]:
     outside = sorted(action for action in actions if not action.startswith("actions/"))
     if outside:
         raise ValueError(f"{name} 使用了未登记的 action：" + "、".join(outside))
+    mutable = sorted(action for action in actions if not ACTION_REF.match(action))
+    if mutable:
+        raise ValueError(f"{name} 的 action 必须固定到 v<主版本>：" + "、".join(mutable))
     return checkouts, len(actions)
 
 

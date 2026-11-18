@@ -1,3 +1,10 @@
+## 0.2.0-rc.152 - 2026-11-18
+
+rc.152 源码候选要求工作流 action 引用固定到主版本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_workflows.py` 要求每个 `uses` 引用匹配 `actions/<名称>@v<主版本>`，`@main`、`@master`、无版本后缀或预发布标签都会失败。[Issue #2428](https://github.com/can4hou6joeng4/boss-harness/issues/2428)
+- 四类负向探针分别触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.152` / Python `0.2.0rc152`。
+
 ## 0.2.0-rc.151 - 2026-11-18
 
 rc.151 源码候选核对会话导出处理器不变量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
