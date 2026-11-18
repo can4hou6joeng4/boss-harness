@@ -1,3 +1,10 @@
+## 0.2.0-rc.134 - 2026-11-18
+
+rc.134 源码候选同步启动自检版本展示的公开说明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `docs/STATUS.md` 的桌面能力加入启动失败自检的内核、协议与 Python 版本展示；`docs/DESKTOP_GUIDE.md` 同步说明版本字段与缺失时回退。[Issue #2392](https://github.com/can4hou6joeng4/boss-harness/issues/2392)
+- 版本推进到 npm `0.2.0-rc.134` / Python `0.2.0rc134`。
+
 ## 0.2.0-rc.133 - 2026-11-18
 
 rc.133 源码候选将 preload 桥接纳入桌面静态安全检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
