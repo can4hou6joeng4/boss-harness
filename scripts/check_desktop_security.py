@@ -394,6 +394,12 @@ PROCESS_MAIN_FORBIDDEN = (
     ("executeJavaScript", "主进程不得向渲染层注入脚本"),
     ("debugger", "主进程不得挂载调试器或保留 debugger 语句"),
 )
+PRELOAD_FORBIDDEN = (
+    ("process.env", "preload 不得读取环境变量"),
+    ("process.exit", "preload 不得退出进程"),
+    ("process.argv", "preload 不得读取启动参数"),
+    ("process.cwd", "preload 不得读取工作目录"),
+)
 
 
 def _check_process_boundaries() -> int:
@@ -412,10 +418,15 @@ def _check_process_boundaries() -> int:
         for path in sorted((ROOT / "apps/desktop/src/main").rglob("*.ts")):
             if symbol in path.read_text(encoding="utf-8"):
                 raise ValueError(f"{message}：{path.relative_to(ROOT).as_posix()}")
+    for symbol, message in PRELOAD_FORBIDDEN:
+        for path in sorted((ROOT / "apps/desktop/src/preload").rglob("*.ts")):
+            if symbol in path.read_text(encoding="utf-8"):
+                raise ValueError(f"{message}：{path.relative_to(ROOT).as_posix()}")
     return (
         len(PROCESS_BOUNDARIES)
         + len(PROCESS_ROLE_SYMBOLS)
         + len(PROCESS_MAIN_FORBIDDEN)
+        + len(PRELOAD_FORBIDDEN)
     )
 
 

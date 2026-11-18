@@ -1,3 +1,10 @@
+## 0.2.0-rc.169 - 2026-11-18
+
+rc.169 源码候选限制 preload 的进程能力面。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 要求 `apps/desktop/src/preload` 不得出现 `process.env`、`process.exit`、`process.argv` 或 `process.cwd`，避免环境变量、启动参数或工作目录经桥接泄漏，或由 preload 主动退出进程；桌面防护计数达到 125。[Issue #2462](https://github.com/can4hou6joeng4/boss-harness/issues/2462)
+- 环境变量与启动参数两个负向探针均触发对应错误；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.169` / Python `0.2.0rc169`。
+
 ## 0.2.0-rc.168 - 2026-11-18
 
 rc.168 源码候选核对工作流触发器与作业超时。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
