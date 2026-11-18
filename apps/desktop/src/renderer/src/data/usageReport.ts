@@ -27,7 +27,7 @@ export const USAGE_JOB_REASONS: Record<string, string> = {
   threshold: "触达阈值", budget: "预算不足", overflow: "上下文溢出",
 };
 
-/** provider 未上报 usage 的请求数（旧内核不返回时为 0，仍由原因 missing 标注）。 */
+/** provider 未上报 usage 的请求数；映射层已用 reason missing 为旧内核补齐。 */
 export function usageUnreported(bucket: ThreadUsageBucket): number {
   return bucket.unreportedRequests ?? 0;
 }
@@ -158,7 +158,7 @@ export function buildUsageCsv(data: UsageReportData, context: UsageReportContext
       job.origin === "user" ? "手动" : job.origin === "model" ? "自动" : "",
       job.active ? "当前生效" : "",
       job.throughTurnId && job.throughTurnId !== job.turnId ? `摘要至 ${context.turnLabel(job.throughTurnId)}` : "",
-    ].filter(Boolean).join(" · ");
+    ].filter(Boolean).join(" · ") || job.jobId;
     rows.push(bucketRow(job, {
       category: "摘要任务明细",
       note,

@@ -2,13 +2,13 @@ import type {
   AutoCompactionPolicy, ThreadUsageBucket, ThreadUsageCacheWaste, ThreadUsageReadResponse,
   ThreadUsageSummaryJob, ThreadUsageTurn,
 } from "@boss-harness/protocol";
-import { safeSlice } from "@boss-harness/shared";
+import { codePointLength, safeSlice } from "@boss-harness/shared";
 import { parseIsoDateTime } from "./timeFormat";
 
 const COUNT_KEYS = ["requests", "verifiedRequests", "unverifiedRequests", "promptTokens",
   "uncachedInputTokens", "outputTokens"] as const;
 const NULLABLE_KEYS = ["cacheReadTokens", "cacheWriteTokens", "reasoningTokens"] as const;
-/** 未验证原因最多展示 20 项；合计校验仍覆盖全部键，避免截断掩盖矛盾。 */
+/** 未验证原因最多展示 20 项；超出部分合并为一项，保持展示合计与未计入请求一致。 */
 const REASON_LIMIT = 20;
 
 export const isCount = (value: unknown): value is number =>
@@ -26,30 +26,40 @@ export function bucketOf(value: unknown): ThreadUsageBucket | null {
   if (!reasons || typeof reasons !== "object" || Array.isArray(reasons)) return null;
   // 空原型承接内核返回的任意原因键；普通对象会给 "__proto__" 赋值走 setter，丢掉该条数据。
   const unverifiedReasons: Record<string, number> = Object.create(null) as Record<string, number>;
-  let reasonTotal = 0, keptReasons = 0;
+  let reasonTotal = 0, missingTotal = 0, keptReasons = 0, otherReasons = 0, otherTotal = 0;
   for (const [reason, amount] of Object.entries(reasons as Record<string, unknown>)) {
     if (!isCount(amount) || !Number.isSafeInteger(reasonTotal + amount)) return null;
     reasonTotal += amount;
+    if (reason === "missing") missingTotal = amount;
     if (keptReasons < REASON_LIMIT) {
-      unverifiedReasons[safeSlice(reason, 40)] = amount;
+      unverifiedReasons[reason] = amount;
       keptReasons += 1;
+    } else {
+      otherReasons += 1;
+      otherTotal += amount;
     }
   }
-  // 每个未验证请求恰好记录一次原因；展示截断不影响这里对全部键的合计校验。
+  if (otherReasons > 0) {
+    let label = `其他 ${otherReasons} 种原因`;
+    while (Object.prototype.hasOwnProperty.call(unverifiedReasons, label)) label += " ";
+    unverifiedReasons[label] = otherTotal;
+  }
+  // 每个未验证请求恰好记录一次原因；展示合并不影响这里对全部键的合计校验。
   if (reasonTotal !== unverified) return null;
-  // 新内核才返回 unreportedRequests（未上报 usage，unverifiedRequests 的子集）；旧内核缺省视为不区分。
+  // 未上报请求恰好是 reason missing：新内核必须一致，旧内核可由原因表恢复。
   const unreported = raw.unreportedRequests;
-  if (unreported !== undefined && (!isCount(unreported) || unreported > unverified)) return null;
+  if (unreported !== undefined && (!isCount(unreported) || unreported !== missingTotal)) return null;
   const bucket = {} as ThreadUsageBucket;
   for (const key of COUNT_KEYS) bucket[key] = raw[key] as number;
   for (const key of NULLABLE_KEYS) bucket[key] = raw[key] as number | null;
-  if (unreported !== undefined) bucket.unreportedRequests = unreported;
+  bucket.unreportedRequests = unreported ?? missingTotal;
   // 费用不展示：内核当前无可信价目来源，界面固定标注“未计价”。
   return { ...bucket, unverifiedReasons, costUsd: null, costSource: "unavailable" };
 }
 
+/** 来源字段已由内核按 provider 64 / model 200 限制；桌面只限制条数，不再截断文本。 */
 const strings = (value: unknown, limit: number): string[] | null => Array.isArray(value) && value.every(item => typeof item === "string")
-  ? (value as string[]).slice(0, limit).map(item => safeSlice(item, 120)) : null;
+  ? (value as string[]).slice(0, limit) : null;
 
 /**
  * 缓存未命中估算；旧内核与「当前分支」视图不返回该字段。
@@ -72,7 +82,7 @@ function skillIdsOf(value: unknown): string[] | undefined {
   const ids: string[] = [];
   for (const item of value) {
     if (ids.length >= SKILL_LIMIT) break;
-    if (typeof item === "string" && item.length > 0 && item.length <= SKILL_ID_LIMIT && !ids.includes(item)) ids.push(item);
+    if (typeof item === "string" && codePointLength(item) > 0 && codePointLength(item) <= SKILL_ID_LIMIT && !ids.includes(item)) ids.push(item);
   }
   return ids.length ? ids : undefined;
 }
@@ -105,7 +115,7 @@ function compactionPolicyOf(value: unknown): Partial<AutoCompactionPolicy> | und
     && (typeof provider !== "string" || !POLICY_PROVIDERS.has(provider))) return undefined;
   const model = raw.model;
   if ("model" in raw && model !== null
-    && (typeof model !== "string" || !model.trim() || model.length > POLICY_MAX_MODEL || /\s/.test(model))) return undefined;
+    && (typeof model !== "string" || !model.trim() || codePointLength(model) > POLICY_MAX_MODEL || /\s/.test(model))) return undefined;
   const effort = raw.effort;
   if ("effort" in raw && effort !== null
     && (typeof effort !== "string" || !POLICY_EFFORTS.has(effort))) return undefined;
@@ -141,7 +151,7 @@ export function turnOf(value: unknown): ThreadUsageTurn | null {
 }
 
 const idOrNull = (value: unknown): string | null | undefined => value === null ? null
-  : typeof value === "string" && value.length > 0 && value.length <= 128 ? value : undefined;
+  : typeof value === "string" && codePointLength(value) > 0 && codePointLength(value) <= 128 ? value : undefined;
 
 /**
  * 回合用量标识与内核 `bounded_identifier` 一致：非空、有界文本即可，不额外限制
