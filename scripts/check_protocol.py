@@ -15,7 +15,10 @@ APPLICATION = "harness/src/boss_harness/application.py"
 EXPORT = "harness/src/boss_harness/session_export.py"
 SECURITY = "apps/desktop/src/main/security.ts"
 SOURCE_ROOT = "harness/src/boss_harness"
+APP_CLIENT = "packages/app-client/src"
 EMITTERS = frozenset({"emit", "emit_until", "_emit_committed", "notify"})
+# 内核经变量或元组发送、静态扫描无法识别的通知。新增此类路径时在此显式登记。
+DYNAMIC_KERNEL_NOTIFICATIONS = frozenset({"thread/deleted", "turn/completed"})
 # 经协议暴露、但只允许主进程调用的方法。新增此类方法时在此显式登记。
 MAIN_ONLY_METHODS = frozenset({
     "initialize", "initialized", "shutdown",
@@ -236,6 +239,19 @@ def _static_messages() -> tuple[set[str], set[str]]:
     return notifications, requests
 
 
+def _host_notifications() -> set[str]:
+    """宿主以字面量 `method` 发送的通知；动态方法名无法静态核对。"""
+    messages: set[str] = set()
+    try:
+        for path in sorted((ROOT / APP_CLIENT).rglob("*.ts")):
+            messages.update(re.findall(r'method:\s*"([^"]+)"', path.read_text(encoding="utf-8")))
+    except OSError:
+        raise ValueError(f"无法读取 {APP_CLIENT}") from None
+    if not messages:
+        raise ValueError(f"{APP_CLIENT} 未找到宿主通知字面量")
+    return messages
+
+
 def _describe(missing: set[str], extra: set[str]) -> str:
     parts = []
     if missing:
@@ -269,6 +285,13 @@ def check_protocol() -> tuple[str, int, int, int, int, int, int]:
     missing_requests = requested - requests
     if missing_requests:
         raise ValueError("ServerRequests 缺少内核发送的请求：" + "、".join(sorted(missing_requests)))
+    host = _host_notifications()
+    unknown_host = host - notifications
+    if unknown_host:
+        raise ValueError("ServerNotifications 缺少宿主发送的通知：" + "、".join(sorted(unknown_host)))
+    unused = notifications - emitted - host - DYNAMIC_KERNEL_NOTIFICATIONS
+    if unused:
+        raise ValueError("ServerNotifications 含未登记发送方的通知：" + "、".join(sorted(unused)))
     renderer, thread = _check_desktop(client)
     capabilities = _check_capabilities(protocol)
     return python_protocol, len(client), len(notifications), len(requests), capabilities, renderer, thread
