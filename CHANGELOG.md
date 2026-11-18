@@ -1,3 +1,10 @@
+## 0.2.0-rc.108 - 2026-11-18
+
+rc.108 源码候选为搜索归一化核对加入分块诊断。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_search_unicode.py` 新增 `--block 0xN`：只比较指定 0x1000 分块，逐码点列出 Python 与 Node 的结果并统计不一致数量；全量失败时提示首个不一致分块。[Issue #2339](https://github.com/can4hou6joeng4/boss-harness/issues/2339)
+- 技术参考记录诊断用法。候选版本号和使用指南同步为 npm `0.2.0-rc.108` / Python `0.2.0rc108`。
+
 ## 0.2.0-rc.107 - 2026-11-18
 
 rc.107 源码候选把双端归一化核对扩展到全部受支持 Python 版本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
