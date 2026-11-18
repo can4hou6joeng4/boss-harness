@@ -11,8 +11,15 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = "packages/protocol/src/index.ts"
 APPLICATION = "harness/src/boss_harness/application.py"
+SECURITY = "apps/desktop/src/main/security.ts"
 SOURCE_ROOT = "harness/src/boss_harness"
 EMITTERS = frozenset({"emit", "emit_until", "_emit_committed", "notify"})
+# 经协议暴露、但只允许主进程调用的方法。新增此类方法时在此显式登记。
+MAIN_ONLY_METHODS = frozenset({
+    "initialize", "initialized", "shutdown",
+    "platform/login/start", "platform/login/read", "platform/login/complete", "platform/login/cancel",
+    "thread/export",
+})
 
 
 def _read(relative: str) -> str:
@@ -30,6 +37,35 @@ def _protocol_constants(text: str, name: str) -> set[str]:
     if not values:
         raise ValueError(f"{PROTOCOL} 的 {name} 没有常量")
     return values
+
+
+def _desktop_methods(text: str, name: str) -> set[str]:
+    match = re.search(rf"const {name} = new Set\(\[(.*?)\]\);", text, re.DOTALL)
+    if match is None:
+        raise ValueError(f"{SECURITY} 缺少 {name}")
+    values = set(re.findall(r'"([^"]+)"', match.group(1)))
+    if not values:
+        raise ValueError(f"{SECURITY} 的 {name} 没有方法")
+    return values
+
+
+def _check_desktop(client: set[str]) -> tuple[int, int]:
+    security = _read(SECURITY)
+    renderer = _desktop_methods(security, "RENDERER_METHODS")
+    outside = renderer - client
+    if outside:
+        raise ValueError("RENDERER_METHODS 含协议之外的方法：" + "、".join(sorted(outside)))
+    unlisted = client - renderer - MAIN_ONLY_METHODS
+    if unlisted:
+        raise ValueError("ClientMethods 中未暴露给渲染层且未登记为仅主进程的方法：" + "、".join(sorted(unlisted)))
+    promoted = MAIN_ONLY_METHODS - (client - renderer)
+    if promoted:
+        raise ValueError("仅主进程方法已暴露给渲染层或不在协议中：" + "、".join(sorted(promoted)))
+    thread = _desktop_methods(security, "THREAD_METHODS")
+    stray = thread - renderer
+    if stray:
+        raise ValueError("THREAD_METHODS 含未暴露给渲染层的方法：" + "、".join(sorted(stray)))
+    return len(renderer), len(thread)
 
 
 def _registered_methods() -> set[str]:
@@ -124,7 +160,7 @@ def _describe(missing: set[str], extra: set[str]) -> str:
     return "；".join(parts)
 
 
-def check_protocol() -> tuple[int, int, int]:
+def check_protocol() -> tuple[int, int, int, int, int]:
     protocol = _read(PROTOCOL)
     client = _protocol_constants(protocol, "ClientMethods")
     registered = _registered_methods()
@@ -140,16 +176,18 @@ def check_protocol() -> tuple[int, int, int]:
     missing_requests = requested - requests
     if missing_requests:
         raise ValueError("ServerRequests 缺少内核发送的请求：" + "、".join(sorted(missing_requests)))
-    return len(client), len(notifications), len(requests)
+    renderer, thread = _check_desktop(client)
+    return len(client), len(notifications), len(requests), renderer, thread
 
 
 def main() -> int:
     try:
-        methods, notifications, requests = check_protocol()
+        methods, notifications, requests, renderer, thread = check_protocol()
     except ValueError as error:
         print(f"协议常量核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"{methods} 个方法、{notifications} 个通知、{requests} 个服务端请求")
+    print(f"{methods} 个方法、{notifications} 个通知、{requests} 个服务端请求、"
+          f"{renderer} 个渲染层方法、{thread} 个线程方法")
     return 0
 
 
