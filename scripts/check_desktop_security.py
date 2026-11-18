@@ -390,6 +390,10 @@ PROCESS_ROLE_SYMBOLS = (
     ("apps/desktop/src/main", "ipcRenderer", "主进程不得使用 ipcRenderer"),
     ("apps/desktop/src/preload", "ipcMain", "preload 不得使用 ipcMain"),
 )
+PROCESS_MAIN_FORBIDDEN = (
+    ("executeJavaScript", "主进程不得向渲染层注入脚本"),
+    ("debugger", "主进程不得挂载调试器或保留 debugger 语句"),
+)
 
 
 def _check_process_boundaries() -> int:
@@ -404,7 +408,15 @@ def _check_process_boundaries() -> int:
         for path in sorted((ROOT / area).rglob("*.ts")):
             if symbol in path.read_text(encoding="utf-8"):
                 raise ValueError(f"{message}：{path.relative_to(ROOT).as_posix()}")
-    return len(PROCESS_BOUNDARIES) + len(PROCESS_ROLE_SYMBOLS)
+    for symbol, message in PROCESS_MAIN_FORBIDDEN:
+        for path in sorted((ROOT / "apps/desktop/src/main").rglob("*.ts")):
+            if symbol in path.read_text(encoding="utf-8"):
+                raise ValueError(f"{message}：{path.relative_to(ROOT).as_posix()}")
+    return (
+        len(PROCESS_BOUNDARIES)
+        + len(PROCESS_ROLE_SYMBOLS)
+        + len(PROCESS_MAIN_FORBIDDEN)
+    )
 
 
 def _check_session_export() -> int:
