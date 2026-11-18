@@ -1,3 +1,11 @@
+## 0.2.0-rc.119 - 2026-11-18
+
+rc.119 源码候选为 CI 工作流增加静态安全检查。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_workflows.py`：核对 `.github/workflows` 的 `contents: read` 权限、无 `write`、`cancel-in-progress: true`、checkout `persist-credentials: false`，并禁止 `pull_request_target` 与非 `actions/` 的 `uses`。[Issue #2362](https://github.com/can4hou6joeng4/boss-harness/issues/2362)
+- Source build 增加该检查；README、CONTRIBUTING、技术参考与发布约定同步。
+- 候选版本号和使用指南同步为 npm `0.2.0-rc.119` / Python `0.2.0rc119`。
+
 ## 0.2.0-rc.118 - 2026-11-18
 
 rc.118 源码候选在本地自检报告中加入协议版本。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
