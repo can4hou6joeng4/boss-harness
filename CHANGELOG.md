@@ -1,3 +1,10 @@
+## 0.2.0-rc.145 - 2026-11-18
+
+rc.145 源码候选固定主窗口权限判定实现。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `scripts/check_desktop_security.py` 取出 `permissionPolicy.ts` 的 `allowsMainWindowPermission`，要求保留 `Boolean(requestingUrl)`、`MAIN_WINDOW_PERMISSIONS.has(permission)` 与 `isTrustedRendererUrl(requestingUrl!` 三项判定。[Issue #2414](https://github.com/can4hou6joeng4/boss-harness/issues/2414)
+- 负向探针分别删除三项判定均触发失败；README、技术参考与发布约定同步；版本推进到 npm `0.2.0-rc.145` / Python `0.2.0rc145`。
+
 ## 0.2.0-rc.144 - 2026-11-18
 
 rc.144 源码候选固定来源判定函数的关键实现。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

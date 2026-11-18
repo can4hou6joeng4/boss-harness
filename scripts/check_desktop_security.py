@@ -237,9 +237,18 @@ def _check_permission_allowlist() -> int:
             "主窗口权限白名单应恰为 " + "、".join(sorted(PERMISSION_ALLOWLIST))
             + "，实际为 " + ("、".join(sorted(values)) if values else "空")
         )
-    if "isTrustedRendererUrl(" not in text:
-        raise ValueError("apps/desktop/src/main/permissionPolicy.ts 必须核对请求来源是否受信")
-    return len(values) + 1
+    body = _named_body(text, "allowsMainWindowPermission")
+    if not body:
+        raise ValueError("apps/desktop/src/main/permissionPolicy.ts 缺少 allowsMainWindowPermission")
+    required = (
+        "Boolean(requestingUrl)",
+        "MAIN_WINDOW_PERMISSIONS.has(permission)",
+        "isTrustedRendererUrl(requestingUrl!",
+    )
+    missing = [fragment for fragment in required if fragment not in body]
+    if missing:
+        raise ValueError("permissionPolicy.ts 的 allowsMainWindowPermission 缺少：" + "、".join(missing))
+    return len(values) + len(required)
 
 
 def _check_permission_handlers() -> int:
