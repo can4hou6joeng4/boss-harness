@@ -1,3 +1,10 @@
+## 0.2.0-rc.295 - 2026-11-20
+
+rc.295 源码候选补齐首页能力地图。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- README 中文能力地图新增工作区常驻说明：`.boss-harness/CONTEXT.md`（兼容 `.boss-cli/CONTEXT.md`）、有界只读、每回合重新读取，内容不授予或扩大工具权限。英文概览的 Execution 条目同步提及。修复 Issue [#2715](https://github.com/can4hou6joeng4/boss-harness/issues/2715)。
+- 不写版本号、候选批次或发布状态；不改变代码行为。版本推进到 npm `0.2.0-rc.295` / Python `0.2.0rc295`。不执行发布动作。
+
 ## 0.2.0-rc.294 - 2026-11-20
 
 rc.294 源码候选统一上下文面板的断连口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
