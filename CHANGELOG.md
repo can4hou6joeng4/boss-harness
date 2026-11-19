@@ -1,3 +1,10 @@
+## 0.2.0-rc.225 - 2026-11-19
+
+rc.225 源码候选核对自检运行参数顺序与应用启动顺序。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `check_startup_diagnostics.py` 按源码顺序收集 `ApplicationService.__init__` 中以 `from_environment` 结尾的读取调用，要求与 `_RUNTIME_OPTIONS` 的加载函数逐项一致。构造函数新增未登记读取，或自检表、启动读取被重排时失败，使 `--check` 报告的第一个错误与实际启动保持一致。[Issue #2574](https://github.com/can4hou6joeng4/boss-harness/issues/2574)
+- 在临时副本注入自检表重排、启动新增读取与启动读取重排，脚本均以退出码 2 失败；复原后基线通过。技术参考同步更新；`npm run check` 全部通过。版本推进到 npm `0.2.0-rc.225` / Python `0.2.0rc225`。不执行发布动作。
+
 ## 0.2.0-rc.224 - 2026-11-19
 
 rc.224 源码候选核对启动自检项名称、桌面标签与文档顺序。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
