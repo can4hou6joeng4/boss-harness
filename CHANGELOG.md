@@ -1,3 +1,10 @@
+## 0.2.0-rc.347 - 2026-11-20
+
+rc.347 源码候选为会话导出 Markdown 的定界与代码围栏补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_export_markdown.py`：固定 `_inline_text` 的反引号 / 回车 / 换行替换、`_inline_code` 的行内代码包裹，以及 `_fence` 按正文最长反引号或波浪线动态加长（最少三个）的围栏算法；覆盖回合元数据、用户输入、模型输出、工具调用、结果明文、摘要、文档头与队列字段的中和入口。反向断言围栏不退回固定三个反引号或波浪线、正文不再经 `_inline_text`。修复 Issue [#2819](https://github.com/can4hou6joeng4/boss-harness/issues/2819)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 72 个。版本推进到 npm `0.2.0-rc.347` / Python `0.2.0rc347`。不改变运行时行为，不渲染或打开导出文件。
+
 ## 0.2.0-rc.346 - 2026-11-20
 
 rc.346 源码候选为会话导出 HTML 的转义与页面约束补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

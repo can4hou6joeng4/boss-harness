@@ -66,7 +66,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留与编辑 | [`check_context_keep.py`](#check_context_keeppy)、[`check_context_edits.py`](#check_context_editspy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
-| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_secret.py`](#check_secretpy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_export_write.py`](#check_export_writepy)、[`check_export_html.py`](#check_export_htmlpy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_session_log.py`](#check_session_logpy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
+| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_secret.py`](#check_secretpy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_export_write.py`](#check_export_writepy)、[`check_export_html.py`](#check_export_htmlpy)、[`check_export_markdown.py`](#check_export_markdownpy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_session_log.py`](#check_session_logpy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy) |
 | 关闭与中止 | [`check_shutdown.py`](#check_shutdownpy)、[`check_bridge_lifecycle.py`](#check_bridge_lifecyclepy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_snippet.py`](#check_search_snippetpy) |
@@ -265,6 +265,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_export_html.py`
 
 `scripts/check_export_html.py` 核对会话导出 HTML 的转义与页面约束：`session_export.py` 必须以 `html.escape(str(value), quote=True)` 提供 `_h`，会话元数据、回合标题 / 用时 / 用量、用户与模型正文、附件元数据、工具名 / 执行状态 / 审批 / 错误码 / 恢复建议 / 来源 / 参数、结果明文与事实、摘要与队列 id / 类型 / 事实 / 完整输入都必须经 `_h` 进入页面；结果明文只在 `included` 分支以 `<pre class="plaintext">` 写入；文档头保留 charset、viewport、`default-src 'none'; style-src 'unsafe-inline'` 与 `no-referrer`。反向断言页面不含脚本、事件属性、帧、`javascript:`、`src=` 或 `href=`。检查是源码字面量扫描，不生成或打开导出文件。
+
+### `check_export_markdown.py`
+
+`scripts/check_export_markdown.py` 核对会话导出 Markdown 的定界与代码围栏：`_inline_text` 必须把反引号替换为单引号、把回车与换行替换为空格，`_inline_code` 必须在这之后用反引号包裹；`_fence` 必须用 `re.findall(r"`+|~+", text)` 取最长连续反引号或波浪线，再以「最长长度加一、最少三个」的反引号作为围栏，语言标记默认 `text`。回合 id / 状态 / 工具名 / 错误码 / 队列 id 必须走行内代码，标题、时间、来源、参数键、恢复建议、摘要模型与任务 id 必须走单行中和；用户输入、模型输出、结果明文、摘要正文与队列输入必须走围栏，结果明文只在 `included` 分支以 `json` 围栏写入。反向断言围栏不退回固定三个反引号或波浪线、正文不再经 `_inline_text`。检查是源码字面量扫描，不渲染导出文件。
 
 ### `check_skills.py`
 
