@@ -11,7 +11,7 @@ from typing import Any
 from boss_harness import __version__
 from boss_harness.application import steering_mode_from_environment
 from boss_harness.compaction import CompactionPolicy
-from boss_harness.models import ModelConfig
+from boss_harness.models import ModelConfig, resolve_config
 from boss_harness.models.capabilities import ModelCatalog
 from boss_harness.models.config_errors import ModelConfigError
 from boss_harness.private_files import check_private_directory
@@ -25,7 +25,29 @@ def _check(name: str, status: str, code: str, message: str, hint: str) -> dict[s
     return {"name": name, "status": status, "code": code, "message": message, "hint": hint}
 
 
-def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str) -> dict[str, str]:
+_UNCONFIGURED_HINT = "配置 provider 及对应凭据；核对桌面默认线路时使用 --check --provider openai。"
+# 自动回退 none 时，其他已配置线路仍可显式选用：只在同一套解析（含命令行 --model）能读通
+# OpenAI 线路时点名它；读取失败、缺凭据或配置损坏都保持通用提示，不把猜测写成结论。
+_OPENAI_AVAILABLE_HINT = (
+    "本机已配置 OpenAI 线路；需要模型时用 --provider openai（桌面用 BOSS_HARNESS_PROVIDER=openai）启动，"
+    "核对这条线路使用 --check --provider openai。"
+)
+
+
+def _unconfigured_hint(requested_model: str | None) -> str:
+    """解释自动回退：能按正常启动的模型覆盖解析出 OpenAI 线路时，点名该线路与启动方式。"""
+    environ = dict(os.environ)
+    if requested_model:
+        environ["BOSS_HARNESS_MODEL"] = requested_model
+    try:
+        resolve_config(environ=environ, provider="openai")
+    except (OSError, TypeError, ValueError):
+        return _UNCONFIGURED_HINT
+    return _OPENAI_AVAILABLE_HINT
+
+
+def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str,
+                 requested_model: str | None = None) -> dict[str, str]:
     try:
         config = load_config()
     except ModelConfigError as exc:
@@ -50,7 +72,7 @@ def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str
             )
         return _check(
             "model", "warning", "MODEL_NOT_CONFIGURED", "未配置默认模型线路，自动回退为 none。",
-            "配置 provider 及对应凭据；核对桌面默认线路时使用 --check --provider openai。",
+            _unconfigured_hint(requested_model),
         )
     has_credential = bool(config.api_key) if config.provider == "openai" else any(
         (os.environ.get(name) or "").strip() for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
@@ -160,11 +182,12 @@ def _runtime_check() -> dict[str, str]:
 
 
 def startup_report(
-    load_config: Callable[[], ModelConfig], *, state_dir: Path, requested_provider: str = ""
+    load_config: Callable[[], ModelConfig], *, state_dir: Path, requested_provider: str = "",
+    requested_model: str | None = None,
 ) -> dict[str, Any]:
     """汇总静态检查；检查结果与实际模型、CLI 和平台可用性分别核对。"""
-    checks = [_model_check(load_config, requested_provider), _cli_check(), _browser_check(), _state_check(state_dir),
-              _runtime_check()]
+    checks = [_model_check(load_config, requested_provider, requested_model), _cli_check(), _browser_check(),
+              _state_check(state_dir), _runtime_check()]
     return {
         "schemaVersion": 1,
         "version": __version__,
