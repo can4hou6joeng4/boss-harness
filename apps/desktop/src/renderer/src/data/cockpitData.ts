@@ -14,7 +14,7 @@ export interface CockpitConfig {
   protocolVersion?: string;
   provider?: string;
   model?: string;
-  /** 进程以显式 none 启动；旧内核或自动回退不返回该字段。 */
+  /** 进程级模型禁用标志：显式 none 启动为 true，自动回退与真实默认线路为 false；旧内核不返回该字段。 */
   modelCallsDisabled?: boolean;
   maxOutputTokens?: number;
   parallelThreads?: number;
@@ -136,7 +136,7 @@ export function readCockpitConfig(value: unknown): CockpitConfig {
     ...(integer(response.maxRetainedTurns) !== undefined ? { maxRetainedTurns: integer(response.maxRetainedTurns) } : {}),
     ...(integer(response.maxModelRequests) !== undefined ? { maxModelRequests: integer(response.maxModelRequests) } : {}),
     ...(text(response.steeringMode) ? { steeringMode: text(response.steeringMode) } : {}),
-    ...(response.modelCallsDisabled === true ? { modelCallsDisabled: true } : {}),
+    ...(boolean(response.modelCallsDisabled) !== undefined ? { modelCallsDisabled: boolean(response.modelCallsDisabled) } : {}),
     ...(integer(response.maxAttachmentStorageBytes) !== undefined ? { maxAttachmentStorageBytes: integer(response.maxAttachmentStorageBytes) } : {}),
     ...(integer(response.maxAttachmentStorageObjects) !== undefined ? { maxAttachmentStorageObjects: integer(response.maxAttachmentStorageObjects) } : {}),
     ...(text(response.toolBundleId) ? { toolBundleId: text(response.toolBundleId) } : {}),
@@ -373,6 +373,15 @@ export function approvalPolicyLabel(policy: string): string {
 
 export function steeringModeLabel(mode: string): string {
   return labeledValue(STEERING_MODE_LABELS, mode);
+}
+
+/**
+ * 进程级模型禁用标志的展示文本。`false` 只表示进程没有被显式 none 禁用：默认线路仍可能是自动回退的
+ * `none`，不能写成「已启用模型」。旧内核不返回该字段时如实显示「未提供」。
+ */
+export function modelCallsLabel(disabled: boolean | undefined): string {
+  if (disabled === undefined) return "未提供";
+  return disabled ? "已由进程禁用（显式 none 启动）" : "未被进程禁用";
 }
 
 export function capabilitySourceLabel(source: string): string {

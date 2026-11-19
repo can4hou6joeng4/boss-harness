@@ -523,7 +523,7 @@ export function App(): JSX.Element {
         const processDefault = status.modelBridge
           ? { provider: status.modelBridge.provider, model: status.modelBridge.model }
           : null;
-        // 握手缺禁用字段时保持上一次值：旧内核显式 none 下没有该字段，不能误报为「未禁用」以外的新事实。
+        // 握手缺该字段（旧内核）时保持上一次取值，不把缺失当成「未禁用」的新事实。
         if (status.modelBridge?.modelCallsDisabled !== undefined) setModelCallsDisabled(status.modelBridge.modelCallsDisabled === true);
         if (processDefault) {
           setDefaultModel(processDefault);

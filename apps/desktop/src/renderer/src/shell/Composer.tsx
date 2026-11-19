@@ -4,6 +4,7 @@ import { Popover } from "../components/Popover";
 import { SlashCommandList, filterSlashCommands, slashMenuVisible, type SlashCommandItem } from "../components/SlashCommandList";
 import { MODEL_OPTIONS, type ConversationMode } from "../data/mockData";
 import { useModelSwitch } from "../data/modelSwitchState";
+import { modelMenuHints } from "../data/modelCatalog";
 import type { ModelDescriptor, SkillDescriptor, SkillProblem } from "@boss-harness/protocol";
 import { codePointLength } from "@boss-harness/shared";
 import type { SkillCatalogState } from "../data/harnessBridge";
@@ -191,6 +192,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   const query = modelQuery.trim().toLowerCase();
   const filteredModels = availableModels.filter(model => ["name" in model ? model.name : "", model.provider, model.id].join(" ").toLowerCase().includes(query));
   const configuredModelMatches = [modelName, "启动配置 当前模型"].join(" ").toLowerCase().includes(query);
+  // 显式 none 下菜单仍有 `none · none` 一项：禁用说明作为附注显示，不能只放在空态里。
+  const menuHints = modelMenuHints({ preview, modelCount: models.length, matchCount: filteredModels.length, modelCallsDisabled });
   const mode = MODES.find(item => item.id === currentMode) ?? MODES[0];
 
   useEffect(() => {
@@ -612,9 +615,10 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
               })}
               {modelPending && <div className="composer-menu-footer" role="status">正在保存模型设置…</div>}
               {modelError && <div className="composer-menu-footer" role="alert">{modelError}</div>}
-              {!filteredModels.length && <div className="composer-menu-empty">{models.length ? "未找到匹配模型" : preview ? "未找到匹配模型" : modelCallsDisabled ? "进程以 none 线路启动，不调用模型；需要模型时改用具体 provider 重新启动" : "没有可用的本机模型线路"}</div>}
+              {menuHints.empty && <div className="composer-menu-empty">{menuHints.empty}</div>}
               {!preview && currentDescriptor && configuredModelMatches && !filteredModels.some(model => model.id === activeModelId && model.provider === activeModelProvider) && <div className="composer-configured-model"><span className="composer-model-monogram" aria-hidden="true"><IconSparkles size={15} /></span><span>{modelName}<small>当前会话</small></span><IconCheck className="menu-check" /></div>}
             </div>
+            {menuHints.note && <div className="composer-menu-footer" role="note">{menuHints.note}</div>}
             {!preview && sessionReasoning && <>
               <div className="menu-divider" /><div className="composer-menu-heading">会话推理强度</div>
               {sessionReasoning.data && <>

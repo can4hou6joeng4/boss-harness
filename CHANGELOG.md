@@ -3,9 +3,9 @@
 rc.214 源码候选把进程级模型禁用状态暴露给客户端并让桌面区分「显式禁用」与「未配置」。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
 
 - 握手 `initialize.modelBridge` 与 `config/read` 新增 `modelCallsDisabled` 字段：显式 `none` 启动时为 `true`，自动回退与真实默认线路为 `false`，两处取值恒一致。[Issue #2552](https://github.com/can4hou6joeng4/boss-harness/issues/2552)
-- 桌面渲染层把该标志从握手一路透传到模型菜单与连接设置：显式禁用且菜单为空时说明「进程以 none 线路启动，不调用模型；需要模型时改用具体 provider 重新启动」，与「没有可用的本机模型线路配置」（自动回退且无其他线路）区分；连接设置「模型服务」卡片在显式禁用时点名原因，不再与「未配置默认线路」共用文案。握手缺该字段时（旧内核）保持上一次取值，不把缺失当成新事实。
-- 协议类型 `InitializeResponse.modelBridge` 与 `ConfigReadResponse` 补可选字段注释；宿主状态 `modelBridge` 原样透传，主进程无需改动。
-- 以主干 rc.213 源码为基线的六场景离线探针（真实入口进程、占位凭据）核对修改前后：三种显式 none 写法（环境变量 / 命令行 / `--provider` 压过环境变量）改动后两处字段均为 `true`，自动回退（有 OpenAI 显式端点 / 无任何凭据）与真实默认线路为 `false`，且每个场景两处取值一致；基线上字段不出现。未做 Electron 窗口目视核对。全部检查通过。版本推进到 npm `0.2.0-rc.214` / Python `0.2.0rc214`。不执行发布动作。
+- 桌面据此说明原因。显式 `none` 下 `model/list` 仍返回可选的 `none · none`，模型菜单并不为空，因此「进程以 none 线路启动，不调用模型；需要模型时改用具体 provider 重新启动」作为附注显示在选项之后；目录为空时同一句顶替「没有可用的本机模型线路」，预览模式不显示。连接设置「模型服务」卡片的描述行在显式禁用时点名原因，不再与「未配置默认线路」共用文案；「运行状态」概览新增「模型调用」一项，按 `config/read` 显示「已由进程禁用」「未被进程禁用」或「未提供」。握手缺该字段时（旧内核）模型菜单保持上一次取值，不把缺失当成新事实。
+- 协议类型 `InitializeResponse.modelBridge` 与 `ConfigReadResponse` 补可选字段与注释；宿主状态 `modelBridge` 原样透传，主进程无需改动。菜单提示的取舍收进 `modelMenuHints` 纯函数，说明文案由模型菜单与连接设置共用同一常量。
+- 以主干 rc.213 源码为基线的八场景离线探针（真实入口进程、占位凭据）核对修改前后：显式 none 的四种写法（`BOSS_HARNESS_PROVIDER=none`、大写 `NONE`、`--provider none`、`--provider none` 压过 `BOSS_HARNESS_PROVIDER=anthropic`）改动后两处字段均为 `true`；`--provider anthropic` 压过 `BOSS_HARNESS_PROVIDER=none`、真实默认线路与自动回退（有 OpenAI 显式端点 / 无任何凭据）为 `false`；每个场景两处取值一致，基线上字段不出现。渲染层的解析与提示函数由工作树源码转译后，以这八个场景的真实内核响应核对：四种显式 none 场景在 `none · none` 之后附注说明、卡片与概览点名，其余四个场景不显示；换成 rc.213 内核的响应时不显示说明、概览为「未提供」。未做 Electron 窗口目视核对。全部检查通过。版本推进到 npm `0.2.0-rc.214` / Python `0.2.0rc214`。不执行发布动作。
 
 ## 0.2.0-rc.213 - 2026-11-19
 
