@@ -1,3 +1,10 @@
+## 0.2.0-rc.273 - 2026-11-19
+
+rc.273 源码候选让桌面的 Python 解释器选择忽略空白取值。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 桌面主进程经 `@boss-harness/shared` 的 `choosePythonInterpreter` 选择解释器：`BOSS_HARNESS_PYTHON` 去除首尾空白后为空时按未设置处理，回退 `.venv/bin/python`，不存在则回退 `python3`；带首尾空白的路径按去空白后的值使用。此前用 `??` 直接读取，空字符串或空白会原样传给 `spawn` 并同步抛出 `ERR_INVALID_ARG_VALUE`，带空白的路径也会查找失败，整个桌面不可用且提示不指向解释器配置；内核与自检共用这一结论不变。未设置与有效路径的行为不变。[Issue #2670](https://github.com/can4hou6joeng4/boss-harness/issues/2670)
+- `check_desktop_security.py` 新增 5 项解释器选择守卫：共享函数的三段写法、主进程的唯一调用点，以及禁止 `??` 直接读取。六例取值探针在 Node 24 下直接导入共享源码：未设置、空字符串与空白回退 `.venv`，缺少 `.venv` 时回退 `python3`，带空白的路径按去空白后的值使用，有效路径不变。全部检查通过。版本推进到 npm `0.2.0-rc.273` / Python `0.2.0rc273`。不执行发布动作。
+
 ## 0.2.0-rc.272 - 2026-11-19
 
 rc.272 源码候选修正用户指南中与内核行为矛盾的运行参数说明。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

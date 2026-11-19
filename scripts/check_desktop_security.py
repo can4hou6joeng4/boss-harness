@@ -813,6 +813,29 @@ def _check_startup_check_target() -> int:
     return len(STARTUP_CHECK_FRAGMENTS) + len(calls) + 5
 
 
+SHARED_INDEX = "packages/shared/src/index.ts"
+
+
+def _check_python_interpreter() -> int:
+    """解释器选择与内核同口径：空白变量按未设置，回退 .venv 或 python3。"""
+    shared = (ROOT / SHARED_INDEX).read_text(encoding="utf-8")
+    fragments = (
+        "export function choosePythonInterpreter(",
+        'const trimmed = (configured ?? "").trim();',
+        'return trimmed || (venvExists ? venvPython : "python3");',
+    )
+    missing = [fragment for fragment in fragments if fragment not in shared]
+    if missing:
+        raise ValueError("packages/shared 缺少空白解释器回退：" + "、".join(missing))
+    text = _main_text("harness.ts")
+    usage = "choosePythonInterpreter(process.env.BOSS_HARNESS_PYTHON, venvPython, existsSync(venvPython))"
+    if usage not in text:
+        raise ValueError("apps/desktop/src/main/harness.ts 必须经 choosePythonInterpreter 选择解释器")
+    if "process.env.BOSS_HARNESS_PYTHON ??" in text:
+        raise ValueError("apps/desktop/src/main/harness.ts 不得用 ?? 直接读取 BOSS_HARNESS_PYTHON")
+    return len(fragments) + 2
+
+
 def check_desktop_security() -> tuple[int, int, int]:
     checked = 0
     for name, expected in EXPECTED.items():
@@ -841,10 +864,11 @@ def check_desktop_security() -> tuple[int, int, int]:
     trusted = _check_trusted_sender()
     origins = _check_origin_policies()
     startup_check = _check_startup_check_target()
+    interpreter = _check_python_interpreter()
     return (len(EXPECTED), checked,
             allowlist + handlers + navigation + external + preload + exposure + imports
             + boundaries + spawn + exec_guard + export + ipc + literals + boundary + restore
-            + csp + bootstrap + embed + trusted + origins + startup_check)
+            + csp + bootstrap + embed + trusted + origins + startup_check + interpreter)
 
 
 def main() -> int:

@@ -4,6 +4,20 @@
 
 const pad2 = (part: number) => String(part).padStart(2, "0");
 
+/**
+ * 选择桌面启动内核所用的 Python 解释器。
+ *
+ * 显式变量去除首尾空白后非空时使用它；空值或只有空白（脚本与 .env 占位行常见）
+ * 按未设置处理，回退仓库 `.venv/bin/python`，不存在则回退 PATH 上的 `python3`。
+ * 与内核侧「空白取值按未设置」的口径一致；内核与自检共用这一个结论。
+ */
+export function choosePythonInterpreter(
+  configured: string | undefined, venvPython: string, venvExists: boolean,
+): string {
+  const trimmed = (configured ?? "").trim();
+  return trimmed || (venvExists ? venvPython : "python3");
+}
+
 // 内核输出形如 `2026-11-05T08:00:00.123456+00:00`；演示与导出数据也用 `Z`。
 const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/;
 const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
