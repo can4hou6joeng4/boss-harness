@@ -1,3 +1,10 @@
+## 0.2.0-rc.329 - 2026-11-20
+
+rc.329 源码候选为 Anthropic Messages 适配器补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_anthropic_provider.py`：固定六项停止原因映射、含 `529` 的可重试状态、结构化结论优先与 `CONTEXT_OVERFLOW` 永不重试；固定凭据去空白与 `ANTHROPIC_API_KEY` 优先、纯空白视为未配置、请求头过滤与全凭据脱敏；固定 `message_stop` 后无事件、内容块索引与增量类型校验、思考签名单块 / 总量预算、工具标识 256 字符上限、工具参数完整结束与用量仅在双计数出现时上报；固定已产出内容后不再重试、清理未确认与共享恢复预算两条停止分支。反向断言禁止通用异常回显原始载荷、中断兜底抛出异常与直接解析原始参数。修复 Issue [#2783](https://github.com/can4hou6joeng4/boss-harness/issues/2783)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 57 个。版本推进到 npm `0.2.0-rc.329` / Python `0.2.0rc329`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.328 - 2026-11-20
 
 rc.328 源码候选为 OpenAI Responses 适配器补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
