@@ -14,7 +14,7 @@ from boss_harness import __version__
 from boss_harness.application import approval_timeout_from_environment, steering_mode_from_environment
 from boss_harness.compaction import CompactionPolicy
 from boss_harness.models import ModelConfig, resolve_config
-from boss_harness.models.capabilities import ModelCatalog
+from boss_harness.models.capabilities import REASONING_EFFORTS, ModelCatalog
 from boss_harness.models.config_errors import ModelConfigError
 from boss_harness.models.retry import retry_settings_from_environment
 from boss_harness.private_files import check_private_directory
@@ -153,6 +153,20 @@ def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str
         return _check(
             "model", "warning", "MODEL_ENDPOINT_INSECURE", "模型端点未使用 HTTPS，凭据可能以明文传输。",
             "改用 https 端点；本机回环地址不在警告范围，自检也不会验证网关链路。",
+        )
+    # 推理强度会在每次模型请求中原样交给 SDK：拼错的值不阻止启动，但首个请求就会失败。
+    if config.effort and config.effort not in REASONING_EFFORTS:
+        return _check(
+            "model", "warning", "MODEL_EFFORT_UNSUPPORTED", "模型推理强度取值不在内核支持范围。",
+            "将 BOSS_HARNESS_EFFORT 设为 none、minimal、low、medium、high、xhigh 或 max，"
+            "或取消设置；无效值不会阻止启动，但模型请求可能失败。",
+        )
+    # 思考模式只对 Anthropic 线路生效，其他取值当前被静默忽略；OpenAI 线路与该开关无关。
+    if (config.provider == "anthropic"
+            and (os.environ.get("BOSS_HARNESS_THINKING") or "").strip() not in ("", "summarized")):
+        return _check(
+            "model", "warning", "MODEL_THINKING_IGNORED", "模型思考模式取值不会被识别，已按未设置处理。",
+            "当前仅支持 BOSS_HARNESS_THINKING=summarized（Anthropic 线路）；其他取值会被忽略，或取消设置。",
         )
     return _check(
         "model", "ok", "MODEL_CONFIG_VALID", "本地模型配置解析通过。",

@@ -1,3 +1,11 @@
+## 0.2.0-rc.245 - 2026-11-19
+
+rc.245 源码候选让启动自检提示无效的推理强度与思考模式。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `BOSS_HARNESS_EFFORT` 非空且不属于 `none` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` 时，模型检查记为警告 `MODEL_EFFORT_UNSUPPORTED`，说明无效值不阻止启动但模型请求可能失败，提示中列出可用取值而不回显原值。此前这类拼写错误要到回合内首个模型请求才暴露。[Issue #2614](https://github.com/can4hou6joeng4/boss-harness/issues/2614)
+- Anthropic 线路下 `BOSS_HARNESS_THINKING` 非空且不是 `summarized` 时记为警告 `MODEL_THINKING_IGNORED`，说明该取值已被忽略；OpenAI 与 none 线路不因这个无关变量报警。检查顺序保持 SDK 缺失、端点明文风险、推理强度、思考模式，命中前面条件时仍优先报告。
+- 以 rc.244 合并提交导出的源码为基线，十四个场景独立进程对比：未设置、`high` / `xhigh` 两个有效档位、空白取值、OpenAI 线路无效思考模式与 Anthropic 已识别或空白的思考模式七例逐字节一致；无效推理强度与 Anthropic 无效思考模式四例由 `MODEL_CONFIG_VALID` 变为对应警告，退出码仍为 0；SDK 缺失、端点明文风险与显式 `none` 三例仍优先报告原检查码，退出码不变。全部检查通过。版本推进到 npm `0.2.0-rc.245` / Python `0.2.0rc245`。不执行发布动作。
+
 ## 0.2.0-rc.244 - 2026-11-19
 
 rc.244 源码候选让设置页可随时运行本地配置自检。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
