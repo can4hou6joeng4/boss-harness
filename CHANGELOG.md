@@ -1,3 +1,10 @@
+## 0.2.0-rc.278 - 2026-11-20
+
+rc.278 源码候选让桌面只把普通文件当作虚拟环境解释器。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 桌面主进程改用 `pythonFile.ts` 的 `isRegularFile` 判断 `.venv/bin/python` 是否可用：目录、断链与其他类型按不可用处理，回退 PATH 上的 `python3`。此前用 `existsSync`，残留目录会被当作解释器，内核与自检都以权限错误启动失败，界面只提示「未能启动 Python 解释器」；文件、指向文件的符号链接与缺失路径行为不变。[Issue #2680](https://github.com/can4hou6joeng4/boss-harness/issues/2680)
+- `choosePythonInterpreter` 的第三个参数改名为 `venvUsable`，明确由调用方按文件类型判定。四例路径探针在 Node 24 下直接导入共享源码与新模块：仅目录一例由采用变为 `python3`，普通文件、断链与指向文件的符号链接结果不变。`check_desktop_security.py` 新增 4 项守卫（新模块判定片段、引入语句与禁止 `existsSync(venvPython)`），注入旧写法即失败。全部检查通过。版本推进到 npm `0.2.0-rc.278` / Python `0.2.0rc278`。不执行发布动作。
+
 ## 0.2.0-rc.277 - 2026-11-20
 
 rc.277 源码候选让环境变量里的 `auto` 与命令行默认值同义。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
