@@ -60,6 +60,8 @@ def main(argv: list[str] | None = None) -> int:
     maintenance = parser.add_mutually_exclusive_group()
     maintenance.add_argument("--repair-state", action="store_true", help="独占状态目录，备份 SQLite 索引后从原始日志重建")
     maintenance.add_argument("--check", action="store_true", help="只读检查本地启动配置，输出脱敏 JSON，不联网、不执行业务 CLI")
+    parser.add_argument("--format", choices=["json", "text"], default="json",
+                        help="--check 的输出格式：json（默认，供程序解析）或 text（终端可读）")
     parser.add_argument(
         "--provider",
         default="auto",
@@ -71,11 +73,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--version", action="version", version=f"boss-harness {__version__}")
     args = parser.parse_args(argv)
 
+    if args.format != "json" and not args.check:
+        parser.error("--format 只能与 --check 一起使用")
+
     if args.check:
-        from boss_harness.startup_check import startup_report
+        from boss_harness.startup_check import render_text, startup_report
         report = startup_report(lambda: _build_config(args), state_dir=Path(args.state_dir),
                                 requested_provider=_requested_provider(args), requested_model=args.model)
-        print(json.dumps(report, ensure_ascii=False))
+        print(render_text(report) if args.format == "text" else json.dumps(report, ensure_ascii=False))
         return 0 if report["ok"] else 2
 
     if args.repair_state:

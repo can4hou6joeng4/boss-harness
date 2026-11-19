@@ -1,3 +1,10 @@
+## 0.2.0-rc.232 - 2026-11-19
+
+rc.232 源码候选为启动自检增加终端可读文本输出。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `--check` 新增 `--format text`：输出总体结论（含错误 / 警告计数）、内核 / 协议 / Python 版本，以及逐项状态、检查码、说明和建议；只使用自检报告字段，不读取环境或新增诊断。默认 JSON 与退出码不变，非 `--check` 使用该参数会明确报错。README 与使用指南同步说明，使用指南的恢复描述补上安装依赖后重新连接。[Issue #2588](https://github.com/can4hou6joeng4/boss-harness/issues/2588)
+- 以 rc.231 合并提交导出的源码为基线：默认 `--check` 的 JSON 逐字节一致（1458 字节）；基线不认识 `--format text` 并以 2 退出，当前在显式 `none` 场景输出五项检查并以 0 退出；浏览器来源无效时两种格式都以 2 退出。全部检查通过。版本推进到 npm `0.2.0-rc.232` / Python `0.2.0rc232`。不执行发布动作。
+
 ## 0.2.0-rc.231 - 2026-11-19
 
 rc.231 源码候选修正混合错误时的恢复建议。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

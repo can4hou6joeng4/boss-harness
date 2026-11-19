@@ -154,7 +154,7 @@ flowchart LR
 | 招聘 CLI 可执行文件 | 按 `BOSS_CLI_BIN`、并排的 `boss-agent-cli/.venv/bin/boss`、PATH 顺序查找。 |
 | 两类本地状态 | `BOSS_CLI_DATA_DIR` 管理上游登录 / 平台状态；`BOSS_HARNESS_DIR` 管理本项目会话。 |
 
-运行 `.venv/bin/boss-harness --check` 可做本地配置预检。配置优先级见[模型配置来源](docs/USER_GUIDE.md#模型配置来源)，请求期限、重试、审批期限、转向模式与附件配额等参数见[其他运行参数](docs/USER_GUIDE.md#其他运行参数)，检查码与故障排查见[本地配置自检](docs/USER_GUIDE.md#本地配置自检)和[桌面启动失败时的自检](docs/USER_GUIDE.md#桌面启动失败时的自检)。不要把 API key 或其他凭据写入仓库、配置样例或日志。
+运行 `.venv/bin/boss-harness --check` 可做本地配置预检（加 `--format text` 输出终端可读文本）。配置优先级见[模型配置来源](docs/USER_GUIDE.md#模型配置来源)，请求期限、重试、审批期限、转向模式与附件配额等参数见[其他运行参数](docs/USER_GUIDE.md#其他运行参数)，检查码与故障排查见[本地配置自检](docs/USER_GUIDE.md#本地配置自检)和[桌面启动失败时的自检](docs/USER_GUIDE.md#桌面启动失败时的自检)。不要把 API key 或其他凭据写入仓库、配置样例或日志。
 
 ## 模块与扩展
 
