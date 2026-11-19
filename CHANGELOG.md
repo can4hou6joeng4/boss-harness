@@ -1,3 +1,10 @@
+## 0.2.0-rc.241 - 2026-11-19
+
+rc.241 源码候选固化文本自检结论与警告优先级的静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `check_startup_diagnostics.py` 用 AST 要求 `render_text` 的错误结论分支引用 `warnings`，防止「错误与警告并存时同时显示警告数量」被重构回退；并要求 `_runtime_check` 先报 `APPROVAL_TIMEOUT_DEFAULTED` 再报 `RETRY_CONFIG_DEFAULTED`、`_cli_check` 先报 `BOSS_CLI_UNAVAILABLE` 再报 `BOSS_CLI_BIN_IGNORED`，与使用指南写明的优先级一致。[Issue #2606](https://github.com/can4hou6joeng4/boss-harness/issues/2606)
+- 在临时副本分别删除警告计数、调换两组警告顺序，守卫均以退出码 2 失败并点名原因；未修改副本通过（294 项）。`docs/STATUS.md` 的桌面自检描述补充错误与警告分列。全部检查通过。版本推进到 npm `0.2.0-rc.241` / Python `0.2.0rc241`。不执行发布动作。
+
 ## 0.2.0-rc.240 - 2026-11-19
 
 rc.240 源码候选让文本自检在错误时同时显示警告数量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
