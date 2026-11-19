@@ -1,3 +1,10 @@
+## 0.2.0-rc.254 - 2026-11-19
+
+rc.254 源码候选把错误响应不回显本地路径固化为静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `check_protocol.py` 新增第十一类不变量：`rpc.py` 必须定义 `describe_failure` 并保留 `OSError` / 文件名判定、`errno.errorcode` 与通用说明；七个 errno（`ENOSPC`、`EDQUOT`、`EACCES`、`EPERM`、`EROFS`、`EMFILE`、`ENFILE`）的原因必须登记；未捕获异常的分发处必须调用 `redact_secrets(describe_failure(exc))`，不得再直接使用 `redact_secrets(str(exc))`。此前 rc.253 的行为只有一次性探针。[Issue #2632](https://github.com/can4hou6joeng4/boss-harness/issues/2632)
+- 三类注入探针确认守卫有效：删除文件名判定、改回 `str(exc)`、删掉 `ENOSPC` 分支都会以退出码 2 失败并点名缺失内容；未修改源码时守卫通过，输出新增 14 项错误脱敏防护。全部检查通过。版本推进到 npm `0.2.0-rc.254` / Python `0.2.0rc254`。不执行发布动作。
+
 ## 0.2.0-rc.253 - 2026-11-19
 
 rc.253 源码候选让 JSON-RPC 错误响应不再回显本地文件路径。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
