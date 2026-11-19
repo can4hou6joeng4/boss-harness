@@ -13,9 +13,16 @@ STARTUP = "harness/src/boss_harness/startup_check.py"
 CONFIG_ERRORS = "harness/src/boss_harness/models/config_errors.py"
 DESKTOP = "apps/desktop/src/main/startupCheck.ts"
 PROTOCOL = "packages/protocol/src/index.ts"
+USER_GUIDE = "docs/USER_GUIDE.md"
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,31}$")
 CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 DESKTOP_LIMIT = re.compile(r"const MAX_TEXT_LENGTH = (\d+);")
+TICKED_CODE = re.compile(r"`([A-Z][A-Z0-9_]{1,63})`")
+DOC_TABLES = (
+    ("| 固定检查码 | 含义与处理 |", "模型配置错误码"),
+    ("| 目录错误码 | 含义与处理 |", "目录错误码"),
+    ("| 固定检查码 | 环境变量与处理 |", "运行参数错误码"),
+)
 STATUSES = frozenset({"ok", "warning", "error"})
 # 与桌面 CONTROL_PATTERN 相同的码位：C0/C1 控制字符与行分隔符。
 CONTROL_RANGES = ((0x00, 0x1F), (0x7F, 0x9F))
@@ -231,6 +238,80 @@ def _hint_constants(tree: ast.Module, limit: int) -> int:
     return checked + 1
 
 
+def _literal_codes(tree: ast.Module) -> set[str]:
+    codes: set[str] = set()
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "_check" and len(node.args) == 5):
+            code = _constant(node.args[2])
+            if code is not None:
+                codes.add(code)
+    return codes
+
+
+def _state_error_codes(tree: ast.Module) -> set[str]:
+    function = next((node for node in tree.body
+                     if isinstance(node, ast.FunctionDef) and node.name == "_state_check"), None)
+    if function is None:
+        raise ValueError("缺少 _state_check")
+    codes: set[str] = set()
+    for node in ast.walk(function):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "_check":
+            if len(node.args) != 5 or _constant(node.args[2]) is None:
+                raise ValueError("_state_check 的检查码必须是五个参数中的字面量")
+            if _constant(node.args[1]) == "error":
+                codes.add(_constant(node.args[2]))
+    if not codes:
+        raise ValueError("_state_check 没有错误检查码")
+    return codes
+
+
+def _table(document: str, header: str, label: str) -> set[str]:
+    lines = document.splitlines()
+    try:
+        start = lines.index(header)
+    except ValueError:
+        raise ValueError(f"使用指南缺少表格：{label}") from None
+    codes: list[str] = []
+    for line in lines[start + 2:]:
+        if not line.startswith("|"):
+            break
+        codes.extend(TICKED_CODE.findall(line.strip().strip("|").split("|")[0]))
+    if not codes:
+        raise ValueError(f"使用指南表格没有检查码：{label}")
+    if len(codes) != len(set(codes)):
+        raise ValueError(f"使用指南表格有重复检查码：{label}")
+    return set(codes)
+
+
+def _docs_codes(tree: ast.Module, config_tree: ast.Module, guide: str) -> int:
+    diagnostics = _assignment(config_tree, "_DIAGNOSTICS")
+    diagnostic_codes = {key.value for key in diagnostics.keys
+                        if isinstance(key, ast.Constant) and isinstance(key.value, str)}
+    options = _assignment(tree, "_RUNTIME_OPTIONS")
+    runtime_codes = {entry.elts[0].value for entry in options.elts
+                     if isinstance(entry, ast.Tuple) and entry.elts
+                     and isinstance(entry.elts[0], ast.Constant)}
+    if not diagnostic_codes or not runtime_codes:
+        raise ValueError("模型配置诊断或运行参数表为空")
+    tables = {
+        "模型配置错误码": diagnostic_codes,
+        "目录错误码": _state_error_codes(tree),
+        "运行参数错误码": runtime_codes,
+    }
+    for header, label in DOC_TABLES:
+        listed = _table(guide, header, label)
+        if listed != tables[label]:
+            missing = sorted(tables[label] - listed)
+            stale = sorted(listed - tables[label])
+            raise ValueError(f"使用指南{label}与内核不一致：缺少 {missing}，残留 {stale}")
+    emitted = _literal_codes(tree) | diagnostic_codes | runtime_codes
+    missing = sorted(emitted - set(TICKED_CODE.findall(guide)))
+    if missing:
+        raise ValueError("使用指南缺少检查码：" + "、".join(missing))
+    return len(emitted)
+
+
 def check_startup_diagnostics() -> tuple[int, int]:
     desktop = _read(DESKTOP)
     guards = _expect(DESKTOP_FRAGMENTS, desktop, "startupCheck.ts")
@@ -245,11 +326,14 @@ def check_startup_diagnostics() -> tuple[int, int]:
     startup = _read(STARTUP)
     startup_tree = _parse(startup, STARTUP)
     guards += _expect(STARTUP_FRAGMENTS, startup, "startup_check.py")
+    config_source = _read(CONFIG_ERRORS)
+    config_tree = _parse(config_source, CONFIG_ERRORS)
     checked = _check_calls(startup_tree, _parents(startup_tree), limit)
     checked += _runtime_options(startup_tree, limit)
     checked += _hint_constants(startup_tree, limit)
-    checked += _diagnostics(_parse(_read(CONFIG_ERRORS), CONFIG_ERRORS), limit)
-    return 4, guards + checked
+    checked += _diagnostics(config_tree, limit)
+    checked += _docs_codes(startup_tree, config_tree, _read(USER_GUIDE))
+    return 5, guards + checked
 
 
 def main() -> int:
@@ -258,7 +342,7 @@ def main() -> int:
     except (ValueError, SyntaxError) as error:
         print(f"启动自检字段核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"启动自检字段一致：{paths} 条读取路径、{guards} 项文本与桌面解析防护")
+    print(f"启动自检字段一致：{paths} 条读取路径、{guards} 项文本、桌面解析与文档防护")
     return 0
 
 

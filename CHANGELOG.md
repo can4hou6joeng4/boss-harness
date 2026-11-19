@@ -1,3 +1,10 @@
+## 0.2.0-rc.223 - 2026-11-19
+
+rc.223 源码候选让启动自检守卫同时核对使用指南的检查码表。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `check_startup_diagnostics.py` 解析 `docs/USER_GUIDE.md` 的模型配置错误、目录错误与运行参数三张表：模型配置错误码与 `_DIAGNOSTICS` 键、目录错误码与 `_state_check` 的错误码、运行参数错误码与 `_RUNTIME_OPTIONS` 分别双向一致；同时确认内核可能输出的全部检查码（含模型配置诊断与运行参数动态来源）都出现在使用指南中。[Issue #2570](https://github.com/can4hou6joeng4/boss-harness/issues/2570)
+- 在临时副本注入模型表删码、目录表残留码、主表缺少基础码与表头变化，脚本均以退出码 2 失败；复原后基线通过。技术参考同步更新；`npm run check` 全部通过。版本推进到 npm `0.2.0-rc.223` / Python `0.2.0rc223`。不执行发布动作。
+
 ## 0.2.0-rc.222 - 2026-11-19
 
 rc.222 源码候选为启动自检文本与桌面解析上限增加静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
