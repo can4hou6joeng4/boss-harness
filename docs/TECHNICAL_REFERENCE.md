@@ -59,7 +59,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | --- | --- |
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
-| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
+| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy)、[`check_turn_stream.py`](#check_turn_streampy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
@@ -118,6 +118,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 - **外链与会话恢复**：渲染层 `RichMarkdown.tsx` 的 `EXTERNAL_SCHEMES` 与 `security.ts` 的 `isAllowedExternalUrl` 必须非空且集合一致，渲染层的 `externalTarget` 还必须保留 `EXTERNAL_SCHEMES.includes(` 与 `new URL(url).protocol` 判定；`window.ts` 的 `openExternal` 必须先调用 `isAllowedExternalUrl` 再交给 `shell.openExternal`，`setWindowOpenHandler` 调用该封装而不是直接打开；`shell.openExternal` 只允许在该函数中出现一次。脚本还核对渲染层会话恢复边界：`harnessReplica.ts` 必须保留分页与正文预算常量，以及内容引用的编码、SHA-256、线程 / 条目 / 快照标识、`part`、字符与 UTF-8 字节关系（含 4 倍上限与 16 MiB 上限）判定。
 
 检查是静态对象字面量与文本扫描，动态生成或包装后的配置仍需人工核对。
+
+### `check_login_security.py`
+
+`scripts/check_login_security.py` 核对平台登录的官方域名、Cookie 选择与回执形状：`security.ts` 的官方地址必须是 `https:`、无内嵌用户名或密码、端口为空或 443、主机名恰为 `zhipin.com` 或以 `.zhipin.com` 结尾；验证页判定必须失败关闭；扫码就绪先排除非官方与验证页，再要求 `wt2`、`www.zhipin.com` 的根路径或 `/web/{geek,boss,chat}/` 路径与 `__zp_stoken__`，身份按路径前缀映射；登录视图边界要求有限数值、`y ≥ 48`、`width ≥ 100`、`height ≥ 80`，`x + width` / `y + height` 不得超过内容区宽高 + 1，并按 ceil / floor 取整；登录上下文要求 `threadId` 匹配 1–200 位受限字符、`browserId` 至多 100、`visible` 为布尔。`loginCookies.ts` 只接受 `zhipin.com` 与 `www.zhipin.com`，域先去前导点再小写；同名同值只计覆盖，host-only、路径长度、域长度依序决定更具体者，三者完全相同才以固定错误失败，输出使用无原型对象。主进程 `loginAttempt.ts` 与渲染层 `platformLoginState.ts` 必须共享 9 个状态、4 个阶段、3 种身份与 4096 / 120 / 200 上限；attempt id 非空且不超限。`loginFailure.ts` 保留内核原因码，消息经 `stripIpcErrorWrapper` 与 `safeSlice(raw, 200)`。检查是源码片段与顺序扫描，不执行登录或读取真实 Cookie。
 
 ### `check_client_transport.py`
 
