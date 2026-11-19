@@ -84,6 +84,8 @@ jobs:
         run: python scripts/check_catchup_boundary.py
       - name: Verify request identity boundaries
         run: python scripts/check_request_identity.py
+      - name: Verify task ownership boundaries
+        run: python scripts/check_task_ownership.py
       - name: Verify search snippet boundaries
         run: python scripts/check_search_snippet.py
       - name: Verify release asset boundaries

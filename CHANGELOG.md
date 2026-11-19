@@ -1,3 +1,10 @@
+## 0.2.0-rc.303 - 2026-11-20
+
+rc.303 源码候选为任务读取的所有权与恢复策略补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_task_ownership.py`：固定标识符整串匹配 `[A-Za-z0-9][A-Za-z0-9_-]{0,127}` 与 257 项快照上限、五个任务阶段与两类恢复枚举、`attempt` / `restartLimit` 范围、`_QUEUE_IDENTITY_FIELDS` 多快照冲突比对、`delivered_as` / `targets` 的多重证据条件、摘要关系的 `independent` 与 checkpoint 判定，以及 `recovery_policy` 对 `unknown` / 缺失状态的 `manual_review` 优先分支。反向断言标识符不得改用 `search`、用户消息引用不得投影正文。修复 Issue [#2731](https://github.com/can4hou6joeng4/boss-harness/issues/2731)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 31 个。版本推进到 npm `0.2.0-rc.303` / Python `0.2.0rc303`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.302 - 2026-11-20
 
 rc.302 源码候选为队列读取投影补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
