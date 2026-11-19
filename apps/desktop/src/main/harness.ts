@@ -8,7 +8,7 @@ import { isTrustedRendererUrl, sessionExportFileName, validateHarnessRequest, va
   validateSessionExportRequest, validateThreadExportResponse } from "./security";
 import { PlatformLogin } from "./platformLogin";
 import { preservesRpcError } from "./rpcErrors";
-import { choosePythonInterpreter } from "@boss-harness/shared";
+import { chooseProviderOverride, choosePythonInterpreter } from "@boss-harness/shared";
 import { sessionExportWriteError } from "./exportErrors";
 import { writeSessionExport } from "./sessionExportWrite";
 import { approvalNotificationContent, rememberApproval } from "./approvalNotification";
@@ -196,7 +196,7 @@ function createHost(): HarnessHostConnection {
   const python = choosePythonInterpreter(process.env.BOSS_HARNESS_PYTHON, venvPython, existsSync(venvPython));
   const env = {
     PYTHONPATH: resolve(repoRoot, "harness", "src"), PYTHONUNBUFFERED: "1",
-    BOSS_HARNESS_PROVIDER: process.env.BOSS_HARNESS_PROVIDER ?? "openai",
+    BOSS_HARNESS_PROVIDER: chooseProviderOverride(process.env.BOSS_HARNESS_PROVIDER),
   };
   const connection = manager.add({
     hostId: "local",

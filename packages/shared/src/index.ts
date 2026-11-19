@@ -18,6 +18,18 @@ export function choosePythonInterpreter(
   return trimmed || (venvExists ? venvPython : "python3");
 }
 
+/**
+ * 选择桌面传给内核的模型线路。
+ *
+ * 显式变量去除首尾空白后非空时使用它，空值或只有空白按未设置处理，回退桌面默认
+ * `openai`；内核侧对空白取值的规则相同，这里先归一化，避免桌面默认线路被占位行
+ * 静默改成自动回退 `none`。
+ */
+export function chooseProviderOverride(configured: string | undefined): string {
+  const trimmed = (configured ?? "").trim();
+  return trimmed || "openai";
+}
+
 // 内核输出形如 `2026-11-05T08:00:00.123456+00:00`；演示与导出数据也用 `Z`。
 const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/;
 const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;

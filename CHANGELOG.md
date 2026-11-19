@@ -1,3 +1,10 @@
+## 0.2.0-rc.275 - 2026-11-20
+
+rc.275 源码候选让桌面把空白的线路变量按默认 `openai` 处理。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 桌面主进程经 `@boss-harness/shared` 的 `chooseProviderOverride` 决定传给内核的 `BOSS_HARNESS_PROVIDER`：去除首尾空白后为空时使用默认 `openai`，非空时使用去空白后的值。此前用 `??` 直接读取，空字符串或纯空白会原样传给内核，内核按自动模式回退 `none`，桌面默认 OpenAI 线路被一行 `.env` 占位静默停用；`anthropic`、`none`、`codex` 与带空白的有效值行为不变。[Issue #2674](https://github.com/can4hou6joeng4/boss-harness/issues/2674)
+- `check_desktop_security.py` 新增 5 项线路选择守卫：共享函数的三段写法、主进程的唯一调用点，以及禁止 `??` 直接读取。八例取值探针在 Node 24 下直接导入共享源码：未设置、空字符串与两种纯空白均得到 `openai`，带空白的 `anthropic` 按去空白处理，其余有效值不变。全部检查通过。版本推进到 npm `0.2.0-rc.275` / Python `0.2.0rc275`。不执行发布动作。
+
 ## 0.2.0-rc.274 - 2026-11-20
 
 rc.274 源码候选让自动线路判断忽略只有空白的 Anthropic 凭据。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
