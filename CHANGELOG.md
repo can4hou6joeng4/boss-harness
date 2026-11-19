@@ -1,3 +1,10 @@
+## 0.2.0-rc.337 - 2026-11-20
+
+rc.337 源码候选为平台登录补上域名、Cookie 与回执检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_login_security.py`：固定官方登录 URL 的协议、内嵌凭据、端口与主机名，验证页判定失败关闭，扫码就绪顺序，登录视图边界与上下文；Cookie 只接受官方登录域并按 host-only / 路径 / 域长度选择更具体者，同值去重、真正歧义失败与无原型输出；主进程与渲染层共享登录状态、阶段、身份与字段上限；失败诊断保留原因码并经 `safeSlice` 截断。修复 Issue [#2799](https://github.com/can4hou6joeng4/boss-harness/issues/2799)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 63 个。版本推进到 npm `0.2.0-rc.337` / Python `0.2.0rc337`。不改变运行时行为，不执行登录或发布动作。
+
 ## 0.2.0-rc.336 - 2026-11-20
 
 rc.336 源码候选补齐上游招聘 CLI 的安装入口。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
