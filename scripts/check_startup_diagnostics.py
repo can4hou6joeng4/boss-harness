@@ -27,6 +27,12 @@ STRICT_ORDERED = (
     'warned = any(check["status"] == "warning" for check in report["checks"])',
     "return 1 if args.strict and warned else 0",
 )
+LISTEN_ORDERED = (
+    'if args.listen != "stdio://":',
+    'print("[harness] 暂不支持该 --listen 端点；当前仅支持 stdio://", file=sys.stderr)',
+    "if args.check:",
+    "if args.repair_state:",
+)
 STRICT_GUIDE = "存在错误仍为 2，没有错误但有警告为 1，全部通过为 0"
 CONNECTION_NOTICE = "apps/desktop/src/renderer/src/data/connectionNotice.ts"
 CONNECTION_SETTINGS = "apps/desktop/src/renderer/src/components/ConnectionSettings.tsx"
@@ -616,7 +622,16 @@ def _strict_exit(entry: str, guide: str) -> int:
         position = found
     if STRICT_GUIDE not in guide:
         raise ValueError("使用指南缺少严格模式三种退出码的说明")
-    return len(STRICT_ORDERED) + 1
+    # 端点校验必须先于自检与索引修复：相同参数下自检结论要与实际启动一致。
+    position = -1
+    for fragment in LISTEN_ORDERED:
+        if entry.count(fragment) != 1:
+            raise ValueError(f"__main__.py 的端点校验片段缺失或重复：{fragment}")
+        found = entry.index(fragment)
+        if found < position:
+            raise ValueError(f"__main__.py 的端点校验必须位于自检与索引修复之前：{fragment}")
+        position = found
+    return len(STRICT_ORDERED) + 1 + len(LISTEN_ORDERED)
 
 
 def _docs_codes(tree: ast.Module, config_tree: ast.Module, guide: str, setup: str) -> int:
