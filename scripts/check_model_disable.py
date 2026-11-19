@@ -279,6 +279,23 @@ def check_model_disable() -> tuple[int, int]:
         "return None",
     ), build, "build_provider")
     guards += _ordered(build, 'if config.provider == "none":', "return None", "build_provider")
+
+    # 模型变量回退：只有空白的通用变量不得遮蔽线路专属变量，两条线路都经同一个逐项去空白的取值函数。
+    provider_tree = _parse(provider_source, PROVIDER)
+    guards += _expect((
+        "for name in names:",
+        'value = (env.get(name) or "").strip()',
+        "if value:\n            return value",
+    ), _function(provider_tree, provider_source, "_configured_model"), "_configured_model")
+    guards += _expect((
+        'model=_configured_model(env, "BOSS_HARNESS_MODEL", "BOSS_HARNESS_ANTHROPIC_MODEL") or DEFAULT_MODEL,',
+    ), _function(provider_tree, provider_source, "resolve_config"), "resolve_config")
+    guards += _expect((
+        'explicit_model = _configured_model(env, "BOSS_HARNESS_MODEL", "BOSS_HARNESS_OPENAI_MODEL")',
+    ), _function(provider_tree, provider_source, "_openai_config"), "_openai_config")
+    if 'env.get("BOSS_HARNESS_MODEL")' in provider_source:
+        raise ValueError("provider.py 不得绕过 _configured_model 直接读取 BOSS_HARNESS_MODEL")
+    guards += 1
     return sites, guards
 
 

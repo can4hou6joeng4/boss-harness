@@ -81,6 +81,15 @@ class Provider(Protocol):
         ...
 
 
+def _configured_model(env: Mapping[str, str], *names: str) -> str:
+    """按顺序取第一个去除空白后非空的模型变量；只有空白的值视为未设置，不遮蔽后面的变量。"""
+    for name in names:
+        value = (env.get(name) or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def resolve_config(
     environ: Mapping[str, str] | None = None, provider: str | None = None
 ) -> ModelConfig:
@@ -130,9 +139,7 @@ def resolve_config(
 
     return ModelConfig(
         provider=resolved,
-        model=(env.get("BOSS_HARNESS_MODEL")
-               or env.get("BOSS_HARNESS_ANTHROPIC_MODEL")
-               or DEFAULT_MODEL).strip() or DEFAULT_MODEL,
+        model=_configured_model(env, "BOSS_HARNESS_MODEL", "BOSS_HARNESS_ANTHROPIC_MODEL") or DEFAULT_MODEL,
         max_tokens=_max_tokens(env),
         request_timeout_seconds=_request_timeout_seconds(env),
         effort=(env.get("BOSS_HARNESS_EFFORT") or "").strip() or None,
@@ -149,7 +156,7 @@ def _openai_config(env: Mapping[str, str]) -> ModelConfig:
     """
     from boss_harness.models.codex_config import load_profile
 
-    explicit_model = (env.get("BOSS_HARNESS_MODEL") or env.get("BOSS_HARNESS_OPENAI_MODEL") or "").strip()
+    explicit_model = _configured_model(env, "BOSS_HARNESS_MODEL", "BOSS_HARNESS_OPENAI_MODEL")
     explicit_url = (env.get("BOSS_HARNESS_OPENAI_BASE_URL") or "").strip()
     explicit_key = (env.get("BOSS_HARNESS_OPENAI_API_KEY") or "").strip()
     # Optional file settings must not make a fully specified route depend on
