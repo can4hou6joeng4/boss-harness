@@ -146,7 +146,8 @@ function diagnosisSummary(diagnosis: StartupDiagnosis | undefined): string {
   const errors = diagnosis.checks.filter(check => check.status === "error");
   // 自检通过而内核仍起不来：如实说明自检的范围，不把「未发现错误」说成「配置正确」。
   if (!errors.length) return "本地配置自检未发现错误；自检仅覆盖返回的检查项，请继续核对内核依赖、实际写入、磁盘空间、占用锁与其他运行参数。";
-  return `自检发现：${errors.map(check => sentence(check.message) + sentence(check.hint)).join("")}`;
+  return `自检发现：${errors.map(check =>
+    `${CHECK_TITLES.get(check.name) ?? check.name}：${sentence(check.message)}${sentence(check.hint)}（${check.code}）`).join("")}`;
 }
 
 /**
