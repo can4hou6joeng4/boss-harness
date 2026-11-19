@@ -1,3 +1,10 @@
+## 0.2.0-rc.220 - 2026-11-19
+
+rc.220 源码候选让自动回退 `none` 的自检提示点名已配置的 OpenAI 线路。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `--check` 自动模式回退 `none` 且本机存在可解析的 OpenAI 线路（Codex 配置或显式 `BOSS_HARNESS_OPENAI_*`）时，模型卡片的建议改为说明该线路并给出 `--provider openai`（桌面用 `BOSS_HARNESS_PROVIDER=openai`）的启动方式；解析失败、缺凭据或配置损坏仍保持原通用建议，显式 `none` 与无线路的结论不变。命令行 `--model` 与正常启动一样参与解析；自检仍不构造客户端、不联网，也不输出配置值。[Issue #2564](https://github.com/can4hou6joeng4/boss-harness/issues/2564)
+- 真实入口探针覆盖自动线路可用、仅端点与凭据、Codex 配置缺模型、缺凭据、TOML 损坏、无配置与显式 `none` 七种场景：只有前两种可解析 OpenAI 线路的场景使用新提示，其余与基线一致。`check_model_disable.py` 新增对应断言。全部检查通过。版本推进到 npm `0.2.0-rc.220` / Python `0.2.0rc220`。不执行发布动作。
+
 ## 0.2.0-rc.219 - 2026-11-19
 
 rc.219 源码候选整理桌面安全守卫的参考文档。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

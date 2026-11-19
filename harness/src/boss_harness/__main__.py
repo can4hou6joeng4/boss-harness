@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         from boss_harness.startup_check import startup_report
         report = startup_report(lambda: _build_config(args), state_dir=Path(args.state_dir),
-                                requested_provider=_requested_provider(args))
+                                requested_provider=_requested_provider(args), requested_model=args.model)
         print(json.dumps(report, ensure_ascii=False))
         return 0 if report["ok"] else 2
 

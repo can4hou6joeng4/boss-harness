@@ -215,18 +215,35 @@ def check_model_disable() -> tuple[int, int]:
     ), _function(entry_tree, entry, "_requested_provider"), "_requested_provider")
     guards += _expect((
         "requested_provider=_requested_provider(args)",
+        "requested_model=args.model",
         'model_calls_disabled = _requested_provider(args) == "none"',
         "model_calls_disabled=model_calls_disabled",
         "model_calls_disabled={harness.model_calls_disabled}",
     ), _function(entry_tree, entry, "main"), "入口 main")
 
     startup = _read(STARTUP)
+    startup_tree = _parse(startup, STARTUP)
     guards += _expect((
         'if requested_provider.strip().lower() == "none":',
         '"MODEL_DISABLED", "已显式禁用模型调用。"',
         '"MODEL_NOT_CONFIGURED", "未配置默认模型线路，自动回退为 none。"',
         "其他已配置线路与摘要线路同样不可用",
-    ), _function(_parse(startup, STARTUP), startup, "_model_check"), "_model_check")
+        "_unconfigured_hint(requested_model)",
+    ), _function(startup_tree, startup, "_model_check"), "_model_check")
+    # 自动回退只有在本机另有一条可解析的 OpenAI 线路时才点名它；解析失败保持通用提示。
+    guards += _expect((
+        '_UNCONFIGURED_HINT = "配置 provider 及对应凭据；核对桌面默认线路时使用 --check --provider openai。"',
+        '"本机已配置 OpenAI 线路；需要模型时用 --provider openai（桌面用 BOSS_HARNESS_PROVIDER=openai）启动，"',
+        'def _unconfigured_hint(requested_model: str | None) -> str:',
+    ), startup, "startup_check.py 回退提示常量")
+    guards += _expect((
+        'environ["BOSS_HARNESS_MODEL"] = requested_model',
+        'resolve_config(environ=environ, provider="openai")',
+        "return _UNCONFIGURED_HINT",
+        "return _OPENAI_AVAILABLE_HINT",
+    ), _function(startup_tree, startup, "_unconfigured_hint"), "_unconfigured_hint")
+    guards += _ordered(_function(startup_tree, startup, "_unconfigured_hint"),
+                       "return _UNCONFIGURED_HINT", "return _OPENAI_AVAILABLE_HINT", "_unconfigured_hint")
 
     guards += _ordered(init, "self.model_calls_disabled = model_calls_disabled",
                        "self.connections = ConnectionChecks(", "ApplicationService.__init__")
@@ -264,7 +281,7 @@ def main() -> int:
     except (ValueError, SyntaxError) as error:
         print(f"显式禁用模型边界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"显式禁用模型边界一致：{sites} 个工厂调用点、{guards} 项目录、摘要、续接、连接、排队与入口防护")
+    print(f"显式禁用模型边界一致：{sites} 个工厂调用点、{guards} 项目录、摘要、续接、连接、排队、自动回退提示与入口防护")
     return 0
 
 
