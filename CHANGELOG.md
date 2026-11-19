@@ -1,3 +1,10 @@
+## 0.2.0-rc.276 - 2026-11-20
+
+rc.276 源码候选让业务 CLI 路径与数据目录共用同一套空白规范化。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `resolve_binary` 对 `BOSS_CLI_BIN` 与显式参数都去除首尾空白后再检查可执行性。此前带空白的有效路径直接查找失败并被跳过：本机没有其他来源时自检误报 `BOSS_CLI_UNAVAILABLE`，有其他来源时误报 `BOSS_CLI_BIN_IGNORED`，实际启动也改用另一份二进制。精确路径、空字符串、纯空白与不存在路径的行为不变。[Issue #2676](https://github.com/can4hou6joeng4/boss-harness/issues/2676)
+- `check_harness_tools.py` 新增 6 项路径规范化守卫，恢复未去除空白的旧写法即失败。六例解析探针对比 rc.275 源码：环境变量与显式参数各一例带空白的有效路径由回退变为按去空白后的值采用，其余四例一致；同一环境下 `--check` 的「业务 CLI」结论由 `BOSS_CLI_UNAVAILABLE` 变为 `BOSS_CLI_FOUND`。全部检查通过。版本推进到 npm `0.2.0-rc.276` / Python `0.2.0rc276`。不执行发布动作。
+
 ## 0.2.0-rc.275 - 2026-11-20
 
 rc.275 源码候选让桌面把空白的线路变量按默认 `openai` 处理。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
