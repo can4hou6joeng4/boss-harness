@@ -1,3 +1,10 @@
+## 0.2.0-rc.318 - 2026-11-20
+
+rc.318 源码候选为模型输出的字节预算补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_output_budget.py`：固定工具参数、响应工具参数与文本 / 思考三项 1 MiB 上限、码点预检 → 编码 → 字节上限的顺序、紧凑 JSON 逐字符计费、64 层 / 32768 节点结构与整数位长预判、`bounded_error` 不拆 UTF-8 字符、`utf8_chunks` 最少 4 字节分块；反向断言禁止 NaN 序列化、ASCII 转义与无选项编码。修复 Issue [#2760](https://github.com/can4hou6joeng4/boss-harness/issues/2760)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 46 个。版本推进到 npm `0.2.0-rc.318` / Python `0.2.0rc318`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.317 - 2026-11-20
 
 rc.317 源码候选为 JSON-RPC 边界补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

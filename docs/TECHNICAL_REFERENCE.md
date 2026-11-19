@@ -62,7 +62,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
-| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy) |
+| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
@@ -232,6 +232,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_turn_limits.py`
 
 `scripts/check_turn_limits.py` 核对回合模型请求上限的严格整数与有界解析：`turn_limits.py` 的默认 6 次与最大 64 次；`model_request_limit` 只接受精确整数并限定 1 到宿主上限，布尔值按非法拒绝；环境变量先去首尾空白、空值回退默认值，再按最多两位的十进制文本形态判定，转换失败与格式错误统一使用固定说明。反向断言禁止错误回显原值；同时核对技术参考与使用指南的回合上限口径。脚本只扫描源码，不运行环境变量解析。
+
+### `check_output_budget.py`
+
+`scripts/check_output_budget.py` 核对模型输出的字节预算、有界错误与 UTF-8 分块：`output_budget.py` 的工具参数、响应工具参数与文本 / 思考三项上限均为 1 MiB；`utf8_size_at_most` 必须先按码点数预检、再编码并核对字节上限，孤立代理项抛固定异常；快照必须按紧凑 JSON（`ensure_ascii=False`、`allow_nan=False`）逐字符计费，拒绝非文本键与超过 64 层 / 32768 节点的结构，整数按位长预判；`bounded_error` 不得拆开 UTF-8 字符，截断处以 `…` 收尾；`utf8_chunks` 要求最小 4 字节上限并按字符累计分块。反向断言禁止 `allow_nan=True`、`ensure_ascii=True` 与无选项的 `json.dumps(value)`；同时核对技术参考的 1 MiB 与 32 KiB 口径。检查是常量与文本扫描，实际分配与截断行为仍需按技术参考核对。
 
 ### `check_compaction.py`
 
