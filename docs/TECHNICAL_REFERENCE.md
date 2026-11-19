@@ -61,7 +61,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_item_content.py`](#check_item_contentpy) |
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
-| 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy) |
+| 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy) |
@@ -155,6 +155,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_queue_view.py`
 
 `scripts/check_queue_view.py` 核对队列读取投影的上限与截断边界：`queue_view.py` 的待处理项上限 200、已终结窗口 50、正文预览 600 字符、可选字符串与队列 id 上限 200、技能 10 项，以及 `_QUEUE_VIEW_FIELDS` 白名单必须逐字段声明（禁止把持久记录整份透传）；`queue_record` 必须校验 `kind` / `status` / `id` 并把编码失败降级到 `wire_value`，仍不可编码时按坏记录跳过；`queue_view_record` 只删除类型不符的可选字段，暂停来源必须是内核枚举，`executionStarted` 只接受 `False`；`project_queue` 必须先保留暂停项再用剩余名额容纳排队 / 投递中项，正文截断时标注 `inputTruncated`，分类计数在调用方传入时不得改由有界子集重算。脚本同时核对技术参考与使用指南的队列读取说明。检查是常量与顺序扫描，实际投影结果仍需按用户指南核对。
+
+### `check_task_ownership.py`
+
+`scripts/check_task_ownership.py` 核对任务读取的归属判定与恢复策略：`task_ownership.py` 的标识符必须整串匹配 `[A-Za-z0-9][A-Za-z0-9_-]{0,127}`，回合与队列快照默认最多 257 项，任务阶段只接受 `admission` / `prepare` / `model_request` / `tool_execution` / `finish` 与终态枚举，`attempt` / `restartLimit` 必须在 1–1 000 与 0–32 内，恢复原因限定 `processExit` / `terminalStateRecovered`、恢复策略限定 `manual` / `closed` 且只在 `finish` 阶段按终态采纳；同一队列记录的身份字段（`kind` / `inputDigest` / `expectedTurnId` / `clientUserMessageId`）在多份快照间变化必须判为冲突；`delivered_as` 需要队列回执、回合记录与用户消息引用三者一致，`targets` 需要 `expectedTurnId` 指向已知回合且投递状态有对应引用，多链接、重复回合或回执不一致一律 conflict；摘要关系只在 `threadId`、checkpoint 与唯一回合一致时 resolved，无归属时区分 `independent` 与 unresolved；`recovery_policy` 对缺失、未知或损坏状态必须优先返回 `manual_review`，进程持有返回 `process_owned`，队列排队返回 `queue_pending`。脚本反向断言标识符不得改用 `search`、用户消息引用不得投影正文，并核对技术参考与使用指南的任务读取说明。检查是常量与顺序扫描，实际归属结果仍需按用户指南核对。
 
 ### `check_model_disable.py`
 
