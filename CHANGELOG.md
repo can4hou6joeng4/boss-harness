@@ -1,3 +1,10 @@
+## 0.2.0-rc.270 - 2026-11-19
+
+rc.270 源码候选让空白的默认状态目录变量按未设置处理。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `BOSS_HARNESS_DIR` 或旧变量 `BOSS_CLI_HARNESS_DIR` 只有空白时，默认状态目录不再取名字是空白的路径：两个变量都去除首尾空白后判断，空白视为未设置并继续回退（旧变量、默认目录），有效取值不被改写。此前空白的新变量会跳过有效的旧变量，入口的空值校验以退出码 2 结束，提示却点名用户没有设置的 `--state-dir`，`--check` 也完全不可用，无法用自检定位。[Issue #2664](https://github.com/can4hou6joeng4/boss-harness/issues/2664)
+- `check_startup_diagnostics.py` 新增 5 项默认状态目录守卫，恢复旧的 `or` 链即失败。六例子进程探针对比 rc.269 源码：两种变量取空白的三例从「退出码 2、错误提示」改为正常回退（其中新变量空白、旧变量在仓库内的一例正确报告 `STATE_DIRECTORY_IN_REPO`），其余三例一致。全部检查通过。版本推进到 npm `0.2.0-rc.270` / Python `0.2.0rc270`。不执行发布动作。
+
 ## 0.2.0-rc.269 - 2026-11-19
 
 rc.269 源码候选让业务 CLI 数据目录与自检使用同一个规范化后的路径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
