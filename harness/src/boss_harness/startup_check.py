@@ -230,3 +230,29 @@ def startup_report(
         "ok": all(check["status"] != "error" for check in checks),
         "checks": checks,
     }
+
+
+_STATUS_TEXT = {"ok": "通过", "warning": "警告", "error": "错误"}
+
+
+def render_text(report: dict[str, Any]) -> str:
+    """把自检报告渲染为人类可读文本；只使用报告字段，不新增诊断或读取环境。"""
+    checks = report["checks"]
+    errors = sum(check["status"] == "error" for check in checks)
+    warnings = sum(check["status"] == "warning" for check in checks)
+    if errors:
+        conclusion = f"发现 {errors} 个错误"
+    elif warnings:
+        conclusion = f"通过，{warnings} 项警告"
+    else:
+        conclusion = "通过"
+    lines = [
+        f"本地配置自检：{conclusion}",
+        f"内核 {report['version']} · 协议 {report['protocolVersion']} · Python {report['pythonVersion']}",
+    ]
+    for check in checks:
+        lines.append(f"[{_STATUS_TEXT.get(check['status'], check['status'])}] "
+                     f"{check['code']}（{check['name']}）")
+        lines.append(f"  说明：{check['message']}")
+        lines.append(f"  建议：{check['hint']}")
+    return "\n".join(lines)
