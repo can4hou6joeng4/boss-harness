@@ -55,6 +55,9 @@ REPAIR_ORDERED = (
     "root = resolve_private_path(root)",
     "root.lstat()",
     'raise ValueError("状态目录不存在，未执行索引修复；核对 --state-dir 或 BOSS_HARNESS_DIR") from None',
+    "names_present = {entry.name for entry in os.scandir(root)}",
+    "if names_present and names_present.isdisjoint(STATE_MARKERS):",
+    'raise ValueError("目标目录不是内核状态目录，未执行索引修复；核对 --state-dir 或 BOSS_HARNESS_DIR")',
     "owner = StateDirectoryOwner(root)",
     "ensure_private_directory(backup)",
 )
@@ -89,7 +92,9 @@ def check_private_files() -> tuple[int, int, int]:
         if found < position:
             raise ValueError(f"maintenance.py 必须先核对状态目录存在再占用或创建：{fragment}")
         position = found
-    return len(PRIVATE_FRAGMENTS), len(CALL_SITES) + len(REPAIR_ORDERED), len(PROTECTED_MODULES)
+    if 'STATE_MARKERS = frozenset({".owner.lock", "sessions", "state.sqlite3"})' not in maintenance:
+        raise ValueError("maintenance.py 的状态目录标志必须是占用锁、sessions 与 state.sqlite3")
+    return len(PRIVATE_FRAGMENTS), len(CALL_SITES) + len(REPAIR_ORDERED) + 1, len(PROTECTED_MODULES)
 
 
 def main() -> int:

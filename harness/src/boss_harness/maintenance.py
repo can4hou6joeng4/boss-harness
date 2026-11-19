@@ -19,6 +19,10 @@ from boss_harness.private_files import (
 from boss_harness.session import SessionStore, _fsync_directory
 
 
+# 正常启动一定会留下的条目；索引文件单独丢失时，占用锁与会话目录仍能证明这是状态目录。
+STATE_MARKERS = frozenset({".owner.lock", "sessions", "state.sqlite3"})
+
+
 def _manifest_entry(path: Path) -> dict:
     """计算清单条目：大小与摘要必须来自同一描述符，且移动前核对路径身份。
 
@@ -54,6 +58,11 @@ def repair_index(root: Path) -> dict:
         root.lstat()
     except FileNotFoundError:
         raise ValueError("状态目录不存在，未执行索引修复；核对 --state-dir 或 BOSS_HARNESS_DIR") from None
+    # 非空却没有任何内核状态标志的目录多半是路径少写一级：不往别人的目录里写锁、索引与备份。
+    # 空目录仍可修复；列目录失败（不是目录、权限不足）沿用原有的系统错误说明。
+    names_present = {entry.name for entry in os.scandir(root)}
+    if names_present and names_present.isdisjoint(STATE_MARKERS):
+        raise ValueError("目标目录不是内核状态目录，未执行索引修复；核对 --state-dir 或 BOSS_HARNESS_DIR")
     owner = StateDirectoryOwner(root)
     backup = root / "repairs" / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8])
     names = ("state.sqlite3", "state.sqlite3-wal", "state.sqlite3-shm")

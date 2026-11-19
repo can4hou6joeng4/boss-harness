@@ -1,3 +1,10 @@
+## 0.2.0-rc.265 - 2026-11-19
+
+rc.265 源码候选让索引修复不再往与内核无关的目录写入状态文件。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `boss-harness --repair-state` 指向存在、非空、但不含任何内核状态标志（占用锁、`sessions`、`state.sqlite3`）的目录时，现在不创建任何文件，以退出码 2 结束，stderr 给出固定说明并提示核对 `--state-dir` 或 `BOSS_HARNESS_DIR`，不回显路径。此前命令会在该目录中创建占用锁、空索引、`sessions/` 与备份目录并报告 `"repaired": true`；路径少写一级落到父目录时，其他目录被写入内核文件而真正的状态目录未被触碰。空目录、已使用的状态目录、索引文件已丢失的状态目录与只有 `sessions` 的目录仍可修复，输出不变。[Issue #2654](https://github.com/can4hou6joeng4/boss-harness/issues/2654)
+- `check_private_files.py` 的修复前置核对由 5 项增至 9 项：新判断必须位于存在性核对之后、占用锁之前，标志集合固定。两类注入探针（把判断移到占用锁之后、放宽标志集合）均以退出码 2 失败。九例子进程探针对比 rc.264 源码：无关非空目录与只含隐藏文件的目录由新建 5 个条目并返回 0 变为不新建、返回 2；空目录、已用状态目录、索引丢失、仅 `sessions`、路径是文件、路径不存在、目录不可列七例的退出码、输出与新建条目数一致。全部检查通过。版本推进到 npm `0.2.0-rc.265` / Python `0.2.0rc265`。不执行发布动作。
+
 ## 0.2.0-rc.264 - 2026-11-19
 
 rc.264 源码候选让索引修复不再在不存在的路径上新建状态目录。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
