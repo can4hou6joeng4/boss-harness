@@ -84,7 +84,7 @@ uv pip install --python .venv/bin/python boss_harness-*.whl
 
 ### 从源码启动桌面
 
-桌面需要 Node.js 24+ 与本仓库依赖。只验证桌面能否连接本地内核，不需要安装招聘 CLI 或登录；使用招聘工具前再按[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)配置 `boss-agent-cli`。
+桌面需要 Node.js 24+ 与本仓库依赖。只验证桌面能否连接本地内核，不需要安装招聘 CLI 或登录；使用招聘工具前再按[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)配置 [`boss-agent-cli`](https://github.com/can4hou6joeng4/boss-agent-cli)（其 README 提供安装命令）。
 
 ```sh
 uv venv --python 3.12 .venv

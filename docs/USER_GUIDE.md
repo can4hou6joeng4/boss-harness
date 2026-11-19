@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.335` / Python `0.2.0rc335` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.336` / Python `0.2.0rc336` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -368,6 +368,8 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 当前版本不接入 MCP，也不提供成本、缓存命中率、沙箱或死循环指标；面板不会用示例值填充未知字段。模型条目的 `available` 仅表示本机线路配置可用，不代表网络连通性或招聘平台验证。 会话用量遇到损坏的模型来源或回合编号时，仍展示可验证的合法记录；无法编码的来源字符会按会话读取的同一规则降级，过长编号会被跳过，不会让单条坏记录遮住整份用量。
 
 ## 上游 CLI 设置
+
+上游 CLI 由独立仓库维护：[can4hou6joeng4/boss-agent-cli](https://github.com/can4hou6joeng4/boss-agent-cli)。其 README「快速开始」给出安装与诊断入口，例如 `uv tool install boss-agent-cli`；安装后先运行 `boss doctor` 核对平台与浏览器内核，再按下列顺序确认本 Harness 能找到它。登录、平台认证与网络边界由上游负责；本项目只查找可执行文件，并把上游状态目录与 Harness 会话目录分开。
 
 业务可执行文件依次从 `BOSS_CLI_BIN`（去除首尾空白，空值或仅含空白时视为未设置）、并排的 `boss-agent-cli/.venv/bin/boss`、PATH 查找；仅为目录、断链或不可执行的候选会被跳过；指向可执行文件的符号链接仍可使用。显式设置 `BOSS_CLI_BIN` 却因不可执行被跳过、回退到其他来源时，自检报 `BOSS_CLI_BIN_IGNORED` 警告，不输出实际路径；最终没有可用 CLI 时仍报 `BOSS_CLI_UNAVAILABLE`。`BOSS_CLI_DATA_DIR` 管理上游登录和平台状态，取值会去除首尾空白，空值或仅含空白时视为未设置，工具桥与自检使用同一个规范化后的路径；`BOSS_HARNESS_DIR` 管理本项目会话（旧 `BOSS_CLI_HARNESS_DIR` 仍兼容），两者应分别配置。
 
