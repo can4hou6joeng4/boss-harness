@@ -4,6 +4,7 @@ from __future__ import annotations
 import errno
 import importlib.util
 import os
+import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -237,6 +238,25 @@ def _browser_check() -> dict[str, str]:
     )
 
 
+# 低于此值只在自检里告警：会话日志、索引与附件写入可能在中途失败，但不阻止启动。
+STATE_FREE_SPACE_WARN_BYTES = 512 * 1024 * 1024
+
+
+def _free_space(path: Path) -> int | None:
+    """状态目录可能尚未创建；读取最近存在祖先所在文件系统的剩余空间。"""
+    current = path
+    while True:
+        try:
+            if current.exists():
+                return shutil.disk_usage(current).free
+        except OSError:
+            return None
+        parent = current.parent
+        if parent == current:
+            return None
+        current = parent
+
+
 def _state_check(state_dir: Path) -> dict[str, str]:
     try:
         # 与 StateDirectoryOwner 一样先按 cwd 解析；环境变量中的 ~ 不由内核展开。
@@ -281,9 +301,17 @@ def _state_check(state_dir: Path) -> dict[str, str]:
             "检测到已弃用的状态目录变量 BOSS_CLI_HARNESS_DIR。",
             "改用 BOSS_HARNESS_DIR；旧变量仍兼容读取，两者同时设置时以 BOSS_HARNESS_DIR 为准。",
         )
+    # 空间不足不阻止启动，但会在写会话、索引或附件时中断；路径与确切字节都不输出。
+    free = _free_space(state_dir.resolve())
+    if free is not None and free < STATE_FREE_SPACE_WARN_BYTES:
+        return _check(
+            "stateDirectory", "warning", "STATE_DIRECTORY_LOW_SPACE",
+            "状态目录所在文件系统剩余空间不足 512 MiB。",
+            "释放磁盘空间后重新连接；空间不足时写入会话、索引与附件可能中断。",
+        )
     return _check(
         "stateDirectory", "ok", "STATE_DIRECTORY_VALID", "状态目录路径与基本访问条件检查通过。",
-        "未创建目录、修改权限或试写文件；未核对磁盘空间、占用锁、索引与会话完整性。",
+        "未创建目录、修改权限或试写文件；未核对占用锁、索引与会话完整性。",
     )
 
 
