@@ -65,7 +65,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy) |
-| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy) |
+| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy) |
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_snippet.py`](#check_search_snippetpy) |
 | 工作流与文档 | [`check_workflows.py`](#check_workflowspy)、[`check_docs_links.py`](#check_docs_linkspy) |
@@ -207,6 +207,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_attachments.py`
 
 `scripts/check_attachments.py` 核对附件边界：`resources.py` 的默认存储 512 MiB / 4096 对象、上限 `2**63 - 1`、`DEFAULT_READ_CHARS = 16,384` 与 `MAX_READ_CHARS = 32,768` 必须保持不变；`attachment/read` 的请求字段白名单、默认分段、`wire_size(result) > MAX_PAGE_BYTES` 单页守卫，以及 `RESPONSE_TOO_LARGE` / `attachment/read` / `suggestedLimit` 恢复信息必须保留；两个存储配额环境变量名也不得改名。检查是常量与文本扫描，实际配额与分页行为仍需按用户指南核对。
+
+### `check_hooks.py`
+
+`scripts/check_hooks.py` 核对生命周期 hook 的超时、上下文冻结与策略拒绝边界：`hooks.py` 的 30 秒 / 250ms 超时、256 事件队列、16 在途回调、每秒一次的拥塞诊断、观察上下文 16 384 字符 / 64 键 / 128 项 / 深度 6、策略上下文 1 052 672 字节 / 32 784 节点 / 深度 66 与 512 个变换单元；`HookDecision` 的布尔允许、大写 code 与 1 024 字符消息校验、`ContextTransform` 的非负整数与排序去重；`_safe_value` 必须截断、脱敏并标注省略，`freeze_context` 冻结为只读视图，`freeze_policy_context` 必须完整复制并在环引用、代理项、非有限浮点与超限时分别以 `HOOK_CONTEXT_INVALID` / `HOOK_CONTEXT_TOO_LARGE` 拒绝；事件观察只投影白名单字段，队列满时计数丢弃而不阻塞；`_invoke` 必须先检查取消再检查关闭与容量，超时使用 25ms 轮询且迟到返回不改写回合；策略与请求路径必须把 `HOOK_CLOSED` / `HOOK_CONTEXT_TOO_LARGE` / `HOOK_CONTEXT_INVALID` / `HOOK_BUSY` / `HOOK_ERROR` / `HOOK_RESULT_INVALID` 映射为拒绝；`transform_context` 不得省略当前单元，`after_tool_call` 只观察且仅在 `expose_tool_results` 时附带结果；关闭时限内未收尾时报告 `HOOK_TIMEOUT`。脚本同时核对技术参考的队列、在途上限、策略上限与超时说明。检查是常量与顺序扫描，实际 hook 行为仍需按用户指南核对。
 
 ### `check_browser_source.py`
 

@@ -46,6 +46,8 @@ jobs:
         run: python scripts/check_export_privacy.py
       - name: Verify private state boundaries
         run: python scripts/check_private_files.py
+      - name: Verify lifecycle hook boundaries
+        run: python scripts/check_hooks.py
       - name: Verify workspace skill boundaries
         run: python scripts/check_skills.py
       - name: Verify workspace instruction boundaries
