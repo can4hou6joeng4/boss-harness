@@ -1,3 +1,11 @@
+## 0.2.0-rc.308 - 2026-11-20
+
+rc.308 源码候选为 SQLite 投影索引补上静态检查，并加固顺序断言的首次出现语义。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_persistence.py`：固定 `SCHEMA_VERSION = 2`、`utf-8` 宽容解码（拒绝严格 `decode("utf-8")`）、1 → 2 迁移顺序与 `user_version` 写入、旧索引 `indexed_size=-1` 失效标记、私有目录与 WAL / SHM 权限、表结构主键与级联约束、逐操作连接与 `foreign_keys` / `busy_timeout` / `synchronous=FULL`、事务提交回滚与事件索引。修复 Issue [#2741](https://github.com/can4hou6joeng4/boss-harness/issues/2741)。
+- 同时加固 `check_queue_view.py`、`check_task_ownership.py`、`check_usage.py`、`check_summary.py` 的 `_ordered`：此前按子序列匹配，提前插入的重复片段会被跳过；现在要求每个片段的首次出现位置严格递增。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 36 个。版本推进到 npm `0.2.0-rc.308` / Python `0.2.0rc308`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.307 - 2026-11-20
 
 rc.307 源码候选为生命周期 hook 补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
