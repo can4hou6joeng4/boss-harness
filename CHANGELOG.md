@@ -1,3 +1,10 @@
+## 0.2.0-rc.219 - 2026-11-19
+
+rc.219 源码候选整理桌面安全守卫的参考文档。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `docs/TECHNICAL_REFERENCE.md` 的 `check_desktop_security.py` 小节由单段改为按主题分组的列表：窗口隔离、权限与导航、preload 桥接、桥接类型、渲染层入口、进程边界、子进程、IPC 通道、发送方校验、外链与会话恢复。拆分前后 125 个代码跨度一一对应，未增删约束；最长段落由 3452 字符降到 559 字符。[Issue #2562](https://github.com/can4hou6joeng4/boss-harness/issues/2562)
+- rc.208 条目中的 `ContextManager._compaction_snapshot()` 更正为 `ContextService._compaction_snapshot()`，与内核源码一致。全部检查通过。版本推进到 npm `0.2.0-rc.219` / Python `0.2.0rc219`。不执行发布动作。
+
 ## 0.2.0-rc.218 - 2026-11-19
 
 rc.218 源码候选让线路不可用时的排队消息当场拒绝。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
@@ -83,7 +90,7 @@ rc.209 源码候选修复中断续接可能丢失已投递转向消息的问题�
 
 rc.208 源码候选统一自动压缩切点与回执的保留长度估算。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
 
-- `ContextManager._compaction_snapshot()` 让切点扫描与 `estimatedRetainedTokens` 共用同一可见尾部估算：已校准消息按用量增量、未校准消息按字符估算，排除的上下文编辑不再产生空消息开销；摘要来源集合与条目计数仍按原始记录计算。[Issue #2540](https://github.com/can4hou6joeng4/boss-harness/issues/2540)
+- `ContextService._compaction_snapshot()` 让切点扫描与 `estimatedRetainedTokens` 共用同一可见尾部估算：已校准消息按用量增量、未校准消息按字符估算，排除的上下文编辑不再产生空消息开销；摘要来源集合与条目计数仍按原始记录计算。[Issue #2540](https://github.com/can4hou6joeng4/boss-harness/issues/2540)
 - 离线合成探针覆盖旧用量锚点与排除消息场景，修复前后偏差与一致性均已验证；全部检查通过。版本推进到 npm `0.2.0-rc.208` / Python `0.2.0rc208`。不执行发布动作。
 
 ## 0.2.0-rc.207 - 2026-11-18
