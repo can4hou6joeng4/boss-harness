@@ -231,17 +231,15 @@ def _cli_check(state_dir: Path) -> dict[str, str]:
                 "上游登录与平台状态不要与内核会话共用目录。",
             )
         # 上游登录态与平台缓存不应位于可被提交的仓库；~ 交由上游解释，内核不猜测其展开结果。
+        # 与状态目录一致：从目标目录自身向上查找，工作目录位置不改变结论。
         if not data_dir.startswith("~"):
             try:
-                workspace = _git_root(Path.cwd().resolve())
-                resolved = Path(data_dir).resolve()
-                inside = workspace is not None and (
-                    resolved == workspace or resolved.is_relative_to(workspace))
+                inside = _git_root(Path(data_dir).resolve()) is not None
             except (OSError, RuntimeError):
                 inside = False
             if inside:
                 return _check(
-                    "bossCli", "warning", "BOSS_CLI_DATA_DIR_IN_REPO", "业务 CLI 数据目录位于当前仓库内。",
+                    "bossCli", "warning", "BOSS_CLI_DATA_DIR_IN_REPO", "业务 CLI 数据目录位于 Git 仓库内。",
                     "将 BOSS_CLI_DATA_DIR 移到仓库外；登录态、Cookie 与平台缓存不应进入可能被提交的目录。",
                 )
     return _check(
@@ -313,15 +311,14 @@ def _state_check(state_dir: Path) -> dict[str, str]:
             "使用当前用户拥有的独立目录，避免根目录及允许他人修改的父目录或 ACL；不要放宽权限。",
         )
     # 会话、工具结果与附件不应位于可被提交的仓库；先于其他警告报告，路径不输出。
+    # 从目标目录自身向上查找仓库：工作目录在哪里不影响结论，指向别的仓库同样能发现。
     try:
-        workspace = _git_root(Path.cwd().resolve())
-        resolved = state_dir.resolve()
-        inside = workspace is not None and (resolved == workspace or resolved.is_relative_to(workspace))
+        inside = _git_root(state_dir.resolve()) is not None
     except (OSError, RuntimeError):
         inside = False
     if inside:
         return _check(
-            "stateDirectory", "warning", "STATE_DIRECTORY_IN_REPO", "状态目录位于当前仓库内。",
+            "stateDirectory", "warning", "STATE_DIRECTORY_IN_REPO", "状态目录位于 Git 仓库内。",
             "将 --state-dir 或 BOSS_HARNESS_DIR 移到仓库外；会话记录、工具结果与附件不应进入可能被提交的目录。",
         )
     # 内核不展开 ~：只看实际使用的路径，来自 --state-dir 或环境变量都提示；
