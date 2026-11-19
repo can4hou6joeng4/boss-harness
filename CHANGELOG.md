@@ -1,3 +1,10 @@
+## 0.2.0-rc.330 - 2026-11-20
+
+rc.330 源码候选为 Node 侧进程传输客户端补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_client_transport.py`：固定 `shell: false` 与三条 pipe、8 MiB 单帧与 16 MiB 输入队列、30 秒请求超时与结果未知不自动重试、超时移除未发送帧、严格 UTF-8 解码与坏帧固定诊断、超限帧失败并 `dispose`；固定 result / error 二选一与非法错误帧 `-32603`、服务器请求 id 校验与 256 条待答上限、`-32601` / `-32603` 回包、失败清空四类状态并发出 `harness/disconnected`、`stdin.end` → `SIGTERM` → `SIGKILL` 关闭顺序。反向断言禁止 `shell: true`、继承 stdio、`console.*` 与诊断夹带帧内容。修复 Issue [#2785](https://github.com/can4hou6joeng4/boss-harness/issues/2785)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 58 个。版本推进到 npm `0.2.0-rc.330` / Python `0.2.0rc330`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.329 - 2026-11-20
 
 rc.329 源码候选为 Anthropic Messages 适配器补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
