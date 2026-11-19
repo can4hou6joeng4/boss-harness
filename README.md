@@ -56,6 +56,7 @@ BOSS Harness 不是把招聘平台包成一个聊天接口，而是把「模型�
 | 避免招聘操作被重复执行 | 工具调用有稳定身份、逐次审批和结果未知边界；断连后先核对，不凭猜测重放。 |
 | 让长会话可追溯、可恢复 | 原始记录写入 append-only JSONL，SQLite 提供可重建的索引；冻结快照、摘要和分支都保留来源切点，读取按响应预算分页。 |
 | 控制上下文大小 | 每次模型请求前估算预算，可自动或手动摘要更早的回合；已结束消息可替换或排除，原始记录保留。 |
+| 让每个回合带上项目约定 | 从工作区 `.boss-harness/CONTEXT.md`（兼容 `.boss-cli/CONTEXT.md`）读取有界、只读的常驻说明，每回合重新读取；内容作为上下文，不授予或扩大工具权限。 |
 | 读取较大的附件与工具结果 | 超出响应预算的正文不整份返回，改按游标分段读回；引用绑定内容摘要，内容变化时拒绝混用版本。 |
 | 核对用量与任务归属 | 用量面板按回合、摘要任务与合计展示 provider 上报；`task/read` 只读查询回合、队列或摘要任务的持久状态，不恢复也不重放任务。 |
 | 在不同模型线路间切换 | OpenAI Responses、Anthropic Messages 和 `none` 共享同一套回合与工具契约。 |
@@ -203,7 +204,7 @@ git diff --check
 BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that connects model turns, recruiting tools, and recoverable sessions into one bounded workflow. Recruiting actions always run through the separately installed `boss-agent-cli` subprocess; this repository owns the execution loop, context, sessions, approvals, and the Electron shell.
 
 - **Architecture**: Electron + React + TypeScript desktop shell, a Python ≥ 3.10 kernel, and a stdio JSON-RPC `0.2.0` process boundary. The shell does not import kernel code.
-- **Execution**: streaming turns, steering / follow-up queues, per-action approvals and stop, append-only JSONL history with SQLite indexing, context budgets and compaction tasks, durable restore, and branch-aware session state.
+- **Execution**: streaming turns, steering / follow-up queues, per-action approvals and stop, append-only JSONL history with SQLite indexing, context budgets and compaction tasks, bounded read-only workspace instructions re-read every turn, durable restore, and branch-aware session state.
 - **Safety boundary**: 14 allowlisted tools (13 read-only plus one greeting action that requires approval on every call); capability discovery never grants permissions, and neither the model nor the workbench renderer receives platform cookies.
 - **Model routes**: OpenAI Responses (Codex or an explicit endpoint), Anthropic Messages, or `none`, sharing the same turn and tool contract. `none` disables the model only; recruiting CLI commands can still run.
 - **Desktop**: the renderer reaches the main process only through a single `window.boss` preload bridge over host-validated IPC, under a local-only CSP. The workbench shows the persistent turn queue, workspace skills and auto-compaction settings; platform login runs in an isolated browser partition and session export is sanitized.
