@@ -1,3 +1,10 @@
+## 0.2.0-rc.291 - 2026-11-20
+
+rc.291 源码候选为保留目标提示补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_context_keep.py`：判定函数 `keepTargetReachesLimit` 只能在 `compactionSettings.ts` 定义一次，保留目标与上限必须是正整数；会话上下文面板两处提示必须先确认预算已读取，设置页必须从内核能力投影取得窗口；使用指南与桌面指南的说明片段一并核对。脚本接入 `.github/workflows/build.yml`，技术参考补充说明小节。[Issue #2706](https://github.com/can4hou6joeng4/boss-harness/issues/2706)
+- 在干净副本中删除设置页提示、把判定放宽到接受 0，脚本分别以退出码 2 拒绝。不改变运行时行为。版本推进到 npm `0.2.0-rc.291` / Python `0.2.0rc291`。不执行发布动作。
+
 ## 0.2.0-rc.290 - 2026-11-20
 
 rc.290 源码候选把保留目标提示补到设置页。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
