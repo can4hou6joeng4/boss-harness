@@ -63,6 +63,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy) |
+| 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_attachments.py`](#check_attachmentspy) |
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_snippet.py`](#check_search_snippetpy) |
@@ -143,6 +144,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_model_disable.py`
 
 `scripts/check_model_disable.py` 核对显式 `none`（`--provider none` 或 `BOSS_HARNESS_PROVIDER=none`）禁用模型调用的进程级边界：`ApplicationService` 的构造校验、模型目录发现门禁、`_configured_route` 的拒绝提示、`_provider_for` 对真实线路的最后拦截、`_summary_available`、摘要线路解析门禁、分支摘要与续接预检的拒绝提示，以及入口 `_requested_provider` 与启动自检 `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` 的措辞；自动回退提示只在本机 OpenAI 线路按同一套解析（含命令行 `--model`）可读通时点名该线路，解析失败保持通用建议。它还核对结构边界：`provider_factory` 在 `application.py` 只经 `_provider_for` 调用、在 `connections.py` 只经 `_run` 调用，`build_provider` 只允许入口调用，`AnthropicProvider` / `OpenAIResponsesProvider` 只允许在 `models/provider.py` 构造，`ApplicationService` 在构造连接检查时传入进程级开关，`ConnectionChecks` 仅对 `none` 默认线路接受启用该开关，并给显式禁用的模型卡片标注 `MODEL_DISABLED`。模型卡片为 `disabled` 时在启动检查线程前直接返回报告。它是静态扫描，不证明运行时行为；嵌入方自带的 `provider_factory` 不经入口，不在该脚本的边界内，仍受 `_provider_for` 的结构拦截约束。
+
+### `check_startup_diagnostics.py`
+
+`scripts/check_startup_diagnostics.py` 核对启动自检文本与桌面解析上限的一致性：`startup_check.py` 的每个 `_check(...)` 调用必须给出来自桌面 `NAME_PATTERN` / `CODE_PATTERN` 的固定名称与检查码、合法状态，以及不超过桌面 `MAX_TEXT_LENGTH`（按 UTF-16 码元计数）且不含控制字符的说明与建议；动态文本只允许来自已单独校验的来源（`_model_check` 的 `exc` 与回退提示、`_runtime_check` 的运行参数表项）。脚本还用 AST 核对 `_RUNTIME_OPTIONS` 四元组、`_DIAGNOSTICS` 二元组的全部文本，`ModelConfigErrorCode` 与 `_DIAGNOSTICS` 键集合双向一致，`_unconfigured_hint` 只返回两条已登记的提示常量；桌面 `startupCheck.ts` 的解析防护（字段名 / 检查码 / 状态 / 文本校验、`MAX_TEXT_LENGTH`、`ok` 一致性、报告与检查数量上限）与 `StartupCheckEntry` 协议字段作为文本片段核对。检查是静态扫描，不运行自检或桌面解析，运行时行为仍需按用户指南核对。
 
 ### `check_private_files.py`
 
