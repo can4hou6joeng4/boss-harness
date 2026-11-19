@@ -1,3 +1,10 @@
+## 0.2.0-rc.317 - 2026-11-20
+
+rc.317 源码候选为 JSON-RPC 边界补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_rpc.py`：固定 8 MiB 帧上限与 64 层 JSON 深度、重复键 / 非有限数值 / 孤立代理项拒绝、`surrogateescape` stdin、带文件名 `OSError` 的固定中文原因与 errno 名称、`redact_secrets(describe_failure(exc))` 脱敏、服务端请求计时器启动失败 fail closed、`-32010` / `-32603` 响应降级与编码失败不重跑 handler；反向断言禁止无钩子解析与 stdout 诊断。修复 Issue [#2759](https://github.com/can4hou6joeng4/boss-harness/issues/2759)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 45 个。版本推进到 npm `0.2.0-rc.317` / Python `0.2.0rc317`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.316 - 2026-11-20
 
 rc.316 源码候选为回合模型请求上限补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

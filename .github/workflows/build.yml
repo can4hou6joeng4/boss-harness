@@ -36,6 +36,8 @@ jobs:
           printf 'python=%s\n' "$SOURCE_VERSION" >> "$GITHUB_OUTPUT"
       - name: Verify protocol constants
         run: python scripts/check_protocol.py
+      - name: Verify JSON-RPC boundaries
+        run: python scripts/check_rpc.py
       - name: Verify desktop security settings
         run: python scripts/check_desktop_security.py
       - name: Verify workflow security settings

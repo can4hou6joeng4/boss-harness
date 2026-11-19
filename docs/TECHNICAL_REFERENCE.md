@@ -58,7 +58,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 领域 | 脚本 |
 | --- | --- |
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
-| 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_item_content.py`](#check_item_contentpy) |
+| 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
@@ -96,6 +96,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 - 内核 `rpc.py` 的错误分发必须先用 `describe_failure` 处理未捕获异常再脱敏：保留 `OSError` 与文件名判定、`errno.errorcode` 与通用说明、`操作未完成` 文案，登记 `ENOSPC`、`EDQUOT`、`EACCES`、`EPERM`、`EROFS`、`EMFILE`、`ENFILE`、`ENOTDIR`、`ENOENT` 九种 errno，且不得再直接使用 `redact_secrets(str(exc))`；入口 `__main__.py` 的索引修复失败、启动失败、模型线路构造兜底与浏览器来源配置失败四处输出必须经过 `_failure_text`（先 `describe_failure` 再 `redact_secrets`），且不得再有把异常原文直接写到 stderr 的行；具名 `ModelConfigError` 的固定说明除外。
 
 检查是静态扫描：通过变量拼接的方法名、运行时注册或动态生成的字段不在覆盖范围；新增此类路径时仍需人工核对协议常量。
+
+### `check_rpc.py`
+
+`scripts/check_rpc.py` 核对 JSON-RPC 帧解析、错误脱敏与响应降级边界：`rpc.py` 的 `MAX_FRAME_BYTES` 8 MiB 与 `MAX_JSON_DEPTH` 64；带文件名的 `OSError` 必须按九种 errno 改写为固定中文原因并附 errno 名称、去掉本机路径，无文件名时保留原消息；JSON 解码必须拒绝重复键、非有限常量与非有限浮点、超过 64 层的嵌套与孤立代理项，并把解码失败统一收敛为 `无效的 JSON 帧`；stdin 必须以 `surrogateescape` 重配置并逐帧 `readline(MAX_FRAME_BYTES + 1)` 有界读取；服务端请求的计时器必须设 `daemon`，启动失败时以 `cancel_request` fail closed；响应写出必须先紧凑编码（`ensure_ascii=False`、`allow_nan=False`）、按 UTF-8 字节数检查帧上限再写出；响应超限与编码失败分别降级为 `-32010` / `RESPONSE_TOO_LARGE` 与 `-32603` / `RESPONSE_INVALID`（请求 ID 本身不安全编码时省略 ID），且不得重跑 handler；未捕获异常必须经 `redact_secrets(describe_failure(exc))` 后返回；所有诊断输出必须写到 stderr。反向断言禁止无钩子解析、`allow_nan=True` 与 stdout 诊断。检查是常量与文本扫描，真实管道读写与并发关闭仍需按平台核对。
 
 ### `check_desktop_security.py`
 
