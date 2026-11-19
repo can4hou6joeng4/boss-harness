@@ -62,7 +62,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
-| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy) |
+| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_secret.py`](#check_secretpy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
@@ -252,6 +252,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_continuation.py`
 
 `scripts/check_continuation.py` 核对 Anthropic 私有续接元数据的预算、构造与恢复校验：`continuation.py` 的四个预算常量与 `_anthropicContinuation` 字段名；前缀 digest 必须固定排序并紧凑编码后取 SHA-256；构造只保存文本 / 思考的长度与 SHA-256、签名或 redacted 数据引用与工具调用 ID，单项签名、签名合计、块数与载荷各自有界，redacted 块不得同时带签名或正文；恢复必须精确匹配六个字段与版本 / provider、64 位十六进制前缀与内容 digest、调用 ID 的连续前缀、助手引用与回合归属，拒绝被上下文编辑的助手消息与不可持久调用之后的内容，并逐块校验内容 digest；编码失败降级为普通工具批次，其余字段错配按固定说明拒绝。反向断言禁止 ASCII 转义、MD5/SHA-1 摘要与宽松字段比较。同时核对技术参考的续接元数据口径。检查是常量与文本扫描，真实签名校验仍需按 provider 行为核对。
+
+### `check_capabilities.py`
+
+`scripts/check_capabilities.py` 核对模型容量配置的预算、校验与错误收敛：`capabilities.py` 的 64 KiB / 128 项上限、三种 provider、两个必需字段与一个可选字段、七档推理集合与固定错误说明；`ModelCapabilities` 必须要求窗口大于 4096、输出为正且不超过窗口、来源非空、估算标记为精确布尔、推理档位为非重复的已声明子集；`ModelCatalog` 覆盖表必须只读、键必须为 `(provider, model)` 且模型名非空无空白，解析必须拒绝重复键与非有限常量、逐项要求 `provider/model` 分隔、必需字段齐全且无未知字段，任何解析错误都收敛为固定说明且不回显原配置。反向断言禁止无钩子解析、错误回显原配置与可变覆盖表。同时核对技术参考的容量口径。检查是常量与文本扫描，实际解析结果仍需按技术参考核对。
 
 ### `check_compaction.py`
 
