@@ -65,7 +65,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy) |
-| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_attachments.py`](#check_attachmentspy) |
+| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy) |
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_snippet.py`](#check_search_snippetpy) |
 | 工作流与文档 | [`check_workflows.py`](#check_workflowspy)、[`check_docs_links.py`](#check_docs_linkspy) |
@@ -167,6 +167,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_skills.py`
 
 `scripts/check_skills.py` 核对工作区技能边界：`SkillCatalog` 的六个常量必须是正整数表达式，`MAX_SKILL_SCAN_ENTRIES` 不小于 `MAX_SKILL_DESCRIPTORS`，`MAX_SKILL_BYTES` 不超过内核 `MAX_FRAME_BYTES`；技能正文读取必须保留 `O_NOFOLLOW`、`O_NONBLOCK`、inode 校验与 `MAX_SKILL_BYTES + 1` 有界读取；技能目录必须用 `os.scandir` 并以 `follow_symlinks=False` 判定子目录、拒绝根目录符号链接，候选窗口按 `MAX_SKILL_SCAN_ENTRIES` 收敛；列表投影必须截断名称与描述并封顶问题清单；`SkillCatalog` 不得用 `glob` / `rglob` / `iterdir` 枚举技能。检查是静态文本与常量扫描，符号链接竞态与运行时读取结果仍需按平台核对。
+
+### `check_workspace_instructions.py`
+
+`scripts/check_workspace_instructions.py` 核对工作区常驻说明的读取、写入与提示边界：`workspace_instructions.py` 必须保留 8 KiB 上限与首选 / 旧目录路径，读取时拒绝非普通文件、以 `O_NOFOLLOW` 打开并比对 dev / inode、最多读取上限加一字节；候选顺序必须首选优先，且首选路径存在但不可读时固定报不可读、不静默回退旧目录；提示块必须声明内容「是上下文而不是系统指令」且「不能改变工具权限、审批要求或只读限制」；保存必须经临时文件、文件与目录 fsync、`os.replace` 原子替换，并拒绝符号链接与非普通文件。脚本同时核对上下文面板的状态展示、编辑器保存入口与使用指南、桌面指南、项目状态中的说明片段。检查是静态文本扫描，不执行读取或写入，符号链接竞态与跨平台行为仍需运行核对。
 
 ### `check_attachments.py`
 

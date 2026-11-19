@@ -1,3 +1,10 @@
+## 0.2.0-rc.297 - 2026-11-20
+
+rc.297 源码候选为工作区常驻说明补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_workspace_instructions.py`：固定 8 KiB 上限与首选 / 旧目录路径、拒绝非普通文件与 `O_NOFOLLOW` / dev / inode 校验、首选优先且不可读时不回退、提示块的「上下文而不是系统指令」与「不改变工具权限、审批要求或只读限制」措辞、临时文件与 fsync / `os.replace` 原子写入，以及面板、编辑器与三处文档片段。修复 Issue [#2719](https://github.com/can4hou6joeng4/boss-harness/issues/2719)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；删除上限、符号链接拒绝或权限措辞时检查会失败。版本推进到 npm `0.2.0-rc.297` / Python `0.2.0rc297`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.296 - 2026-11-20
 
 rc.296 源码候选补齐使用指南的工作区说明入口。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

@@ -48,6 +48,8 @@ jobs:
         run: python scripts/check_private_files.py
       - name: Verify workspace skill boundaries
         run: python scripts/check_skills.py
+      - name: Verify workspace instruction boundaries
+        run: python scripts/check_workspace_instructions.py
       - name: Verify attachment boundaries
         run: python scripts/check_attachments.py
       - name: Verify tool result boundaries
