@@ -16,6 +16,18 @@ DESKTOP = "apps/desktop/src/main/startupCheck.ts"
 PROTOCOL = "packages/protocol/src/index.ts"
 USER_GUIDE = "docs/USER_GUIDE.md"
 SETUP_GUIDE = "SETUP.md"
+ENTRY = "harness/src/boss_harness/__main__.py"
+STRICT_ORDERED = (
+    'parser.add_argument("--strict", action="store_true",',
+    "if args.strict and not args.check:",
+    'parser.error("--strict 只能与 --check 一起使用")',
+    "if args.check:",
+    'print(render_text(report) if args.format == "text" else json.dumps(report, ensure_ascii=False))',
+    'if not report["ok"]:\n            return 2',
+    'warned = any(check["status"] == "warning" for check in report["checks"])',
+    "return 1 if args.strict and warned else 0",
+)
+STRICT_GUIDE = "存在错误仍为 2，没有错误但有警告为 1，全部通过为 0"
 CONNECTION_NOTICE = "apps/desktop/src/renderer/src/data/connectionNotice.ts"
 CONNECTION_SETTINGS = "apps/desktop/src/renderer/src/components/ConnectionSettings.tsx"
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,31}$")
@@ -589,6 +601,21 @@ def _setup_codes(emitted: set[str], setup: str) -> int:
     return len(codes) + len(prefixes)
 
 
+def _strict_exit(entry: str, guide: str) -> int:
+    """严格模式只改变退出码：报告先输出，错误优先于警告，且只能与 --check 一起使用。"""
+    position = -1
+    for fragment in STRICT_ORDERED:
+        if entry.count(fragment) != 1:
+            raise ValueError(f"__main__.py 的严格模式片段缺失或重复：{fragment.splitlines()[0]}")
+        found = entry.index(fragment)
+        if found < position:
+            raise ValueError(f"__main__.py 的严格模式片段顺序不符：{fragment.splitlines()[0]}")
+        position = found
+    if STRICT_GUIDE not in guide:
+        raise ValueError("使用指南缺少严格模式三种退出码的说明")
+    return len(STRICT_ORDERED) + 1
+
+
 def _docs_codes(tree: ast.Module, config_tree: ast.Module, guide: str, setup: str) -> int:
     diagnostics = _assignment(config_tree, "_DIAGNOSTICS")
     diagnostic_codes = {key.value for key in diagnostics.keys
@@ -642,9 +669,10 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _diagnostics(config_tree, limit)
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide, _read(SETUP_GUIDE))
+    checked += _strict_exit(_read(ENTRY), guide)
     checked += _names_consistency(startup_tree, guide, _read(CONNECTION_NOTICE))
     checked += _conclusion_parity(startup_tree, _read(CONNECTION_NOTICE), _read(CONNECTION_SETTINGS))
-    return 8, guards + checked
+    return 9, guards + checked
 
 
 def main() -> int:

@@ -1,3 +1,10 @@
+## 0.2.0-rc.258 - 2026-11-19
+
+rc.258 源码候选把自检严格模式的退出码语义固化为静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `check_startup_diagnostics.py` 新增对 `__main__.py` 的核对：`--strict` 参数定义、与 `--check` 的绑定报错、报告先输出、错误优先返回 2、再按 `warning` 状态返回 1 的片段必须各出现一次且保持顺序；使用指南必须保留三种退出码的说明。此前 rc.257 的行为只有一次性探针。[Issue #2640](https://github.com/can4hou6joeng4/boss-harness/issues/2640)
+- 四类注入探针确认守卫有效：删除绑定报错、把警告退出码改为 0、调换错误与警告的判断顺序、删除指南说明都会以退出码 2 失败并点名原因；未修改时守卫通过，读取路径由 8 条增至 9 条。不改变内核行为、协议与桌面界面。全部检查通过。版本推进到 npm `0.2.0-rc.258` / Python `0.2.0rc258`。不执行发布动作。
+
 ## 0.2.0-rc.257 - 2026-11-19
 
 rc.257 源码候选让脚本可以把本地配置自检的警告视为未通过。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
