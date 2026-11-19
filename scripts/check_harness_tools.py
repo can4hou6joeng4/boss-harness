@@ -9,6 +9,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS_SOURCE = ROOT / "harness/src/boss_harness/tools/boss_cli.py"
+PROCESS_IO_SOURCE = ROOT / "harness/src/boss_harness/process_io.py"
 CONTEXT_SOURCE = ROOT / "harness/src/boss_harness/context.py"
 TOOL_RESULTS_SOURCE = ROOT / "harness/src/boss_harness/tool_results.py"
 BUNDLE_SOURCE = ROOT / "harness/src/boss_harness/tools/bundle.py"
@@ -18,6 +19,19 @@ SHELL_APIS = (
     ("create_subprocess_shell(", "不得使用 create_subprocess_shell"),
     ("os.system(", "不得使用 os.system"),
     ("os.popen(", "不得使用 os.popen"),
+)
+CLI_OUTPUT_FRAGMENTS = (
+    "MAX_CLI_OUTPUT_BYTES = 16 * 1024 * 1024",
+    "BoundedProcessOutput(proc, stdin, MAX_CLI_OUTPUT_BYTES)",
+    'return failure("CLI_OUTPUT_LIMIT"',
+    "不要自动重试",
+)
+PROCESS_IO_FRAGMENTS = (
+    "CHUNK_BYTES = 64 * 1024",
+    "if self._bytes + len(chunk) > self._limit:",
+    "self.overflow.set()",
+    "except BrokenPipeError:",
+    "self._remaining = 2 + (stdin is not None)",
 )
 BUNDLE_FRAGMENTS = (
     "handlers = tool_handlers()",
@@ -198,7 +212,7 @@ def _write_tools_default(path: Path) -> set[str]:
     raise ValueError(f"{path.name} 缺少 write_tools 默认值")
 
 
-def check_harness_tools() -> tuple[int, int, int, int, int]:
+def check_harness_tools() -> tuple[int, int, int, int, int, int, int, int]:
     tree = ast.parse(
         TOOLS_SOURCE.read_text(encoding="utf-8"), filename=str(TOOLS_SOURCE)
     )
@@ -275,6 +289,13 @@ def check_harness_tools() -> tuple[int, int, int, int, int]:
             raise ValueError("boss_cli.py 的业务 CLI 路径必须去除首尾空白并把空值视为未设置：缺少 " + fragment)
     if "env = os.environ.get(BINARY_ENV)" in tools_source:
         raise ValueError("boss_cli.py 不得把未规范化的业务 CLI 路径原样用于查找")
+    missing = [fragment for fragment in CLI_OUTPUT_FRAGMENTS if fragment not in tools_source]
+    if missing:
+        raise ValueError("boss_cli.py 的工具桥输出上限必须固定为 16 MiB 且超限不重试：缺少 " + "、".join(missing))
+    process_io_source = PROCESS_IO_SOURCE.read_text(encoding="utf-8")
+    missing = [fragment for fragment in PROCESS_IO_FRAGMENTS if fragment not in process_io_source]
+    if missing:
+        raise ValueError("process_io.py 必须保留分块上限、溢出标记与管道收尾：缺少 " + "、".join(missing))
     return (
         len(names),
         len(names) - len(approval),
@@ -283,12 +304,13 @@ def check_harness_tools() -> tuple[int, int, int, int, int]:
         len(SHELL_APIS) + 1,
         len(DATA_DIR_FRAGMENTS) + 1,
         len(BINARY_FRAGMENTS) + 1,
+        len(CLI_OUTPUT_FRAGMENTS) + len(PROCESS_IO_FRAGMENTS),
     )
 
 
 def main() -> int:
     try:
-        total, read_only, write_sets, bundle, shell, data_dir, binary = check_harness_tools()
+        total, read_only, write_sets, bundle, shell, data_dir, binary, output_limits = check_harness_tools()
     except (OSError, SyntaxError, ValueError) as error:
         print(f"内核工具允许清单核对失败，{error}", file=sys.stderr)
         return 2
@@ -297,7 +319,8 @@ def main() -> int:
         f"（{read_only} 个只读、{total - read_only} 个需批准）、"
         f"schema 边界完整、{write_sets} 处写工具集合一致、"
         f"bundle 保留 {bundle} 项审批投影、工具子进程 {shell} 项 shell 边界、"
-        f"{data_dir} 项数据目录规范化与 {binary} 项业务 CLI 路径规范化防护完整"
+        f"{data_dir} 项数据目录规范化与 {binary} 项业务 CLI 路径规范化、"
+        f"{output_limits} 项输出上限与有界读取防护完整"
     )
     return 0
 
