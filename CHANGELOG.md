@@ -1,3 +1,10 @@
+## 0.2.0-rc.222 - 2026-11-19
+
+rc.222 源码候选为启动自检文本与桌面解析上限增加静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_startup_diagnostics.py`：用 AST 核对 `startup_check.py` 每个 `_check(...)` 的名称、检查码、状态、文本长度（按桌面 UTF-16 码元计数）与控制字符，动态文本只允许来自已登记来源；核对 `_RUNTIME_OPTIONS`、`_DIAGNOSTICS`、`ModelConfigErrorCode` 与两条回退提示常量的一致性，并以文本片段核对桌面 `startupCheck.ts` 的解析防护与 `StartupCheckEntry` 协议字段。[Issue #2568](https://github.com/can4hou6joeng4/boss-harness/issues/2568)
+- 在临时副本分别注入超长建议、小写检查码、未登记动态来源、诊断码集合不一致、桌面上限收紧与协议状态字段漂移，脚本均以退出码 2 失败；复原后基线与仓库检查通过。`Source build` 与技术参考同步登记。全部检查通过。版本推进到 npm `0.2.0-rc.222` / Python `0.2.0rc222`。不执行发布动作。
+
 ## 0.2.0-rc.221 - 2026-11-19
 
 rc.221 源码候选修复自动回退提示中断自检的回归。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
