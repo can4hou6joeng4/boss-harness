@@ -1,3 +1,10 @@
+## 0.2.0-rc.344 - 2026-11-20
+
+rc.344 源码候选补齐桌面持续工作的用户文档。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- README 能力表新增「在桌面里持续工作」，概括窗口状态恢复、渲染进程崩溃后的有限自动重载与诊断页、后台审批与较久回合通知；桌面交互指南的「界面偏好与恢复」补窗口状态说明，包括保存时机、最小可见判定、工作区收敛与损坏状态整体忽略。修复 Issue [#2813](https://github.com/can4hou6joeng4/boss-harness/issues/2813)。
+- 不改变运行时行为；版本推进到 npm `0.2.0-rc.344` / Python `0.2.0rc344`，不执行发布动作。
+
 ## 0.2.0-rc.343 - 2026-11-20
 
 rc.343 源码候选为跨包共享的时间、截断与定位工具补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
