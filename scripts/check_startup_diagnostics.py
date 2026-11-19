@@ -386,6 +386,21 @@ def _function_source(tree: ast.Module, source: str, name: str) -> str:
     return ast.get_source_segment(source, function) or ""
 
 
+def _repo_walk(tree: ast.Module, source: str) -> int:
+    """仓库归属按目标目录自身判断：工作目录在哪里不影响「位于仓库内」的结论。"""
+    expectations = (
+        ("_state_check", "_git_root(state_dir.resolve())"),
+        ("_cli_check", "_git_root(Path(data_dir).resolve())"),
+    )
+    for name, fragment in expectations:
+        segment = _function_source(tree, source, name)
+        if fragment not in segment:
+            raise ValueError(f"{name} 必须从目标目录自身向上查找仓库：缺少 {fragment}")
+        if "Path.cwd()" in segment:
+            raise ValueError(f"{name} 不得按当前工作目录判断仓库归属")
+    return len(expectations)
+
+
 def _warning_order(tree: ast.Module, source: str) -> int:
     """警告优先级写在使用指南里：更根本的问题先报，避免次要警告掩盖主因。"""
     checks = (
@@ -686,6 +701,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _hint_constants(startup_tree, limit)
     checked += _text_output(startup_tree, startup, limit)
     checked += _warning_order(startup_tree, startup)
+    checked += _repo_walk(startup_tree, startup)
     checked += _diagnostics(config_tree, limit)
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide, _read(SETUP_GUIDE))

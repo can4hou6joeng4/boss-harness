@@ -1,3 +1,10 @@
+## 0.2.0-rc.268 - 2026-11-19
+
+rc.268 源码候选让 `--check` 从被检查目录自身判断仓库归属。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `STATE_DIRECTORY_IN_REPO` 与 `BOSS_CLI_DATA_DIR_IN_REPO` 改为从状态目录、业务 CLI 数据目录各自向上查找 Git 仓库，工作目录在哪里不影响结论，提示文字改为「位于 Git 仓库内」。此前两项检查都只看当前工作目录所在的仓库：从仓库外启动自检、把 `--state-dir` 或 `BOSS_CLI_DATA_DIR` 指向另一个仓库内的目录时，两项都报通过，会话记录、工具结果、附件与登录态可能被提交进那个仓库而没有任何提示。[Issue #2660](https://github.com/can4hou6joeng4/boss-harness/issues/2660)
+- `check_startup_diagnostics.py` 新增 2 项仓库归属守卫：两处检查都必须从目标目录自身向上查找，出现按当前工作目录判断的写法即以非零退出码失败。八例子进程探针（四种位置组合 × 状态目录与数据目录）对比 rc.267 源码：目标在另一仓库内的两例改为警告，其余六例一致。全部检查通过。版本推进到 npm `0.2.0-rc.268` / Python `0.2.0rc268`。不执行发布动作。
+
 ## 0.2.0-rc.267 - 2026-11-19
 
 rc.267 源码候选按优先级选择首个非空模型值。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
