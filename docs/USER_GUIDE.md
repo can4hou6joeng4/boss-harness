@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.254` / Python `0.2.0rc254` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.255` / Python `0.2.0rc255` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -94,7 +94,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 | 检查项 | 固定检查码 | 检查范围与限制 |
 | --- | --- | --- |
 | 模型配置 | `MODEL_CONFIG_VALID` / `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` / `MODEL_CONFIG_INVALID` / `MODEL_CONFIG_INCOMPLETE` / `MODEL_SDK_UNAVAILABLE` / `MODEL_ENDPOINT_INSECURE` / `MODEL_EFFORT_UNSUPPORTED` / `MODEL_THINKING_IGNORED`，以及下表的具体错误码 | 只复用本地解析，不构造 SDK 或发起请求；缺少必需配置、文件损坏、非正输出上限或默认线路缺少模型 SDK 记为错误，显式 `none` 与自动回退分别记为禁用模型、未配置模型警告。显式 `http://` 且非本机回环的模型端点记为警告，说明凭据可能明文传输，不输出端点；显式推理强度不在内核支持的七档内、或与 `BOSS_HARNESS_MODEL_LIMITS` 为该模型声明的非空 `reasoningEfforts` 不符，或 Anthropic 线路的思考模式取值会被忽略时同样记为警告，不输出原值或声明内容。缺失 SDK 的检查只发现包，不导入或核对版本。禁用模型的处理建议是改用具体 provider 重新启动；自动回退只影响默认线路，不阻止其他已配置线路在会话内选用。 |
-| 业务 CLI | `BOSS_CLI_FOUND` / `BOSS_CLI_UNAVAILABLE` / `BOSS_CLI_BIN_IGNORED` / `BOSS_CLI_DATA_DIR_OVERLAP` | 只发现可执行文件，不执行 `boss schema`、版本查询、登录或任何工具；未发现可执行文件记为警告，文件存在不证明 CLI 能正常运行。`BOSS_CLI_BIN` 显式设置但不可执行、回退到其他来源时也记为警告，只说明改用其他来源，不输出实际路径。设置了 `BOSS_CLI_DATA_DIR` 且与内核状态目录解析后相同或互相包含时同样记为警告，只读核对路径、不创建目录；两者应分别配置。 |
+| 业务 CLI | `BOSS_CLI_FOUND` / `BOSS_CLI_UNAVAILABLE` / `BOSS_CLI_BIN_IGNORED` / `BOSS_CLI_DATA_DIR_OVERLAP` / `BOSS_CLI_DATA_DIR_IN_REPO` | 只发现可执行文件，不执行 `boss schema`、版本查询、登录或任何工具；未发现可执行文件记为警告，文件存在不证明 CLI 能正常运行。`BOSS_CLI_BIN` 显式设置但不可执行、回退到其他来源时也记为警告，只说明改用其他来源，不输出实际路径。设置了 `BOSS_CLI_DATA_DIR` 且与内核状态目录解析后相同或互相包含时同样记为警告，只读核对路径、不创建目录；两者应分别配置。数据目录解析后等于或位于当前 git 工作区内时也记为警告，建议移到仓库外，避免登录态与平台缓存被提交；以 `~` 开头的值不展开、不参与该判断。 |
 | 浏览器来源 | `BROWSER_SOURCE_VALID` / `BROWSER_SOURCE_INVALID` | 只校验 `BOSS_HARNESS_BROWSER_SOURCE` 的取值，不读取浏览器或 Cookie，也不验证上游是否支持该选项。 |
 | 状态目录 | `STATE_DIRECTORY_VALID` / `STATE_DIRECTORY_TILDE` / `STATE_DIRECTORY_LOW_SPACE` / `LEGACY_STATE_ENV_PRESENT` 及下文的目录错误码 | 只读核对实际状态路径的目录类型、所有权、父目录与 ACL 安全规则，以及基本访问条件；缺失路径只核对已有父目录，不创建或试写。环境变量值以 `~` 开头且实际使用的就是该字面路径时记为警告，说明不会展开并建议改用绝对路径；旧变量 `BOSS_CLI_HARNESS_DIR` 显式非空时，在路径条件通过的前提下记为警告并建议迁移。路径与旧变量检查都通过后，还会读取状态目录或最近存在祖先所在文件系统的剩余空间，低于 512 MiB 时记为警告并建议释放空间，不输出本机路径或确切字节，也不阻止启动。 |
 | 运行参数 | `RUNTIME_OPTIONS_VALID` / `APPROVAL_TIMEOUT_DEFAULTED` / `RETRY_CONFIG_DEFAULTED` 及下文的运行参数错误码 | 复用正常启动的解析，校验转向模式、模型请求上限、附件存储上限、模型容量与自动压缩环境变量的格式和取值；审批期限显式无效、模型重试配置显式无效或越界时记为警告并说明实际处理方式，不读取状态目录中的持久设置。 |
