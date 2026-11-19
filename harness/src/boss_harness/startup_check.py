@@ -291,7 +291,8 @@ def render_text(report: dict[str, Any]) -> str:
     errors = sum(check["status"] == "error" for check in checks)
     warnings = sum(check["status"] == "warning" for check in checks)
     if errors:
-        conclusion = f"发现 {errors} 个错误"
+        # 错误优先修正，但警告同样是回退线索；结论行要与逐项状态一致。
+        conclusion = f"发现 {errors} 个错误" + (f"、{warnings} 项警告" if warnings else "")
     elif warnings:
         conclusion = f"通过，{warnings} 项警告"
     else:
