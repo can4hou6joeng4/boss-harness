@@ -315,6 +315,18 @@ def _state_check(state_dir: Path) -> dict[str, str]:
             "stateDirectory", "error", "STATE_DIRECTORY_INVALID", "状态路径或目录安全条件不符合内核要求。",
             "使用当前用户拥有的独立目录，避免根目录及允许他人修改的父目录或 ACL；不要放宽权限。",
         )
+    # 会话、工具结果与附件不应位于可被提交的仓库；先于其他警告报告，路径不输出。
+    try:
+        workspace = _git_root(Path.cwd().resolve())
+        resolved = state_dir.resolve()
+        inside = workspace is not None and (resolved == workspace or resolved.is_relative_to(workspace))
+    except (OSError, RuntimeError):
+        inside = False
+    if inside:
+        return _check(
+            "stateDirectory", "warning", "STATE_DIRECTORY_IN_REPO", "状态目录位于当前仓库内。",
+            "将 --state-dir 或 BOSS_HARNESS_DIR 移到仓库外；会话记录、工具结果与附件不应进入可能被提交的目录。",
+        )
     # 内核不展开 ~：只看实际使用的路径，来自 --state-dir 或环境变量都提示；
     # 显式 --state-dir 指向别处时，残留的环境变量不误报。
     if str(state_dir).strip().startswith("~"):

@@ -1,3 +1,10 @@
+## 0.2.0-rc.261 - 2026-11-19
+
+rc.261 源码候选让本地配置自检提示状态目录位于仓库内。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 状态目录路径条件通过，且解析后等于或位于当前 git 工作区内时，`stateDirectory` 检查返回警告 `STATE_DIRECTORY_IN_REPO`，建议把 `--state-dir` 或 `BOSS_HARNESS_DIR` 移到仓库外；只读路径、不输出实际路径，警告不阻止启动。此前自检报通过，会话记录、工具结果与附件落在仓库中不会提示。路径条件失败时既有错误码仍优先；多个状态目录警告同时成立时按 `STATE_DIRECTORY_IN_REPO`、`STATE_DIRECTORY_TILDE`、`LEGACY_STATE_ENV_PRESENT`、`STATE_DIRECTORY_LOW_SPACE` 的顺序只报一个，因此仓库内的字面 `~` 路径与旧变量指向仓库内的情况现在先报本警告。[Issue #2646](https://github.com/can4hou6joeng4/boss-harness/issues/2646)
+- `check_startup_diagnostics.py` 的警告顺序守卫新增上述三组先后关系；`SETUP.md` 检查结果表与使用指南同步。十一例子进程探针对比 rc.260 源码：仓库内绝对路径、相对路径、等于仓库根、子目录启动、环境变量指向仓库内由通过变为警告，仓库内字面 `~` 与旧变量两例改报本警告；仓库外、非 git 目录（含字面 `~`）与路径条件失败四例结果一致；自检未创建目录、输出不含实际路径。全部检查通过。版本推进到 npm `0.2.0-rc.261` / Python `0.2.0rc261`。不执行发布动作。
+
 ## 0.2.0-rc.260 - 2026-11-19
 
 rc.260 源码候选让本地配置自检对 `--state-dir` 中的字面 `~` 也给出提示。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

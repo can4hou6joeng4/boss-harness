@@ -383,6 +383,9 @@ def _warning_order(tree: ast.Module, source: str) -> int:
     checks = (
         ("_runtime_check", "APPROVAL_TIMEOUT_DEFAULTED", "RETRY_CONFIG_DEFAULTED"),
         ("_cli_check", "BOSS_CLI_UNAVAILABLE", "BOSS_CLI_BIN_IGNORED"),
+        ("_state_check", "STATE_DIRECTORY_IN_REPO", "STATE_DIRECTORY_TILDE"),
+        ("_state_check", "STATE_DIRECTORY_TILDE", "LEGACY_STATE_ENV_PRESENT"),
+        ("_state_check", "LEGACY_STATE_ENV_PRESENT", "STATE_DIRECTORY_LOW_SPACE"),
     )
     for name, first, second in checks:
         segment = _function_source(tree, source, name)
