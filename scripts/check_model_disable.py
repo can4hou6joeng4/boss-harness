@@ -239,6 +239,7 @@ def check_model_disable() -> tuple[int, int]:
     guards += _expect((
         'environ["BOSS_HARNESS_MODEL"] = requested_model',
         'resolve_config(environ=environ, provider="openai")',
+        "except Exception:",
         "return _UNCONFIGURED_HINT",
         "return _OPENAI_AVAILABLE_HINT",
     ), _function(startup_tree, startup, "_unconfigured_hint"), "_unconfigured_hint")
