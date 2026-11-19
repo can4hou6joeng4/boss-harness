@@ -11,8 +11,14 @@ from boss_harness import __version__
 from boss_harness.application import ApplicationService as Harness, _approval_timeout
 from boss_harness.models import DEFAULT_MODEL, ModelConfig, build_provider, resolve_config
 from boss_harness.models.config_errors import ModelConfigError
+from boss_harness.models.secret import redact_secrets
 from boss_harness.rpc import JsonRpcServer, describe_failure
 from boss_harness.tools.boss_cli import resolve_browser_source_override
+
+def _failure_text(exc: Exception) -> str:
+    """stderr 常被原样贴进 Issue：本地文件错误不带路径，其余文本抹掉凭据形态。"""
+    return redact_secrets(describe_failure(exc))
+
 
 def _default_state_dir() -> Path:
     """内核状态目录：新变量优先，旧变量其次，最后按目录存在性选择默认位置。"""
@@ -96,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(repair_index(Path(args.state_dir)), ensure_ascii=False))
             return 0
         except Exception as exc:
-            print(f"[harness] 索引修复失败：{describe_failure(exc)}", file=sys.stderr)
+            print(f"[harness] 索引修复失败：{_failure_text(exc)}", file=sys.stderr)
             return 2
 
     if args.listen != "stdio://":
@@ -117,14 +123,14 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001
         # 这里只包住「配置解析 + 构造 provider」两件事，所以宽捕获是安全的：任何失败都意味着
         # 模型线路起不来（缺凭据、缺端点、SDK 拒绝无凭据构造等），应当给出可读信息并以 2 退出。
-        print(f"[harness] 模型配置不可用（{type(exc).__name__}）：{exc}", file=sys.stderr)
+        print(f"[harness] 模型配置不可用（{type(exc).__name__}）：{_failure_text(exc)}", file=sys.stderr)
         return 2
     # 浏览器来源同样是进程级配置：在入口处校验，错误才能点名变量与可选值。留到工具桥
     # 构造时才失败会被 `_new_bridge` 统一包装成「工具桥工厂无法创建实例」，用户无从排查。
     try:
         resolve_browser_source_override()
     except ValueError as exc:
-        print(f"[harness] 浏览器来源配置不可用（{type(exc).__name__}）：{exc}", file=sys.stderr)
+        print(f"[harness] 浏览器来源配置不可用（{type(exc).__name__}）：{_failure_text(exc)}", file=sys.stderr)
         return 2
     server = JsonRpcServer()
     # 显式 none 是进程级开关：不列出其他线路、不解析摘要线路，整个进程不构造模型传输。
@@ -136,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
         harness = Harness(server, Path(args.state_dir), config, provider, provider_factory=build_provider,
                           model_calls_disabled=model_calls_disabled)
     except (OSError, ValueError) as exc:
-        print(f"[harness] 启动失败（{type(exc).__name__}）：{describe_failure(exc)}", file=sys.stderr)
+        print(f"[harness] 启动失败（{type(exc).__name__}）：{_failure_text(exc)}", file=sys.stderr)
         # 固定文字，不带路径或取值：自检不联网、不写入，能把同一条件映射为检查码与处理建议。
         print("[harness] 可用相同参数与环境运行 boss-harness --check，查看本地条件的检查码与处理建议。",
               file=sys.stderr)
