@@ -65,7 +65,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy) |
-| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy) |
+| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy) |
 | 关闭与中止 | [`check_shutdown.py`](#check_shutdownpy)、[`check_bridge_lifecycle.py`](#check_bridge_lifecyclepy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_snippet.py`](#check_search_snippetpy) |
@@ -224,6 +224,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_snapshot_store.py`
 
 `scripts/check_snapshot_store.py` 核对冻结快照的预算、发布与读取边界：`snapshot_store.py` 的十条预算常量；快照库文本的 `utf-8` 宽容解码、条目载荷与 id 的损坏校验；单条记录 32 MiB 与源文件 1 GiB 上限；构建器的私有建库、`max_page_count` 余量、条目与队列共享的内容预算、重复 id 保留首条与先保存修订目标再清理载荷；构建取消每 128 行、叶过滤、磁盘预算与悬空编辑拒绝；临时 `.building` 文件完成后 `os.replace`、收紧权限并同步父目录，成功后登记缓存与 TTL，失败清理临时与最终文件；读取的视图 / 游标 / 载荷预算 / 编辑状态校验；叶失效墓碑与缓存淘汰；关闭时失效在途构建并清理残留文件。反向断言禁止严格 `utf-8` 解码、裸 `unlink`、`shutil.rmtree` / `os.remove` 与 NaN 序列化；同时核对技术参考与使用指南的快照口径。脚本只扫描源码，不证明运行时快照已落盘。
+
+### `check_ownership.py`
+
+`scripts/check_ownership.py` 核对状态目录独占锁的获取、释放与失败顺序：`ownership.py` 必须先解析并创建私有目录，再以私有描述符打开 `.owner.lock`，使用非阻塞独占 `flock`；拿不到锁与其它文件错误都必须先释放描述符，再分别以固定可读的 `EWOULDBLOCK` 说明或原异常上报；`close()` 必须先清空字段再按局部变量关闭描述符，`__del__` 复用同一关闭路径，重复关闭不会触碰同一描述符。反向断言禁止删除锁文件、改用共享锁或无限期等待；同时核对技术参考与使用指南的占用锁口径。脚本只扫描源码，不证明运行时锁已生效。
 
 ### `check_maintenance.py`
 

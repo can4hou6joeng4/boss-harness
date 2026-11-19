@@ -1,3 +1,10 @@
+## 0.2.0-rc.314 - 2026-11-20
+
+rc.314 源码候选为状态目录独占锁补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_ownership.py`：固定 `.owner.lock` 的非阻塞独占 `flock`、两种失败分支先释放描述符再上报、固定 `EWOULDBLOCK` 说明、`close()` 先清字段再关描述符与 `__del__` 幂等复用；反向断言禁止删除锁文件、共享锁与无限期等待。修复 Issue [#2753](https://github.com/can4hou6joeng4/boss-harness/issues/2753)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 42 个。版本推进到 npm `0.2.0-rc.314` / Python `0.2.0rc314`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.313 - 2026-11-20
 
 rc.313 源码候选为冻结快照存储补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
