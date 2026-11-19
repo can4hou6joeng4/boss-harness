@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.271` / Python `0.2.0rc271` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.272` / Python `0.2.0rc272` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -186,7 +186,7 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 
 桌面根据内核通知显示重试等待与结束状态；兼容路径缺少回合状态时仍保留等待提示，收到明确中断时显示「已停止」，不会把缺省状态当成重试已结束。自动重试策略不变。
 
-表中标为「使用默认值」或「收敛」的三项不会让启动失败，也不在[本地配置自检](#本地配置自检)的范围内：配置看似未生效时，请先核对取值是否符合上表。模型线路与凭据见[模型配置来源](#模型配置来源)，请求期限见[单次模型请求期限](#单次模型请求期限)，浏览器来源与两类状态目录见[上游 CLI 设置](#上游-cli-设置)；模型容量 `BOSS_HARNESS_MODEL_LIMITS` 与自动压缩 `BOSS_HARNESS_COMPACTION` 的 JSON 格式分别见技术参考的[模型容量与请求预算](TECHNICAL_REFERENCE.md#模型容量与请求预算)和[自动压缩与溢出恢复](TECHNICAL_REFERENCE.md#自动压缩与溢出恢复)。
+审批期限与两项重试配置的无效取值不会让启动失败，自检以 `APPROVAL_TIMEOUT_DEFAULTED` 或 `RETRY_CONFIG_DEFAULTED` 警告说明已回退或收敛；配置看似未生效时，请先核对取值是否符合上表。模型线路与凭据见[模型配置来源](#模型配置来源)，请求期限见[单次模型请求期限](#单次模型请求期限)，浏览器来源与两类状态目录见[上游 CLI 设置](#上游-cli-设置)；模型容量 `BOSS_HARNESS_MODEL_LIMITS` 与自动压缩 `BOSS_HARNESS_COMPACTION` 的 JSON 格式分别见技术参考的[模型容量与请求预算](TECHNICAL_REFERENCE.md#模型容量与请求预算)和[自动压缩与溢出恢复](TECHNICAL_REFERENCE.md#自动压缩与溢出恢复)。
 
 ## 聊天链接与代码
 
