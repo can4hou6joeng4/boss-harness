@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { PROTOCOL_VERSION, type ConnectionCheck, type ConnectionReport, type ConnectionTarget, type PlatformLoginStatus, type StartupDiagnosis } from "@boss-harness/protocol";
 import { harnessErrorText, connectionReport, harnessStatus, reconnectHarness } from "../data/harnessBridge";
-import { connectionNoticeParts, connectionViewOf, mergeConnectionView, startupCheckRows, startupDiagnostics,
-  startupDiagnosisOf, startupProtocolMismatch, startupReportMeta, startupUnavailableText, type ConnectionView } from "../data/connectionNotice";
+import { connectionNoticeParts, connectionViewOf, mergeConnectionView, startupCheckRows, startupConclusion,
+  startupDiagnostics, startupDiagnosisOf, startupProtocolMismatch, startupReportMeta, startupUnavailableText,
+  type ConnectionView } from "../data/connectionNotice";
 import { modelServiceDescription } from "../data/connectionReport";
 import { useClipboardCopy } from "../data/clipboardCopy";
 import { loginActive, loginSettled, platformLoginStatusOf } from "../data/platformLoginState";
-import { formatIsoClock } from "../data/timeFormat";
+import { formatIsoClock, formatLocalClock } from "../data/timeFormat";
 
 // `disabled` 表示这一项未启用（默认模型线路为 none，或工具组合未启用平台能力），不是离线：
 // 未启用模型时招聘 CLI 仍可运行并可能访问平台。
@@ -31,6 +32,7 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
   const [reconnecting, setReconnecting] = useState(false);
   const [reconnectError, setReconnectError] = useState("");
   const [manualDiagnosis, setManualDiagnosis] = useState<StartupDiagnosis | undefined>(undefined);
+  const [manualCheckedAt, setManualCheckedAt] = useState<Date | undefined>(undefined);
   const [manualChecking, setManualChecking] = useState(false);
   const clipboard = useClipboardCopy();
   const mounted = useRef(true);
@@ -139,15 +141,18 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
     if (!window.boss?.runStartupCheck || manualChecking) return;
     const run = ++manualRun.current;
     setManualChecking(true);
+    // 结果到达时才记录本机时刻；失败与不可用同样算一次运行，旧时间不冒充新结果。
+    const settle = (diagnosis: StartupDiagnosis): void => {
+      if (!mounted.current || run !== manualRun.current) return;
+      setManualDiagnosis(diagnosis);
+      setManualCheckedAt(new Date());
+    };
     void window.boss.runStartupCheck()
       .then(value => {
-        if (!mounted.current || run !== manualRun.current) return;
         // 主进程已按固定字段校验；渲染层再确认形状，畸形回执按无法识别处理。
-        setManualDiagnosis(startupDiagnosisOf(value) ?? { kind: "unavailable", reason: "invalid" });
+        settle(startupDiagnosisOf(value) ?? { kind: "unavailable", reason: "invalid" });
       })
-      .catch(() => {
-        if (mounted.current && run === manualRun.current) setManualDiagnosis({ kind: "unavailable", reason: "spawn" });
-      })
+      .catch(() => { settle({ kind: "unavailable", reason: "spawn" }); })
       .finally(() => {
         if (mounted.current && run === manualRun.current) setManualChecking(false);
       });
@@ -156,11 +161,16 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
   const manualMeta = startupReportMeta(manualDiagnosis);
   const manualMismatch = startupProtocolMismatch(manualDiagnosis, PROTOCOL_VERSION);
   const manualUnavailable = startupUnavailableText(manualDiagnosis);
-  useEffect(() => { clipboard.reset(); }, [manualDiagnosis, clipboard.reset]);
+  const manualConclusion = startupConclusion(manualDiagnosis);
+  const manualClock = manualCheckedAt ? formatLocalClock(manualCheckedAt) : "";
+  useEffect(() => { clipboard.reset(); }, [manualDiagnosis, manualCheckedAt, clipboard.reset]);
   const copyManual = (): void => {
     if (!manualDiagnosis) return;
+    const when = manualClock ? `（${manualClock}）` : "";
+    const verdict = manualConclusion ? `：${manualConclusion}` : "";
     void clipboard.copy(startupDiagnostics(
-      { headline: "手动运行的本地配置自检。", diagnosis: "", recovery: "" }, manualDiagnosis, manualMeta, manualMismatch,
+      { headline: `手动运行的本地配置自检${when}${verdict}。`, diagnosis: manualUnavailable, recovery: "" },
+      manualDiagnosis, manualMeta, manualMismatch,
     ), "manual-startup-diagnostics");
   };
   const canReconnect = !harnessUp && Boolean(window.boss) && connection?.state === "disconnected";
@@ -209,6 +219,9 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
       <div className="settings-row-copy">
         <div className="settings-row-title">本地配置自检</div>
         <p className="settings-row-description">随时核对模型配置、业务 CLI、浏览器来源、状态目录与运行参数；只读取本地配置，不调用模型、不运行招聘 CLI、不访问招聘平台。与启动失败时的自检使用同一解释器、工作目录与环境。</p>
+        {(manualConclusion || manualClock) && <p className="settings-row-description" role="status">
+          {[manualConclusion ? `自检结论：${manualConclusion}` : "", manualClock ? `运行于 ${manualClock}` : ""].filter(Boolean).join("；")}
+        </p>}
         {manualMeta && <p className="settings-row-description">自检报告：{manualMeta}</p>}
         {manualMismatch && <p className="settings-row-description connection-startup-warning" role="alert">{manualMismatch}</p>}
         {manualUnavailable && <p className="settings-row-description" role="status">{manualUnavailable}</p>}
