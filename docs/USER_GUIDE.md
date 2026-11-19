@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.217` / Python `0.2.0rc217` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.218` / Python `0.2.0rc218` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -66,7 +66,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 选择 `none` 时（显式 `--provider none`、`BOSS_HARNESS_PROVIDER=none` 或没有可用凭据时自动回退），内核不读取模型名与推理档位：握手、`config/read`、`model/list` 与新建会话统一使用 `none · none`，设置 `BOSS_HARNESS_MODEL` 或 `BOSS_HARNESS_EFFORT` 不会改变该线路，也不会发起模型请求。`none` 仍可调用招聘 CLI 与上游只读工具。桌面「设置 → 模型与连接」的「模型服务」卡片把这条默认线路标为「未启用」，并注明招聘 CLI 仍可运行、可能访问平台；它不表示离线。
 
-显式指定 `none` 与自动回退为 `none` 的含义不同。显式指定（`--provider none`，或未传 `--provider` 时 `BOSS_HARNESS_PROVIDER=none`）是进程级开关：整个进程不构造模型传输，`model/list` 只会列出 `none · none`，不能在会话里改选其他线路；记录在真实线路上的旧会话在本进程内读上下文、发回合或续接都会被拒绝并说明原因，切到 `none` 线路后仍可使用只读指令，摘要线路（含另配的 `BOSS_HARNESS_COMPACTION` 摘要 provider）同样不可用，`summaryAvailable` 为 `false`。需要模型时改用具体 provider 重新启动，旧会话在对应线路进程内保持可用。自动回退只是没有默认线路：没有可用凭据时进程默认落在 `none · none`，环境中另已配置的线路仍会出现在 `model/list`，可在会话里选用。桌面只经环境变量传线路，因此桌面启动要以具体 provider 运行才能获得其他可选线路。握手与 `config/read` 都返回 `modelCallsDisabled` 字段：显式指定时为 `true`，自动回退与真实默认线路为 `false`。桌面模型菜单在 `none · none` 选项之后说明显式禁用及恢复方式，「运行状态」概览的「模型调用」也会显示进程级状态。菜单没有可用线路且未显式禁用时，提示「没有可用的本机模型线路」。
+显式指定 `none` 与自动回退为 `none` 的含义不同。显式指定（`--provider none`，或未传 `--provider` 时 `BOSS_HARNESS_PROVIDER=none`）是进程级开关：整个进程不构造模型传输，`model/list` 只会列出 `none · none`，不能在会话里改选其他线路；记录在真实线路上的旧会话在本进程内读上下文、发回合、续接或添加新的排队消息都会被拒绝并说明原因，切到 `none` 线路后仍可使用只读指令，摘要线路（含另配的 `BOSS_HARNESS_COMPACTION` 摘要 provider）同样不可用，`summaryAvailable` 为 `false`。需要模型时改用具体 provider 重新启动，旧会话在对应线路进程内保持可用。自动回退只是没有默认线路：没有可用凭据时进程默认落在 `none · none`，环境中另已配置的线路仍会出现在 `model/list`，可在会话里选用。桌面只经环境变量传线路，因此桌面启动要以具体 provider 运行才能获得其他可选线路。握手与 `config/read` 都返回 `modelCallsDisabled` 字段：显式指定时为 `true`，自动回退与真实默认线路为 `false`。桌面模型菜单在 `none · none` 选项之后说明显式禁用及恢复方式，「运行状态」概览的「模型调用」也会显示进程级状态。菜单没有可用线路且未显式禁用时，提示「没有可用的本机模型线路」。
 
 「设置 → 模型与连接」的「模型服务」卡片在显式禁用时显示 `MODEL_DISABLED`，提示改用具体 provider 重新启动。报告尚未读取或内核只在握手中提供禁用标志时，卡片描述行也会给出提示。自动回退时状态为「默认模型线路不调用模型」。这两种情况下「测试模型」均不可用。
 

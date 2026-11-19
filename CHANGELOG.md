@@ -1,3 +1,10 @@
+## 0.2.0-rc.218 - 2026-11-19
+
+rc.218 源码候选让线路不可用时的排队消息当场拒绝。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `queue/add` 为新建队列项解析会话线路，与 `turn/start` 共用同一校验：显式 `none` 下记录在真实线路上的旧会话、线路选择未定或线路不属于会话时，返回相同错误码与提示，不再先入队再以通用 `TURN_START_FAILED` 暂停。既有队列项的幂等返回与编辑、重试不变，`none` 线路会话仍可排队。[Issue #2560](https://github.com/can4hou6joeng4/boss-harness/issues/2560)
+- 以 rc.217 合并提交为基线，同一真实入口离线探针对比修改前后：基线入队后暂停且只有 `queue/updated`，改动后当场返回 `MODEL_PROVIDER_UNAVAILABLE`、队列为空、无通知；`none` 线路会话与重复请求的幂等路径两种源码一致。全部检查通过。版本推进到 npm `0.2.0-rc.218` / Python `0.2.0rc218`。不执行发布动作。
+
 ## 0.2.0-rc.217 - 2026-11-19
 
 rc.217 源码候选补齐首次试跑和启动故障诊断的步骤。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
