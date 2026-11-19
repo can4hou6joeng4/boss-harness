@@ -836,6 +836,26 @@ def _check_python_interpreter() -> int:
     return len(fragments) + 2
 
 
+def _check_provider_override() -> int:
+    """线路覆盖值与内核同口径：空白变量按未设置，回退桌面默认 openai。"""
+    shared = (ROOT / SHARED_INDEX).read_text(encoding="utf-8")
+    fragments = (
+        "export function chooseProviderOverride(configured: string | undefined): string {",
+        'const trimmed = (configured ?? "").trim();',
+        'return trimmed || "openai";',
+    )
+    missing = [fragment for fragment in fragments if fragment not in shared]
+    if missing:
+        raise ValueError("packages/shared 缺少空白线路回退：" + "、".join(missing))
+    text = _main_text("harness.ts")
+    usage = "chooseProviderOverride(process.env.BOSS_HARNESS_PROVIDER)"
+    if usage not in text:
+        raise ValueError("apps/desktop/src/main/harness.ts 必须经 chooseProviderOverride 选择线路")
+    if "process.env.BOSS_HARNESS_PROVIDER ??" in text:
+        raise ValueError("apps/desktop/src/main/harness.ts 不得用 ?? 直接读取 BOSS_HARNESS_PROVIDER")
+    return len(fragments) + 2
+
+
 def check_desktop_security() -> tuple[int, int, int]:
     checked = 0
     for name, expected in EXPECTED.items():
@@ -865,10 +885,11 @@ def check_desktop_security() -> tuple[int, int, int]:
     origins = _check_origin_policies()
     startup_check = _check_startup_check_target()
     interpreter = _check_python_interpreter()
+    provider = _check_provider_override()
     return (len(EXPECTED), checked,
             allowlist + handlers + navigation + external + preload + exposure + imports
             + boundaries + spawn + exec_guard + export + ipc + literals + boundary + restore
-            + csp + bootstrap + embed + trusted + origins + startup_check + interpreter)
+            + csp + bootstrap + embed + trusted + origins + startup_check + interpreter + provider)
 
 
 def main() -> int:
