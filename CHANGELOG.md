@@ -1,3 +1,10 @@
+## 0.2.0-rc.325 - 2026-11-20
+
+rc.325 源码候选为模型重试配置与观测事件补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_retry.py`：固定 8 秒退避上限、默认 3 次与 500ms、1–10 次范围与空白 / 非整数 / 越界收敛；固定 Retry-After 优先且与指数退避同时封顶、毫秒头优先于秒头、空值与解析失败跳过；固定 `retry_start` / `retry_end` 的字段与失败 / 成功补发语义；反向断言禁止模块内睡眠、下标读取响应头与事件夹带内容。修复 Issue [#2775](https://github.com/can4hou6joeng4/boss-harness/issues/2775)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 53 个。版本推进到 npm `0.2.0-rc.325` / Python `0.2.0rc325`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.324 - 2026-11-20
 
 rc.324 源码候选为 Codex 本地配置读数补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

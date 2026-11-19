@@ -62,7 +62,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
-| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy) |
+| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_secret.py`](#check_secretpy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
@@ -260,6 +260,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_codex_config.py`
 
 `scripts/check_codex_config.py` 核对 Codex 配置的路径优先级、严格错误与 profile 解析：`codex_config.py` 只读 `~/.codex/config.toml`，路径按显式入参、`BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 与默认路径依次选择；`strict` 只让实际需要的文件错误明确失败，非普通文件、不可读与 TOML 语法错误分别使用固定码且不回显配置原文，Python 3.10 缺 `tomllib` 时以 `MODEL_CODEX_TOML_UNAVAILABLE` 报错；profile 必须同时具备模型、provider 与端点，`wire_api` 先去空白转小写、缺省或空值使用 `responses`，其他值以 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝；凭据必须用 `Secret` 包装，`env_key` 只记录变量名。反向断言禁止文本模式读取、任何写入与配置原文回显。同时核对使用指南与技术参考的路径、协议与只读口径。检查是常量与文本扫描，真实 TOML 解析仍需按平台核对。
+
+### `check_retry.py`
+
+`scripts/check_retry.py` 核对模型重试的退避上限、环境解析与观测事件边界：`retry.py` 的 8 秒上限、默认 3 次与 500ms、1–10 次范围；`retry_settings_from_environment` 必须先按空白回退默认值、再按整数解析，越界收敛并标记 `adjusted`，基数负数按 0；`retry_delay` 在网关给出 Retry-After 时夹到 0–8 秒，否则指数退避同样封顶；`retry_after_seconds` 优先 `retry-after-ms`（0.001）再 `retry-after`（1.0），跳过空值、解析失败继续、无值返回 None；`retry_start_event` 只带次数、毫秒与固定默认说明，`retry_aborted_before_attempt_event` 以 `aborted` 与固定中文说明收尾；`with_retry_outcome` 关闭来源流，首个非错误事件补成功、错误事件补失败并原样透传。反向断言禁止模块内睡眠、直接下标读取响应头与事件夹带内容。同时核对使用指南的重试配置口径。检查是常量与文本扫描，实际等待与取消行为仍需按回合执行器核对。
 
 ### `check_compaction.py`
 
