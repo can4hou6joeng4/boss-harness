@@ -8,6 +8,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from boss_harness import __version__
 from boss_harness.application import approval_timeout_from_environment, steering_mode_from_environment
@@ -63,6 +64,29 @@ def _module_available(name: str) -> bool:
         return importlib.util.find_spec(name) is not None
     except (ImportError, ValueError):
         return False
+
+
+_LOOPBACK_HOSTS = frozenset({"localhost", "::1"})
+
+
+def _is_loopback_host(host: str) -> bool:
+    normalized = host.rstrip(".").lower()
+    return normalized in _LOOPBACK_HOSTS or normalized.startswith("127.")
+
+
+def _insecure_base_url(base_url: str | None) -> bool:
+    """显式 http 且非本机回环的端点会在明文链路发送凭据；无 scheme 交给 SDK 判断。"""
+    if base_url is None:
+        return False
+    try:
+        parsed = urlparse(base_url.strip())
+        if parsed.scheme.lower() != "http":
+            return False
+        host = (parsed.hostname or "").rstrip(".").lower()
+    except ValueError:
+        # 畸形的 IPv6 字面量等解析失败时不猜测，交给 SDK 在真正建连时报错。
+        return False
+    return not _is_loopback_host(host)
 
 
 def _directories_overlap(left: Path, right: Path) -> bool:
@@ -123,6 +147,12 @@ def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str
         return _check(
             "model", "error", "MODEL_SDK_UNAVAILABLE", "缺少内核运行依赖 openai。",
             "按安装步骤安装内核依赖：uv pip install --python .venv/bin/python -e ./harness。",
+        )
+    # SDK 缺失是错误，优先报告；只有其余条件都通过时才提示明文端点风险。
+    if _insecure_base_url(config.base_url):
+        return _check(
+            "model", "warning", "MODEL_ENDPOINT_INSECURE", "模型端点未使用 HTTPS，凭据可能以明文传输。",
+            "改用 https 端点；本机回环地址不在警告范围，自检也不会验证网关链路。",
         )
     return _check(
         "model", "ok", "MODEL_CONFIG_VALID", "本地模型配置解析通过。",
