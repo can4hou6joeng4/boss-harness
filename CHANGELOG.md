@@ -1,3 +1,10 @@
+## 0.2.0-rc.321 - 2026-11-20
+
+rc.321 源码候选为 Anthropic 私有续接元数据补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_continuation.py`：固定 16 KiB 单项签名 / 96 KiB 签名合计 / 128 KiB 载荷 / 1 048 576 字符与 4096 块预算、前缀与内容 SHA-256、六字段精确匹配、调用 ID 连续前缀、助手引用与回合归属，拒绝被上下文编辑的助手消息与不可持久调用之后的内容；编码失败降级为普通工具批次。修复 Issue [#2767](https://github.com/can4hou6joeng4/boss-harness/issues/2767)。
+- 在技术参考补充续接元数据口径；接入 CI 的 Source build 与同名小节；检查脚本增至 49 个。版本推进到 npm `0.2.0-rc.321` / Python `0.2.0rc321`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.320 - 2026-11-20
 
 rc.320 源码候选为模型错误分类补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

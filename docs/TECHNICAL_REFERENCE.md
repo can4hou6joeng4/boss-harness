@@ -62,7 +62,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
-| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy) |
+| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
@@ -245,6 +245,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 `scripts/check_errors.py` 核对模型错误的溢出分类、重试提示与传输诊断边界：`errors.py` 的 provider code 字符集与 128 字符上限、配额 / 临时错误码集合、408/409/500/502/503/504 状态集合、LiteLLM 2048 与代理 512 字符上限、Anthropic prompt / llama.cpp / LiteLLM / 代理正文四条精确文本模式；溢出只接受 OpenAI 精确 `context_length_exceeded`、有界 llama.cpp 文本、HTTP 400 的有界 LiteLLM 窗口拒绝、Anthropic `invalid_request_error` 的有界 prompt 数字上限，以及 HTTP 413 的有界代理正文拒绝；配额耗尽必须不可重试，临时码与状态可重试，400/401/403 不可重试，其余 429 保持未知；传输诊断必须逐层去重遍历因果链、区分 getaddrinfo 命名空间、只输出白名单 errno 与固定中文标签。反向断言禁止宽松类型判定、`search` 代替完整匹配、放开 413 状态与异常原文。同时核对技术参考的溢出与重试口径。检查是常量与文本扫描，实际分类结果仍需按技术参考核对。
 
+### `check_continuation.py`
+
+`scripts/check_continuation.py` 核对 Anthropic 私有续接元数据的预算、构造与恢复校验：`continuation.py` 的四个预算常量与 `_anthropicContinuation` 字段名；前缀 digest 必须固定排序并紧凑编码后取 SHA-256；构造只保存文本 / 思考的长度与 SHA-256、签名或 redacted 数据引用与工具调用 ID，单项签名、签名合计、块数与载荷各自有界，redacted 块不得同时带签名或正文；恢复必须精确匹配六个字段与版本 / provider、64 位十六进制前缀与内容 digest、调用 ID 的连续前缀、助手引用与回合归属，拒绝被上下文编辑的助手消息与不可持久调用之后的内容，并逐块校验内容 digest；编码失败降级为普通工具批次，其余字段错配按固定说明拒绝。反向断言禁止 ASCII 转义、MD5/SHA-1 摘要与宽松字段比较。同时核对技术参考的续接元数据口径。检查是常量与文本扫描，真实签名校验仍需按 provider 行为核对。
+
 ### `check_compaction.py`
 
 `scripts/check_compaction.py` 核对自动压缩策略的校验、归一化与失败契约：`compaction.py` 的六个字段与 `anthropic` / `openai` / `codex` 白名单、布尔 / 1–100 / 1–1000000 的精确类型与范围、provider 归一化（codex → openai）、model 的非空 / 200 字符 / 无空白校验与 effort 档位校验；`verified_policy` 拒绝未知字段与空对象并按字段顺序过滤；`override` 只接受三个界面字段并保留摘要线路；`from_environment` 先去空白、再按 4096 字节与重复键钩子解析、拒绝未知字段，并以固定说明报错。反向断言禁止无钩子解析与错误回显原文；同时核对技术参考与使用指南的自动压缩口径。脚本只扫描源码，不运行配置解析。
@@ -378,6 +382,8 @@ token 数默认采用 `characters/2+message-overhead` 分类估算，不是供�
 `turn/interrupt` 和 `context/compact/abort` 返回的是取消请求确认，不表示 worker 或供应商连接已经退出。应用先设置相关取消信号，再异步分发业务与摘要各自的中止，慢 hook 不占用 RPC 处理线程或全局运行锁；中断自动摘要所属回合时，两者都先收到取消。重复取消及随后关闭共用同一次中止，实际完成状态以回合/摘要终态及收尾为准。直接嵌入使用 `TurnRunner.interrupt()` 的同步接口保持原有约定。
 
 内置 OpenAI Responses 与 Anthropic Messages provider 在交付失败事件前再次检查自身取消标志。若 `request_abort()` 已被观察，即使后台 producer 已结束且 EOF、SDK 或协议异常尚未被消费，交付的事件也统一为 `error / aborted` 与“请求已取消”，不附带 `errorInfo`；OpenAI 同时清除该失败的重试状态，不自动重发。未取消的 EOF、连接和协议失败仍保留原分类；已确认的正常完成消息、文本及私密思考续接数据保持原结果。此边界约束 provider 的失败交付，不改写此前已交付的终态，也不改变回合中断、worker 收尾及工具副作用的独立事实。
+
+Anthropic 的私有续接元数据只保存签名块描述：请求前缀 digest、块顺序、长度与内容 SHA-256；单个签名最多 16 KiB，签名合计最多 96 KiB，续接载荷最多 128 KiB，正文 / 思考各最多 1 048 576 字符且块最多 4096 个。恢复时逐块校验 digest、调用 ID、回合归属与助手引用；编码失败的签名元数据降级为普通工具批次，其余字段错配按固定说明拒绝。
 
 回合终态提交与取消接受使用同一运行锁边界。终态提交前已接受的取消以 `interrupted` 收尾，并暂停结算时已排入的后续队列；即使模型已经给出完成结果，也不会继续自动派发。已产生的文本、工具结果、审批及外部动作事实仍保留，取消不表示撤销。终态已提交并释放执行槽位后，若没有活动回合则返回未中断；旧 `turnId` 不能中断新回合。桌面停止请求携带界面正在展示的回合 id，该回合已被后续回合替代时以 `-32004` 拒绝且不取消新回合，与 `turn/steer` 的 `expectedTurnId` 同一约定；不带 `turnId` 时仍取消该会话当前活动回合（旧客户端行为）。显式 `turnId` 必须是非空、非纯空白、最多 128 字符的字符串；null、空字符串、数字、布尔值、数组或对象在设置取消信号前返回 `-32602`，闲置回合同样校验，不能退回取消当前回合。用户之后仍可显式发起新任务，已暂停的队列不会因此自动恢复。
 
