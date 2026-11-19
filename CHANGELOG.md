@@ -1,3 +1,10 @@
+## 0.2.0-rc.327 - 2026-11-20
+
+rc.327 源码候选为离线指令与默认领域提示补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_domain_tools.py`：固定七个只读指令的名称、工具与标题，`/search` 先拒绝空参数再调用 `boss_search`，`/candidates` 仅在有关键词时携带 `query`，以及业务 CLI 缺席与未配置模型两种降级文案；反向断言禁止把 `/search` 做成表项、指令表包含写工具或默认关键词。固定默认身份、`SYSTEM_PROMPT` 组合、14 个领域工具说明中的关键条目与审批 / 不自动重试 / 分页规则；`compose_system_prompt` 必须只替换身份、保留领域规则，并维持 16 KiB UTF-8 字节预算与控制字符拒绝。修复 Issue [#2779](https://github.com/can4hou6joeng4/boss-harness/issues/2779)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 55 个。版本推进到 npm `0.2.0-rc.327` / Python `0.2.0rc327`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.326 - 2026-11-20
 
 rc.326 源码候选为模型可见的结果读取工具补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

@@ -60,7 +60,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
-| 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
+| 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
@@ -130,6 +130,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_model_tools.py`
 
 `scripts/check_model_tools.py` 固定模型可见的结果读取工具：`model_tools.py` 的 `read_session_tool_result` 模式只接受 `itemId`（1–128 字符）、`sha256`（64 位小写十六进制）两个必需字段，以及有界 `cursor`（至多 2,048 字符）与 `limit`（引用 `MODEL_RESULT_READ_CHARS`），禁止额外字段；读取流程必须依次完成参数校验、按 thread 与 item 查找会话记录、缺失拒绝、只允许 `toolCall` 条目、规范化结果正文、按 `sha256` 与游标返回有界分段，整份载荷上限固定为 64 KiB，禁止把完整条目或全文直接回灌模型；错误映射必须按 `ItemLookupError`、`RpcError`、`ValueError` 的顺序收敛为固定码，`RpcError` 的 `currentRef` 必须透传，名称冲突守卫必须拒绝与内核工具同名的自定义工具。检查是文本扫描，运行时读取行为仍需按用户指南核对。
+
+### `check_domain_tools.py`
+
+`scripts/check_domain_tools.py` 固定离线指令与默认领域提示：`tools/commands.py` 的只读指令表必须恰为 `/tools`、`/status`、`/stats`、`/recommend`、`/jobs`、`/chat`、`/candidates` 七项并指向对应工具与标题，`/search` 必须保留独立分支、先拒绝空参数再调用 `boss_search`，`/candidates` 仅在有关键词时携带 `query`，业务 CLI 缺席与未配置模型两种降级文案保持不变；反向断言禁止把 `/search` 做成表项、禁止指令表包含写工具或默认关键词。`tools/recruitment.py` 必须保留默认身份、`SYSTEM_PROMPT` 组合、14 个领域工具说明中的关键条目，以及审批门禁、不自动重试与分页如实说明等规则；`compose_system_prompt` 只替换身份并保留全部领域规则，身份文本必须非空、按 UTF-8 字节不超过 16 KiB 且拒绝控制字符。检查是文本扫描，运行时提示效果仍需人工核对。
 
 ### `check_tool_results.py`
 
