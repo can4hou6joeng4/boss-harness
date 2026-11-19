@@ -27,6 +27,16 @@ export function compactionFields(draft: CompactionSettingDraft): AutoCompactionS
 }
 
 /**
+ * 保留目标不低于输入预算时，压缩后的上下文仍可能超出预算，通常没有更早的可压缩内容。
+ * 只用于界面提示，不改变内核的接受范围。
+ */
+export function keepTargetExceedsBudget(keepRecentTokens: number, inputBudget: number): boolean {
+  return Number.isSafeInteger(keepRecentTokens) && keepRecentTokens >= 1
+    && Number.isSafeInteger(inputBudget) && inputBudget > 0
+    && keepRecentTokens >= inputBudget;
+}
+
+/**
  * 比较两份自动压缩草稿：只有三个字段全部相同才算没有修改。
  * 设置页用最后一次成功读取或保存的值作为基线，关闭与切换分区前据此提示未保存修改。
  */
