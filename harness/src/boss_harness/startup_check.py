@@ -20,7 +20,7 @@ from boss_harness.private_files import check_private_directory
 from boss_harness.protocol import PROTOCOL_VERSION
 from boss_harness.resources import AttachmentStore
 from boss_harness.turn_limits import model_request_limit_from_environment
-from boss_harness.tools.boss_cli import binary_available, resolve_binary, resolve_browser_source_override
+from boss_harness.tools.boss_cli import BINARY_ENV, binary_available, resolve_binary, resolve_browser_source_override
 
 
 def _check(name: str, status: str, code: str, message: str, hint: str) -> dict[str, str]:
@@ -131,14 +131,21 @@ def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str
 
 
 def _cli_check(state_dir: Path) -> dict[str, str]:
+    choice = resolve_binary()
     try:
-        available = binary_available(resolve_binary().path)
+        available = binary_available(choice.path)
     except (OSError, ValueError):
         available = False
     if not available:
         return _check(
             "bossCli", "warning", "BOSS_CLI_UNAVAILABLE", "未发现可用的业务 CLI 可执行文件。",
             "安装 boss-agent-cli，核对 BOSS_CLI_BIN、并排虚拟环境或 PATH；同时检查文件执行权限。",
+        )
+    # 显式配置未被采用时启动仍会回退其他来源；只说明事实，不输出实际路径。
+    if (os.environ.get(BINARY_ENV) or "").strip() and choice.source != "env":
+        return _check(
+            "bossCli", "warning", "BOSS_CLI_BIN_IGNORED", "显式指定的业务 CLI 不可执行，已改用其他来源。",
+            "核对 BOSS_CLI_BIN 的路径与执行权限，或取消设置；自检不输出实际路径。",
         )
     # 上游登录状态与本项目会话分开配置；重叠时只警告，启动与工具调用本身不受影响。
     data_dir = (os.environ.get("BOSS_CLI_DATA_DIR") or "").strip()

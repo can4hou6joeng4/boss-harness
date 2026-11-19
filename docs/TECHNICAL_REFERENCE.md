@@ -423,7 +423,7 @@ Electron 运行时从官方源单独下载和校验，失败后需先恢复安�
 
 默认桌面模型为 OpenAI Responses，可由 `BOSS_HARNESS_PROVIDER` 选择 `openai`、`anthropic` 或 `none`。OpenAI 配置读取本地 Codex 配置或 `BOSS_HARNESS_OPENAI_*` 环境变量；Codex profile 的凭据支持 `experimental_bearer_token` 与 `env_key`（显式环境凭据优先于文件令牌，文件令牌优先于 `env_key`）。可用 Codex profile 的 `wire_api` 仅接受 `responses`，忽略大小写与首尾空白，缺省或空白使用该默认值；其他协议或非字符串在配置解析时以 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝，正常启动与 `--check` 均在请求前退出 `2`，不尝试其他协议。完整显式 OpenAI 配置仍跳过该文件。Anthropic 使用 `ANTHROPIC_*`。真实模型请求可能联网并产生费用。不要将凭据写入仓库或公开日志。
 
-工具可执行文件按 `BOSS_CLI_BIN`、并排 `boss-agent-cli/.venv/bin/boss`、PATH 的顺序查找；仅为目录、断链或不可执行的候选会被跳过；指向可执行文件的符号链接仍可使用。`BOSS_CLI_DATA_DIR` 是上游登录及平台状态目录，`BOSS_HARNESS_DIR` 是本项目的会话目录（默认 `~/.boss-harness/harness`；旧 `BOSS_CLI_HARNESS_DIR` 与 `~/.boss-cli/harness` 仍兼容读取），两者分别管理。业务 CLI 可执行文件存在时，`--check` 若发现两者解析后相同或互相包含，会以 `BOSS_CLI_DATA_DIR_OVERLAP` 警告；只读路径，不创建目录，也不执行 CLI。
+工具可执行文件按 `BOSS_CLI_BIN`、并排 `boss-agent-cli/.venv/bin/boss`、PATH 的顺序查找；仅为目录、断链或不可执行的候选会被跳过；指向可执行文件的符号链接仍可使用。显式设置 `BOSS_CLI_BIN` 却回退到其他来源时，`--check` 以 `BOSS_CLI_BIN_IGNORED` 警告说明实际未采用显式配置，不输出路径；最终没有可用 CLI 时仍报 `BOSS_CLI_UNAVAILABLE`。`BOSS_CLI_DATA_DIR` 是上游登录及平台状态目录，`BOSS_HARNESS_DIR` 是本项目的会话目录（默认 `~/.boss-harness/harness`；旧 `BOSS_CLI_HARNESS_DIR` 与 `~/.boss-cli/harness` 仍兼容读取），两者分别管理。业务 CLI 可执行文件存在时，`--check` 若发现两者解析后相同或互相包含，会以 `BOSS_CLI_DATA_DIR_OVERLAP` 警告；只读路径，不创建目录，也不执行 CLI。
 
 启动 Harness 或桌面应用前，可用 `BOSS_HARNESS_BROWSER_SOURCE` 覆盖业务 CLI 的浏览器来源：`auto`、`existing-browser` 或 `stored-cookie`；取值去除首尾空白并忽略字母大小写。未设置、空值或仅含空白时完整继承上游 `config.json`。显式覆盖只传递上游 `--browser-source` 参数，不读取或改写该共享配置；不支持该参数的 CLI 会明确失败，不自动去掉参数重试。连接设置页会显示当前覆盖值或“继承上游 CLI 配置”。
 
