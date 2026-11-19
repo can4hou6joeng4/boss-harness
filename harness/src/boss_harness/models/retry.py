@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 
 from boss_harness.models.types import StreamEvent
 
@@ -14,19 +14,57 @@ from boss_harness.models.types import StreamEvent
 MAX_RETRY_DELAY_SECONDS = 8.0
 DEFAULT_RETRY_ATTEMPTS = 3
 DEFAULT_RETRY_BASE_MS = 500
+_MIN_RETRY_ATTEMPTS = 1
+_MAX_RETRY_ATTEMPTS = 10
+
+
+def retry_settings_from_environment(
+    environ: Mapping[str, str] | None = None,
+) -> tuple[int, float, bool]:
+    """返回 (重试次数, 基础退避秒, 显式值是否原样生效)。
+
+    正常启动与自检共用这一解析：未设置或空值按默认且视为有效；不是整数时回退
+    默认值，越界或负数收敛到边界。后两种情况第三项为 False，供启动自检提示，
+    但启动行为与旧实现一致，不额外失败。
+    """
+    source = os.environ if environ is None else environ
+    adjusted = False
+
+    raw_attempts = source.get("BOSS_HARNESS_RETRY_ATTEMPTS")
+    if raw_attempts is None or raw_attempts == "":
+        attempts = DEFAULT_RETRY_ATTEMPTS
+    else:
+        try:
+            attempts = int(raw_attempts)
+        except ValueError:
+            attempts = DEFAULT_RETRY_ATTEMPTS
+            adjusted = True
+        else:
+            bounded = max(_MIN_RETRY_ATTEMPTS, min(attempts, _MAX_RETRY_ATTEMPTS))
+            adjusted = adjusted or bounded != attempts
+            attempts = bounded
+
+    raw_base_ms = source.get("BOSS_HARNESS_RETRY_BASE_MS")
+    if raw_base_ms is None or raw_base_ms == "":
+        base_ms = DEFAULT_RETRY_BASE_MS
+    else:
+        try:
+            base_ms = int(raw_base_ms)
+        except ValueError:
+            base_ms = DEFAULT_RETRY_BASE_MS
+            adjusted = True
+        else:
+            bounded = max(0, base_ms)
+            adjusted = adjusted or bounded != base_ms
+            base_ms = bounded
+
+    return attempts, base_ms / 1000.0, adjusted
 
 
 def retry_settings() -> tuple[int, float]:
     """重试次数与基础退避；可用 BOSS_HARNESS_RETRY_ATTEMPTS / _BASE_MS 覆盖。"""
-    try:
-        attempts = int(os.environ.get("BOSS_HARNESS_RETRY_ATTEMPTS") or DEFAULT_RETRY_ATTEMPTS)
-    except ValueError:
-        attempts = DEFAULT_RETRY_ATTEMPTS
-    try:
-        base_ms = int(os.environ.get("BOSS_HARNESS_RETRY_BASE_MS") or DEFAULT_RETRY_BASE_MS)
-    except ValueError:
-        base_ms = DEFAULT_RETRY_BASE_MS
-    return max(1, min(attempts, 10)), max(0, base_ms) / 1000.0
+    attempts, base_delay, _ = retry_settings_from_environment()
+    return attempts, base_delay
 
 
 def retry_delay(base_delay: float, attempt: int, retry_after: float | None) -> float:
