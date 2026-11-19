@@ -58,7 +58,8 @@ def _requested_provider(args: argparse.Namespace) -> str:
     「显式 none」的自检结论（`MODEL_DISABLED`）和内核的实际开关才不会各说各话。
     """
     raw = args.provider if args.provider != "auto" else os.environ.get("BOSS_HARNESS_PROVIDER", "")
-    return raw.strip().lower()
+    normalized = raw.strip().lower()
+    return "" if normalized == "auto" else normalized
 
 
 def main(argv: list[str] | None = None) -> int:

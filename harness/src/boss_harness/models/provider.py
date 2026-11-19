@@ -125,6 +125,10 @@ def resolve_config(
     ).strip().lower()
     if requested == "codex":
         requested = "openai"
+    # 命令行的 `--provider` 以 `auto` 表示「自动选择」；环境变量里同一取值
+    # 不再视为未知，避免复制命令行用法却得到 MODEL_PROVIDER_UNKNOWN。
+    if requested == "auto":
+        requested = ""
 
     if requested and requested not in _EXPLICIT_PROVIDERS:
         # 拼错的值必须响亮地失败。命令行侧用 argparse choices 拒绝未知值，环境变量侧若不校验，
