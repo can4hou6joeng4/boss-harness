@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.261` / Python `0.2.0rc261` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.262` / Python `0.2.0rc262` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -140,7 +140,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 已有目录沿用正常启动的安全规则，不要求统一改成某一权限值；自检也不会自动收紧权限。目录缺失时只核对已有父目录，后续目录由正常启动创建。路径无法解析（如符号链接环）同属无效路径：自检报 `STATE_DIRECTORY_INVALID`，正常启动与 `--repair-state` 都以固定中文说明和退出码 2 结束，不打印 Python 回溯或本机绝对路径。检查不获取占用锁、不打开索引或会话、不尝试真实写入；磁盘空间只按文件系统剩余空间做 512 MiB 阈值提示，不估算本次会话或附件的实际需求，通过也不证明路径没有被另一内核占用或索引与会话完整，实际启动仍是最终核对。
 
-从命令行直接启动内核而在构造阶段失败时（状态目录不可用、系统不满足私有状态目录要求、运行参数取值无效等），stderr 在失败行之后会追加一行固定提示，建议用相同参数与环境运行 `boss-harness --check`。启动失败与 `--repair-state` 失败遇到本地文件错误时，失败行给出固定中文原因与系统错误名（如「本地文件权限不足（EACCES），操作未完成。」），不回显路径或目录名，可直接用于报告问题。解释器缺少 `anthropic` 或 `openai` 等内核依赖时，stderr 会点名缺失模块并给出 `uv pip install --python .venv/bin/python -e ./harness`，退出码同为 `2`。
+从命令行直接启动内核而在构造阶段失败时（状态目录不可用、系统不满足私有状态目录要求、运行参数取值无效等），stderr 在失败行之后会追加一行固定提示，建议用相同参数与环境运行 `boss-harness --check`。启动失败与 `--repair-state` 失败遇到本地文件错误时，失败行给出固定中文原因与系统错误名（如「本地文件权限不足（EACCES），操作未完成。」），不回显路径或目录名，可直接用于报告问题。模型线路构造失败与浏览器来源配置失败的失败行同样处理，并抹掉 `Bearer …`、`sk-…`、`api_key=…` 等凭据形态的文本；脱敏按形态识别，贴出前仍建议自行检查。解释器缺少 `anthropic` 或 `openai` 等内核依赖时，stderr 会点名缺失模块并给出 `uv pip install --python .venv/bin/python -e ./harness`，退出码同为 `2`。
 
 报告不包含端点、密钥、模型自定义值、本机路径、会话内容或异常原文，可用于报告安装问题。自检不创建状态目录、不修改权限、不读取会话、不写入索引，与 `--repair-state` 互斥。本地检查仅覆盖上表五项；模型检查用 `importlib.util.find_spec` 核对默认线路所需的 `anthropic` / `openai` 包是否可发现，但不导入 SDK、不核对已安装版本，也不核对其余取值无效时回退默认值的参数。通过不代表模型可连接、认证有效、平台已登录或真实工具已验收；这些操作应分别在获得授权后核对。
 

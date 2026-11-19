@@ -433,12 +433,20 @@ def _check_error_redaction() -> int:
         raise ValueError(f"{RPC} 不得直接把 str(exc) 作为错误响应")
     entry = _read(ENTRY)
     outputs = (
-        'print(f"[harness] 索引修复失败：{describe_failure(exc)}", file=sys.stderr)',
-        'print(f"[harness] 启动失败（{type(exc).__name__}）：{describe_failure(exc)}", file=sys.stderr)',
+        "return redact_secrets(describe_failure(exc))",
+        'print(f"[harness] 索引修复失败：{_failure_text(exc)}", file=sys.stderr)',
+        'print(f"[harness] 启动失败（{type(exc).__name__}）：{_failure_text(exc)}", file=sys.stderr)',
+        'print(f"[harness] 模型配置不可用（{type(exc).__name__}）：{_failure_text(exc)}", file=sys.stderr)',
+        'print(f"[harness] 浏览器来源配置不可用（{type(exc).__name__}）：{_failure_text(exc)}", file=sys.stderr)',
     )
     missing = [fragment for fragment in outputs if entry.count(fragment) != 1]
     if missing:
-        raise ValueError(f"{ENTRY} 的失败输出必须经过 describe_failure：" + "、".join(missing))
+        raise ValueError(f"{ENTRY} 的失败输出必须经过 _failure_text：" + "、".join(missing))
+    raw = [line.strip() for line in entry.splitlines()
+           if "file=sys.stderr" in line and ("{exc}" in line or "{describe_failure(exc)}" in line)
+           and "exc.code" not in line]
+    if raw:
+        raise ValueError(f"{ENTRY} 不得把未脱敏的异常原文写到 stderr：" + "、".join(raw))
     return len(required) + len(reasons) + 2 + len(outputs)
 
 
