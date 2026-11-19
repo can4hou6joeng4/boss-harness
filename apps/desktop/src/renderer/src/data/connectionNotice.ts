@@ -248,6 +248,18 @@ export function startupUnavailableText(diagnosis: StartupDiagnosis | undefined):
 }
 
 /**
+ * 总体结论：与内核 `--format text` 的结论行同口径，供手动自检结果区与复制文本使用。
+ * 没有合规报告时返回空串，不推测结论。
+ */
+export function startupConclusion(diagnosis: StartupDiagnosis | undefined): string {
+  if (diagnosis?.kind !== "report") return "";
+  const errors = diagnosis.checks.filter(check => check.status === "error").length;
+  const warnings = diagnosis.checks.filter(check => check.status === "warning").length;
+  if (errors) return `发现 ${errors} 个错误${warnings ? `、${warnings} 项警告` : ""}`;
+  return warnings ? `通过，${warnings} 项警告` : "通过";
+}
+
+/**
  * 复制用纯文本：只汇总界面已展示的自检字段。
  * 不读取内核 stderr、异常原文、端点、凭据、本机路径或会话内容。
  */
