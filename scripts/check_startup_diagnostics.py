@@ -386,6 +386,19 @@ def _function_source(tree: ast.Module, source: str, name: str) -> str:
     return ast.get_source_segment(source, function) or ""
 
 
+def _state_dir_defaults(source: str) -> int:
+    """默认状态目录把空白变量视为未设置，继续回退旧变量与默认位置。"""
+    tree = _parse(source, "harness/src/boss_harness/__main__.py")
+    segment = _function_source(tree, source, "_default_state_dir")
+    for fragment in ('for name in ("BOSS_HARNESS_DIR", "BOSS_CLI_HARNESS_DIR"):',
+                     'value = os.environ.get(name) or ""', "if value.strip():", "return Path(value)"):
+        if fragment not in segment:
+            raise ValueError(f"_default_state_dir 必须忽略只有空白的变量：缺少 {fragment}")
+    if 'os.environ.get("BOSS_HARNESS_DIR") or os.environ.get("BOSS_CLI_HARNESS_DIR")' in source:
+        raise ValueError("_default_state_dir 不得把只有空白的变量当作有效路径")
+    return 5
+
+
 def _repo_walk(tree: ast.Module, source: str) -> int:
     """仓库归属按目标目录自身判断：工作目录在哪里不影响「位于仓库内」的结论。"""
     expectations = (
@@ -702,6 +715,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _text_output(startup_tree, startup, limit)
     checked += _warning_order(startup_tree, startup)
     checked += _repo_walk(startup_tree, startup)
+    checked += _state_dir_defaults(_read(ENTRY))
     checked += _diagnostics(config_tree, limit)
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide, _read(SETUP_GUIDE))

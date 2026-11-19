@@ -21,10 +21,15 @@ def _failure_text(exc: Exception) -> str:
 
 
 def _default_state_dir() -> Path:
-    """内核状态目录：新变量优先，旧变量其次，最后按目录存在性选择默认位置。"""
-    configured = os.environ.get("BOSS_HARNESS_DIR") or os.environ.get("BOSS_CLI_HARNESS_DIR")
-    if configured:
-        return Path(configured)
+    """内核状态目录：新变量优先，旧变量其次，最后按目录存在性选择默认位置。
+
+    只有空白的取值视为未设置，继续回退下一个来源：否则它会变成名字是空白的相对
+    路径，入口的空值校验再以退出码 2 结束，提示却点名用户没有设置的 `--state-dir`。
+    """
+    for name in ("BOSS_HARNESS_DIR", "BOSS_CLI_HARNESS_DIR"):
+        value = os.environ.get(name) or ""
+        if value.strip():
+            return Path(value)
     preferred = Path.home() / ".boss-harness" / "harness"
     legacy = Path.home() / ".boss-cli" / "harness"
     # 升级后不丢历史会话：新目录尚未建立、而旧目录已存在时沿用旧目录；否则用新路径。
