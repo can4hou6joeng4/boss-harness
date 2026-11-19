@@ -1,3 +1,10 @@
+## 0.2.0-rc.233 - 2026-11-19
+
+rc.233 源码候选同步自检文本输出的技术参考并锁定渲染边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `check_startup_diagnostics.py` 用 AST 核对 `render_text`：只能按固定字段读取报告与检查项，不得访问环境、文件、进程或直接打印；`_STATUS_TEXT` 必须覆盖 ok / warning / error，并保留「说明」「建议」结构。技术参考同步说明默认 JSON 与 `--format text` 的分工、`_unconfigured_hint` 的三条常量与缺包分支；harness README 提及文本模式。[Issue #2590](https://github.com/can4hou6joeng4/boss-harness/issues/2590)
+- 在临时副本注入三类违规（`os.environ`、未登记的报告字段、缺失状态标签），脚本均以退出码 2 失败并点名原因；未修改副本通过（255 项）。全部检查通过。版本推进到 npm `0.2.0-rc.233` / Python `0.2.0rc233`。不执行发布动作。
+
 ## 0.2.0-rc.232 - 2026-11-19
 
 rc.232 源码候选为启动自检增加终端可读文本输出。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
