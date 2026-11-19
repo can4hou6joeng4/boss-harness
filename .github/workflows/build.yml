@@ -48,6 +48,8 @@ jobs:
         run: python scripts/check_export_privacy.py
       - name: Verify private state boundaries
         run: python scripts/check_private_files.py
+      - name: Verify credential redaction
+        run: python scripts/check_secret.py
       - name: Verify lifecycle hook boundaries
         run: python scripts/check_hooks.py
       - name: Verify persistence index boundaries

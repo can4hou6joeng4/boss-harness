@@ -1,3 +1,10 @@
+## 0.2.0-rc.322 - 2026-11-20
+
+rc.322 源码候选为凭据包装与错误文本脱敏补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_secret.py`：固定三种凭据形态与 `<redacted>` 占位符、`Secret` 的槽位 / 非 dataclass / repr 与 str 共用占位符、`redact_secrets` 的空值短路、长度至少 6 的原值替换、Bearer 前缀保留与赋值形式键名保留；反向断言禁止 dataclass、明文 repr、第四种形态与改变占位符。修复 Issue [#2769](https://github.com/can4hou6joeng4/boss-harness/issues/2769)。
+- 在技术参考补充凭据包装口径；接入 CI 的 Source build 与同名小节；检查脚本增至 50 个。版本推进到 npm `0.2.0-rc.322` / Python `0.2.0rc322`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.321 - 2026-11-20
 
 rc.321 源码候选为 Anthropic 私有续接元数据补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
