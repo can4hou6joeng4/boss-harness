@@ -1,3 +1,10 @@
+## 0.2.0-rc.280 - 2026-11-20
+
+rc.280 源码候选让模型目录与摘要线路解析共用同一条 Anthropic 凭据规则。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `provider.py` 新增 `has_anthropic_credential`，自动线路判断、`_discover_model_configs` 与 `_compaction_model_config` 共用「两项凭据去除首尾空白后都为空即未配置」的判定。此前两处用原始真值判断：`ANTHROPIC_API_KEY` 只有空白时目录仍列出实际不可用的 anthropic 线路，摘要解析也通过，直到构造供应商才失败。[Issue #2684](https://github.com/can4hou6joeng4/boss-harness/issues/2684)
+- `check_model_disable.py` 的守卫由 108 项增至 115 项，并禁止 `application.py` 直接读取凭据变量；注入旧写法即失败。七例探针（目录发现与摘要解析各三至四例）对比 rc.279：仅「纯空白 API_KEY」两例改变——目录由 `['anthropic', 'none']` 变为 `['none']`，摘要由解析出 anthropic 线路变为 `RpcError COMPACTION_MODEL_UNAVAILABLE`；有真实凭据与无凭据的其余各例一致。全部检查通过。版本推进到 npm `0.2.0-rc.280` / Python `0.2.0rc280`。不执行发布动作。
+
 ## 0.2.0-rc.279 - 2026-11-20
 
 rc.279 源码候选让 Anthropic 凭据去除首尾空白后再交给 SDK。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

@@ -30,7 +30,7 @@ from boss_harness.agent import TurnRunner
 from boss_harness.bridge_lifecycle import BridgeLifecycle
 from boss_harness.context import ContextBudgetExceeded, ContextService, describe_request, request_fingerprint
 from boss_harness.connections import ConnectionChecks
-from boss_harness.models import ModelConfig, Provider, resolve_config
+from boss_harness.models import ModelConfig, Provider, has_anthropic_credential, resolve_config
 from boss_harness.models.secret import redact_secrets
 from boss_harness.models.capabilities import ModelCatalog
 from boss_harness.models.types import AssistantMessage, ModelRecoveryBudget, ModelRequest, UserMessage
@@ -767,9 +767,7 @@ class ApplicationService:
         for provider in ("anthropic", "openai"):
             if provider in routes:
                 continue
-            if provider == "anthropic" and not (
-                environ.get("ANTHROPIC_API_KEY") or environ.get("ANTHROPIC_AUTH_TOKEN")
-            ):
+            if provider == "anthropic" and not has_anthropic_credential(environ):
                 continue
             candidate_env = dict(environ)
             candidate_env.pop("BOSS_HARNESS_MODEL", None)
@@ -2526,9 +2524,7 @@ class ApplicationService:
                 environ["BOSS_HARNESS_MODEL"] = policy.model
             elif configured_model:
                 environ["BOSS_HARNESS_MODEL"] = configured_model
-            if provider == "anthropic" and not (
-                environ.get("ANTHROPIC_API_KEY") or environ.get("ANTHROPIC_AUTH_TOKEN")
-            ):
+            if provider == "anthropic" and not has_anthropic_credential(environ):
                 raise RpcError(-32013, "本机没有可用的摘要模型线路配置",
                                {"code": "COMPACTION_MODEL_UNAVAILABLE", "provider": provider})
             try:
