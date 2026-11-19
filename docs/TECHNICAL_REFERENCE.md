@@ -59,7 +59,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | --- | --- |
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
-| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
+| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy)、[`check_turn_stream.py`](#check_turn_streampy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
@@ -122,6 +122,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_login_security.py`
 
 `scripts/check_login_security.py` 核对平台登录的官方域名、Cookie 选择与回执形状：`security.ts` 的官方地址必须是 `https:`、无内嵌用户名或密码、端口为空或 443、主机名恰为 `zhipin.com` 或以 `.zhipin.com` 结尾；验证页判定必须失败关闭；扫码就绪先排除非官方与验证页，再要求 `wt2`、`www.zhipin.com` 的根路径或 `/web/{geek,boss,chat}/` 路径与 `__zp_stoken__`，身份按路径前缀映射；登录视图边界要求有限数值、`y ≥ 48`、`width ≥ 100`、`height ≥ 80`，`x + width` / `y + height` 不得超过内容区宽高 + 1，并按 ceil / floor 取整；登录上下文要求 `threadId` 匹配 1–200 位受限字符、`browserId` 至多 100、`visible` 为布尔。`loginCookies.ts` 只接受 `zhipin.com` 与 `www.zhipin.com`，域先去前导点再小写；同名同值只计覆盖，host-only、路径长度、域长度依序决定更具体者，三者完全相同才以固定错误失败，输出使用无原型对象。主进程 `loginAttempt.ts` 与渲染层 `platformLoginState.ts` 必须共享 9 个状态、4 个阶段、3 种身份与 4096 / 120 / 200 上限；attempt id 非空且不超限。`loginFailure.ts` 保留内核原因码，消息经 `stripIpcErrorWrapper` 与 `safeSlice(raw, 200)`。检查是源码片段与顺序扫描，不执行登录或读取真实 Cookie。
+
+### `check_notifications.py`
+
+`scripts/check_notifications.py` 核对桌面通知的内容、去重、保留与点击定位边界：`approvalNotification.ts` 只接受 `approval/requested`，`approvalId` / `threadId` / `itemId` 至多 200、工具名 120、标题 80、正文 240、已提醒集合 200；字段先 trim 且不超限，摘要折叠空白后以 `safeSlice(limit - 1)…` 截断，缺摘要时用固定回退文案，会话与条目 id 必须成对出现；`rememberApproval` 首次返回 `true`，满额淘汰最早一条。`turnNotification.ts` 只接受 `turn/started` 与 `turn/completed`，状态截断 32 字符，开始时间表上限 200 并按插入顺序淘汰；时长必须是有限非负数；结束提醒只接受 `completed`、窗口不在前台且运行不少于 `TURN_NOTIFY_MIN_MS = 20_000`，标题为状态标签、正文为时长，不携带会话内容。`notificationRegistry.ts` 保留上限 32、校验正整数，重复显示重新排到最新，先注册 `close` / `failed` 释放监听再 `show()`。`notificationBadge.ts` 只接受 0–999 的整数。`harness.ts` 的前台守卫、同一审批去重、`Notification.isSupported()`、点击聚焦与审批双 id 定位、徽标空值忽略、测试通知固定文案都必须保留。反向断言通知内容不得出现会话标题、预览或记录参数。检查是源码字面量与首次出现顺序扫描，系统通知的实际展示与点击仍需按平台核对。
 
 ### `check_client_transport.py`
 
