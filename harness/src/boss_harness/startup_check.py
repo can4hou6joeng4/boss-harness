@@ -315,13 +315,13 @@ def _state_check(state_dir: Path) -> dict[str, str]:
             "stateDirectory", "error", "STATE_DIRECTORY_INVALID", "状态路径或目录安全条件不符合内核要求。",
             "使用当前用户拥有的独立目录，避免根目录及允许他人修改的父目录或 ACL；不要放宽权限。",
         )
-    # 环境变量不展开 ~；只在实际检查用的就是这个字面路径时提示，显式 --state-dir 指向别处不误报。
-    raw_state_dir = os.environ.get("BOSS_HARNESS_DIR") or os.environ.get("BOSS_CLI_HARNESS_DIR") or ""
-    if raw_state_dir.strip().startswith("~") and Path(raw_state_dir) == state_dir:
+    # 内核不展开 ~：只看实际使用的路径，来自 --state-dir 或环境变量都提示；
+    # 显式 --state-dir 指向别处时，残留的环境变量不误报。
+    if str(state_dir).strip().startswith("~"):
         return _check(
             "stateDirectory", "warning", "STATE_DIRECTORY_TILDE",
-            "状态目录环境变量中的 ~ 不会展开，已按字面路径解析。",
-            "将 BOSS_HARNESS_DIR 设为绝对路径；内核按启动工作目录解析相对路径，不展开 ~。",
+            "状态目录路径开头的 ~ 不会展开，已按字面路径解析。",
+            "将 --state-dir 或 BOSS_HARNESS_DIR 设为绝对路径；内核按启动工作目录解析相对路径，不展开 ~。",
         )
     # 旧变量仍兼容读取；提示迁移，但路径条件失败时上面的错误码优先。
     if (os.environ.get("BOSS_CLI_HARNESS_DIR") or "").strip():
