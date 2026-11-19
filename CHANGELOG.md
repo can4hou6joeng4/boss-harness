@@ -1,3 +1,10 @@
+## 0.2.0-rc.319 - 2026-11-20
+
+rc.319 源码候选为异步模型流泵补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_stream_pump.py`：固定 64 个缓冲事件、4 MiB 合计缓冲、2 MiB 单事件、32768 个节点、8 个在途泵与 1 秒清理等待；固定入队前计费、终止事件独立槽位、先丢弃排队事件再取消任务、异步生成器 → 事件循环 → 名额 → 完成位的收尾顺序；反向断言禁止非 daemon 线程、严格编码计费、无超时 join。修复 Issue [#2763](https://github.com/can4hou6joeng4/boss-harness/issues/2763)。
+- 在技术参考补充同步 provider 的流缓冲口径；接入 CI 的 Source build 与同名小节；检查脚本增至 47 个。版本推进到 npm `0.2.0-rc.319` / Python `0.2.0rc319`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.318 - 2026-11-20
 
 rc.318 源码候选为模型输出的字节预算补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
