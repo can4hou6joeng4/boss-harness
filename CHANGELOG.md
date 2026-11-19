@@ -1,3 +1,10 @@
+## 0.2.0-rc.341 - 2026-11-20
+
+rc.341 源码候选为渲染层崩溃恢复与静态诊断页补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_renderer_recovery.py`：固定自动重载上限与滚动窗口、六个已知原因的自有属性查表、未知原因与退出码校验、恢复参数的逐项校验与历史过滤、忽略 / 重载 / 报告顺序；固定 `ERR_ABORTED` 与当前导航判定；固定诊断页的 300 字符截断、孤立代理项修复、HTML 实体转义、CSP 与 data URL 编码，并反向断言无脚本无外链；同时核对 `window.ts` 的一次性失败标记、崩溃决策顺序与竞态守卫。修复 Issue [#2807](https://github.com/can4hou6joeng4/boss-harness/issues/2807)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 67 个。版本推进到 npm `0.2.0-rc.341` / Python `0.2.0rc341`。不改变运行时行为，不启动渲染进程或执行发布动作。
+
 ## 0.2.0-rc.340 - 2026-11-20
 
 rc.340 源码候选为窗口状态的解析、恢复与原子保存补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
