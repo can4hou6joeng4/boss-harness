@@ -1,3 +1,11 @@
+## 0.2.0-rc.240 - 2026-11-19
+
+rc.240 源码候选让文本自检在错误时同时显示警告数量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `--check --format text` 的结论行在存在错误且有警告时改为「发现 N 个错误、M 项警告」，与同屏逐项状态一致；有错误无警告、仅警告、全部通过与空报告的文案不变，JSON 输出与退出码不变。使用指南与技术参考同步。[Issue #2604](https://github.com/can4hou6joeng4/boss-harness/issues/2604)
+- README 快速开始在安装步骤后提示先运行 `.venv/bin/boss-harness --check` 核对本地配置，并注明该步骤不调用模型、不执行招聘 CLI。
+- 以 rc.239 合并提交导出的源码为基线，六个报告场景独立进程对比：空报告、全部通过、仅警告、仅错误四例逐字节一致；一个错误加两项警告与两个错误加一项警告两例结论行变化。全部检查通过。版本推进到 npm `0.2.0-rc.240` / Python `0.2.0rc240`。不执行发布动作。
+
 ## 0.2.0-rc.239 - 2026-11-19
 
 rc.239 源码候选让桌面启动失败提示条列出内核自检警告。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
