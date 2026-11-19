@@ -23,7 +23,7 @@ def retry_settings_from_environment(
 ) -> tuple[int, float, bool]:
     """返回 (重试次数, 基础退避秒, 显式值是否原样生效)。
 
-    正常启动与自检共用这一解析：未设置或空值按默认且视为有效；不是整数时回退
+    正常启动与自检共用这一解析：未设置、为空或只有空白按默认且视为有效；不是整数时回退
     默认值，越界或负数收敛到边界。后两种情况第三项为 False，供启动自检提示，
     但启动行为与旧实现一致，不额外失败。
     """
@@ -31,7 +31,7 @@ def retry_settings_from_environment(
     adjusted = False
 
     raw_attempts = source.get("BOSS_HARNESS_RETRY_ATTEMPTS")
-    if raw_attempts is None or raw_attempts == "":
+    if raw_attempts is None or not raw_attempts.strip():
         attempts = DEFAULT_RETRY_ATTEMPTS
     else:
         try:
@@ -45,7 +45,7 @@ def retry_settings_from_environment(
             attempts = bounded
 
     raw_base_ms = source.get("BOSS_HARNESS_RETRY_BASE_MS")
-    if raw_base_ms is None or raw_base_ms == "":
+    if raw_base_ms is None or not raw_base_ms.strip():
         base_ms = DEFAULT_RETRY_BASE_MS
     else:
         try:

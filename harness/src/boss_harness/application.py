@@ -157,14 +157,14 @@ class _ThreadAdmission:
 
 
 def approval_timeout_from_environment(environ: Mapping[str, str] | None = None) -> tuple[float, bool]:
-    """返回 (生效期限秒, 显式值是否有效)；未设置或空值按默认且视为有效。
+    """返回 (生效期限秒, 显式值是否有效)；未设置、为空或只有空白按默认且视为有效。
 
     正常启动与自检共用这一解析：自检发现显式值无效时只报告已回退默认值，
     启动行为与旧实现一致，不额外失败。
     """
     source = os.environ if environ is None else environ
     raw = source.get("BOSS_HARNESS_APPROVAL_TIMEOUT")
-    if raw is None or raw == "":
+    if raw is None or not raw.strip():
         return DEFAULT_APPROVAL_TIMEOUT_SECONDS, True
     try:
         value = float(raw)
