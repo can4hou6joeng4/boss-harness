@@ -85,6 +85,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--format 只能与 --check 一起使用")
     if args.strict and not args.check:
         parser.error("--strict 只能与 --check 一起使用")
+    # 空值多半来自脚本里未设置的变量：按字面解析会把状态文件写进当前工作目录，所有模式都先拒绝。
+    if not args.state_dir.strip():
+        print("[harness] --state-dir 不能为空；省略该参数即使用默认状态目录", file=sys.stderr)
+        return 2
     # 端点对所有模式都是前提：自检与索引修复也不应在参数无效时继续，否则自检通过而启动必然失败。
     if args.listen != "stdio://":
         print("[harness] 暂不支持该 --listen 端点；当前仅支持 stdio://", file=sys.stderr)
