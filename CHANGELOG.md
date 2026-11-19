@@ -1,3 +1,10 @@
+## 0.2.0-rc.307 - 2026-11-20
+
+rc.307 源码候选为生命周期 hook 补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_hooks.py`：固定 30 秒 / 250ms 超时、256 事件队列、16 在途回调、观察上下文与策略上下文的字节 / 节点 / 深度上限、`HookDecision` 与 `ContextTransform` 校验、`_safe_value` 的截断与脱敏、`freeze_policy_context` 的环检测与代理项拒绝、事件投影白名单、取消优先于关闭与容量的顺序、策略与请求的 fail-closed 拒绝映射、`transform_context` 的当前单元保护、`after_tool_call` 只读契约与关闭期限；反向断言策略上下文不得走观察脱敏路径、事件投影不得直接使用原始参数。修复 Issue [#2739](https://github.com/can4hou6joeng4/boss-harness/issues/2739)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 35 个。版本推进到 npm `0.2.0-rc.307` / Python `0.2.0rc307`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.306 - 2026-11-20
 
 rc.306 源码候选为摘要规划补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
