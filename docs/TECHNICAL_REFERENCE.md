@@ -65,7 +65,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留与编辑 | [`check_context_keep.py`](#check_context_keeppy)、[`check_context_edits.py`](#check_context_editspy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
-| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_secret.py`](#check_secretpy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
+| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_secret.py`](#check_secretpy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_session_log.py`](#check_session_logpy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy) |
 | 关闭与中止 | [`check_shutdown.py`](#check_shutdownpy)、[`check_bridge_lifecycle.py`](#check_bridge_lifecyclepy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_snippet.py`](#check_search_snippetpy) |
@@ -248,6 +248,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_persistence.py`
 
 `scripts/check_persistence.py` 核对 SQLite 投影索引的迁移、私有权限与连接边界：`persistence.py` 的 `SCHEMA_VERSION = 2`、文本列 `utf-8` 宽容解码（非法字节替换为 U+FFFD，避免损坏行变成内部错误）、私有目录与索引文件 / WAL / SHM 的权限收紧、`version > SCHEMA_VERSION` 拒绝、1 → 2 迁移顺序与 `user_version` 写入、`UPDATE threads SET indexed_size=-1` 的旧索引失效标记；表结构必须保留会话、回合、事件、审批与 checkpoint 的主键及 `ON DELETE CASCADE`；每个操作独占连接并启用 `foreign_keys`、`busy_timeout=10000`、`synchronous=FULL`，事务以 `BEGIN IMMEDIATE` 开始并在异常时回滚；事件索引 `events_method_cursor` 必须存在。脚本反向断言不得使用严格 `decode("utf-8")`，并核对技术参考与使用指南的「日志是事实源、SQLite 是可重建索引」口径。检查是常量与顺序扫描，实际索引行为仍需按用户指南核对。
+
+### `check_session_log.py`
+
+`scripts/check_session_log.py` 核对会话 JSONL 的编码、严格解码与有界快照：单行上限 32 MiB，编码为 `ensure_ascii=False` 的 UTF-8 且以换行结尾，写入前按字节判定上限；线程 id 为 12 位十六进制，标识为 1–128 位受限字符，事件 id 为 32 位十六进制，附件摘要为 64 位十六进制。解码使用重复键、非法常量与非有限浮点钩子，并在返回前拒绝孤立代理项；损坏行按行号停止读取。会话头只允许出现在第 1 行，重复出现即停止；其余记录要求 `type` / `id` / `timestamp` 为字符串、`parentId` 为字符串或 null、`payload` 为对象。有界读取按 64 KiB 分块，累计与单行分别检查上限，末尾无换行的残段只丢弃；快照长度在写入锁内收敛到最后一个完整记录边界，缺失边界或残段超限时按固定说明拒绝；追加前截掉残段并 `fsync`，读取上限 + 1 字节后超限拒绝；快照按固定字节范围、通用换行与逐行 `_decode_session_record` 解码，空行跳过。脚本反向断言不得把残段作为记录产出、不得转义非 ASCII。检查是常量与顺序扫描，不执行追加或快照读取，运行时行为仍需按用户指南核对。
 
 ### `check_settings.py`
 

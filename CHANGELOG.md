@@ -1,3 +1,10 @@
+## 0.2.0-rc.335 - 2026-11-20
+
+rc.335 源码候选为会话日志的编码、严格解码与有界快照补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_session_log.py`：固定单行 32 MiB、线程 / 标识 / 事件 / 附件摘要格式、UTF-8 编码与换行、重复键 / 非法常量 / 非有限浮点 / 孤立代理项拒绝、会话头只允许第 1 行、必需字段与 payload 形状、64 KiB 分块与快照长度校验、末尾残段截断与 `fsync`、快照逐行严格解码。修复 Issue [#2795](https://github.com/can4hou6joeng4/boss-harness/issues/2795)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 62 个。版本推进到 npm `0.2.0-rc.335` / Python `0.2.0rc335`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.334 - 2026-11-20
 
 rc.334 源码候选为上下文编辑与摘要检查点补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
