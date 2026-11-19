@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from boss_harness import __version__
-from boss_harness.application import steering_mode_from_environment
+from boss_harness.application import approval_timeout_from_environment, steering_mode_from_environment
 from boss_harness.compaction import CompactionPolicy
 from boss_harness.models import ModelConfig, resolve_config
 from boss_harness.models.capabilities import ModelCatalog
@@ -229,9 +229,16 @@ def _runtime_check() -> dict[str, str]:
         except Exception:
             # 解析错误可能带有环境值或 JSON 片段，只输出登记的静态说明。
             return _check("runtimeOptions", "error", code, message, hint)
+    # 审批期限无效时启动仍会回退默认值，因此只记为警告，不阻止自检通过。
+    if not approval_timeout_from_environment()[1]:
+        return _check(
+            "runtimeOptions", "warning", "APPROVAL_TIMEOUT_DEFAULTED", "审批期限配置无效，已回退默认值。",
+            "将 BOSS_HARNESS_APPROVAL_TIMEOUT 设为正的有限秒数，或取消设置；无效值不会阻止启动。",
+        )
     return _check(
         "runtimeOptions", "ok", "RUNTIME_OPTIONS_VALID", "内核运行参数的本地校验通过。",
-        "只校验转向模式、模型请求上限、附件存储上限、模型容量与自动压缩环境变量的格式和取值；未读取状态目录中的持久设置。",
+        "只校验转向模式、模型请求上限、附件存储上限、模型容量、自动压缩与审批期限环境变量的格式和取值；"
+        "未读取状态目录中的持久设置。",
     )
 
 

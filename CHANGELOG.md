@@ -1,3 +1,10 @@
+## 0.2.0-rc.236 - 2026-11-19
+
+rc.236 源码候选让启动自检暴露无效的审批期限配置。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 审批期限由 `approval_timeout_from_environment` 统一解析，启动与 `--check` 共用：显式值不是数字、非有限值或不大于 0 时，启动仍回退默认 300 秒，自检在其余运行参数有效时把「运行参数」记为警告 `APPROVAL_TIMEOUT_DEFAULTED`，说明已回退默认值；未设置、空字符串与有效正数保持通过。只读取环境变量，不输出原始值。使用指南与技术参考同步。[Issue #2596](https://github.com/can4hou6joeng4/boss-harness/issues/2596)
+- 以 rc.235 合并提交导出的源码为基线，七个场景独立进程对比：未设置、空字符串、有效 `120.5` 三例仅通过提示补充「审批期限」措辞，状态、检查码与说明一致；`abc`、`0`、`nan` 与纯空白四例由 `RUNTIME_OPTIONS_VALID` 变为 `APPROVAL_TIMEOUT_DEFAULTED` 警告，退出码仍为 0；七例的 `_approval_timeout()` 实际值与基线逐项一致（300 / 300 / 120.5 / 300 / 300 / 300 / 300）。在临时副本删除使用指南中的新检查码，静态守卫以退出码 2 失败。全部检查通过。版本推进到 npm `0.2.0-rc.236` / Python `0.2.0rc236`。不执行发布动作。
+
 ## 0.2.0-rc.235 - 2026-11-19
 
 rc.235 源码候选让启动自检提示业务 CLI 数据目录与内核状态目录重叠。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
