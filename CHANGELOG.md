@@ -1,3 +1,10 @@
+## 0.2.0-rc.228 - 2026-11-19
+
+rc.228 源码候选在缺少内核依赖时给出安装提示。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 普通启动捕获 `ModuleNotFoundError` 时，stderr 点名缺失模块并给出 `uv pip install --python .venv/bin/python -e ./harness`，退出码仍为 `2`；`ModelConfigError` 与其它异常的既有文案不变。桌面自检报告没有错误项时，恢复建议先提示核对内核依赖是否已安装。[Issue #2580](https://github.com/can4hou6joeng4/boss-harness/issues/2580)
+- 以 rc.227 合并提交导出的源码为基线：缺少 `anthropic` 包的启动提示由通用「模型配置不可用」变为安装提示；模型配置错误与深嵌套 Codex 配置的通用异常 stderr 逐字节一致。同一转译纯函数探针覆盖六种恢复场景，只有无错误报告（含仅警告）的建议变化。使用指南与桌面交互指南同步说明。全部检查通过。版本推进到 npm `0.2.0-rc.228` / Python `0.2.0rc228`。不执行发布动作。
+
 ## 0.2.0-rc.227 - 2026-11-19
 
 rc.227 源码候选让启动失败提示标注检查项与检查码。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

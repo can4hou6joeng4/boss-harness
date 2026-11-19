@@ -97,6 +97,11 @@ def main(argv: list[str] | None = None) -> int:
     except ModelConfigError as exc:
         print(f"[harness] 模型配置不可用（{exc.code}）：{exc}", file=sys.stderr)
         return 2
+    except ModuleNotFoundError as exc:
+        # 模型 SDK 是内核依赖：缺包不是配置错误，直接给出仓库已有的安装命令。
+        print(f"[harness] 缺少内核运行依赖（{exc.name or '未知模块'}）；先按安装步骤安装内核依赖："
+              "uv pip install --python .venv/bin/python -e ./harness", file=sys.stderr)
+        return 2
     except Exception as exc:  # noqa: BLE001
         # 这里只包住「配置解析 + 构造 provider」两件事，所以宽捕获是安全的：任何失败都意味着
         # 模型线路起不来（缺凭据、缺端点、SDK 拒绝无凭据构造等），应当给出可读信息并以 2 退出。
