@@ -57,7 +57,10 @@ export function uniqueModelKeys(items: { provider: string; id: string }[]): bool
   return new Set(items.map(item => `${item.provider}:${item.id}`)).size === items.length;
 }
 
-/** 进程以显式 none 启动时的说明；模型菜单与连接设置共用同一句，处理办法是换启动方式而不是补配置。 */
+/**
+ * 进程以显式 none 启动时的说明；处理办法是换启动方式而不是补配置。模型菜单始终用这一句；
+ * 连接设置只在内核模型卡片没有自带说明时用它（见 `modelServiceDescription`）。
+ */
 export const MODEL_CALLS_DISABLED_NOTE = "进程以 none 线路启动，不调用模型；需要模型时改用具体 provider 重新启动";
 
 const NO_MODEL_MATCH = "未找到匹配模型";

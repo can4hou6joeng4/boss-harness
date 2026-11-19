@@ -38,7 +38,12 @@ _PLATFORM_DISABLED = "当前工具组合未启用平台连接与登录"
 # 模型卡片只描述进程默认线路。`none` 只是不调用模型，不能写成「离线」：
 # 启用了平台能力时招聘 CLI 照常可用，并可能访问平台。
 _MODEL_DISABLED = "默认模型线路不调用模型"
-_MODEL_DISABLED_WITH_CLI = _MODEL_DISABLED + "；招聘 CLI 仍可运行并可能访问平台"
+# 进程以显式 none 启动时任何线路都不可用，不只是默认线路：点名原因与恢复办法，
+# 用词和数据码与启动自检的 `MODEL_DISABLED` 一致。自动回退或嵌入方自行选用 none 时
+# 只是没有默认线路，沿用上面的中性说法且不带数据码。
+_MODEL_CALLS_DISABLED = "已显式禁用模型调用，需要模型时改用具体 provider 重新启动"
+_MODEL_CALLS_DISABLED_CODE = "MODEL_DISABLED"
+_CLI_STILL_AVAILABLE = "；招聘 CLI 仍可运行并可能访问平台"
 _AUTH_STATES = frozenset({"complete", "partial", "broken", "missing"})
 
 
@@ -73,7 +78,13 @@ class ConnectionChecks:
                  request_budget: Callable[[ModelRequest], dict] | None = None,
                  lifecycle_hooks: LifecycleHooks | None = None,
                  browser_source_policy: str | None = None,
-                 bridge_lifecycle: BridgeLifecycle | None = None) -> None:
+                 bridge_lifecycle: BridgeLifecycle | None = None,
+                 model_calls_disabled: bool = False) -> None:
+        # 与 ApplicationService 的同名开关同一约束：只用来说明以显式 none 启动的进程。
+        if type(model_calls_disabled) is not bool:
+            raise ValueError("model_calls_disabled 必须是布尔值")
+        if model_calls_disabled and config.provider != "none":
+            raise ValueError("model_calls_disabled 只能用于 none 默认线路")
         self.config, self.bridge_factory = config, bridge_factory
         self.provider_factory, self.timeout = provider_factory, timeout
         self.request_preparer = request_preparer
@@ -88,14 +99,19 @@ class ConnectionChecks:
         self.login = {"state": "idle", "summary": "尚未开始扫码登录"}
         self.login_cancel: threading.Event | None = None
         real = config.provider in {"openai", "anthropic"}
-        model_summary = "已配置，尚未发送请求" if real else (
-            _MODEL_DISABLED if bridge_factory is None else _MODEL_DISABLED_WITH_CLI)
+        if real:
+            model_summary = "已配置，尚未发送请求"
+        else:
+            reason = _MODEL_CALLS_DISABLED if model_calls_disabled else _MODEL_DISABLED
+            model_summary = reason if bridge_factory is None else reason + _CLI_STILL_AVAILABLE
         self.report = {
             "cli": {"state": "unchecked", "summary": "尚未检查本机 CLI 与登录态"},
             "model": {"state": "unchecked" if real else "disabled", "provider": config.provider,
                       "model": config.model, "summary": model_summary},
             "platform": {"state": "unchecked", "summary": "尚未在线验证", "authState": "unknown"},
         }
+        if model_calls_disabled:
+            self.report["model"]["code"] = _MODEL_CALLS_DISABLED_CODE
         if browser_source_policy is not None:
             self.report["cli"]["browserSourcePolicy"] = browser_source_policy
             self.report["platform"]["browserSourcePolicy"] = browser_source_policy

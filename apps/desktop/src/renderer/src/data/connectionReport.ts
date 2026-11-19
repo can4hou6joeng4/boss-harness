@@ -1,9 +1,12 @@
 import type { ConnectionCheck, ConnectionReport } from "@boss-harness/protocol";
+import { MODEL_CALLS_DISABLED_NOTE } from "./modelCatalog";
 
 const SUMMARY_LIMIT = 4096;
 const CODE_LIMIT = 120;
 const NAME_LIMIT = 200;
 const TIME_LIMIT = 64;
+/** 进程以显式 none 启动时内核写入模型卡片的数据码，与启动自检同码。 */
+const MODEL_DISABLED_CODE = "MODEL_DISABLED";
 
 const STATES: ReadonlySet<string> = new Set(["unchecked", "checking", "ready", "failed", "blocked", "disabled"]);
 const BROWSER_SOURCES: ReadonlySet<string> = new Set(["inherit", "auto", "existing-browser", "stored-cookie"]);
@@ -62,4 +65,18 @@ export function connectionReportOf(value: unknown): ConnectionReport | null {
   const platform = checkOf(raw.platform);
   if (!cli || !model || !platform) return null;
   return { cli, model, platform };
+}
+
+/**
+ * 连接设置「模型服务」卡片的描述行。
+ *
+ * 内核卡片带 `MODEL_DISABLED` 时，状态行已经点名显式禁用并给出恢复办法，描述行只标线路，
+ * 不把同一句恢复办法在一张卡片里写两遍。握手标明禁用而卡片没有该码（内核较旧，或报告
+ * 尚未读到）时，由描述行补上原因。握手未标明禁用时与以往相同。
+ */
+export function modelServiceDescription(input: { modelCallsDisabled: boolean; check: ConnectionCheck | undefined }): string {
+  const { check } = input;
+  if (input.modelCallsDisabled && check?.code !== MODEL_DISABLED_CODE) return MODEL_CALLS_DISABLED_NOTE;
+  if (!check?.model) return "由本机模型配置决定";
+  return check.provider ? `${check.provider} · ${check.model}` : check.model;
 }
