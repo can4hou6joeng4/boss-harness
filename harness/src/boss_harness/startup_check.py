@@ -209,6 +209,13 @@ def _state_check(state_dir: Path) -> dict[str, str]:
             "stateDirectory", "error", "STATE_DIRECTORY_INVALID", "状态路径或目录安全条件不符合内核要求。",
             "使用当前用户拥有的独立目录，避免根目录及允许他人修改的父目录或 ACL；不要放宽权限。",
         )
+    # 旧变量仍兼容读取；提示迁移，但路径条件失败时上面的错误码优先。
+    if (os.environ.get("BOSS_CLI_HARNESS_DIR") or "").strip():
+        return _check(
+            "stateDirectory", "warning", "LEGACY_STATE_ENV_PRESENT",
+            "检测到已弃用的状态目录变量 BOSS_CLI_HARNESS_DIR。",
+            "改用 BOSS_HARNESS_DIR；旧变量仍兼容读取，两者同时设置时以 BOSS_HARNESS_DIR 为准。",
+        )
     return _check(
         "stateDirectory", "ok", "STATE_DIRECTORY_VALID", "状态目录路径与基本访问条件检查通过。",
         "未创建目录、修改权限或试写文件；未核对磁盘空间、占用锁、索引与会话完整性。",

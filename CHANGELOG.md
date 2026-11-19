@@ -1,3 +1,10 @@
+## 0.2.0-rc.242 - 2026-11-19
+
+rc.242 源码候选让启动自检提示已弃用的状态目录变量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `BOSS_CLI_HARNESS_DIR` 显式非空时，`--check` 的 `stateDirectory` 检查在路径条件通过的前提下记为警告 `LEGACY_STATE_ENV_PRESENT`，说明旧变量仍兼容、两者同时设置时以 `BOSS_HARNESS_DIR` 为准并建议迁移；未设置、仅设置新变量或旧变量为空时保持通过，路径条件失败时仍优先报告原有错误码。不创建目录、不读取目录内容、不输出路径。使用指南与技术参考同步。[Issue #2608](https://github.com/can4hou6joeng4/boss-harness/issues/2608)
+- 以 rc.241 合并提交导出的源码为基线，六个场景独立进程对比：未设置、仅新变量、旧变量为空三例逐字节一致；仅旧变量与新旧同时设置两例由 `STATE_DIRECTORY_VALID` 变为警告，退出码仍为 0；旧变量加不可用路径仍优先报告 `STATE_DIRECTORY_NOT_DIRECTORY` 并以 2 退出。全部检查通过。版本推进到 npm `0.2.0-rc.242` / Python `0.2.0rc242`。不执行发布动作。
+
 ## 0.2.0-rc.241 - 2026-11-19
 
 rc.241 源码候选固化文本自检结论与警告优先级的静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
