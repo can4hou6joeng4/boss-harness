@@ -1,3 +1,10 @@
+## 0.2.0-rc.312 - 2026-11-20
+
+rc.312 源码候选为索引修复的清单与回滚补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_maintenance.py`：固定备份目录命名、清单的私有描述符与 dev/ino 复核、1 MiB 分块摘要、状态目录前置核对与占用锁顺序、移动前身份复核、`O_EXCL` 清单写入与 `fsync`、成功与失败路径的目录同步顺序、`failed-candidate` 与回滚、`finally` 释放占用锁；反向断言禁止删除原始记录、`json.dump` 流式写入与无界读取。修复 Issue [#2749](https://github.com/can4hou6joeng4/boss-harness/issues/2749)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 40 个。版本推进到 npm `0.2.0-rc.312` / Python `0.2.0rc312`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.311 - 2026-11-20
 
 rc.311 源码候选为宿主工具桥的幂等清理补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
