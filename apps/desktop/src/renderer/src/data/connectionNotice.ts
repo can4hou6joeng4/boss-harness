@@ -145,7 +145,14 @@ function diagnosisSummary(diagnosis: StartupDiagnosis | undefined): string {
   if (diagnosis.kind === "unavailable") return UNAVAILABLE[diagnosis.reason];
   const errors = diagnosis.checks.filter(check => check.status === "error");
   // 自检通过而内核仍起不来：如实说明自检的范围，不把「未发现错误」说成「配置正确」。
-  if (!errors.length) return "本地配置自检未发现错误；自检仅覆盖返回的检查项，请继续核对内核依赖、实际写入、磁盘空间、占用锁与其他运行参数。";
+  if (!errors.length) {
+    // 警告不阻止启动，但仍可能是排查线索；只列已解析的报告字段，不新增诊断。
+    const warnings = diagnosis.checks.filter(check => check.status === "warning");
+    const notes = warnings.map(check =>
+      `${CHECK_TITLES.get(check.name) ?? check.name}：${sentence(check.message)}（${check.code}）`).join("");
+    const extra = notes ? `另有警告（可能不影响启动）：${notes}` : "";
+    return `本地配置自检未发现错误；${extra}自检仅覆盖返回的检查项，请继续核对内核依赖、实际写入、磁盘空间、占用锁与其他运行参数。`;
+  }
   return `自检发现：${errors.map(check =>
     `${CHECK_TITLES.get(check.name) ?? check.name}：${sentence(check.message)}${sentence(check.hint)}（${check.code}）`).join("")}`;
 }
