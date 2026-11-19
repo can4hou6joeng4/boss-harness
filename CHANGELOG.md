@@ -1,3 +1,10 @@
+## 0.2.0-rc.282 - 2026-11-20
+
+rc.282 源码候选统一回合模型请求数和附件存储上限的空白处理。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `BOSS_HARNESS_MAX_MODEL_REQUESTS`、`BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_BYTES` 与 `BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_OBJECTS` 先去除首尾空白再校验。空值或只有空白时分别使用 6 次、512 MiB 和 4096 个对象的默认上限，不再因空占位行阻断启动；非空非法值仍明确失败。[Issue #2688](https://github.com/can4hou6joeng4/boss-harness/issues/2688)
+- 十三例离线探针对比 rc.281：六例空白或带首尾空白的合法取值由拒绝改为生效，另外七例保持原结果；同一环境下自检「运行参数」由 `MAX_MODEL_REQUESTS_INVALID` 变为 `RUNTIME_OPTIONS_VALID`。新增静态守卫，在副本中分别还原两处旧写法均被拒绝。版本推进到 npm `0.2.0-rc.282` / Python `0.2.0rc282`。不执行发布动作。
+
 ## 0.2.0-rc.281 - 2026-11-20
 
 rc.281 源码候选让两个 JSON 启动配置把空值或只有空白按未设置处理。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

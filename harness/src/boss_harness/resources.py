@@ -555,15 +555,16 @@ class AttachmentStore:
 
     @staticmethod
     def _read_limit(name: str, default: int) -> int:
-        raw = os.environ.get(name)
-        if raw is None:
+        # 空值或只有空白按未设置处理，与其余数值上限一致；首尾空白不影响合法数字的判定。
+        value = (os.environ.get(name) or "").strip()
+        if not value:
             return default
-        if not raw or len(raw) > 19 or not raw.isascii() or not raw.isdecimal():
+        if len(value) > 19 or not value.isascii() or not value.isdecimal():
             raise ValueError(f"{name} 必须是 1 至 {_MAX_ATTACHMENT_STORAGE_LIMIT} 的十进制整数")
-        value = int(raw)
-        if not 1 <= value <= _MAX_ATTACHMENT_STORAGE_LIMIT:
+        limit = int(value)
+        if not 1 <= limit <= _MAX_ATTACHMENT_STORAGE_LIMIT:
             raise ValueError(f"{name} 必须是 1 至 {_MAX_ATTACHMENT_STORAGE_LIMIT} 的十进制整数")
-        return value
+        return limit
 
     @classmethod
     def limits_from_environment(cls) -> AttachmentStorageLimits:

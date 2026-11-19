@@ -1,5 +1,9 @@
 # 上游吸收记录
 
+## 数值上限在校验前去除首尾空白（Issue #2688）
+
+对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/agent/README.md`（Agent Options、Low-Level Loop）与 `packages/agent/src/agent-loop.ts`（`runLoop`、`prepareRequest`）：循环通过宿主提供的配置决定请求准备与后续行为；所读入口没有本项目的 `BOSS_HARNESS_MAX_MODEL_REQUESTS` 或附件配额。沿用本仓库既有的宿主上限，只在环境变量解析边界去除首尾空白：空值回退有界默认，非空值仍经过原有十进制格式与范围校验。回合计数、RPC 校验和持久附件规则不变，不复制源码、不引入依赖。
+
 ## 空白 JSON 配置按未设置处理（Issue #2686）
 
 对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/compaction.md`（How It Works）与 `packages/ai/README.md`（Querying Models）：上游的压缩策略与模型目录均由嵌入方提供，不在启动时解析环境变量。继续 #2666、#2672 以来的空白取值口径，本轮把同一规则补到两个 JSON 启动配置：`BOSS_HARNESS_MODEL_LIMITS` 与 `BOSS_HARNESS_COMPACTION` 的空值或纯空白按未设置处理，`autoCompactionSource` 也不再把空白占位行报告为 `environment`。JSON 结构校验、容量与压缩字段语义不变，独立实现。
