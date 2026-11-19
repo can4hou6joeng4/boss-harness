@@ -61,7 +61,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
-| 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
+| 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy)、[`check_turn_stream.py`](#check_turn_streampy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
@@ -168,6 +168,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_queue_steer.py`
 
 `scripts/check_queue_steer.py` 为 `queue/steer` 提供专项源码守卫：内核侧核对 `promote_to_steering` 只接受 `queued` 的 `followUp`、拒绝技能 / 自动压缩覆盖，并通过持久 `_save` 保留原 id、正文与请求编号；`on_queue_steer` 必须校验 active turn、`expectedTurnId`、取消状态与 `STEER_UNAVAILABLE`。脚本还核对 `queueSteer` 能力、协议参数类型、主进程两份白名单与方法参数校验、RPC 错误保留、渲染层 bridge 与面板按钮状态。它是 AST 与文本扫描，不替代状态机探针或真实桌面操作。
+
+### `check_turn_stream.py`
+
+`scripts/check_turn_stream.py` 核对回合循环与流式终态：`agent.py` 的 13 个通知名、`MAX_TOOL_ROUNDS` 与 300 秒审批默认值；请求偏移必须是非负整数且不超过请求上限，恢复预算与循环守卫在回合级创建；工具批次上限必须先于续接签名与长度截断处理，截断或续接失败都不得执行本批工具，`MODEL_OUTPUT_TRUNCATED` / `PROVIDER_CONTINUATION_TOO_LARGE` / `TOOL_BATCH_LIMIT` / `CONTEXT_BUDGET_EXCEEDED` 保持固定码；并行批次不可用时回退串行，取消时仅整批执行完成后才记完成。`_stream_round` 的 `retry_start` 只做观测、`retry_end` 与已发起点成对且早于回合终态，文本 / 思考增量计入输出预算，文本 / 思考 / 工具调用增量都记为已观测产出（工具参数预算在 provider 层），`done` 事件对最终文本复核预算；`CONTEXT_OVERFLOW` 恢复资格要求无中断、无产出与无助手消息，用量条目在中断、错误与 `aborted` / `error` 终态下标记不合格；条目终态在中断 / 错误 / 截断时为 `failed`。本检查只扫描源码片段与首次出现顺序，不执行回合，不替代行为测试。`summarize_result` 把分页元数据放在正文之前并在失败路径脱敏，`model_result` 默认沿用 `DEFAULT_MODEL_TOOL_RESULT_BYTES`。反向断言禁止中断时标成完成、`redact_secrets(str(exc))` 与未定义恢复标记。
 
 ### `check_catchup_boundary.py`
 
