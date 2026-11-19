@@ -237,6 +237,8 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
     const generation = ++compactionGeneration.current;
     setCompactionCurrent(false);
     setCompactionSaved(false);
+    // 窗口随每轮读取重新确认：断连、读取失败或读取期间不拿上一次的窗口当「当前模型」。
+    setCompactionWindow(null);
     if (!isOpen || section !== "context" || !harnessUp) return;
     const snapshot = compactionSnapshot.current;
     const keepDraft = !sameCompactionDraft(snapshot.draft, snapshot.baseline);

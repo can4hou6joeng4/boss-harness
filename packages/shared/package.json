@@ -1,6 +1,6 @@
 {
   "name": "@boss-harness/shared",
-  "version": "0.2.0-rc.292",
+  "version": "0.2.0-rc.293",
   "private": true,
   "license": "MIT",
   "description": "BOSS Harness 桌面与宿主共享的小工具",

@@ -1,3 +1,11 @@
+## 0.2.0-rc.293 - 2026-11-20
+
+rc.293 源码候选修正设置页的窗口提示状态。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 设置 →「上下文」进入刷新（分区切换、重连、重新读取）时先清空上下文窗口状态，读取成功后再写入；断连、读取失败或读取期间不再显示「当前模型的上下文窗口」提示，也不把上一轮的窗口当成当前模型。修复 Issue [#2710](https://github.com/can4hou6joeng4/boss-harness/issues/2710)。
+- `scripts/check_context_keep.py` 增加「先清空、再按连接状态提前退出」的顺序断言；删除清空行或把清空移到提前退出之后都会使检查失败。
+- 使用指南与桌面指南补充断连与重读期间不提示的说明。版本推进到 npm `0.2.0-rc.293` / Python `0.2.0rc293`。不改变内核接受范围或提示判定，不执行发布动作。
+
 ## 0.2.0-rc.292 - 2026-11-20
 
 rc.292 源码候选补齐状态页的能力清单。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

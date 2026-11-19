@@ -31,10 +31,13 @@ PANEL_FRAGMENTS = (
 )
 DIALOG_FRAGMENTS = (
     "const [compactionWindow, setCompactionWindow] = useState<number | null>(null);",
+    "// 窗口随每轮读取重新确认：断连、读取失败或读取期间不拿上一次的窗口当「当前模型」。",
+    "setCompactionWindow(null);",
     "const window = config.modelCapabilities?.contextWindow;",
     'setCompactionWindow(typeof window === "number" && Number.isSafeInteger(window) && window > 0 ? window : null);',
     "keepTargetReachesLimit(Number(compaction.keepRecentTokens), compactionWindow)",
 )
+EARLY_RETURN = 'if (!isOpen || section !== "context" || !harnessUp) return;'
 DOC_FRAGMENTS = (
     (USER_GUIDE, "保留目标不低于当前模型输入预算时"),
     (USER_GUIDE, "保留目标不低于当前模型上下文窗口时"),
@@ -72,6 +75,11 @@ def check_context_keep() -> int:
     # 窗口来自内核能力投影；字符串或非整数值不能进入比较。
     if "config.modelCapabilities?.contextWindow" not in dialog:
         raise ValueError(f"{DIALOG} 的保留目标提示必须使用内核返回的上下文窗口")
+    # 清空必须发生在按连接状态提前退出之前，否则断连时仍会沿用上一轮的窗口。
+    clear_index = dialog.find("setCompactionWindow(null);")
+    early_return = dialog.find(EARLY_RETURN)
+    if clear_index < 0 or early_return < 0 or clear_index > early_return:
+        raise ValueError(f"{DIALOG} 必须先清空窗口状态再按连接状态提前退出")
 
     for relative, fragment in DOC_FRAGMENTS:
         checked += _expect((fragment,), _read(relative), relative)
