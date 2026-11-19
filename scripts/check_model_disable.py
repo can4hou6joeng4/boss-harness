@@ -147,10 +147,18 @@ def check_model_disable() -> tuple[int, int]:
         'message = "本机没有可用的该模型线路配置"',
     ), _method(app_tree, application, "ApplicationService", "_configured_route"), "_configured_route")
 
+    summary_available = _method(app_tree, application, "ApplicationService", "_summary_available")
     guards += _expect((
-        "return (self.provider_factory is not None and not self.model_calls_disabled",
-        'and (policy.provider or base_provider) != "none")',
-    ), _method(app_tree, application, "ApplicationService", "_summary_available"), "_summary_available")
+        "provider = policy.provider or base_provider",
+        'if self.provider_factory is None or self.model_calls_disabled or provider == "none":\n            return False',
+        'if provider == "anthropic" and provider != base_provider:\n            return has_anthropic_credential(os.environ)',
+    ), summary_available, "_summary_available")
+    guards += _ordered(summary_available, "return False", "return has_anthropic_credential(os.environ)",
+                       "_summary_available")
+    if any(call in summary_available for call in ("resolve_config(", "self._compaction_model_config(",
+                                                  "self._provider_for(", "self._compaction_provider(")):
+        raise ValueError("_summary_available 不得读取模型配置文件或构造供应商")
+    guards += 1
     context_read = _method(app_tree, application, "ApplicationService", "on_context_read")
     if context_read.count("self._summary_available(") != 2:
         raise ValueError("on_context_read 的两处 summaryAvailable 必须都经 _summary_available")

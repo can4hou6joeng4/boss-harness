@@ -1,3 +1,10 @@
+## 0.2.0-rc.285 - 2026-11-20
+
+rc.285 源码候选修正独立 Anthropic 摘要线路的可用性提示。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `context/read` 对另选的 Anthropic 摘要线路复用现有凭据判定：缺少非空环境凭据时返回 `summaryAvailable: false`，让桌面在开始前明确提示不可用；查看预算和整理计划不受影响。复用会话线路、独立 OpenAI 线路和实际摘要请求行为不变。[Issue #2694](https://github.com/can4hou6joeng4/boss-harness/issues/2694)
+- 八种离线配置对比 rc.284：缺少凭据与纯空白两例不再误报，其余六例不变；空闲读取、输入预览和模拟活跃回合预算读取表现一致，未构造供应商或新增模型配置解析。同步静态检查与文档。版本推进到 npm `0.2.0-rc.285` / Python `0.2.0rc285`。不执行发布动作。
+
 ## 0.2.0-rc.284 - 2026-11-20
 
 rc.284 源码候选修复桌面自动选择不可执行的虚拟环境解释器。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

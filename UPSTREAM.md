@@ -1,5 +1,9 @@
 # 上游吸收记录
 
+## 独立 Anthropic 摘要线路的可用性投影（Issue #2694）
+
+对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/compaction.md`（How It Works）与 `packages/coding-agent/src/core/compaction/compaction.ts`（`prepareCompaction`、`compact`）：准备阶段按会话历史规划切点，实际生成单独接收模型；所读入口没有本项目向桌面投影摘要线路可用性的字段。沿用准备与生成的职责边界，本项目在既有 `summaryAvailable` 字段复用独立 Anthropic 线路的环境凭据判定。预算读取与整理计划不构造模型或新增配置文件读取，摘要任务、实际错误码和协议形状保持不变，不复制源码、不引入依赖。
+
 ## 数值上限在校验前去除首尾空白（Issue #2688）
 
 对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/agent/README.md`（Agent Options、Low-Level Loop）与 `packages/agent/src/agent-loop.ts`（`runLoop`、`prepareRequest`）：循环通过宿主提供的配置决定请求准备与后续行为；所读入口没有本项目的 `BOSS_HARNESS_MAX_MODEL_REQUESTS` 或附件配额。沿用本仓库既有的宿主上限，只在环境变量解析边界去除首尾空白：空值回退有界默认，非空值仍经过原有十进制格式与范围校验。回合计数、RPC 校验和持久附件规则不变，不复制源码、不引入依赖。
