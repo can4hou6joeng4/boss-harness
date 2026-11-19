@@ -28,6 +28,8 @@ export interface BossBridge {
   request<T>(method: string, params?: unknown): Promise<T>;
   status(): Promise<DesktopHarnessStatus>;
   reconnect(): Promise<DesktopHarnessStatus>;
+  /** 随时运行本地配置自检；与启动失败自检共用主进程里的命令、解释器、工作目录与环境。 */
+  runStartupCheck(): Promise<StartupDiagnosis>;
   exportSession(request: SessionExportSaveRequest): Promise<SessionExportSaveResult>;
   platformLogin(action: PlatformLoginAction, context?: PlatformLoginContext): Promise<PlatformLoginStatus>;
   onPlatformLogin(listener: (status: PlatformLoginStatus) => void): () => void;

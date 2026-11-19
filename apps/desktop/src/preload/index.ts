@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type { ApprovalFocusTarget, BadgeCountResult, JsonRpcNotification, NotificationTestResult,
   PlatformLoginStatus, PlatformLoginAction, PlatformLoginContext, SessionExportSaveRequest,
-  SessionExportSaveResult, ThreadFocusTarget } from "@boss-harness/protocol";
+  SessionExportSaveResult, StartupDiagnosis, ThreadFocusTarget } from "@boss-harness/protocol";
 import { createFocusRelay } from "@boss-harness/shared";
 import type { BossBridge, DesktopHarnessStatus } from "./bridge";
 /**
@@ -32,6 +32,10 @@ const api: BossBridge = {
   },
   reconnect(): Promise<DesktopHarnessStatus> {
     return ipcRenderer.invoke("harness:reconnect") as Promise<DesktopHarnessStatus>;
+  },
+  /** 手动运行本地配置自检：解释器与环境由主进程按启动配置选定，渲染层不传任何参数。 */
+  runStartupCheck(): Promise<StartupDiagnosis> {
+    return ipcRenderer.invoke("harness:startup-check") as Promise<StartupDiagnosis>;
   },
   /** 导出会话：主进程向内核取脱敏文本并经保存对话框写盘；返回文件名与统计，不返回正文或路径。 */
   exportSession(request: SessionExportSaveRequest): Promise<SessionExportSaveResult> {

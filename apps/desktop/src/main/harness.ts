@@ -15,7 +15,7 @@ import { readTurnEvent, recordTurnStart, turnNotificationContent } from "./turnN
 import { quitConfirmationContent } from "./quitConfirmation";
 import { normalizeBadgeCount } from "./notificationBadge";
 import { NotificationRegistry } from "./notificationRegistry";
-import { StartupDiagnostics, runStartupCheck } from "./startupCheck";
+import { StartupDiagnostics, runStartupCheck, type StartupCheckTarget } from "./startupCheck";
 
 function findRepoRoot(start: string): string {
   let current = resolve(start);
@@ -42,6 +42,8 @@ const manager = new HarnessHostManager();
 const windows = new Set<BrowserWindow>();
 let host: HarnessHostConnection | null = null;
 let diagnostics: StartupDiagnostics | null = null;
+// 手动自检与启动失败自检共用这份目标：解释器、工作目录与环境在应用启动时确定。
+let startupCheckTarget: StartupCheckTarget | null = null;
 let repoRoot = "";
 let ipcRegistered = false;
 const platformLogin = new PlatformLogin((method, params) => {
@@ -204,11 +206,13 @@ function createHost(): HarnessHostConnection {
     client: { command: python, args: ["-m", "boss_harness", "--listen", "stdio://"], cwd: repoRoot, env },
   });
   // 自检与内核共用解释器、工作目录和环境，结论才对应同一份启动配置；只额外固定输出编码。
+  const checkTarget: StartupCheckTarget = {
+    command: python, args: ["-m", "boss_harness", "--check"], cwd: repoRoot,
+    env: { ...process.env, ...env, PYTHONIOENCODING: "utf-8" },
+  };
+  startupCheckTarget = checkTarget;
   diagnostics = new StartupDiagnostics(
-    (signal) => runStartupCheck({
-      command: python, args: ["-m", "boss_harness", "--check"], cwd: repoRoot,
-      env: { ...process.env, ...env, PYTHONIOENCODING: "utf-8" },
-    }, signal),
+    (signal) => runStartupCheck(checkTarget, signal),
     // 自检晚于断开通知结束：补发一次连接状态，窗口不需要轮询。
     () => {
       const status: JsonRpcNotification = {
@@ -366,6 +370,19 @@ function registerIPC(): void {
     await diagnostics?.settled();
     return { ...connectionStatus(connection), repoRoot };
   });
+  let manualStartupCheck: Promise<StartupDiagnosis> | null = null;
+  ipcMain.handle("harness:startup-check", (event): Promise<StartupDiagnosis> => {
+    trustedSender(event);
+    const target = startupCheckTarget;
+    // 应用正在退出或尚未创建连接：沿用启动失败自检的固定原因，不抛出异常。
+    if (!target) return Promise.resolve({ kind: "unavailable", reason: "spawn" });
+    // 连点共用同一份在途结论；启动失败自检未结束时先等它退出，同一时刻只保留一个自检进程。
+    manualStartupCheck ??= (async () => {
+      await diagnostics?.settled();
+      return runStartupCheck(target);
+    })().finally(() => { manualStartupCheck = null; });
+    return manualStartupCheck;
+  });
   ipcMain.handle("notification:badge", (event, value: unknown): BadgeCountResult => {
     trustedSender(event);
     const count = normalizeBadgeCount(value);
@@ -386,7 +403,8 @@ function registerIPC(): void {
   });
   app.on("before-quit", (event) => {
     if (!confirmQuit(event)) return;
-    platformLogin.cancel(); diagnostics?.reset(); diagnostics = null; manager.dispose(); host = null; windows.clear();
+    platformLogin.cancel(); diagnostics?.reset(); diagnostics = null; startupCheckTarget = null;
+    manager.dispose(); host = null; windows.clear();
   });
 }
 

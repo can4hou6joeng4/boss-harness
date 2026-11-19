@@ -60,7 +60,7 @@ function checkEntryOf(value: unknown): StartupCheckEntry | null {
 }
 
 /** 主进程已按固定字段校验自检输出；这里只确认形状，畸形载荷按「没有结论」处理。 */
-function diagnosisOf(value: unknown): StartupDiagnosis | undefined {
+export function startupDiagnosisOf(value: unknown): StartupDiagnosis | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const raw = value as Record<string, unknown>;
   if (raw.kind === "unavailable") {
@@ -96,7 +96,7 @@ export function connectionViewOf(value: unknown): ConnectionView | null {
   if (typeof raw.startupFailed === "boolean") view.startupFailed = raw.startupFailed;
   if (typeof raw.wasReady === "boolean") view.wasReady = raw.wasReady;
   if (typeof raw.willRetry === "boolean") view.willRetry = raw.willRetry;
-  const diagnosis = diagnosisOf(raw.startupDiagnosis);
+  const diagnosis = startupDiagnosisOf(raw.startupDiagnosis);
   if (diagnosis) view.startupDiagnosis = diagnosis;
   const bridge = raw.modelBridge;
   if (bridge && typeof bridge === "object" && !Array.isArray(bridge)) {
@@ -224,6 +224,27 @@ export function startupCheckRows(diagnosis: StartupDiagnosis | undefined): Start
     text: `${sentence(check.message)}${sentence(check.hint)}`,
     code: check.code,
   })).sort((left, right) => STATUS_ORDER[left.status] - STATUS_ORDER[right.status]);
+}
+
+/** 报告版本行：只拼接报告实际携带的字段；没有合规报告时为空串。 */
+export function startupReportMeta(diagnosis: StartupDiagnosis | undefined): string {
+  if (diagnosis?.kind !== "report") return "";
+  return [diagnosis.version ? `内核 ${diagnosis.version}` : "",
+    diagnosis.protocolVersion ? `协议 ${diagnosis.protocolVersion}` : "",
+    diagnosis.pythonVersion ? `Python ${diagnosis.pythonVersion}` : ""].filter(Boolean).join(" · ");
+}
+
+/** 桌面与内核协议不一致的提示；一致、缺少字段或没有报告时为空串。 */
+export function startupProtocolMismatch(diagnosis: StartupDiagnosis | undefined, supported: string): string {
+  const reported = diagnosis?.kind === "report" ? diagnosis.protocolVersion : undefined;
+  return reported && reported !== supported
+    ? `协议版本不一致：内核自检报告 ${reported}，桌面支持 ${supported}；请确认桌面与内核来自同一构建。`
+    : "";
+}
+
+/** 自检未能给出报告时的固定说明；有合规报告时为空串。 */
+export function startupUnavailableText(diagnosis: StartupDiagnosis | undefined): string {
+  return diagnosis?.kind === "unavailable" ? UNAVAILABLE[diagnosis.reason] : "";
 }
 
 /**
