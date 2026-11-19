@@ -59,7 +59,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | --- | --- |
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
-| 共享工具 | [`check_shared_utils.py`](#check_shared_utilspy) |
+| 共享工具 | [`check_shared_utils.py`](#check_shared_utilspy)、[`check_duration_parity.py`](#check_duration_paritypy) |
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_window_state.py`](#check_window_statepy)、[`check_renderer_recovery.py`](#check_renderer_recoverypy)、[`check_lifecycle.py`](#check_lifecyclepy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy)、[`check_turn_stream.py`](#check_turn_streampy) |
@@ -83,6 +83,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_shared_utils.py`
 
 `scripts/check_shared_utils.py` 核对跨包共享工具：`choosePythonInterpreter` 与 `chooseProviderOverride` 对显式变量去空白后非空才采用，否则回退仓库 `.venv` / PATH `python3` 与 `openai`；`parseIsoDateTime` 只接受带秒与时区的完整 ISO 时间，正则外形之后必须按月份天数、闰年与字段范围校验，最后才构造 `Date`；`formatRelativeTime` 从秒逐级取整并在 30 天后回退本机日期；`formatDurationMs` 与内核导出同一口径；`safeSlice` 按 UTF-16 截断但不切开代理对，`codePointLength` 与 Python `len()` 一致；`truncate`、`stripIpcErrorWrapper` 与 `createFocusRelay` 的缓存 / 微任务交付 / 交付后清除固定。检查是源码字面量与首次出现顺序扫描，不执行时间格式化或定位转发。
+
+### `check_duration_parity.py`
+
+`scripts/check_duration_parity.py` 核对会话导出与桌面界面的时长文案：内核 `session_export._duration_text` 必须按 `(ms + 500) // 1000` 取整，`packages/shared/src/index.ts` 的 `formatDurationMs` 必须按 `Math.round(ms / 1000)` 取整；两侧的「不足 1 秒」、秒、分（带剩余秒）、小时（带剩余分）阈值与分支顺序必须一致，四个中文标签必须同时存在；内核导出至少四处调用 `_duration_text`，桌面通知经 `formatDurationMs` 共用同一实现。反向断言两侧不得改用其它取整方式。检查是源码字面量与首次出现顺序扫描，不做跨语言运行比对。
 
 ### `check_protocol.py`
 
