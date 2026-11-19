@@ -61,7 +61,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_item_content.py`](#check_item_contentpy) |
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
-| 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy) |
+| 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy) |
@@ -147,6 +147,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_catchup_boundary.py`
 
 `scripts/check_catchup_boundary.py` 核对摘要后补领转向的提交批次、最终请求指纹与续接拒绝条件；它是 AST 与文本扫描，不替代真实模型或桌面操作。
+
+### `check_request_identity.py`
+
+`scripts/check_request_identity.py` 核对请求身份的校验、去重与冲突边界：`request_identity.py` 的 `clientUserMessageId` 必须整串匹配 `[A-Za-z0-9_-]{1,128}`，无效格式直接拒绝；持久记录的 `queueId` / `turnId` 链接必须经类型校验后参与两轮收敛，队列记录必须与 `queue/list` 共用 `queue_record` 契约；转向类型冲突、不同输入与身份歧义必须分别以 `CLIENT_REQUEST_CONFLICT`、`CLIENT_REQUEST_AMBIGUOUS`、`REQUEST_REQUIRES_REVIEW` 拒绝；输入摘要按 UTF-8 原文计算，持久事实不一致或「未启动却已完成」的回合必须要求核对。脚本同时核对技术参考与使用指南的请求身份说明。检查是常量与文本扫描，实际去重与恢复行为仍需按用户指南核对。
 
 ### `check_model_disable.py`
 
