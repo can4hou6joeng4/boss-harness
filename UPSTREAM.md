@@ -1,5 +1,9 @@
 # 上游吸收记录
 
+## 握手报告默认线路的请求选项（Issue #2556）
+
+对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/src/core/model-registry.ts`。Pi 将具体模型交给运行时解析认证和兼容请求配置。本仓库的 stdio 握手报告进程默认线路，因此只在 Anthropic 默认线路上展示该 provider 的思考与回退选项；沿用握手字段类型以及既有的模型请求和续接指纹规则。
+
 ## 连接检查展示进程级模型禁用（Issue #2554）
 
 沿用 #2550 对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/src/core/model-registry.ts` 的对照。本仓库把已经生效的进程级开关投影到连接报告，沿用启动自检的 `MODEL_DISABLED` 数据码，方便客户端给出重启提示。模型目录、供应商选择和模型请求仍由既有入口处理。

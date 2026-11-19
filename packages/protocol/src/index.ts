@@ -68,8 +68,17 @@ export interface InitializeResponse {
   serverVersion: string;
   protocolVersion: string;
   toolBridge: ToolBridgeStatus;
-  /** `modelCallsDisabled` 与 `config/read` 的同名字段取值一致：显式 none 启动为 true，其余为 false；旧内核不返回。 */
-  modelBridge: { provider: string; model: string; driven: boolean; modelCallsDisabled?: boolean };
+  modelBridge: {
+    provider: string;
+    model: string;
+    driven: boolean;
+    /** 与 `config/read` 的同名字段一致。显式 none 启动为 true，旧内核可以省略。 */
+    modelCallsDisabled?: boolean;
+    /** Anthropic 默认线路的思考选项，其余线路为 null。 */
+    thinking?: Record<string, unknown> | null;
+    /** Anthropic 默认线路的服务端回退配置，其余线路为 false。 */
+    serverSideFallback?: boolean;
+  };
   approval: { requiredTools: string[]; timeoutSeconds: number };
   capabilities?: { bidirectionalRequests: boolean; eventReplay: boolean; pagination: boolean;
     parallelThreads: boolean; durableApprovals?: boolean; explicitTurnContinuation?: boolean;

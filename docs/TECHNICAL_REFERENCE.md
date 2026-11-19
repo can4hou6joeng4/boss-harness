@@ -229,6 +229,8 @@ OpenAI Responses 的 `response.completed` / `response.incomplete` 与 Anthropic 
 
 `connection/read` 的 `model` 卡片在显式禁用时返回 `state: "disabled"`、`code: "MODEL_DISABLED"` 和重启提示；启用招聘平台能力的工具组合还会提示招聘 CLI 仍可运行。默认线路为 `none` 且进程级开关关闭时，卡片保持 `disabled` 并返回默认线路说明，`code` 省略。`connection/check` 的 `model` 目标在这两种情况下直接返回报告。桌面在状态行展示 `summary` 与 `code`；报告缺少 `MODEL_DISABLED` 且握手标明禁用时，描述行使用握手提示。
 
+握手 `initialize.modelBridge` 的 `thinking` 与 `serverSideFallback` 只在默认线路为 `anthropic` 时报告生效配置。默认线路为 `none` 或 `openai` 时，这两个字段分别为 `null` 和 `false`。客户端可按已有字段类型读取；运行时模型配置和续接指纹仍使用原始配置。
+
 内核在每次模型请求前估算完整输入，包括 system/技能、用户材料、消息与思考、工具调用及结果、工具 schema 和请求选项。输出预留受模型声明的上限约束，输入增长不会静默缩小输出；保留 4096 token 安全余量。接近或超过预算时可先自动摘要更早的完整回合；仍无法容纳时以 `blocked / CONTEXT_BUDGET_EXCEEDED` 或明确的压缩错误暂停，不请求业务模型、不自动启动后续队列，已有工具结果继续保留。steering 只有在下一请求通过预算检查后才标记已投递；预算失败时保留为暂停项。
 
 通过启动环境变量 `BOSS_HARNESS_MODEL_LIMITS` 配置精确的 `provider/model` 容量，例如：
