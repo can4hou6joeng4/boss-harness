@@ -62,7 +62,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
-| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy) |
+| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_secret.py`](#check_secretpy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
@@ -272,6 +272,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_retry.py`
 
 `scripts/check_retry.py` 核对模型重试的退避上限、环境解析与观测事件边界：`retry.py` 的 8 秒上限、默认 3 次与 500ms、1–10 次范围；`retry_settings_from_environment` 必须先按空白回退默认值、再按整数解析，越界收敛并标记 `adjusted`，基数负数按 0；`retry_delay` 在网关给出 Retry-After 时夹到 0–8 秒，否则指数退避同样封顶；`retry_after_seconds` 优先 `retry-after-ms`（0.001）再 `retry-after`（1.0），跳过空值、解析失败继续、无值返回 None；`retry_start_event` 只带次数、毫秒与固定默认说明，`retry_aborted_before_attempt_event` 以 `aborted` 与固定中文说明收尾；`with_retry_outcome` 关闭来源流，首个非错误事件补成功、错误事件补失败并原样透传。反向断言禁止模块内睡眠、直接下标读取响应头与事件夹带内容。同时核对使用指南的重试配置口径。检查是常量与文本扫描，实际等待与取消行为仍需按回合执行器核对。
+
+### `check_openai_responses.py`
+
+`scripts/check_openai_responses.py` 固定 OpenAI Responses 适配器的流式边界：终态原因映射按 completed / in_progress / queued → stop、incomplete → length（仅 `max_output_tokens`）、failed / cancelled → error 收敛；文本与思考增量事件集合、可重试状态 `408/409/429/500/502/503/504`、网关过载标记保持原样；流内错误先采用 `errors.py` 的结构化结论，`CONTEXT_OVERFLOW` 永不重试，无结论时才回退文本标记。输入条目必须区分 `function_call_output`、`function_call` 与 `output_text`，工具调用以 `call_id` 配对、参数以 `ensure_ascii=False` 序列化，思考块不回放。用量缺失或缺输入 / 输出计数时返回 `None`，不伪造全零。单次尝试固定 30 秒超时与零 SDK 重试，工具调用标识与名称超过 256 字符即拒绝；已向调用方产出内容后不再重试，清理未确认与共享恢复预算用尽时以固定说明停止。反向断言禁止吞掉全部异常、直接 `json.loads(raw)` 与回放加密内容。检查是常量与文本扫描，真实流行为仍需按用户指南核对。
 
 ### `check_compaction.py`
 

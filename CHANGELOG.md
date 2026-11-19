@@ -1,3 +1,10 @@
+## 0.2.0-rc.328 - 2026-11-20
+
+rc.328 源码候选为 OpenAI Responses 适配器补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_openai_responses.py`：固定终态原因映射与顺序、文本 / 思考增量事件、可重试状态与网关过载标记；流内错误优先采用结构化结论且 `CONTEXT_OVERFLOW` 永不重试；固定输入条目形状与 `call_id` 配对、思考块不回放、用量缺失不伪造全零、空串 / 非法常量 / 非对象参数收敛；固定单次尝试 30 秒超时与零 SDK 重试、已产出内容后不再重试、清理未确认与共享恢复预算两条停止分支、工具调用标识 256 字符上限。反向断言禁止吞掉全部异常、直接解析原始参数与回放加密内容。修复 Issue [#2781](https://github.com/can4hou6joeng4/boss-harness/issues/2781)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 56 个。版本推进到 npm `0.2.0-rc.328` / Python `0.2.0rc328`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.327 - 2026-11-20
 
 rc.327 源码候选为离线指令与默认领域提示补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
