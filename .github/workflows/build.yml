@@ -66,6 +66,8 @@ jobs:
         run: python scripts/check_export_privacy.py
       - name: Verify session export write
         run: python scripts/check_export_write.py
+      - name: Verify session export HTML
+        run: python scripts/check_export_html.py
       - name: Verify private state boundaries
         run: python scripts/check_private_files.py
       - name: Verify credential redaction
