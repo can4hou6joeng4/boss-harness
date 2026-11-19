@@ -1,3 +1,11 @@
+## 0.2.0-rc.247 - 2026-11-19
+
+rc.247 源码候选让启动自检提示状态目录中的 `~` 不会展开。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `BOSS_HARNESS_DIR` 或旧变量 `BOSS_CLI_HARNESS_DIR` 去除首尾空白后以 `~` 开头，且本次检查使用的正是该字面路径时，`stateDirectory` 检查记为警告 `STATE_DIRECTORY_TILDE`，说明内核按启动工作目录解析、不展开 `~`，建议改用绝对路径；不输出实际路径。桌面从仓库根启动时此前会在这里创建字面 `~` 目录。[Issue #2618](https://github.com/can4hou6joeng4/boss-harness/issues/2618)
+- 显式 `--state-dir` 指向其他路径时不因残留环境变量报警；未设置、空值、非 `~` 开头或路径条件失败时保持原有结果，路径错误仍优先。旧变量本身以 `~` 开头时显示 `~` 警告而不是迁移提示。
+- 以 rc.246 合并提交导出的源码为基线，十一个场景独立进程对比：未设置、绝对路径、相对路径、空值、显式覆盖与文件占位六例逐字节一致；四种 `~` 写法变为警告，退出码仍为 0；文件占位场景仍优先报告 `STATE_DIRECTORY_NOT_DIRECTORY` 并以 2 退出。报告不包含实际路径。全部检查通过。版本推进到 npm `0.2.0-rc.247` / Python `0.2.0rc247`。不执行发布动作。
+
 ## 0.2.0-rc.246 - 2026-11-19
 
 rc.246 源码候选让手动配置自检结果显示总体结论与运行时间。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
