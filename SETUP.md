@@ -48,6 +48,8 @@ npx install-electron --no
 | `MODEL_NOT_CONFIGURED` / `MODEL_DISABLED` | 正常：尚未配置模型或显式以 `none` 启动；继续第 4 步。 |
 | `MODEL_SDK_UNAVAILABLE` | 确认第 2 步已在 `.venv` 中安装内核依赖；仍缺包时等用户选定模型线路后再装对应 SDK。 |
 | `BOSS_CLI_UNAVAILABLE` | 让用户先安装并登录 `boss-agent-cli`，再按[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)核对路径。 |
+| `BOSS_CLI_DATA_DIR_IN_REPO` | 让用户把 `BOSS_CLI_DATA_DIR` 移到仓库外；登录态与平台缓存不应进入可能被提交的目录。这是警告，不阻止启动。 |
+| `BOSS_CLI_DATA_DIR_OVERLAP` | 让用户为业务 CLI 数据目录与内核状态目录选择互不包含的两个目录。这是警告，不阻止启动。 |
 | `STATE_DIRECTORY_*` | 按报告建议选择当前用户拥有的独立目录，不要放宽权限。 |
 | `STATE_DIRECTORY_LOW_SPACE` | 提醒用户释放磁盘空间；这是警告，不阻止启动。 |
 

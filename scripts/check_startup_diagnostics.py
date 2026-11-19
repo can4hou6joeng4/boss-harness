@@ -15,6 +15,7 @@ APPLICATION = "harness/src/boss_harness/application.py"
 DESKTOP = "apps/desktop/src/main/startupCheck.ts"
 PROTOCOL = "packages/protocol/src/index.ts"
 USER_GUIDE = "docs/USER_GUIDE.md"
+SETUP_GUIDE = "SETUP.md"
 CONNECTION_NOTICE = "apps/desktop/src/renderer/src/data/connectionNotice.ts"
 CONNECTION_SETTINGS = "apps/desktop/src/renderer/src/components/ConnectionSettings.tsx"
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,31}$")
@@ -23,6 +24,8 @@ DESKTOP_LIMIT = re.compile(r"const MAX_TEXT_LENGTH = (\d+);")
 TICKED_CODE = re.compile(r"`([A-Z][A-Z0-9_]{1,63})`")
 CHECK_TITLE = re.compile(r'\["([A-Za-z][A-Za-z0-9]*)", "([^"]+)"\]')
 DOC_CHECK_TABLE = "| 检查项 | 固定检查码 | 检查范围与限制 |"
+SETUP_TABLE = "| 检查结果 | 让用户做什么 |"
+SETUP_WILDCARD = re.compile(r"`([A-Z][A-Z0-9_]*_)\*`")
 DOC_TABLES = (
     ("| 固定检查码 | 含义与处理 |", "模型配置错误码"),
     ("| 目录错误码 | 含义与处理 |", "目录错误码"),
@@ -558,7 +561,35 @@ def _names_consistency(tree: ast.Module, guide: str, notice: str) -> int:
     return len(names) * 3
 
 
-def _docs_codes(tree: ast.Module, config_tree: ast.Module, guide: str) -> int:
+def _setup_codes(emitted: set[str], setup: str) -> int:
+    """安装指南的检查结果表供 Agent 对照；表内检查码必须由内核实际产出。"""
+    lines = setup.splitlines()
+    try:
+        start = lines.index(SETUP_TABLE)
+    except ValueError:
+        raise ValueError("安装指南缺少检查结果表格") from None
+    codes: list[str] = []
+    prefixes: list[str] = []
+    for line in lines[start + 2:]:
+        if not line.startswith("|"):
+            break
+        cell = line.strip().strip("|").split("|")[0]
+        codes.extend(TICKED_CODE.findall(cell))
+        prefixes.extend(SETUP_WILDCARD.findall(cell))
+    if not codes:
+        raise ValueError("安装指南检查结果表格没有检查码")
+    if len(codes) != len(set(codes)) or len(prefixes) != len(set(prefixes)):
+        raise ValueError("安装指南检查结果表格有重复检查码")
+    stale = sorted(set(codes) - emitted)
+    if stale:
+        raise ValueError("安装指南检查结果表格残留内核未产出的检查码：" + "、".join(stale))
+    for prefix in prefixes:
+        if not any(code.startswith(prefix) for code in emitted):
+            raise ValueError(f"安装指南检查结果表格的通配 {prefix}* 未匹配任何内核检查码")
+    return len(codes) + len(prefixes)
+
+
+def _docs_codes(tree: ast.Module, config_tree: ast.Module, guide: str, setup: str) -> int:
     diagnostics = _assignment(config_tree, "_DIAGNOSTICS")
     diagnostic_codes = {key.value for key in diagnostics.keys
                         if isinstance(key, ast.Constant) and isinstance(key.value, str)}
@@ -583,7 +614,7 @@ def _docs_codes(tree: ast.Module, config_tree: ast.Module, guide: str) -> int:
     missing = sorted(emitted - set(TICKED_CODE.findall(guide)))
     if missing:
         raise ValueError("使用指南缺少检查码：" + "、".join(missing))
-    return len(emitted)
+    return len(emitted) + _setup_codes(emitted, setup)
 
 
 def check_startup_diagnostics() -> tuple[int, int]:
@@ -610,10 +641,10 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _warning_order(startup_tree, startup)
     checked += _diagnostics(config_tree, limit)
     guide = _read(USER_GUIDE)
-    checked += _docs_codes(startup_tree, config_tree, guide)
+    checked += _docs_codes(startup_tree, config_tree, guide, _read(SETUP_GUIDE))
     checked += _names_consistency(startup_tree, guide, _read(CONNECTION_NOTICE))
     checked += _conclusion_parity(startup_tree, _read(CONNECTION_NOTICE), _read(CONNECTION_SETTINGS))
-    return 7, guards + checked
+    return 8, guards + checked
 
 
 def main() -> int:
