@@ -1,3 +1,10 @@
+## 0.2.0-rc.343 - 2026-11-20
+
+rc.343 源码候选为跨包共享的时间、截断与定位工具补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_shared_utils.py`：固定解释器与线路选择的去空白规则，ISO 正则、月份天数、闰年与字段范围校验及 `Date` 调用顺序，相对时间与时长文案的分支，`safeSlice` 的有限值 / 正数 / 高代理项判定，`codePointLength` 的代理对步进，`truncate`、`stripIpcErrorWrapper` 与定位转发的缓存 / 微任务交付 / 清除顺序。反向断言时长四舍五入、截断避开代理对、定位转发交付前清除待回放。修复 Issue [#2811](https://github.com/can4hou6joeng4/boss-harness/issues/2811)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 69 个。版本推进到 npm `0.2.0-rc.343` / Python `0.2.0rc343`。不改变运行时行为，不执行时间格式化或发布动作。
+
 ## 0.2.0-rc.342 - 2026-11-20
 
 rc.342 源码候选为桌面启动接管、单实例与退出确认补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
