@@ -59,7 +59,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | --- | --- |
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
-| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_window_state.py`](#check_window_statepy)、[`check_renderer_recovery.py`](#check_renderer_recoverypy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
+| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_window_state.py`](#check_window_statepy)、[`check_renderer_recovery.py`](#check_renderer_recoverypy)、[`check_lifecycle.py`](#check_lifecyclepy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy)、[`check_turn_stream.py`](#check_turn_streampy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
@@ -134,6 +134,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_renderer_recovery.py`
 
 `scripts/check_renderer_recovery.py` 核对渲染层恢复与诊断页：`rendererRecovery.ts` 的自动重载上限 2、滚动窗口 120 秒；六个已知退出原因只经 `hasOwnProperty` 查表，未知原因保留原文或回退「未知原因」；退出码只接受安全整数；恢复参数分别校验安全整数 / 有限正数 / 有限数，历史重载先过滤到 `(now - windowMs, now]`；`clean-exit` 忽略，预算内重载并记录时间戳，超限报告并给出已重载次数。`rendererLoadFailure.ts` 以 `errno: -3` 或 `ERR_ABORTED` 判定被取代的导航，仅当前加载才报告。`rendererFailure.ts` 的诊断页截断 300 字符、修复孤立代理项、转义五个 HTML 实体、使用 `default-src 'none'; style-src 'unsafe-inline'` 的 CSP，并以 `encodeURIComponent` 生成 data URL；不得含脚本或外链。`window.ts` 的失败显示有一次性标记，崩溃决策顺序、`activeLoad` 竞态守卫与初始加载报告固定。检查是源码字面量与首次出现顺序扫描，不启动渲染进程。
+
+### `check_lifecycle.py`
+
+`scripts/check_lifecycle.py` 核对桌面启动接管、单实例与退出确认：`quitConfirmation.ts` 只在运行中回合不少于 1 时返回确认内容，标题、单复数文案、明细、按钮 `["继续运行", "停止并退出"]` 固定，`defaultId` / `cancelId` 都为 0，`noLink` 为 true；`harness.ts` 的 `confirmQuit` 先放行已确认退出，再按 `turnStartedAt.size` 判定是否拦截，`preventDefault` 后同一时刻只开一个确认框；选择「继续运行」恢复主窗口，选择「停止并退出」或确认框无法显示才置确认位并退出；`before-quit` 在确认后清理登录、自检与 Host。`profile.ts` 只在新目录为空壳时删除并改名接管旧目录，旧目录非空、删除失败或改名失败都保留新目录，且不递归删除或复制。`index.ts` 先设置应用名并接管旧目录，再注册窗口工厂与单实例锁。检查是源码字面量与首次出现顺序扫描，不弹确认框、不改用户目录。
 
 ### `check_client_transport.py`
 
