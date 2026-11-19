@@ -761,9 +761,16 @@ STARTUP_CHECK_FRAGMENTS = (
     "trustedSender(event);",
     "const target = startupCheckTarget;",
     'if (!target) return Promise.resolve({ kind: "unavailable", reason: "spawn" });',
-    "manualStartupCheck ??=",
+    "return manualStartupCheck.request(async (signal) => {",
     "await diagnostics?.settled();",
-    "return runStartupCheck(target);",
+    "return runStartupCheck(target, signal);",
+)
+# 超时计时器随主进程结束：退出时必须取消在途的手动自检，否则卡住的进程无人回收。
+MANUAL_CHECK_FRAGMENTS = (
+    "export class ManualStartupCheck {",
+    "if (this.#flight) return this.#flight;",
+    "const flight = run(controller.signal).finally(() => {",
+    "cancel(): void { this.#controller?.abort(); }",
 )
 STARTUP_CHECK_PRELOAD_CALL = (
     'ipcRenderer.invoke("harness:startup-check") as Promise<StartupDiagnosis>'
@@ -790,6 +797,18 @@ def _check_startup_check_target() -> int:
             + "、".join(missing)
             + "（自检目标必须来自主进程、在途请求去重并先等启动自检退出）"
         )
+    manual = _main_text("startupCheck.ts")
+    missing = [fragment for fragment in MANUAL_CHECK_FRAGMENTS if fragment not in manual]
+    if missing:
+        raise ValueError(
+            "apps/desktop/src/main/startupCheck.ts 的手动自检缺少：" + "、".join(missing)
+        )
+    quit_at = text.find('app.on("before-quit"')
+    quit_body = _arrow_body(text, quit_at) if quit_at >= 0 else ""
+    if "manualStartupCheck.cancel();" not in quit_body:
+        raise ValueError(f"{relative} 退出时必须取消在途的手动自检")
+    if quit_body.find("manualStartupCheck.cancel();") < quit_body.find("confirmQuit(event)"):
+        raise ValueError(f"{relative} 只能在确认退出之后取消手动自检")
     preload = (ROOT / "apps/desktop/src/preload/index.ts").read_text(encoding="utf-8")
     if "runStartupCheck(): Promise<StartupDiagnosis> {" not in preload:
         raise ValueError(
@@ -810,7 +829,7 @@ def _check_startup_check_target() -> int:
     for call in calls:
         if not renderer[call.end():].lstrip().startswith(")"):
             raise ValueError(f"{renderer_path} 调用 runStartupCheck 时不得传参")
-    return len(STARTUP_CHECK_FRAGMENTS) + len(calls) + 5
+    return len(STARTUP_CHECK_FRAGMENTS) + len(MANUAL_CHECK_FRAGMENTS) + len(calls) + 7
 
 
 SHARED_INDEX = "packages/shared/src/index.ts"

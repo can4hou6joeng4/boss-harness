@@ -17,7 +17,7 @@ import { readTurnEvent, recordTurnStart, turnNotificationContent } from "./turnN
 import { quitConfirmationContent } from "./quitConfirmation";
 import { normalizeBadgeCount } from "./notificationBadge";
 import { NotificationRegistry } from "./notificationRegistry";
-import { StartupDiagnostics, runStartupCheck, type StartupCheckTarget } from "./startupCheck";
+import { ManualStartupCheck, StartupDiagnostics, runStartupCheck, type StartupCheckTarget } from "./startupCheck";
 
 function findRepoRoot(start: string): string {
   let current = resolve(start);
@@ -372,18 +372,17 @@ function registerIPC(): void {
     await diagnostics?.settled();
     return { ...connectionStatus(connection), repoRoot };
   });
-  let manualStartupCheck: Promise<StartupDiagnosis> | null = null;
+  const manualStartupCheck = new ManualStartupCheck();
   ipcMain.handle("harness:startup-check", (event): Promise<StartupDiagnosis> => {
     trustedSender(event);
     const target = startupCheckTarget;
     // 应用正在退出或尚未创建连接：沿用启动失败自检的固定原因，不抛出异常。
     if (!target) return Promise.resolve({ kind: "unavailable", reason: "spawn" });
     // 连点共用同一份在途结论；启动失败自检未结束时先等它退出，同一时刻只保留一个自检进程。
-    manualStartupCheck ??= (async () => {
+    return manualStartupCheck.request(async (signal) => {
       await diagnostics?.settled();
-      return runStartupCheck(target);
-    })().finally(() => { manualStartupCheck = null; });
-    return manualStartupCheck;
+      return runStartupCheck(target, signal);
+    });
   });
   ipcMain.handle("notification:badge", (event, value: unknown): BadgeCountResult => {
     trustedSender(event);
@@ -406,6 +405,8 @@ function registerIPC(): void {
   app.on("before-quit", (event) => {
     if (!confirmQuit(event)) return;
     platformLogin.cancel(); diagnostics?.reset(); diagnostics = null; startupCheckTarget = null;
+    // 超时计时器随主进程结束：退出前结束在途的手动自检，不留下无人回收的进程。
+    manualStartupCheck.cancel();
     manager.dispose(); host = null; windows.clear();
   });
 }

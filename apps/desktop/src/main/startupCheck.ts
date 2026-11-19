@@ -123,6 +123,29 @@ export function runStartupCheck(target: StartupCheckTarget, signal?: AbortSignal
   });
 }
 
+/**
+ * 设置页手动发起的自检：连续请求共用同一份在途结论，应用退出时可取消。
+ * 超时计时器随主进程结束，退出前不取消的话，卡住的自检进程会留在系统里。
+ */
+export class ManualStartupCheck {
+  #flight: Promise<StartupDiagnosis> | null = null;
+  #controller: AbortController | null = null;
+
+  request(run: (signal: AbortSignal) => Promise<StartupDiagnosis>): Promise<StartupDiagnosis> {
+    if (this.#flight) return this.#flight;
+    const controller = new AbortController();
+    const flight = run(controller.signal).finally(() => {
+      if (this.#flight === flight) { this.#flight = null; this.#controller = null; }
+    });
+    this.#flight = flight;
+    this.#controller = controller;
+    return flight;
+  }
+
+  /** 结束在途自检；尚未启动进程的请求不再启动。 */
+  cancel(): void { this.#controller?.abort(); }
+}
+
 interface Flight { controller: AbortController; done: Promise<void> }
 
 /**
