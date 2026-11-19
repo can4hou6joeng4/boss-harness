@@ -147,7 +147,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_startup_diagnostics.py`
 
-`scripts/check_startup_diagnostics.py` 核对启动自检文本与桌面解析上限的一致性：`startup_check.py` 的每个 `_check(...)` 调用必须给出来自桌面 `NAME_PATTERN` / `CODE_PATTERN` 的固定名称与检查码、合法状态，以及不超过桌面 `MAX_TEXT_LENGTH`（按 UTF-16 码元计数）且不含控制字符的说明与建议；动态文本只允许来自已单独校验的来源（`_model_check` 的 `exc` 与回退提示、`_runtime_check` 的运行参数表项）。脚本还用 AST 核对 `_RUNTIME_OPTIONS` 四元组、`_DIAGNOSTICS` 二元组的全部文本，`ModelConfigErrorCode` 与 `_DIAGNOSTICS` 键集合双向一致，`_unconfigured_hint` 只返回两条已登记的提示常量；桌面 `startupCheck.ts` 的解析防护（字段名 / 检查码 / 状态 / 文本校验、`MAX_TEXT_LENGTH`、`ok` 一致性、报告与检查数量上限）与 `StartupCheckEntry` 协议字段作为文本片段核对。检查是静态扫描，不运行自检或桌面解析，运行时行为仍需按用户指南核对。
+`scripts/check_startup_diagnostics.py` 核对启动自检文本与桌面解析上限的一致性：`startup_check.py` 的每个 `_check(...)` 调用必须给出来自桌面 `NAME_PATTERN` / `CODE_PATTERN` 的固定名称与检查码、合法状态，以及不超过桌面 `MAX_TEXT_LENGTH`（按 UTF-16 码元计数）且不含控制字符的说明与建议；动态文本只允许来自已单独校验的来源（`_model_check` 的 `exc` 与回退提示、`_runtime_check` 的运行参数表项）。脚本还用 AST 核对 `_RUNTIME_OPTIONS` 四元组、`_DIAGNOSTICS` 二元组的全部文本，`ModelConfigErrorCode` 与 `_DIAGNOSTICS` 键集合双向一致，`_unconfigured_hint` 只返回两条已登记的提示常量；桌面 `startupCheck.ts` 的解析防护（字段名 / 检查码 / 状态 / 文本校验、`MAX_TEXT_LENGTH`、`ok` 一致性、报告与检查数量上限）与 `StartupCheckEntry` 协议字段作为文本片段核对。脚本还解析 `docs/USER_GUIDE.md` 的模型配置错误、目录错误与运行参数三张检查码表，分别与 `_DIAGNOSTICS` 键、`_state_check` 的错误码与 `_RUNTIME_OPTIONS` 的检查码集合双向一致，并确认内核可能输出的全部检查码都出现在使用指南中。检查是静态扫描，不运行自检或桌面解析，运行时行为仍需按用户指南核对。
 
 ### `check_private_files.py`
 
