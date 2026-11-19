@@ -1,3 +1,10 @@
+## 0.2.0-rc.301 - 2026-11-20
+
+rc.301 源码候选为模型请求策略补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_request_policy.py`：固定拒绝载荷的七个上下文字段、`requestRejected` / `outputObserved` / `contextRecoveryEligible` 标记与 `request_policy` 来源、1 000 字符预览与 64 个工具名上限、两处拒绝原因的 `redact_secrets`、`model_error` 的 `recorded` 去重、整单元丢弃与最终请求的任务身份绑定。修复 Issue [#2727](https://github.com/can4hou6joeng4/boss-harness/issues/2727)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 29 个。版本推进到 npm `0.2.0-rc.301` / Python `0.2.0rc301`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.300 - 2026-11-20
 
 rc.300 源码候选为请求身份补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

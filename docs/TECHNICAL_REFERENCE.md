@@ -62,7 +62,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy) |
-| 模型线路 | [`check_model_disable.py`](#check_model_disablepy) |
+| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy) |
@@ -155,6 +155,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_model_disable.py`
 
 `scripts/check_model_disable.py` 核对显式 `none`（`--provider none` 或 `BOSS_HARNESS_PROVIDER=none`）禁用模型调用的进程级边界：`ApplicationService` 的构造校验、模型目录发现门禁、`_configured_route` 的拒绝提示、`_provider_for` 对真实线路的最后拦截、`_summary_available` 的显式禁用与独立 Anthropic 环境凭据判定（不重新解析配置或创建供应商）、摘要线路解析门禁、分支摘要与续接预检的拒绝提示，以及入口 `_requested_provider` 与启动自检 `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` 的措辞；自动回退提示只在本机 OpenAI 线路按同一套解析（含命令行 `--model`）可读通且 `openai` 包可发现时点名该线路，解析失败保持通用建议，缺包时改为安装提示。它还核对结构边界：`provider_factory` 在 `application.py` 只经 `_provider_for` 调用、在 `connections.py` 只经 `_run` 调用，`build_provider` 只允许入口调用，`AnthropicProvider` / `OpenAIResponsesProvider` 只允许在 `models/provider.py` 构造，`ApplicationService` 在构造连接检查时传入进程级开关，`ConnectionChecks` 仅对 `none` 默认线路接受启用该开关，并给显式禁用的模型卡片标注 `MODEL_DISABLED`。模型卡片为 `disabled` 时在启动检查线程前直接返回报告。脚本同时核对模型值的回退。启动和自检的回退提示都把 `--model` 交给 `resolve_config`，只在去除首尾空白后仍非空时覆盖通用模型变量。两条线路都经 `_configured_model` 从环境中取第一个去除首尾空白后仍非空的值；自动线路判断、模型目录发现、摘要线路解析与自检共用 `has_anthropic_credential`：只有两项凭据都去除首尾空白后仍为空才视为未配置，`application.py` 不得直接读取凭据变量。脚本还核对 Anthropic 凭据的交付方式：环境里的两项凭据先去除首尾空白，只有非空值才显式传给 SDK，纯空白 `ANTHROPIC_API_KEY` 不遮蔽真实 `ANTHROPIC_AUTH_TOKEN`；让 SDK 直接读取未处理环境变量的裸构造会被拒绝。它是静态扫描，不证明运行时行为；嵌入方自带的 `provider_factory` 不经入口，不在该脚本的边界内，仍受 `_provider_for` 的结构拦截约束。
+
+### `check_request_policy.py`
+
+`scripts/check_request_policy.py` 核对模型请求策略的拒绝投影与脱敏边界：拒绝载荷必须只保留 purpose / provider / model / requestIndex / threadId / turnId / jobId，并把 `errorInfo.source` 记为 `request_policy`，同时带 `requestRejected: true`、`outputObserved: false` 与 `contextRecoveryEligible: false`；历史单元预览必须把用户文本截到 1 000 字符并脱敏、工具名最多 64 个；转换必须按整单元丢弃、取消优先；`check_model_request` 必须先把任务身份写入最终请求，并在 hook 允许后才放行；两条拒绝路径都必须先经 `redact_secrets` 再抛出；`model_error` 记录必须按 `recorded` 只写一次。脚本同时核对技术参考中的策略拒绝与取消优先级说明。检查是常量与文本扫描，实际 hook 行为仍需按技术参考核对。
 
 ### `check_startup_diagnostics.py`
 
