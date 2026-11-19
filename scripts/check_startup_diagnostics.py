@@ -20,6 +20,8 @@ ENTRY = "harness/src/boss_harness/__main__.py"
 PROVIDER = "harness/src/boss_harness/models/provider.py"
 CAPABILITIES = "harness/src/boss_harness/models/capabilities.py"
 COMPACTION = "harness/src/boss_harness/compaction.py"
+TURN_LIMITS = "harness/src/boss_harness/turn_limits.py"
+RESOURCES = "harness/src/boss_harness/resources.py"
 STRICT_ORDERED = (
     'parser.add_argument("--strict", action="store_true",',
     "if args.strict and not args.check:",
@@ -744,6 +746,29 @@ def _blank_json_config(capabilities: str, compaction: str, application: str) -> 
     return checked + 1
 
 
+def _blank_numeric_limits(turn_limits: str, resources: str) -> int:
+    """数值上限先去空白再判空与校验：空值或只有空白用默认值，合法数字照常生效。"""
+    checked = _expect((
+        'raw = os.environ.get("BOSS_HARNESS_MAX_MODEL_REQUESTS")',
+        'value = "" if raw is None else raw.strip()',
+        "if not value:\n        return DEFAULT_MAX_MODEL_REQUESTS",
+        'if len(value) > 2 or re.fullmatch(r"[1-9][0-9]?", value) is None:',
+        "return model_request_limit(int(value))",
+    ), turn_limits, "turn_limits")
+    if "len(raw) > 2" in turn_limits:
+        raise ValueError("BOSS_HARNESS_MAX_MODEL_REQUESTS 必须先去空白再检查长度")
+    checked += 1
+    checked += _expect((
+        'value = (os.environ.get(name) or "").strip()',
+        "if not value:\n            return default",
+        "if len(value) > 19 or not value.isascii() or not value.isdecimal():",
+        "limit = int(value)",
+    ), resources, "AttachmentStore._read_limit")
+    if "not raw or len(raw) > 19" in resources:
+        raise ValueError("附件存储上限必须先去空白再检查长度")
+    return checked + 1
+
+
 def check_startup_diagnostics() -> tuple[int, int]:
     desktop = _read(DESKTOP)
     guards = _expect(DESKTOP_FRAGMENTS, desktop, "startupCheck.ts")
@@ -771,6 +796,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _max_tokens(_read(PROVIDER))
     checked += _runtime_scope(_read(USER_GUIDE))
     checked += _blank_json_config(_read(CAPABILITIES), _read(COMPACTION), _read(APPLICATION))
+    checked += _blank_numeric_limits(_read(TURN_LIMITS), _read(RESOURCES))
     checked += _diagnostics(config_tree, limit)
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide, _read(SETUP_GUIDE))
