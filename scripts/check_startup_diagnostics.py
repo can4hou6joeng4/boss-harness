@@ -265,7 +265,7 @@ def _diagnostics(tree: ast.Module, limit: int) -> int:
 
 def _hint_constants(tree: ast.Module, limit: int) -> int:
     checked = 0
-    for name in ("_UNCONFIGURED_HINT", "_OPENAI_AVAILABLE_HINT"):
+    for name in ("_UNCONFIGURED_HINT", "_OPENAI_AVAILABLE_HINT", "_OPENAI_SDK_MISSING_HINT"):
         value = _constant(_assignment(tree, name))
         if value is None:
             raise ValueError(f"{name} 必须是字符串字面量")
@@ -276,8 +276,8 @@ def _hint_constants(tree: ast.Module, limit: int) -> int:
         raise ValueError("缺少 _unconfigured_hint")
     returns = {node.value.id for node in ast.walk(function)
                if isinstance(node, ast.Return) and isinstance(node.value, ast.Name)}
-    if returns != {"_UNCONFIGURED_HINT", "_OPENAI_AVAILABLE_HINT"}:
-        raise ValueError("_unconfigured_hint 必须只返回两条已登记的提示常量")
+    if returns != {"_UNCONFIGURED_HINT", "_OPENAI_AVAILABLE_HINT", "_OPENAI_SDK_MISSING_HINT"}:
+        raise ValueError("_unconfigured_hint 必须只返回三条已登记的提示常量")
     return checked + 1
 
 
