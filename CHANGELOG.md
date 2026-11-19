@@ -1,3 +1,10 @@
+## 0.2.0-rc.271 - 2026-11-19
+
+rc.271 源码候选让 `BOSS_HARNESS_MAX_TOKENS` 的空白取值与空字符串一致。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `BOSS_HARNESS_MAX_TOKENS` 去除首尾空白后为空时使用默认输出上限。此前空字符串视为未设置、只有空白却报 `MODEL_MAX_TOKENS_INVALID`；脚本或 `.env` 里的空格占位行会让启动失败，与同组 `BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS`、重试与审批期限变量的口径不一致。未设置、空字符串、合法正整数（含带首尾空白的写法）、`0`、负数与非数字的行为不变。[Issue #2666](https://github.com/can4hou6joeng4/boss-harness/issues/2666)
+- `check_startup_diagnostics.py` 新增 4 项输出上限守卫，恢复未规范化读取即失败。七例解析探针对比 rc.270 源码：仅纯空白一例改变，其余六例一致。全部检查通过。版本推进到 npm `0.2.0-rc.271` / Python `0.2.0rc271`。不执行发布动作。
+
 ## 0.2.0-rc.270 - 2026-11-19
 
 rc.270 源码候选让空白的默认状态目录变量按未设置处理。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

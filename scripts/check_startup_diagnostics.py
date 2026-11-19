@@ -17,6 +17,7 @@ PROTOCOL = "packages/protocol/src/index.ts"
 USER_GUIDE = "docs/USER_GUIDE.md"
 SETUP_GUIDE = "SETUP.md"
 ENTRY = "harness/src/boss_harness/__main__.py"
+PROVIDER = "harness/src/boss_harness/models/provider.py"
 STRICT_ORDERED = (
     'parser.add_argument("--strict", action="store_true",',
     "if args.strict and not args.check:",
@@ -386,6 +387,19 @@ def _function_source(tree: ast.Module, source: str, name: str) -> str:
     return ast.get_source_segment(source, function) or ""
 
 
+def _max_tokens(source: str) -> int:
+    """输出上限与同组数值变量口径一致：去除首尾空白，空值用默认值。"""
+    tree = _parse(source, "harness/src/boss_harness/models/provider.py")
+    segment = _function_source(tree, source, "_max_tokens")
+    for fragment in ('raw = (env.get("BOSS_HARNESS_MAX_TOKENS") or "").strip()',
+                     "if not raw:", "return DEFAULT_MAX_TOKENS"):
+        if fragment not in segment:
+            raise ValueError(f"_max_tokens 必须去除首尾空白并把空值视为未设置：缺少 {fragment}")
+    if 'raw = env.get("BOSS_HARNESS_MAX_TOKENS")' in segment:
+        raise ValueError("_max_tokens 不得直接使用未规范化的输出上限取值")
+    return 4
+
+
 def _state_dir_defaults(source: str) -> int:
     """默认状态目录把空白变量视为未设置，继续回退旧变量与默认位置。"""
     tree = _parse(source, "harness/src/boss_harness/__main__.py")
@@ -716,6 +730,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _warning_order(startup_tree, startup)
     checked += _repo_walk(startup_tree, startup)
     checked += _state_dir_defaults(_read(ENTRY))
+    checked += _max_tokens(_read(PROVIDER))
     checked += _diagnostics(config_tree, limit)
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide, _read(SETUP_GUIDE))

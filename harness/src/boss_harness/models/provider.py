@@ -231,8 +231,8 @@ def _request_timeout_seconds(env: Mapping[str, str]) -> int:
 
 
 def _max_tokens(env: Mapping[str, str]) -> int:
-    """未设置或为空用默认值；其余须为正整数，错误不带原始取值。"""
-    raw = env.get("BOSS_HARNESS_MAX_TOKENS")
+    """未设置、为空或只有空白用默认值；其余须为正整数，错误不带原始取值。"""
+    raw = (env.get("BOSS_HARNESS_MAX_TOKENS") or "").strip()
     if not raw:
         return DEFAULT_MAX_TOKENS
     try:
