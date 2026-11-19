@@ -211,7 +211,8 @@ def check_model_disable() -> tuple[int, int]:
     entry_tree = _parse(entry, MAIN_ENTRY)
     guards += _expect((
         'raw = args.provider if args.provider != "auto" else os.environ.get("BOSS_HARNESS_PROVIDER", "")',
-        "return raw.strip().lower()",
+        "normalized = raw.strip().lower()",
+        'return "" if normalized == "auto" else normalized',
     ), _function(entry_tree, entry, "_requested_provider"), "_requested_provider")
     guards += _expect((
         "requested_provider=_requested_provider(args)",
@@ -309,6 +310,13 @@ def check_model_disable() -> tuple[int, int]:
     guards += _expect((
         'explicit_model = _configured_model(env, "BOSS_HARNESS_MODEL", "BOSS_HARNESS_OPENAI_MODEL")',
     ), _function(provider_tree, provider_source, "_openai_config"), "_openai_config")
+    # 环境变量里的 auto 与命令行默认值同义，且必须先于未知取值检查归一化。
+    guards += _expect((
+        'if requested == "auto":\n        requested = ""',
+    ), _function(provider_tree, provider_source, "resolve_config"), "resolve_config")
+    guards += _ordered(_function(provider_tree, provider_source, "resolve_config"),
+                       'if requested == "auto":',
+                       'if requested and requested not in _EXPLICIT_PROVIDERS:', "resolve_config")
     if 'env.get("BOSS_HARNESS_MODEL")' in provider_source:
         raise ValueError("provider.py 不得绕过 _configured_model 直接读取 BOSS_HARNESS_MODEL")
     guards += 1

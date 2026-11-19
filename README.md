@@ -145,7 +145,7 @@ flowchart LR
 
 ## 模型与运行时配置
 
-桌面默认使用 OpenAI Responses，通过 `BOSS_HARNESS_PROVIDER` 可选择 `openai`、`anthropic` 或 `none`；空值或只有空白时按默认 `openai` 处理。
+桌面默认使用 OpenAI Responses，通过 `BOSS_HARNESS_PROVIDER` 可选择 `openai`、`anthropic` 或 `none`，设为 `auto` 与不设置等价；空值或只有空白时按默认 `openai` 处理。
 
 | 场景 | 配置入口 |
 | --- | --- |

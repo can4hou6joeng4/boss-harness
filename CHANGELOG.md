@@ -1,3 +1,10 @@
+## 0.2.0-rc.277 - 2026-11-20
+
+rc.277 源码候选让环境变量里的 `auto` 与命令行默认值同义。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `resolve_config` 在大小写与空白归一后把 `BOSS_HARNESS_PROVIDER=auto` 视为自动选择，与省略该变量一致；显式传入 `provider="auto"` 同样处理。此前复制的命令行写法会让启动与自检以 `MODEL_PROVIDER_UNKNOWN` 失败。真正拼错的值仍明确失败，`none`、`anthropic`、`openai`、`codex` 行为不变。[Issue #2678](https://github.com/can4hou6joeng4/boss-harness/issues/2678)
+- 入口 `_requested_provider` 与 `resolve_config` 保持同一归一化口径。`check_model_disable.py` 新增 3 项守卫：`auto` 归一化片段、先归一再校验的顺序，以及入口的同一口径；恢复旧写法即失败。九例解析探针对比 rc.276 源码：四种 `auto` 写法由报错变为自动选择（有凭据时为 anthropic），其余五例一致；同一环境下 `--check` 从错误 `MODEL_PROVIDER_UNKNOWN` 变为警告 `MODEL_NOT_CONFIGURED`。全部检查通过。版本推进到 npm `0.2.0-rc.277` / Python `0.2.0rc277`。不执行发布动作。
+
 ## 0.2.0-rc.276 - 2026-11-20
 
 rc.276 源码候选让业务 CLI 路径与数据目录共用同一套空白规范化。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
