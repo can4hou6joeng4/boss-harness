@@ -1,3 +1,10 @@
+## 0.2.0-rc.279 - 2026-11-20
+
+rc.279 源码候选让 Anthropic 凭据去除首尾空白后再交给 SDK。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `AnthropicProvider` 先对 `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` 去除首尾空白，只在非空时显式传给 SDK，并对 SDK 解析出的密钥与认证头同样去空白。此前粘贴密钥常见的尾随空格或换行会原样进入 `Authorization` 头导致认证失败；`ANTHROPIC_API_KEY` 只有空白时还会按 SDK 优先级遮蔽真实 `ANTHROPIC_AUTH_TOKEN`。[Issue #2682](https://github.com/can4hou6joeng4/boss-harness/issues/2682)
+- `check_model_disable.py` 新增 10 项片段与 1 项禁止裸构造的守卫；恢复旧写法即失败。六例凭据探针（已安装 SDK、不联网）对比 rc.278：四种带空白与纯空白的组合由原样透传或 ValueError 遮蔽变为按去空白后的非空凭据构造，纯空白两项仍明确报「未配置可用凭据」，其余结果不变。全部检查通过。版本推进到 npm `0.2.0-rc.279` / Python `0.2.0rc279`。不执行发布动作。
+
 ## 0.2.0-rc.278 - 2026-11-20
 
 rc.278 源码候选让桌面只把普通文件当作虚拟环境解释器。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

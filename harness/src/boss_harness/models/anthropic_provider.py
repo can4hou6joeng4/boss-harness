@@ -165,17 +165,28 @@ class AnthropicProvider:
         self._secret = (
             config.api_key.get() if config.api_key else ""
         ) or os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get("ANTHROPIC_API_KEY") or ""
+        # 粘贴的密钥常带空格或换行；凭据统一去除首尾空白后再交给 SDK，纯空白视为未配置。
+        # SDK 的取值顺序优先 API_KEY；只有非空值才显式传入，避免纯空白值遮蔽另一项真实凭据。
+        env_api_key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+        env_auth_token = (os.environ.get("ANTHROPIC_AUTH_TOKEN") or "").strip()
+        credential_options: dict[str, str] = {}
+        if env_api_key:
+            credential_options["api_key"] = env_api_key
+        elif env_auth_token:
+            credential_options["auth_token"] = env_auth_token
         # Resolve SDK credential precedence once, as the previous sync client did.
         # A later environment change must not silently reroute an existing provider.
-        snapshot = anthropic.Anthropic(timeout=30.0, max_retries=0)
+        snapshot = anthropic.Anthropic(timeout=30.0, max_retries=0, **credential_options)
         close_snapshot = True
         try:
             self._client_options: dict[str, Any] = {"base_url": str(snapshot.base_url)}
-            if snapshot.api_key is not None:
-                self._client_options["api_key"] = snapshot.api_key
-            if snapshot.auth_token is not None:
-                self._client_options["auth_token"] = snapshot.auth_token
-            if not ("api_key" in self._client_options or "auth_token" in self._client_options) \
+            snapshot_api_key = snapshot.api_key.strip() if isinstance(snapshot.api_key, str) else ""
+            snapshot_auth_token = snapshot.auth_token.strip() if isinstance(snapshot.auth_token, str) else ""
+            if snapshot_api_key:
+                self._client_options["api_key"] = snapshot_api_key
+            if snapshot_auth_token:
+                self._client_options["auth_token"] = snapshot_auth_token
+            if not (snapshot_api_key or snapshot_auth_token) \
                     and getattr(snapshot, "credentials", None) is not None:
                 self._client_options["credentials"] = _BorrowedCredentials(snapshot.credentials)
                 self._credential_finalizer = weakref.finalize(self, snapshot.close)
@@ -186,7 +197,7 @@ class AnthropicProvider:
                 if not name.lower().startswith("x-stainless-") and name.lower() != "user-agent"}
             self._request_header_names = {name.lower() for name in self._request_headers}
             self._credential_secrets = tuple(value for value in
-                (self._secret, snapshot.api_key, snapshot.auth_token,
+                (self._secret, snapshot_api_key, snapshot_auth_token,
                  *self._request_headers.values()) if isinstance(value, str) and value)
         finally:
             if close_snapshot:
