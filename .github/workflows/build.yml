@@ -126,6 +126,8 @@ jobs:
         run: python scripts/check_codex_config.py
       - name: Verify retry backoff limits
         run: python scripts/check_retry.py
+      - name: Verify OpenAI Responses adapter
+        run: python scripts/check_openai_responses.py
       - name: Verify context retention hint boundaries
         run: python scripts/check_context_keep.py
       - name: Verify catch-up steering boundary
