@@ -230,10 +230,12 @@ def check_model_disable() -> tuple[int, int]:
         "其他已配置线路与摘要线路同样不可用",
         "_unconfigured_hint(requested_model)",
     ), _function(startup_tree, startup, "_model_check"), "_model_check")
-    # 自动回退只有在本机另有一条可解析的 OpenAI 线路时才点名它；解析失败保持通用提示。
+    # 自动回退只有在本机另一条 OpenAI 线路可解析且 openai 包可发现时才点名它；
+    # 解析失败保持通用提示，缺包时改为安装提示。
     guards += _expect((
         '_UNCONFIGURED_HINT = "配置 provider 及对应凭据；核对桌面默认线路时使用 --check --provider openai。"',
         '"本机已配置 OpenAI 线路；需要模型时用 --provider openai（桌面用 BOSS_HARNESS_PROVIDER=openai）启动，"',
+        '"本机已配置 OpenAI 线路，但缺少内核运行依赖 openai；按安装步骤安装内核依赖后，"',
         'def _unconfigured_hint(requested_model: str | None) -> str:',
     ), startup, "startup_check.py 回退提示常量")
     guards += _expect((
@@ -241,10 +243,14 @@ def check_model_disable() -> tuple[int, int]:
         'resolve_config(environ=environ, provider="openai")',
         "except Exception:",
         "return _UNCONFIGURED_HINT",
+        'if not _module_available("openai"):',
+        "return _OPENAI_SDK_MISSING_HINT",
         "return _OPENAI_AVAILABLE_HINT",
     ), _function(startup_tree, startup, "_unconfigured_hint"), "_unconfigured_hint")
     guards += _ordered(_function(startup_tree, startup, "_unconfigured_hint"),
-                       "return _UNCONFIGURED_HINT", "return _OPENAI_AVAILABLE_HINT", "_unconfigured_hint")
+                       "return _UNCONFIGURED_HINT", "return _OPENAI_SDK_MISSING_HINT", "_unconfigured_hint")
+    guards += _ordered(_function(startup_tree, startup, "_unconfigured_hint"),
+                       "return _OPENAI_SDK_MISSING_HINT", "return _OPENAI_AVAILABLE_HINT", "_unconfigured_hint")
 
     guards += _ordered(init, "self.model_calls_disabled = model_calls_disabled",
                        "self.connections = ConnectionChecks(", "ApplicationService.__init__")

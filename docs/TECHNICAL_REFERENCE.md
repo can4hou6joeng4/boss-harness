@@ -143,7 +143,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_model_disable.py`
 
-`scripts/check_model_disable.py` 核对显式 `none`（`--provider none` 或 `BOSS_HARNESS_PROVIDER=none`）禁用模型调用的进程级边界：`ApplicationService` 的构造校验、模型目录发现门禁、`_configured_route` 的拒绝提示、`_provider_for` 对真实线路的最后拦截、`_summary_available`、摘要线路解析门禁、分支摘要与续接预检的拒绝提示，以及入口 `_requested_provider` 与启动自检 `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` 的措辞；自动回退提示只在本机 OpenAI 线路按同一套解析（含命令行 `--model`）可读通时点名该线路，解析失败保持通用建议。它还核对结构边界：`provider_factory` 在 `application.py` 只经 `_provider_for` 调用、在 `connections.py` 只经 `_run` 调用，`build_provider` 只允许入口调用，`AnthropicProvider` / `OpenAIResponsesProvider` 只允许在 `models/provider.py` 构造，`ApplicationService` 在构造连接检查时传入进程级开关，`ConnectionChecks` 仅对 `none` 默认线路接受启用该开关，并给显式禁用的模型卡片标注 `MODEL_DISABLED`。模型卡片为 `disabled` 时在启动检查线程前直接返回报告。它是静态扫描，不证明运行时行为；嵌入方自带的 `provider_factory` 不经入口，不在该脚本的边界内，仍受 `_provider_for` 的结构拦截约束。
+`scripts/check_model_disable.py` 核对显式 `none`（`--provider none` 或 `BOSS_HARNESS_PROVIDER=none`）禁用模型调用的进程级边界：`ApplicationService` 的构造校验、模型目录发现门禁、`_configured_route` 的拒绝提示、`_provider_for` 对真实线路的最后拦截、`_summary_available`、摘要线路解析门禁、分支摘要与续接预检的拒绝提示，以及入口 `_requested_provider` 与启动自检 `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` 的措辞；自动回退提示只在本机 OpenAI 线路按同一套解析（含命令行 `--model`）可读通且 `openai` 包可发现时点名该线路，解析失败保持通用建议，缺包时改为安装提示。它还核对结构边界：`provider_factory` 在 `application.py` 只经 `_provider_for` 调用、在 `connections.py` 只经 `_run` 调用，`build_provider` 只允许入口调用，`AnthropicProvider` / `OpenAIResponsesProvider` 只允许在 `models/provider.py` 构造，`ApplicationService` 在构造连接检查时传入进程级开关，`ConnectionChecks` 仅对 `none` 默认线路接受启用该开关，并给显式禁用的模型卡片标注 `MODEL_DISABLED`。模型卡片为 `disabled` 时在启动检查线程前直接返回报告。它是静态扫描，不证明运行时行为；嵌入方自带的 `provider_factory` 不经入口，不在该脚本的边界内，仍受 `_provider_for` 的结构拦截约束。
 
 ### `check_startup_diagnostics.py`
 

@@ -28,10 +28,15 @@ def _check(name: str, status: str, code: str, message: str, hint: str) -> dict[s
 
 _UNCONFIGURED_HINT = "配置 provider 及对应凭据；核对桌面默认线路时使用 --check --provider openai。"
 # 自动回退 none 时，其他已配置线路仍可显式选用：只在同一套解析（含命令行 --model）能读通
-# OpenAI 线路时点名它；读取失败、缺凭据或配置损坏都保持通用提示，不把猜测写成结论。
+# OpenAI 线路、且 openai 包可发现时点名它；读取失败或配置损坏保持通用提示，缺包时改为
+# 安装提示——不把自检自己会判定为不可用的线路写成可用。
 _OPENAI_AVAILABLE_HINT = (
     "本机已配置 OpenAI 线路；需要模型时用 --provider openai（桌面用 BOSS_HARNESS_PROVIDER=openai）启动，"
     "核对这条线路使用 --check --provider openai。"
+)
+_OPENAI_SDK_MISSING_HINT = (
+    "本机已配置 OpenAI 线路，但缺少内核运行依赖 openai；按安装步骤安装内核依赖后，"
+    "用 --provider openai（桌面用 BOSS_HARNESS_PROVIDER=openai）启动。"
 )
 
 
@@ -46,6 +51,8 @@ def _unconfigured_hint(requested_model: str | None) -> str:
         # 与 `_model_check` 的配置解析一致：tomllib 的 RecursionError 等普通异常同样退回
         # 通用提示，不让自检打印回溯。中断与退出（BaseException）不在此列。
         return _UNCONFIGURED_HINT
+    if not _module_available("openai"):
+        return _OPENAI_SDK_MISSING_HINT
     return _OPENAI_AVAILABLE_HINT
 
 

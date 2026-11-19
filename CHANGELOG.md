@@ -1,3 +1,10 @@
+## 0.2.0-rc.230 - 2026-11-19
+
+rc.230 源码候选让自动回退提示核对 OpenAI 线路的模型 SDK。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 自动回退为 none 时，警告建议仅在 OpenAI 配置可解析且 `openai` 包可发现时点名该线路；配置可解析但缺少 `openai` 包时改为提示先安装内核依赖，不再建议用户切到自检自己会判定为不可用的线路。检查状态、检查码、说明与退出码不变。[Issue #2584](https://github.com/can4hou6joeng4/boss-harness/issues/2584)
+- 以 rc.229 合并提交导出的源码为基线：伪造 `openai` 包存在（包内 `raise RuntimeError`，未被导入）与配置不可解析两例逐字节一致；缺包一例的建议由点名可用线路变为安装提示。`check_model_disable.py` 与 `check_startup_diagnostics.py` 登记第三条提示常量（82 项 / 240 项）。使用指南与技术参考同步说明。全部检查通过。版本推进到 npm `0.2.0-rc.230` / Python `0.2.0rc230`。不执行发布动作。
+
 ## 0.2.0-rc.229 - 2026-11-19
 
 rc.229 源码候选让启动自检报告默认线路缺少模型 SDK。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
