@@ -1,3 +1,10 @@
+## 0.2.0-rc.221 - 2026-11-19
+
+rc.221 源码候选修复自动回退提示中断自检的回归。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- rc.220 的自动回退提示会解析一次 OpenAI 线路；深嵌套的 Codex TOML 触发 `tomllib` 的 `RecursionError`，而提示函数只捕获 `OSError` / `TypeError` / `ValueError`，`--check` 以 Python 回溯退出且没有 JSON 输出。现在与启动配置解析一致，普通异常一律退回通用提示，中断与退出仍不捕获。以 rc.220 合并提交导出的源码为基线，同一深嵌套配置下基线 exit 1 且 stderr 有回溯；修复后 exit 0、输出 `MODEL_NOT_CONFIGURED` 与通用提示。显式 `openai`（`MODEL_CONFIG_INVALID`）、显式 `none`、正常 OpenAI 线路与无配置四种场景两侧一致。[Issue #2566](https://github.com/can4hou6joeng4/boss-harness/issues/2566)
+- `check_model_disable.py` 断言捕获类型；全部检查通过。版本推进到 npm `0.2.0-rc.221` / Python `0.2.0rc221`。不执行发布动作。
+
 ## 0.2.0-rc.220 - 2026-11-19
 
 rc.220 源码候选让自动回退 `none` 的自检提示点名已配置的 OpenAI 线路。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

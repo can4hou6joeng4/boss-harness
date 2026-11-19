@@ -41,7 +41,9 @@ def _unconfigured_hint(requested_model: str | None) -> str:
         environ["BOSS_HARNESS_MODEL"] = requested_model
     try:
         resolve_config(environ=environ, provider="openai")
-    except (OSError, TypeError, ValueError):
+    except Exception:
+        # 与 `_model_check` 的配置解析一致：tomllib 的 RecursionError 等普通异常同样退回
+        # 通用提示，不让自检打印回溯。中断与退出（BaseException）不在此列。
         return _UNCONFIGURED_HINT
     return _OPENAI_AVAILABLE_HINT
 
