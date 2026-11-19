@@ -62,6 +62,8 @@ def main(argv: list[str] | None = None) -> int:
     maintenance.add_argument("--check", action="store_true", help="只读检查本地启动配置，输出脱敏报告（默认 JSON），不联网、不执行业务 CLI")
     parser.add_argument("--format", choices=["json", "text"], default="json",
                         help="--check 的输出格式：json（默认，供程序解析）或 text（终端可读）")
+    parser.add_argument("--strict", action="store_true",
+                        help="与 --check 一起使用：没有错误但存在警告时返回退出码 1")
     parser.add_argument(
         "--provider",
         default="auto",
@@ -75,13 +77,18 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.format != "json" and not args.check:
         parser.error("--format 只能与 --check 一起使用")
+    if args.strict and not args.check:
+        parser.error("--strict 只能与 --check 一起使用")
 
     if args.check:
         from boss_harness.startup_check import render_text, startup_report
         report = startup_report(lambda: _build_config(args), state_dir=Path(args.state_dir),
                                 requested_provider=_requested_provider(args), requested_model=args.model)
         print(render_text(report) if args.format == "text" else json.dumps(report, ensure_ascii=False))
-        return 0 if report["ok"] else 2
+        if not report["ok"]:
+            return 2
+        warned = any(check["status"] == "warning" for check in report["checks"])
+        return 1 if args.strict and warned else 0
 
     if args.repair_state:
         from boss_harness.maintenance import repair_index

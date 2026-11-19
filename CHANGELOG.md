@@ -1,3 +1,10 @@
+## 0.2.0-rc.257 - 2026-11-19
+
+rc.257 源码候选让脚本可以把本地配置自检的警告视为未通过。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `boss-harness --check` 新增 `--strict`：存在错误仍返回退出码 2，没有错误但有警告返回 1，全部通过返回 0；只影响退出码，JSON 与文本报告内容、`ok` 字段含义不变，桌面主进程不使用该参数。`--strict` 只能与 `--check` 一起使用，单独使用时参数解析报错。显式 `--provider none` 本身产生 `MODEL_DISABLED` 警告，严格模式下返回 1。此前退出码不区分「通过」与「通过但有警告」，脚本只能自行解析报告。[Issue #2638](https://github.com/can4hou6joeng4/boss-harness/issues/2638)
+- 子进程探针在仅警告与有错误两种真实环境、JSON 与文本两种格式下对比 rc.256 源码：不带 `--strict` 时退出码与输出逐字节一致，带 `--strict` 时输出不变、仅警告环境的退出码由 0 变为 1。本机虚拟环境没有模型 SDK，无法构造全部通过的真实环境，该分支用进程内替换报告的探针覆盖（三种报告 × 三种参数组合）。全部检查通过。版本推进到 npm `0.2.0-rc.257` / Python `0.2.0rc257`。不执行发布动作。
+
 ## 0.2.0-rc.256 - 2026-11-19
 
 rc.256 源码候选补齐安装指南的检查码表并防止其与内核漂移。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
