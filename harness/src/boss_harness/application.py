@@ -317,8 +317,10 @@ class ApplicationService:
         self.model_catalog = model_catalog if model_catalog is not None else ModelCatalog.from_environment()
         self.state_dir = state_dir
         stored_compaction = None if compaction_policy is not None else load_auto_compaction(state_dir)
+        # 只有去除空白后仍非空的取值才算环境覆盖；空占位行与未设置同样落到持久设置或默认值。
+        configured_compaction = (os.environ.get("BOSS_HARNESS_COMPACTION") or "").strip()
         self._auto_compaction_source = ("explicit" if compaction_policy is not None
-                                        else "environment" if "BOSS_HARNESS_COMPACTION" in os.environ
+                                        else "environment" if configured_compaction
                                         else "stored" if stored_compaction is not None else "default")
         self.compaction_policy = (compaction_policy if compaction_policy is not None
                                   else CompactionPolicy.from_environment(stored_compaction))

@@ -1,3 +1,10 @@
+## 0.2.0-rc.281 - 2026-11-20
+
+rc.281 源码候选让两个 JSON 启动配置把空值或只有空白按未设置处理。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `ModelCatalog.from_environment` 与 `CompactionPolicy.from_environment` 在 JSON 解析前把空值或只有空白的 `BOSS_HARNESS_MODEL_LIMITS` / `BOSS_HARNESS_COMPACTION` 按未设置处理，使用内置默认；`autoCompactionSource` 也不再把空白占位行报告为 `environment`。此前 `.env` 空占位行会让「运行参数」自检报 `MODEL_LIMITS_INVALID` / `COMPACTION_CONFIG_INVALID`，内核构造随之失败。[Issue #2686](https://github.com/can4hou6joeng4/boss-harness/issues/2686)
+- `check_startup_diagnostics.py` 新增 9 项守卫（空白判定先于 JSON 解析、来源判定不按变量是否存在），注入旧写法即失败。十一例解析探针对比 rc.280：仅两个空白取值共四例由 `ValueError` 变为内置默认，`{}`、带空白的合法 JSON、`null` 与无关键不变；同一环境下 `--check` 的「运行参数」结论由 `MODEL_LIMITS_INVALID` 错误变为 `RUNTIME_OPTIONS_VALID`。全部检查通过。版本推进到 npm `0.2.0-rc.281` / Python `0.2.0rc281`。不执行发布动作。
+
 ## 0.2.0-rc.280 - 2026-11-20
 
 rc.280 源码候选让模型目录与摘要线路解析共用同一条 Anthropic 凭据规则。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

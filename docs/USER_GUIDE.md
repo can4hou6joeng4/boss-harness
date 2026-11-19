@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.280` / Python `0.2.0rc280` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.281` / Python `0.2.0rc281` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -106,8 +106,8 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 | `STEERING_MODE_INVALID` | `BOSS_HARNESS_STEERING_MODE` 只能是 `all` 或 `one-at-a-time`；也可取消设置。 |
 | `MAX_MODEL_REQUESTS_INVALID` | `BOSS_HARNESS_MAX_MODEL_REQUESTS` 须为 1 到 64 的十进制整数。 |
 | `ATTACHMENT_STORAGE_LIMIT_INVALID` | `BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_BYTES` 与 `BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_OBJECTS` 须为正的十进制整数。 |
-| `MODEL_LIMITS_INVALID` | `BOSS_HARNESS_MODEL_LIMITS` 的 JSON 结构、`provider/model` 键或容量取值无效；格式见[内核与业务契约参考](TECHNICAL_REFERENCE.md)。 |
-| `COMPACTION_CONFIG_INVALID` | `BOSS_HARNESS_COMPACTION` 的 JSON 字段、类型或取值范围无效；格式见[内核与业务契约参考](TECHNICAL_REFERENCE.md)。 |
+| `MODEL_LIMITS_INVALID` | `BOSS_HARNESS_MODEL_LIMITS` 的 JSON 结构、`provider/model` 键或容量取值无效；空值或只有空白视为未设置。格式见[内核与业务契约参考](TECHNICAL_REFERENCE.md)。 |
+| `COMPACTION_CONFIG_INVALID` | `BOSS_HARNESS_COMPACTION` 的 JSON 字段、类型或取值范围无效；空值或只有空白视为未设置。格式见[内核与业务契约参考](TECHNICAL_REFERENCE.md)。 |
 
 报告不回显这些变量的原值。检查只判断格式与取值范围，不核对摘要线路的凭据、声明的容量是否与模型服务一致，也不读取 `config.json` 中的持久自动压缩设置。
 
@@ -336,7 +336,7 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 
 摘要可以使用与业务回合不同的 provider 或模型。自动压缩与上下文溢出恢复均在提交前，按业务回合实际使用的 provider/model 检查摘要、保留历史、当前输入及工具定义的完整预算。容纳不下时以 `COMPACTION_INSUFFICIENT` 暂停，不保存新摘要检查点、不继续业务请求，原始记录与既有检查点保留；可减少当前输入或保留目标，或新建会话后明确继续。摘要线路本身不可用时，例如配置为 `none`、进程以显式 `none` 启动、本机缺少对应凭据或摘要模型不支持指定推理档位，当前回合也会以明确压缩错误码暂停，而不是笼统报成回合执行失败；先修正摘要配置或显式关闭自动压缩，再核对会话并明确发起下一步。暂停不自动重试或继续业务请求，也不撤销已执行的工具或外部操作。
 
-策略来源经 `config/read` 的 `autoCompactionSource` 如实返回：`environment` 表示由 `BOSS_HARNESS_COMPACTION` 管理，`stored` 表示来自 `config.json`，`default` 表示内置默认，`explicit` 表示调用方在构造内核时显式指定。环境变量优先于持久配置；此时设置页只读，直接调用 `config/autoCompaction/set` 会以 `AUTO_COMPACTION_ENV_MANAGED` 拒绝，不会静默覆盖环境变量；显式构造的内核以 `AUTO_COMPACTION_EXPLICIT` 拒绝写入。配置文件缺失或字段非法时按内置默认读取；文件存在但不可读或不是 JSON 对象时，保存会明确失败而不是覆盖原文件。单回合覆盖的语义不变：它优先于默认值，发送一次后消耗，不写入会话或 `config.json`。
+策略来源经 `config/read` 的 `autoCompactionSource` 如实返回：`environment` 表示由 `BOSS_HARNESS_COMPACTION` 管理，`stored` 表示来自 `config.json`，`default` 表示内置默认，`explicit` 表示调用方在构造内核时显式指定。环境变量为空或只有空白时按未设置处理，不报告为 `environment`。环境变量优先于持久配置；此时设置页只读，直接调用 `config/autoCompaction/set` 会以 `AUTO_COMPACTION_ENV_MANAGED` 拒绝，不会静默覆盖环境变量；显式构造的内核以 `AUTO_COMPACTION_EXPLICIT` 拒绝写入。配置文件缺失或字段非法时按内置默认读取；文件存在但不可读或不是 JSON 对象时，保存会明确失败而不是覆盖原文件。单回合覆盖的语义不变：它优先于默认值，发送一次后消耗，不写入会话或 `config.json`。
 
 ## 快速提问
 

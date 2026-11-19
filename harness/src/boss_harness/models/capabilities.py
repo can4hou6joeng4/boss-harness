@@ -100,6 +100,9 @@ class ModelCatalog:
         raw = (os.environ if environ is None else environ).get(_ENV_NAME, _UNSET)
         if raw is _UNSET:
             return cls()
+        # 空值或只有空白是常见的 `.env` 占位写法：按未设置处理，使用内置默认容量。
+        if isinstance(raw, str) and not raw.strip():
+            return cls()
         try:
             if not isinstance(raw, str) or len(raw.encode("utf-8")) > _MAX_JSON_BYTES:
                 raise ValueError(_CONFIG_ERROR)

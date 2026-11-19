@@ -104,7 +104,8 @@ class CompactionPolicy:
         """
         base = verified_policy(stored, ("enabled", "triggerPercent", "keepRecentTokens")) or {}
         raw = os.environ.get("BOSS_HARNESS_COMPACTION")
-        if raw is None:
+        # 空值或只有空白按未设置处理，与其他环境变量口径一致；占位行不能阻挡启动。
+        if raw is None or not raw.strip():
             return cls(base.get("enabled", True), base.get("triggerPercent", 80),
                        base.get("keepRecentTokens", 20_000))
         def unique(pairs: list[tuple]) -> dict:
