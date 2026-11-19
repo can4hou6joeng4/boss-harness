@@ -14,6 +14,7 @@ MAIN_ENTRY = "harness/src/boss_harness/__main__.py"
 STARTUP = "harness/src/boss_harness/startup_check.py"
 CONNECTIONS = "harness/src/boss_harness/connections.py"
 PROVIDER = "harness/src/boss_harness/models/provider.py"
+ANTHROPIC = "harness/src/boss_harness/models/anthropic_provider.py"
 
 
 def _read(relative: str) -> str:
@@ -317,6 +318,25 @@ def check_model_disable() -> tuple[int, int]:
     guards += _ordered(_function(provider_tree, provider_source, "resolve_config"),
                        'if requested == "auto":',
                        'if requested and requested not in _EXPLICIT_PROVIDERS:', "resolve_config")
+    # 凭据先去除首尾空白再交给 SDK；纯空白不遮蔽另一项真实凭据。
+    anthropic = _read(ANTHROPIC)
+    anthropic_tree = _parse(anthropic, ANTHROPIC)
+    anthropic_init = _method(anthropic_tree, anthropic, "AnthropicProvider", "__init__")
+    guards += _expect((
+        'env_api_key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()',
+        'env_auth_token = (os.environ.get("ANTHROPIC_AUTH_TOKEN") or "").strip()',
+        'credential_options["api_key"] = env_api_key',
+        "elif env_auth_token:",
+        "snapshot = anthropic.Anthropic(timeout=30.0, max_retries=0, **credential_options)",
+        'snapshot_api_key = snapshot.api_key.strip() if isinstance(snapshot.api_key, str) else ""',
+        'snapshot_auth_token = snapshot.auth_token.strip() if isinstance(snapshot.auth_token, str) else ""',
+        "if snapshot_api_key:",
+        "if snapshot_auth_token:",
+        "if not (snapshot_api_key or snapshot_auth_token)",
+    ), anthropic_init, "AnthropicProvider.__init__")
+    if "anthropic.Anthropic(timeout=30.0, max_retries=0)\n" in anthropic:
+        raise ValueError("AnthropicProvider 不得让 SDK 直接读取未去除空白的凭据")
+    guards += 1
     if 'env.get("BOSS_HARNESS_MODEL")' in provider_source:
         raise ValueError("provider.py 不得绕过 _configured_model 直接读取 BOSS_HARNESS_MODEL")
     guards += 1
