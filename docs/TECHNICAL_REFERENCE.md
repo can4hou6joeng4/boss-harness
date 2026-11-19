@@ -65,7 +65,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy) |
-| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy) |
+| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy) |
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy) |
 | 关闭与中止 | [`check_shutdown.py`](#check_shutdownpy)、[`check_bridge_lifecycle.py`](#check_bridge_lifecyclepy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_snippet.py`](#check_search_snippetpy) |
@@ -220,6 +220,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_settings.py`
 
 `scripts/check_settings.py` 核对自动压缩设置的有界读取、原子写入与持久边界：`settings.py` 的 `config.json`、三个自动压缩字段、256 KiB 与深度 64 上限；读取只经 `open_private_file` 的私有描述符，确认 `S_ISREG`，只读到上限 + 1 字节并在多出时按不可读处理，`json.loads` 的 UTF-8 解码与宽泛异常收敛为默认值，结果必须是深度受限的 JSON 对象；保存前必须验证三个字段齐全，已存在但不可读的配置拒绝覆盖；序列化使用 `ensure_ascii=False` 保留无关键，编码异常、孤立代理项与超限分别收敛为可读中文错误；写入必须经 `tempfile.mkstemp`、`fsync` 文件、`os.replace` 与目录 `fsync`，异常时清理临时文件。脚本按首次出现顺序核对 fsync → replace → 目录同步，并反向断言不得使用 `read_text` / `write_text`；同时核对技术参考与使用指南的设置口径。检查是常量与顺序扫描，实际持久行为仍需按用户指南核对。
+
+### `check_maintenance.py`
+
+`scripts/check_maintenance.py` 核对索引修复的清单、移动与回滚边界：`maintenance.py` 的备份目录必须位于 `repairs/` 下并以 UTC 时间戳加随机后缀命名；清单的字节数与 SHA-256 必须来自同一私有描述符，`lstat` 与 `fstat` 的 dev/ino、普通文件与归属校验失败时拒绝，摘要按 1 MiB 分块读取；修复必须先只读核对状态目录存在且非「陌生目录」，再获取占用锁、创建备份、逐个移动索引文件，移动前再次核对路径身份；清单以 `O_EXCL` 私有文件写入并 `fsync`，成功路径先同步备份目录再同步状态根目录，之后才重建索引；失败路径把新候选移入 `failed-candidate`、回滚已移动文件并按同一顺序同步目录后继续上报；`finally` 必须释放占用锁。反向断言禁止删除原始记录、`json.dump` 流式写入与无界读取；同时核对技术参考与使用指南的修复口径。脚本只扫描源码，不证明运行时备份与回滚已经落盘。
 
 ### `check_bridge_lifecycle.py`
 
