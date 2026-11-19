@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.273` / Python `0.2.0rc273` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.274` / Python `0.2.0rc274` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -60,7 +60,7 @@ OpenAI Responses 的完整显式配置由以下三项组成，去除首尾空白
 | 凭据 | `BOSS_HARNESS_OPENAI_API_KEY` |
 | 模型 | 命令行 `--model`，其次为 `BOSS_HARNESS_MODEL`、`BOSS_HARNESS_OPENAI_MODEL` |
 
-三项齐备时不访问 Codex 配置文件，Python 3.10 也可使用这一路线；可选推理强度只取 `BOSS_HARNESS_EFFORT`，未指定则由模型服务决定，不再继承文件中的值。`BOSS_HARNESS_MODEL` 覆盖进程默认 provider 的模型；`BOSS_HARNESS_OPENAI_MODEL` 可为 OpenAI 线路提供模型，Anthropic 线路对应 `BOSS_HARNESS_ANTHROPIC_MODEL`。`--model` 和模型变量为空或只有空白时视为未设置，继续按顺序取下一项。显式端点写成 `http://` 且主机不是 `localhost`、`127.*` 或 `::1` 时，自检的模型检查会警告 `MODEL_ENDPOINT_INSECURE`，提示凭据可能以明文传输；自检不输出端点，也不会发起请求。显式推理强度不属于 `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max` 时，自检警告 `MODEL_EFFORT_UNSUPPORTED`，说明模型请求可能失败；若 `BOSS_HARNESS_MODEL_LIMITS` 为该模型声明了非空 `reasoningEfforts`，而显式强度不在其中，同样警告该码并提示与容量声明不符。Anthropic 线路下 `BOSS_HARNESS_THINKING` 仅识别 `summarized`，其他非空取值被忽略时自检警告 `MODEL_THINKING_IGNORED`，OpenAI 与 none 线路不受该开关影响。
+三项齐备时不访问 Codex 配置文件，Python 3.10 也可使用这一路线；可选推理强度只取 `BOSS_HARNESS_EFFORT`，未指定则由模型服务决定，不再继承文件中的值。`BOSS_HARNESS_MODEL` 覆盖进程默认 provider 的模型；`BOSS_HARNESS_OPENAI_MODEL` 可为 OpenAI 线路提供模型，Anthropic 线路对应 `BOSS_HARNESS_ANTHROPIC_MODEL`。`--model` 和模型变量为空或只有空白时视为未设置，继续按顺序取下一项。自动线路判断同样只认去除首尾空白后非空的 `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN`：两项均为空或只有空白时按未配置处理并回退 `none`，与自检的凭据规则一致。显式端点写成 `http://` 且主机不是 `localhost`、`127.*` 或 `::1` 时，自检的模型检查会警告 `MODEL_ENDPOINT_INSECURE`，提示凭据可能以明文传输；自检不输出端点，也不会发起请求。显式推理强度不属于 `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max` 时，自检警告 `MODEL_EFFORT_UNSUPPORTED`，说明模型请求可能失败；若 `BOSS_HARNESS_MODEL_LIMITS` 为该模型声明了非空 `reasoningEfforts`，而显式强度不在其中，同样警告该码并提示与容量声明不符。Anthropic 线路下 `BOSS_HARNESS_THINKING` 仅识别 `summarized`，其他非空取值被忽略时自检警告 `MODEL_THINKING_IGNORED`，OpenAI 与 none 线路不受该开关影响。
 
 Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请求是否携带服务端回退参数（走对应的 beta 接口）：未设置时，`ANTHROPIC_BASE_URL` 未设置或指向官方主机则开启，指向其他网关则关闭；显式取值去除首尾空白并按不区分大小写解析，`1` / `true` / `yes` / `on` 为开启，`0` / `false` / `no` / `off` 与空值为关闭，其他取值以 `MODEL_SERVER_FALLBACK_INVALID` 明确失败，不会被当作开启。网关不支持该参数时应保持关闭。`BOSS_HARNESS_THINKING=summarized` 请求模型返回思考摘要，其他取值或未设置时不请求。这两项只作用于 Anthropic 线路，`none` 与 OpenAI 线路不因它们失败。
 

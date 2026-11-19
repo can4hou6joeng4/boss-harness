@@ -90,6 +90,11 @@ def _configured_model(env: Mapping[str, str], *names: str) -> str:
     return ""
 
 
+def _has_configured_value(env: Mapping[str, str], *names: str) -> bool:
+    """按顺序检查是否有变量去除空白后非空；只有空白的值视为未设置。"""
+    return any((env.get(name) or "").strip() for name in names)
+
+
 def resolve_config(
     environ: Mapping[str, str] | None = None,
     provider: str | None = None,
@@ -102,7 +107,8 @@ def resolve_config(
     凭据就用 anthropic，否则 none」。没有可用凭据时返回 `none`，退回确定性回合。
 
     非空 `model_override`（来自命令行）优先于 `BOSS_HARNESS_MODEL`，其次是线路专属变量。
-    OpenAI 还可从 Codex profile 补齐模型。纯空白的模型取值按未设置处理。
+    OpenAI 还可从 Codex profile 补齐模型。纯空白的模型取值按未设置处理；
+    自动线路判断同样忽略只有空白的 Anthropic 凭据，与启动自检的凭据规则保持一致。
     provider 专属变量也用于同一进程列举其他已配置线路。
 
     `provider` 必须在这里就参与决策，不能在解析完之后再替换 provider 字段：各线路的端点与
@@ -128,7 +134,8 @@ def resolve_config(
     if requested in _EXPLICIT_PROVIDERS:
         resolved: ProviderName = requested  # type: ignore[assignment]
     else:
-        has_anthropic_credential = bool(env.get("ANTHROPIC_API_KEY") or env.get("ANTHROPIC_AUTH_TOKEN"))
+        has_anthropic_credential = _has_configured_value(
+            env, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
         resolved = "anthropic" if has_anthropic_credential else "none"
 
     if resolved == "openai":
