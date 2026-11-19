@@ -17,7 +17,9 @@
 
 ## 提交可复现问题
 
-先运行 `.venv/bin/boss-harness --check --provider none` 做本地预检，然后按 [Bug 报告模板](https://github.com/can4hou6joeng4/boss-harness/issues/new?template=bug_report.yml) 提供：
+桌面提示内核启动失败时，从「设置 → 模型与连接」复制[桌面自检结果](docs/USER_GUIDE.md#桌面启动失败时的自检)。命令行启动失败时，用原来的 provider、启动参数和环境运行 `.venv/bin/boss-harness --check`。`--provider none` 专用于核对无模型启动。详见[本地配置自检](docs/USER_GUIDE.md#本地配置自检)。
+
+按 [Bug 报告模板](https://github.com/can4hou6joeng4/boss-harness/issues/new?template=bug_report.yml) 提供以下信息。
 
 - 源码提交、npm / Python 版本与实际运行方式。
 - 使用合成数据的最小复现步骤、期望行为与实际行为。
