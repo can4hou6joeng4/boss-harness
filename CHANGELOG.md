@@ -1,3 +1,10 @@
+## 0.2.0-rc.313 - 2026-11-20
+
+rc.313 源码候选为冻结快照存储补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_snapshot_store.py`：固定十项预算常量、快照库文本的宽容解码与条目损坏校验、构建取消、重复 id 与修订目标顺序、磁盘预算、临时文件原子发布与目录同步、缓存淘汰、叶失效墓碑与读取预算；反向断言禁止严格 `utf-8` 解码、裸 `unlink`、目录外删除与 NaN 序列化。修复 Issue [#2751](https://github.com/can4hou6joeng4/boss-harness/issues/2751)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 41 个。版本推进到 npm `0.2.0-rc.313` / Python `0.2.0rc313`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.312 - 2026-11-20
 
 rc.312 源码候选为索引修复的清单与回滚补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
