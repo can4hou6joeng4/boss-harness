@@ -43,10 +43,7 @@ def _build_config(args: argparse.Namespace) -> ModelConfig:
     `--model` 也先参与解析，使完整显式线路无需读取本地配置。
     """
     explicit = None if args.provider == "auto" else args.provider
-    env = dict(os.environ)
-    if args.model:
-        env["BOSS_HARNESS_MODEL"] = args.model
-    return resolve_config(environ=env, provider=explicit)
+    return resolve_config(provider=explicit, model_override=args.model)
 
 
 def _requested_provider(args: argparse.Namespace) -> str:

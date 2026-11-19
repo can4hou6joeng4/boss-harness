@@ -1,9 +1,9 @@
 ## 0.2.0-rc.267 - 2026-11-19
 
-rc.267 源码候选让只有空白的模型变量不再遮蔽线路专属模型配置。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+rc.267 源码候选按优先级选择首个非空模型值。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
 
-- `BOSS_HARNESS_MODEL` 或命令行 `--model` 的值只有空白时，现在与未设置等价：依次回退到线路专属变量（`BOSS_HARNESS_OPENAI_MODEL` / `BOSS_HARNESS_ANTHROPIC_MODEL`）、Codex 配置与内置默认值；线路专属变量为空白时同样视为未设置。此前纯空白的通用变量先在回退链中胜出，再被去除空白成为空值，直接落到内置默认模型，已配置的线路专属模型与 Codex 配置中的模型都被跳过，OpenAI 线路会带着另一条线路的默认模型标识发出请求，而自检与启动输出不提示原因；这种取值常见于脚本或 `.env` 中留了空格的占位行。未设置、空字符串与带首尾空白的有效取值的解析结果不变。[Issue #2658](https://github.com/can4hou6joeng4/boss-harness/issues/2658)
-- `check_model_disable.py` 的核对由 82 项增至 88 项，固定两条线路都经同一个逐项去空白的取值函数，并禁止 `provider.py` 直接读取通用模型变量；恢复旧写法的注入探针以退出码 2 失败。十二例解析探针（四种取值 × 三条线路）对比 rc.266 源码：纯空白的三例改为回退到线路专属模型，其余九例一致。全部检查通过。版本推进到 npm `0.2.0-rc.267` / Python `0.2.0rc267`。不执行发布动作。
+- 依次检查 `--model`、`BOSS_HARNESS_MODEL` 和线路专属变量（`BOSS_HARNESS_OPENAI_MODEL` / `BOSS_HARNESS_ANTHROPIC_MODEL`），每项去除首尾空白后为空就继续检查下一项。OpenAI 线路在缺少显式配置时仍可用 Codex 配置补齐。此前空白的 `--model` 会覆盖有效的通用模型变量，纯空白的通用变量也会遮蔽线路专属模型，导致意外使用默认模型或读取不需要的 Codex 文件。正常启动和自检现在使用同一套规则。[Issue #2658](https://github.com/can4hou6joeng4/boss-harness/issues/2658)
+- `check_model_disable.py` 新增模型值优先级检查。55 个离线场景覆盖两条线路的启动与自检，以及自动回退提示。rc.266 有 20 个场景不符合预期，修复后全部通过。源码版本推进到 npm `0.2.0-rc.267` / Python `0.2.0rc267`。
 
 ## 0.2.0-rc.266 - 2026-11-19
 
