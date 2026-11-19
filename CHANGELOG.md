@@ -1,3 +1,10 @@
+## 0.2.0-rc.333 - 2026-11-20
+
+rc.333 源码候选把首页快速开始拆成「安装已发布的内核」与「从源码启动桌面」两个入口。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- README 快速开始分列两个入口：内核入口从 GitHub Releases 下载 wheel，在独立虚拟环境核对 `--version` 与 `--help`；桌面入口保留源码命令与 `SETUP.md` 助手入口。首页不写入具体发布版本号，逐版本变化仍由 CHANGELOG 与 Releases 承载。修复 Issue [#2791](https://github.com/can4hou6joeng4/boss-harness/issues/2791)。
+- 在 `UPSTREAM.md` 记录三个参考项目默认分支固定提交的安装入口结构；不复制文档文本或命令，不引入依赖。版本推进到 npm `0.2.0-rc.333` / Python `0.2.0rc333`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.332 - 2026-11-20
 
 rc.332 源码候选为回合循环与流式终态补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
