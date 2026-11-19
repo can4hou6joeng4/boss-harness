@@ -5,6 +5,7 @@ import type { ContextPanelState } from "../data/useContextPanel";
 import type { AutoCompactionController } from "../data/useAutoCompaction";
 import type { WorkspaceInstructionsState } from "@boss-harness/protocol";
 import { contextBreakdown } from "../data/contextBreakdown";
+import { keepTargetExceedsBudget } from "../data/compactionSettings";
 import { capabilitySourceLabel } from "../data/cockpitData";
 import "../styles/context-panel.css";
 
@@ -62,6 +63,7 @@ export function ContextPanel(props: ContextPanelProps) {
     ? budget?.provider === "none"
     : !budget.summaryAvailable;
   const keep = Number(state.keepRecentTokens), keepValid = Number.isSafeInteger(keep) && keep > 0;
+  const autoKeep = Number(auto.draft.keepRecentTokens);
   const status = job ? job.status === "running" && state.lifecycleActive === false ? "内核已不再保留此任务，状态已过期" : { running: state.cancelRequested ? "已请求取消，等待收尾" : "正在压缩", completed: "压缩已完成", failed: "压缩失败", cancelled: "压缩已取消" }[job.status] : "";
   const percentage = budget && budget.inputBudget > 0 ? Math.max(0, Math.min(100, budget.estimatedInputTokens / budget.inputBudget * 100)) : 0;
   const composition = budget ? contextBreakdown(budget.breakdown) : null;
@@ -109,6 +111,7 @@ export function ContextPanel(props: ContextPanelProps) {
           <label htmlFor="context-auto-trigger">触发阈值（%）<input id="context-auto-trigger" inputMode="numeric" type="number" min="1" max="100" step="1" value={auto.draft.triggerPercent} disabled={!connected || !props.threadId} onChange={event => auto.setTriggerPercent(event.target.value)} /></label>
           <label htmlFor="context-auto-keep">近期保留目标（估算 token）<input id="context-auto-keep" inputMode="numeric" type="number" min="1" max="1000000" step="1" value={auto.draft.keepRecentTokens} disabled={!connected || !props.threadId} onChange={event => auto.setKeepRecentTokens(event.target.value)} /></label>
         </div>
+        {budget && keepTargetExceedsBudget(autoKeep, budget.inputBudget) && <p className="context-panel-warning" role="status">近期保留目标不低于当前输入预算（估算 {number(budget.inputBudget)} token）：压缩后仍可能超出预算，达到阈值时通常没有更早的可压缩内容。请调低保留目标。</p>}
         <div className="context-panel-auto-actions">
           <button type="button" className="secondary-button" onClick={auto.apply} disabled={!connected || !props.threadId || !auto.valid || auto.reading}>应用到下一回合</button>
           {auto.active && <button type="button" className="secondary-button" onClick={auto.clear}>清除覆盖</button>}
@@ -122,6 +125,7 @@ export function ContextPanel(props: ContextPanelProps) {
         {busy && <p className="context-panel-warning" role="status">会话正在运行，只能查看当前预算。请等待回合结束后生成计划。</p>}
         {state.lifecycleActive === true && !job && !state.starting && !state.unknownStart && !state.error && <p className="context-panel-note">该会话有本面板之外发起的摘要任务正在进行（通常是分支摘要）；完成或取消前不能开始手动压缩。可在分支切换面板查看或取消。</p>}
         <div className="context-panel-plan-input"><label htmlFor="context-keep-recent">近期保留目标（估算 token）<input id="context-keep-recent" inputMode="numeric" type="number" min="1" step="1" value={state.keepRecentTokens} disabled={blocked || state.planning} onChange={event => props.onKeepRecentChange(event.target.value)} /></label><button type="button" className="secondary-button" onClick={props.onPlan} disabled={blocked || state.planning || !keepValid || !budget}>{state.planning ? "正在规划…" : "生成整理计划"}</button></div>
+        {budget && keepValid && keepTargetExceedsBudget(keep, budget.inputBudget) && <p className="context-panel-warning" role="status">该保留目标不低于当前输入预算（估算 {number(budget.inputBudget)} token）：生成计划时可能提示没有可压缩内容。</p>}
         <p className="context-panel-note">只整理已完成回合，近期完整回合会保留。目标不是精确裁剪；摘要可能遗漏细节，不保证语义无损。</p>
         {noSummaryProvider && <p className="context-panel-warning" role="status">当前没有可用的摘要模型。仍可查看整理计划，但无法开始压缩。</p>}
         {plan && <div className="context-panel-plan" aria-label="整理计划"><dl className="context-panel-detail"><dt>整理范围</dt><dd>{number(plan.sourceItemCount)} 条历史条目 · 截止回合 <code>{plan.throughTurnId}</code></dd><dt>条目边界</dt><dd><code>{plan.firstItemId}</code> 至 <code>{plan.lastItemId}</code></dd><dt>保留范围</dt><dd>{number(plan.retainedItemCount)} 条 · {number(plan.retainedTurnIds.length)} 个完整回合 · 估算 {number(plan.estimatedRetainedTokens)} token</dd><dt>首个保留条目</dt><dd><code>{plan.firstKeptItemId ?? "无"}</code></dd><dt>来源校验</dt><dd><code>{plan.sourceDigest}</code></dd></dl><p className="context-panel-note">{plan.retentionUsageApplied
