@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.228` / Python `0.2.0rc228` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.229` / Python `0.2.0rc229` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -93,7 +93,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 | 检查项 | 固定检查码 | 检查范围与限制 |
 | --- | --- | --- |
-| 模型配置 | `MODEL_CONFIG_VALID` / `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` / `MODEL_CONFIG_INVALID` / `MODEL_CONFIG_INCOMPLETE`，以及下表的具体错误码 | 只复用本地解析，不构造 SDK 或发起请求；缺少必需配置、文件损坏或非正输出上限记为错误，显式 `none` 与自动回退分别记为禁用模型、未配置模型警告。禁用模型的处理建议是改用具体 provider 重新启动；自动回退只影响默认线路，不阻止其他已配置线路在会话内选用。 |
+| 模型配置 | `MODEL_CONFIG_VALID` / `MODEL_DISABLED` / `MODEL_NOT_CONFIGURED` / `MODEL_CONFIG_INVALID` / `MODEL_CONFIG_INCOMPLETE` / `MODEL_SDK_UNAVAILABLE`，以及下表的具体错误码 | 只复用本地解析，不构造 SDK 或发起请求；缺少必需配置、文件损坏、非正输出上限或默认线路缺少模型 SDK 记为错误，显式 `none` 与自动回退分别记为禁用模型、未配置模型警告。缺失 SDK 的检查只发现包，不导入或核对版本。禁用模型的处理建议是改用具体 provider 重新启动；自动回退只影响默认线路，不阻止其他已配置线路在会话内选用。 |
 | 业务 CLI | `BOSS_CLI_FOUND` / `BOSS_CLI_UNAVAILABLE` | 只发现可执行文件，不执行 `boss schema`、版本查询、登录或任何工具；未发现可执行文件记为警告，文件存在不证明 CLI 能正常运行。 |
 | 浏览器来源 | `BROWSER_SOURCE_VALID` / `BROWSER_SOURCE_INVALID` | 只校验 `BOSS_HARNESS_BROWSER_SOURCE` 的取值，不读取浏览器或 Cookie，也不验证上游是否支持该选项。 |
 | 状态目录 | `STATE_DIRECTORY_VALID` 及下文的目录错误码 | 只读核对实际状态路径的目录类型、所有权、父目录与 ACL 安全规则，以及基本访问条件；缺失路径只核对已有父目录，不创建或试写。 |
@@ -142,7 +142,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 从命令行直接启动内核而在构造阶段失败时（状态目录不可用、系统不满足私有状态目录要求、运行参数取值无效等），stderr 在失败行之后会追加一行固定提示，建议用相同参数与环境运行 `boss-harness --check`。解释器缺少 `anthropic` 或 `openai` 等内核依赖时，stderr 会点名缺失模块并给出 `uv pip install --python .venv/bin/python -e ./harness`，退出码同为 `2`。
 
-报告不包含端点、密钥、模型自定义值、本机路径、会话内容或异常原文，可用于报告安装问题。自检不创建状态目录、不修改权限、不读取会话、不写入索引，与 `--repair-state` 互斥。本地检查仅覆盖上表五项，不核对模型 SDK 是否已安装，也不核对审批期限、重试次数等取值无效时回退默认值的参数。通过不代表模型可连接、认证有效、平台已登录或真实工具已验收；这些操作应分别在获得授权后核对。
+报告不包含端点、密钥、模型自定义值、本机路径、会话内容或异常原文，可用于报告安装问题。自检不创建状态目录、不修改权限、不读取会话、不写入索引，与 `--repair-state` 互斥。本地检查仅覆盖上表五项；模型检查用 `importlib.util.find_spec` 核对默认线路所需的 `anthropic` / `openai` 包是否可发现，但不导入 SDK、不核对已安装版本，也不核对审批期限、重试次数等取值无效时回退默认值的参数。通过不代表模型可连接、认证有效、平台已登录或真实工具已验收；这些操作应分别在获得授权后核对。
 
 ## 桌面启动失败时的自检
 

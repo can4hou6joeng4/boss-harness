@@ -1,3 +1,10 @@
+## 0.2.0-rc.229 - 2026-11-19
+
+rc.229 源码候选让启动自检报告默认线路缺少模型 SDK。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `--check` 在模型配置可解析且凭据齐全后，用 `importlib.util.find_spec` 只发现默认线路所需的 `anthropic` / `openai` 包；缺失时报告 `MODEL_SDK_UNAVAILABLE`、退出码 `2`，建议按安装步骤安装内核依赖。只发现模块、不导入 SDK、不核对版本；显式 `none`、自动回退与配置不完整的分支不变。桌面提示条在报告点名该检查码时，恢复建议改为安装内核依赖后可重新连接。[Issue #2582](https://github.com/can4hou6joeng4/boss-harness/issues/2582)
+- 以 rc.228 合并提交导出的源码为基线：Anthropic / OpenAI 缺 SDK 两例由 `MODEL_CONFIG_VALID`（退出码 0）变为 `MODEL_SDK_UNAVAILABLE`（退出码 2）；显式 `none`、自动回退、Anthropic 缺凭据与伪造 SDK 存在四例逐项一致，且伪造包内 `raise RuntimeError` 未被导入。同一转译纯函数探针覆盖四种恢复场景，只有 SDK 缺失的建议变化。使用指南与桌面交互指南同步说明。全部检查通过。版本推进到 npm `0.2.0-rc.229` / Python `0.2.0rc229`。不执行发布动作。
+
 ## 0.2.0-rc.228 - 2026-11-19
 
 rc.228 源码候选在缺少内核依赖时给出安装提示。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
