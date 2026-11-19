@@ -11,6 +11,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 STARTUP = "harness/src/boss_harness/startup_check.py"
 CONFIG_ERRORS = "harness/src/boss_harness/models/config_errors.py"
+APPLICATION = "harness/src/boss_harness/application.py"
 DESKTOP = "apps/desktop/src/main/startupCheck.ts"
 PROTOCOL = "packages/protocol/src/index.ts"
 USER_GUIDE = "docs/USER_GUIDE.md"
@@ -192,6 +193,45 @@ def _runtime_options(tree: ast.Module, limit: int) -> int:
         checked += _validate_text("_RUNTIME_OPTIONS 的说明", message, limit)
         checked += _validate_text("_RUNTIME_OPTIONS 的建议", hint, limit)
     return checked
+
+
+def _dotted(node: ast.AST) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        base = _dotted(node.value)
+        return f"{base}.{node.attr}" if base else ""
+    return ""
+
+
+def _environment_loader_calls(node: ast.AST, calls: list[str]) -> None:
+    if isinstance(node, ast.Call):
+        name = _dotted(node.func)
+        if name.rsplit(".", 1)[-1].endswith("from_environment"):
+            calls.append(name)
+    for child in ast.iter_child_nodes(node):
+        _environment_loader_calls(child, calls)
+
+
+def _runtime_order(tree: ast.Module, application_tree: ast.Module) -> int:
+    options = _assignment(tree, "_RUNTIME_OPTIONS")
+    loaders = [_dotted(entry.elts[1]) for entry in options.elts
+               if isinstance(entry, ast.Tuple) and len(entry.elts) == 4]
+    if not loaders or any(not loader for loader in loaders):
+        raise ValueError("_RUNTIME_OPTIONS 的加载函数必须是名称或属性访问")
+    application = next((node for node in ast.walk(application_tree)
+                        if isinstance(node, ast.ClassDef) and node.name == "ApplicationService"), None)
+    if application is None:
+        raise ValueError("缺少 ApplicationService")
+    init = next((node for node in application.body
+                 if isinstance(node, ast.FunctionDef) and node.name == "__init__"), None)
+    if init is None:
+        raise ValueError("缺少 ApplicationService.__init__")
+    calls: list[str] = []
+    _environment_loader_calls(init, calls)
+    if calls != loaders:
+        raise ValueError(f"自检运行参数顺序与应用启动不一致：自检 {loaders}，启动 {calls}")
+    return len(loaders)
 
 
 def _diagnostics(tree: ast.Module, limit: int) -> int:
@@ -402,12 +442,13 @@ def check_startup_diagnostics() -> tuple[int, int]:
     config_tree = _parse(config_source, CONFIG_ERRORS)
     checked = _check_calls(startup_tree, _parents(startup_tree), limit)
     checked += _runtime_options(startup_tree, limit)
+    checked += _runtime_order(startup_tree, _parse(_read(APPLICATION), APPLICATION))
     checked += _hint_constants(startup_tree, limit)
     checked += _diagnostics(config_tree, limit)
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide)
     checked += _names_consistency(startup_tree, guide, _read(CONNECTION_NOTICE))
-    return 6, guards + checked
+    return 7, guards + checked
 
 
 def main() -> int:
