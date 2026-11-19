@@ -77,7 +77,7 @@ BOSS_HARNESS_PROVIDER=none npm run dev
 
 `BOSS_HARNESS_PROVIDER=none` 只禁用模型，不禁用招聘 CLI。Electron 需要从源码启动；`npm run build` 只生成桌面源码产物，不是独立安装包。首次运行建议使用临时工作区与只读工具，不要在此阶段输入真实凭据。
 
-安装完成后可先运行 `.venv/bin/boss-harness --check` 核对本地配置（加 `--format text` 输出终端可读文本）；这一步不调用模型、不执行招聘 CLI。
+安装完成后可先运行 `.venv/bin/boss-harness --check` 核对本地配置（加 `--format text` 输出终端可读文本）；这一步不调用模型、不执行招聘 CLI。也可以让编码 Agent 按 [SETUP.md](SETUP.md) 与你一起完成安装、自检与首次启动；凭据与平台登录仍由你本人完成。
 
 ## 试跑一条任务
 

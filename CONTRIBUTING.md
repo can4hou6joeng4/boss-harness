@@ -10,7 +10,7 @@
 
 ## 本地验证与构建
 
-使用 Node.js 24+ 与 `uv`；Python 内核声明支持 3.10+，完整显式模型配置可独立运行，读取 Codex TOML 配置需要 3.11+，开发建议 3.12。配置来源与优先级见[使用指南](docs/USER_GUIDE.md#模型配置来源)。
+使用 Node.js 24+ 与 `uv`；Python 内核声明支持 3.10+，完整显式模型配置可独立运行，读取 Codex TOML 配置需要 3.11+，开发建议 3.12。配置来源与优先级见[使用指南](docs/USER_GUIDE.md#模型配置来源)。让编码 Agent 协作完成环境安装与首次自检的流程见 [SETUP.md](SETUP.md)，其中同样不包含真实模型或平台操作。
 
 ```sh
 uv venv --python 3.12 .venv

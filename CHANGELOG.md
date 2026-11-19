@@ -1,3 +1,10 @@
+## 0.2.0-rc.252 - 2026-11-19
+
+rc.252 源码候选增加供编码 Agent 与用户协作安装的本地指南。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增根目录 `SETUP.md`：按「核对工具链 → 安装内核与桌面依赖 → 运行 `--check` → 以 `none` 启动桌面 → 交由用户配置模型与平台登录 → 收尾核对」的顺序编写，每步给出可复制命令、预期结果与常见检查码对照；给 Agent 的约定要求一次只问一个问题、执行前说明影响、不读写凭据、不执行平台写操作、不调用真实模型试探、不修改用户 shell 配置。[Issue #2628](https://github.com/can4hou6joeng4/boss-harness/issues/2628)
+- README 安装段落与贡献指南增加指向；`check_docs_links.py` 把 `SETUP.md` 纳入登记、相对链接与页内锚点核对，当前覆盖 17 篇 Markdown、214 个链接与 116 个页内锚点。全部检查通过。版本推进到 npm `0.2.0-rc.252` / Python `0.2.0rc252`。不执行发布动作。
+
 ## 0.2.0-rc.251 - 2026-11-19
 
 rc.251 源码候选让本地配置自检在状态目录剩余空间不足时给出警告。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
