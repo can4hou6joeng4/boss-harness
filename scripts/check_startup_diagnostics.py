@@ -28,6 +28,8 @@ STRICT_ORDERED = (
     "return 1 if args.strict and warned else 0",
 )
 LISTEN_ORDERED = (
+    "if not args.state_dir.strip():",
+    'print("[harness] --state-dir 不能为空；省略该参数即使用默认状态目录", file=sys.stderr)',
     'if args.listen != "stdio://":',
     'print("[harness] 暂不支持该 --listen 端点；当前仅支持 stdio://", file=sys.stderr)',
     "if args.check:",
@@ -622,14 +624,14 @@ def _strict_exit(entry: str, guide: str) -> int:
         position = found
     if STRICT_GUIDE not in guide:
         raise ValueError("使用指南缺少严格模式三种退出码的说明")
-    # 端点校验必须先于自检与索引修复：相同参数下自检结论要与实际启动一致。
+    # 状态目录非空与端点校验必须先于自检与索引修复：相同参数下自检结论要与实际启动一致。
     position = -1
     for fragment in LISTEN_ORDERED:
         if entry.count(fragment) != 1:
-            raise ValueError(f"__main__.py 的端点校验片段缺失或重复：{fragment}")
+            raise ValueError(f"__main__.py 的参数前置校验片段缺失或重复：{fragment}")
         found = entry.index(fragment)
         if found < position:
-            raise ValueError(f"__main__.py 的端点校验必须位于自检与索引修复之前：{fragment}")
+            raise ValueError(f"__main__.py 的参数前置校验必须位于自检与索引修复之前：{fragment}")
         position = found
     return len(STRICT_ORDERED) + 1 + len(LISTEN_ORDERED)
 
