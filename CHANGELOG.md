@@ -1,3 +1,10 @@
+## 0.2.0-rc.272 - 2026-11-19
+
+rc.272 源码候选修正用户指南中与内核行为矛盾的运行参数说明。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 「其他运行参数」一节不再声称「使用默认值」或「收敛」的配置不在本地配置自检范围内：该句与同表的 `RETRY_CONFIG_DEFAULTED` / `APPROVAL_TIMEOUT_DEFAULTED` 警告列、检查项表以及内核 `_runtime_check` 的实际输出矛盾。改写为：审批期限与两项重试配置的无效取值不会让启动失败，自检以对应警告说明已回退或收敛。[Issue #2668](https://github.com/can4hou6joeng4/boss-harness/issues/2668)
+- `check_startup_diagnostics.py` 新增 3 项守卫：恢复旧表述、或删除更正后的说明都会以非零退出码失败。本次仅改文档与守卫，协议与内核行为不变；全部检查通过。版本推进到 npm `0.2.0-rc.272` / Python `0.2.0rc272`。不执行发布动作。
+
 ## 0.2.0-rc.271 - 2026-11-19
 
 rc.271 源码候选让 `BOSS_HARNESS_MAX_TOKENS` 的空白取值与空字符串一致。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

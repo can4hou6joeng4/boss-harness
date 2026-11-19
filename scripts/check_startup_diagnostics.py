@@ -387,6 +387,17 @@ def _function_source(tree: ast.Module, source: str, name: str) -> str:
     return ast.get_source_segment(source, function) or ""
 
 
+def _runtime_scope(guide: str) -> int:
+    """重试与审批期限的无效取值由自检警告；指南不得把它们写成不在自检范围内。"""
+    if "也不在[本地配置自检]" in guide:
+        raise ValueError("用户指南不得声称重试与审批期限配置不在自检范围内")
+    for fragment in ("`APPROVAL_TIMEOUT_DEFAULTED` 或 `RETRY_CONFIG_DEFAULTED` 警告",
+                     "不会让启动失败"):
+        if fragment not in guide:
+            raise ValueError(f"用户指南必须说明无效取值回退后由自检警告：缺少 {fragment}")
+    return 3
+
+
 def _max_tokens(source: str) -> int:
     """输出上限与同组数值变量口径一致：去除首尾空白，空值用默认值。"""
     tree = _parse(source, "harness/src/boss_harness/models/provider.py")
@@ -731,6 +742,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _repo_walk(startup_tree, startup)
     checked += _state_dir_defaults(_read(ENTRY))
     checked += _max_tokens(_read(PROVIDER))
+    checked += _runtime_scope(_read(USER_GUIDE))
     checked += _diagnostics(config_tree, limit)
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide, _read(SETUP_GUIDE))
