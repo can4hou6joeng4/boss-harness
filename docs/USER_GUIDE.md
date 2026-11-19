@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.289` / Python `0.2.0rc289` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.290` / Python `0.2.0rc290` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -333,7 +333,7 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 
 ## 自动压缩默认策略
 
-内核默认启用自动压缩：输入预算使用达到 80% 时生成摘要，并尽量保留最近 20000 token。这里的「token」是预算估算口径，不是供应商 tokenizer 的精确计数：有同一业务线路的可信 `model_usage` 前缀时按 usage 增量校准各回合，否则按消息长度保守估算；切点只落在完整回合边界，且不会摘要当前运行回合。没有新增可压缩内容时计划会被拒绝，不会生成空摘要。桌面「设置 → 上下文」可查看并修改这三项默认值；内核侧对应 `config/autoCompaction/set`（能力 `autoCompactionConfig`），只接受 `enabled`、`triggerPercent`（1–100）与 `keepRecentTokens`（1–1000000）。保存后立即在当前进程生效，并原子写入内核状态目录下的 `config.json`；重启后仍生效，其他顶层配置键保持不变。摘要使用的 provider、model、effort 不在此界面修改，仍由启动配置决定。保留目标不低于当前模型输入预算时，自动压缩通常没有更早的可压缩内容，压缩后也可能仍超出预算；上下文面板会在设置与手动规划处提示，此时应调低保留目标或新建会话。
+内核默认启用自动压缩：输入预算使用达到 80% 时生成摘要，并尽量保留最近 20000 token。这里的「token」是预算估算口径，不是供应商 tokenizer 的精确计数：有同一业务线路的可信 `model_usage` 前缀时按 usage 增量校准各回合，否则按消息长度保守估算；切点只落在完整回合边界，且不会摘要当前运行回合。没有新增可压缩内容时计划会被拒绝，不会生成空摘要。桌面「设置 → 上下文」可查看并修改这三项默认值；内核侧对应 `config/autoCompaction/set`（能力 `autoCompactionConfig`），只接受 `enabled`、`triggerPercent`（1–100）与 `keepRecentTokens`（1–1000000）。保存后立即在当前进程生效，并原子写入内核状态目录下的 `config.json`；重启后仍生效，其他顶层配置键保持不变。摘要使用的 provider、model、effort 不在此界面修改，仍由启动配置决定。保留目标不低于当前模型输入预算时，自动压缩通常没有更早的可压缩内容，压缩后也可能仍超出预算；上下文面板会在设置与手动规划处提示，此时应调低保留目标或新建会话。「设置 → 上下文」在保留目标不低于当前模型上下文窗口时也会提示，默认值保存后对其他会话同样生效。
 
 摘要可以使用与业务回合不同的 provider 或模型。若单独选择 Anthropic 且缺少非空环境凭据，桌面「会话上下文」会标明当前没有可用的摘要模型；仍可查看预算和整理计划，不能开始压缩。自动压缩与上下文溢出恢复均在提交前，按业务回合实际使用的 provider/model 检查摘要、保留历史、当前输入及工具定义的完整预算。容纳不下时以 `COMPACTION_INSUFFICIENT` 暂停，不保存新摘要检查点、不继续业务请求，原始记录与既有检查点保留；可减少当前输入或保留目标，或新建会话后明确继续。摘要线路本身不可用时，例如配置为 `none`、进程以显式 `none` 启动、本机缺少对应凭据或摘要模型不支持指定推理档位，当前回合也会以明确压缩错误码暂停，而不是笼统报成回合执行失败；先修正摘要配置或显式关闭自动压缩，再核对会话并明确发起下一步。暂停不自动重试或继续业务请求，也不撤销已执行的工具或外部操作。
 
