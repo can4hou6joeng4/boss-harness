@@ -41,7 +41,8 @@ BOSS Harness 不是把招聘平台包成一个聊天接口，而是把「模型�
 
 | 你的目标 | 从这里开始 |
 | --- | --- |
-| 在本机跑起来并完成第一次只读查询 | [快速开始](#快速开始) → [试跑一条任务](#试跑一条任务) |
+| 只安装已发布的 Python 内核 | [安装已发布的内核](#安装已发布的内核) |
+| 从源码启动桌面并完成第一次只读查询 | [从源码启动桌面](#从源码启动桌面) → [试跑一条任务](#试跑一条任务) |
 | 了解桌面交互与故障提示 | [桌面交互指南](docs/DESKTOP_GUIDE.md) → [使用指南](docs/USER_GUIDE.md) |
 | 配置 OpenAI、Anthropic 或无模型模式 | [模型与运行时配置](#模型与运行时配置) → [使用指南](docs/USER_GUIDE.md) |
 | 评估查询范围、权限和隐私边界 | [安全边界](#安全边界) → [内核与业务契约参考](docs/TECHNICAL_REFERENCE.md) |
@@ -66,7 +67,24 @@ BOSS Harness 不是把招聘平台包成一个聊天接口，而是把「模型�
 
 ## 快速开始
 
-前置条件：Node.js 24+、Python 3.10+（读取 Codex TOML 配置需要 3.11+，开发建议 3.12）和 `uv`。只验证桌面能否连接本地内核，不需要安装招聘 CLI 或登录；使用招聘工具前再按[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)配置 `boss-agent-cli`。
+有两种进入方式：已发布的 Python 内核 wheel 用于脚本化或嵌入调用；完整桌面工作台目前从源码启动，尚无独立安装包。两者都先准备 Python 3.10+（读取 Codex TOML 配置需要 3.11+，开发建议 3.12）和 `uv`。
+
+### 安装已发布的内核
+
+从 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 下载最新的 `boss_harness-*.whl`，在独立虚拟环境中安装。wheel 只包含 Python 内核，不包含 Electron 桌面，也不包含招聘 CLI：
+
+```sh
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python boss_harness-*.whl
+.venv/bin/boss-harness --version
+.venv/bin/boss-harness --help
+```
+
+把下载的 wheel 放在当前目录，或把命令中的文件名替换为实际路径。已发布资产及其校验和以对应 Release 说明为准；`--help` 列出该版本实际支持的参数，预发布之间可能变化。桌面与内核按同一源码版本配套使用，不要把旧预发布 wheel 与当前源码桌面混用。
+
+### 从源码启动桌面
+
+桌面需要 Node.js 24+ 与本仓库依赖。只验证桌面能否连接本地内核，不需要安装招聘 CLI 或登录；使用招聘工具前再按[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)配置 `boss-agent-cli`。
 
 ```sh
 uv venv --python 3.12 .venv

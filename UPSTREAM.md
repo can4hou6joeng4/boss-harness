@@ -1,5 +1,17 @@
 # 上游吸收记录
 
+## 首页安装入口的参考核对（Issue #2791）
+
+以下三个外部参考仓库不是本项目的上游，维护者未参与本项目，链接不代表其背书。本轮只读核对默认分支固定提交的公开 README：
+
+- `deepseek-ai/deepseek-harness`，MIT，`master` 提交 `2e39e70496aa02986ca6a820c5d497e816b69d7e`，入口 `README.md`：把「从 npm 运行」与「从源码运行」分成两段，源码路径给出克隆、构建与启动的完整命令。
+- `deepseek-ai/dsh-superagent-prototype`，MIT，`main` 提交 `8c32a9dc5d72c033816c6a8110b37f40cf94fba4`（与既有记录相同），入口 `README.md`：Setup 段只给一句提示，让编码 Agent 读取 `SETUP.md` 完成安装。
+- `vercel-labs/agent-desktop`，Apache-2.0，`main` 提交 `e8934a5e95e1d212c74ead95cd3e4701c04eca31`，入口 `README.md`：Install 段先给安装命令，紧跟状态与权限检查，再说明源码与归档路径。
+
+适配约定：本项目首页沿用「分发入口与源码入口分列」的信息结构。已发布资产是 Python 内核 wheel，桌面没有独立安装包，因此只提供内核入口；桌面入口保留原有源码命令与 `SETUP.md` 助手入口。首页不写入具体发布版本号。不复制文档文本或命令，不引入参考项目。
+
+验证：仅文档改动；安装命令用 `v0.2.0-rc.15` 公开 wheel 在临时目录的独立虚拟环境核对 `--version` 与 `--help`；未调用真实模型、招聘平台或桌面 UI。协议与内核仍为 0.2.0。
+
 ## 不支持解析 Codex TOML 时跳过可选线路（Issue #2696）
 
 对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Provider Factories、Querying Models）与 `packages/coding-agent/src/core/model-registry.ts`（`getAvailable`、`hasConfiguredAuth`）：上游模型目录从运行时取得可用快照，未采用本项目的 Python 或 Codex TOML 读取路径。本项目延续「无法解析的可选线路不进入目录」规则；Python 3.10 缺少 `tomllib` 时抛出固定的配置错误，显式使用者获得诊断码，其他默认线路不因此中断。不改模型请求或配置优先级，不复制代码、不引入依赖。
