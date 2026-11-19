@@ -829,8 +829,14 @@ class ApplicationService:
         return self.provider_factory(config)
 
     def _summary_available(self, policy: CompactionPolicy, base_provider: str) -> bool:
-        return (self.provider_factory is not None and not self.model_calls_disabled
-                and (policy.provider or base_provider) != "none")
+        provider = policy.provider or base_provider
+        if self.provider_factory is None or self.model_calls_disabled or provider == "none":
+            return False
+        # 复用会话线路时沿用已解析的配置；只有另选 Anthropic 才需要本机环境凭据。
+        # 这里不构造供应商，也不为预算读取额外打开模型配置文件。
+        if provider == "anthropic" and provider != base_provider:
+            return has_anthropic_credential(os.environ)
+        return True
 
     def on_model_list(self, params: dict | None) -> dict:
         models = []
