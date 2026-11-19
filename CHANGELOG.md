@@ -1,3 +1,10 @@
+## 0.2.0-rc.338 - 2026-11-20
+
+rc.338 源码候选为会话导出的原子写入与失败诊断补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_export_write.py`：固定临时文件与目标同目录、独占创建、`O_NOFOLLOW` 回退与 `0600`，写入 → 刷新 → 收紧权限 → 关闭 → 复核目标身份 → 原子替换的顺序，`ENOENT` / `ELOOP` / 符号链接处理，失败后的临时文件清理与 `permissionError` 降级，保存对话框覆盖确认，以及诊断只保留 errno、回执只回文件名。修复 Issue [#2801](https://github.com/can4hou6joeng4/boss-harness/issues/2801)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 64 个。版本推进到 npm `0.2.0-rc.338` / Python `0.2.0rc338`。不改变运行时行为，不执行写入或发布动作。
+
 ## 0.2.0-rc.337 - 2026-11-20
 
 rc.337 源码候选为平台登录补上域名、Cookie 与回执检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
