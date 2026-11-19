@@ -85,11 +85,12 @@ def _expect(fragments: tuple[str, ...], text: str, label: str) -> int:
 
 
 def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
+    # 取每个片段的首次出现位置：允许跳过的子序列会漏掉提前插入的重复片段。
     position = -1
     for fragment in fragments:
-        index = text.find(fragment, position + 1)
-        if index < 0:
-            raise ValueError(f"{label} 缺少或顺序变化：{fragment}")
+        index = text.find(fragment)
+        if index < 0 or index <= position:
+            raise ValueError(f"{label} 缺少或首次出现顺序变化：{fragment}")
         position = index
     return len(fragments)
 
