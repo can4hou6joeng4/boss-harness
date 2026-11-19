@@ -1,3 +1,10 @@
+## 0.2.0-rc.243 - 2026-11-19
+
+rc.243 源码候选让启动自检警告明文模型端点。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 显式模型端点写成 `http://` 且主机不是 `localhost`、`127.*` 或 `::1` 时，`--check` 的模型检查记为警告 `MODEL_ENDPOINT_INSECURE`，提示凭据可能以明文传输并建议改用 HTTPS；不输出端点、主机或路径，不发起请求，不构造 SDK。`https://`、本机回环、未写 scheme 与无法解析的端点保持原有结果；SDK 缺失、凭据缺失等错误仍优先报告。OpenAI Responses 与 Anthropic 线路共用该判断。使用指南与技术参考同步。[Issue #2610](https://github.com/can4hou6joeng4/boss-harness/issues/2610)
+- 以 rc.242 合并提交导出的源码为基线，八个 OpenAI 场景独立进程对比：HTTPS、`127.0.0.1`、`localhost`、`::1`、未写 scheme 与畸形 IPv6 六例逐字节一致；远程 HTTP 与大写带根点主机两例变为警告，退出码仍为 0。补充 Anthropic 远程 HTTP 场景同样变为警告，SDK 缺失时两版均优先报告错误并以 2 退出。全部检查通过。版本推进到 npm `0.2.0-rc.243` / Python `0.2.0rc243`。不执行发布动作。
+
 ## 0.2.0-rc.242 - 2026-11-19
 
 rc.242 源码候选让启动自检提示已弃用的状态目录变量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
