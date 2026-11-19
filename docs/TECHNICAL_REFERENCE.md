@@ -62,7 +62,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
-| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy) |
+| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
@@ -237,6 +237,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 `scripts/check_output_budget.py` 核对模型输出的字节预算、有界错误与 UTF-8 分块：`output_budget.py` 的工具参数、响应工具参数与文本 / 思考三项上限均为 1 MiB；`utf8_size_at_most` 必须先按码点数预检、再编码并核对字节上限，孤立代理项抛固定异常；快照必须按紧凑 JSON（`ensure_ascii=False`、`allow_nan=False`）逐字符计费，拒绝非文本键与超过 64 层 / 32768 节点的结构，整数按位长预判；`bounded_error` 不得拆开 UTF-8 字符，截断处以 `…` 收尾；`utf8_chunks` 要求最小 4 字节上限并按字符累计分块。反向断言禁止 `allow_nan=True`、`ensure_ascii=True` 与无选项的 `json.dumps(value)`；同时核对技术参考的 1 MiB 与 32 KiB 口径。检查是常量与文本扫描，实际分配与截断行为仍需按技术参考核对。
 
+### `check_stream_pump.py`
+
+`scripts/check_stream_pump.py` 核对异步流泵的缓冲预算、终止事件与线程收尾边界：`stream_pump.py` 的 64 个缓冲事件、4 MiB 合计缓冲、2 MiB 单事件、32768 个节点、8 个在途泵与 1 秒清理等待；文本计费按 4096 字符分块并使用 `errors="replace"`，事件计费覆盖标量、文本、字节、容器与 Pydantic 附加值，循环引用记 0 并受 32 层嵌套限制；发布必须先在入队前计费、超限拒绝，再同时满足事件数与合计字节配额；取消、超时与 producer 失败都必须先丢弃排队事件、只入队一个终止事件，并在锁外取消任务；线程收尾必须依次关闭异步生成器、关闭事件循环、释放名额并置位完成；`close()` 不得 join 当前线程。反向断言禁止非 daemon 线程、严格编码计费、无超时 join 与缺少终止事件槽位的队列。同时核对技术参考的缓冲口径。检查是常量与文本扫描，真实并发与线程退出仍需按平台核对。
+
 ### `check_compaction.py`
 
 `scripts/check_compaction.py` 核对自动压缩策略的校验、归一化与失败契约：`compaction.py` 的六个字段与 `anthropic` / `openai` / `codex` 白名单、布尔 / 1–100 / 1–1000000 的精确类型与范围、provider 归一化（codex → openai）、model 的非空 / 200 字符 / 无空白校验与 effort 档位校验；`verified_policy` 拒绝未知字段与空对象并按字段顺序过滤；`override` 只接受三个界面字段并保留摘要线路；`from_environment` 先去空白、再按 4096 字节与重复键钩子解析、拒绝未知字段，并以固定说明报错。反向断言禁止无钩子解析与错误回显原文；同时核对技术参考与使用指南的自动压缩口径。脚本只扫描源码，不运行配置解析。
@@ -326,6 +330,8 @@ Harness 可通过进程环境变量 `BOSS_HARNESS_BROWSER_SOURCE` 显式传递�
 OpenAI Responses 的 `response.completed` / `response.incomplete` 与 Anthropic 的 `message_stop` 都是响应终态；SDK 在终态后若继续交付任何流事件，内核按协议错误结束本次请求，不执行该响应的工具、不重试或继续后续队列，已接收的有界文本前缀标为失败保留。SSE 注释与 OpenAI 的 `[DONE]` 由 SDK 处理，不属于这些内容事件。
 
 模型输出达到长度上限时，本次响应中的工具全部记为未执行，截断文本保留并以错误收尾，不自动重试或启动后续队列。每次模型响应的工具参数文本按原始 UTF-8 字节计数，每项及所有工具合计均最多 1 MiB；已解码的初始对象先检查结构和紧凑 JSON 字节数，再序列化。空白、转义及多个工具合计会触发这一新增边界，即使各项规范化 JSON 未超限。超限时关闭模型流并以错误结束，不保存超限参数、不调用 handler 或审批。该限制作用于 provider 已收到的事件，不能限制单个 HTTP/SSE 事件帧在解码前的内存，也不是进程 RSS 上限。文本与思考另按每次响应合计 1 MiB 原始 UTF-8 字节限制，增量和权威终态都在缓冲、事件持久化及通知前检查。超限以错误终止整轮，关闭流、不审批或执行该响应的工具、不重试或自动继续队列；已接收的有界前缀标为失败保留。增量事件拆为最多 32 KiB UTF-8，以便事件分页恢复；最终实时通知保留预算内全文，最坏 JSON 字符串转义仍在 8 MiB 帧限制内。该保证不包含 provider 附加元数据、无限事件数量或 SDK 解码单个 SSE 帧的内存。
+
+同步 provider 通过每个请求一个后台线程桥接异步 SDK 流：队列最多 64 个事件、缓冲合计最多 4 MiB、单事件最多 2 MiB，同一进程最多 8 个在途泵；取消、超时与失败先丢弃排队事件并只交付一个终止事件，清理等待最多 1 秒。该缓冲只约束内核已接收的 SDK 事件，不包含 SDK 解码前的传输数据。
 
 每回合默认最多 6 次业务模型请求；启动环境变量 `BOSS_HARNESS_MAX_MODEL_REQUESTS` 去除首尾空白后可设为 1–64 的十进制整数，空值或只有空白时使用默认上限。嵌入方可传入 `ApplicationService(max_model_requests=...)` 显式指定并覆盖环境配置。`config/read.maxModelRequests` 返回宿主上限；`turn/start.maxModelRequests` 只可为本回合收紧，必须是 1 到宿主上限的整数，不修改后续回合或队列默认值。非法配置在预留回合、保存输入或创建该回合 provider 前拒绝，布尔值、字符串和小数不作为 RPC 整数接受。
 
