@@ -1,3 +1,10 @@
+## 0.2.0-rc.320 - 2026-11-20
+
+rc.320 源码候选为模型错误分类补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_errors.py`：固定配额 / 临时错误码与状态集合、LiteLLM 2048 与代理 512 字符上限、四条精确文本模式；溢出组合只接受 OpenAI 精确 code、有界 llama.cpp 文本、HTTP 400 的 LiteLLM 窗口拒绝、Anthropic 类型明确且带数字上限的 prompt 拒绝与 HTTP 413 的有界代理正文拒绝；固定配额不可重试、临时错误可重试、400/401/403 不可重试、未知 429 保持未知；传输诊断逐层去重并只输出白名单 errno；反向断言禁止宽松类型判定、`search` 代替完整匹配、放开 413 状态与异常原文。修复 Issue [#2765](https://github.com/can4hou6joeng4/boss-harness/issues/2765)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 48 个。版本推进到 npm `0.2.0-rc.320` / Python `0.2.0rc320`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.319 - 2026-11-20
 
 rc.319 源码候选为异步模型流泵补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

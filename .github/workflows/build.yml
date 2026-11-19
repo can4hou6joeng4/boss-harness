@@ -110,6 +110,8 @@ jobs:
         run: python scripts/check_output_budget.py
       - name: Verify model stream buffering
         run: python scripts/check_stream_pump.py
+      - name: Verify model error classification
+        run: python scripts/check_errors.py
       - name: Verify context retention hint boundaries
         run: python scripts/check_context_keep.py
       - name: Verify catch-up steering boundary

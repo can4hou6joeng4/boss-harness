@@ -62,7 +62,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
-| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy) |
+| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
@@ -240,6 +240,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_stream_pump.py`
 
 `scripts/check_stream_pump.py` 核对异步流泵的缓冲预算、终止事件与线程收尾边界：`stream_pump.py` 的 64 个缓冲事件、4 MiB 合计缓冲、2 MiB 单事件、32768 个节点、8 个在途泵与 1 秒清理等待；文本计费按 4096 字符分块并使用 `errors="replace"`，事件计费覆盖标量、文本、字节、容器与 Pydantic 附加值，循环引用记 0 并受 32 层嵌套限制；发布必须先在入队前计费、超限拒绝，再同时满足事件数与合计字节配额；取消、超时与 producer 失败都必须先丢弃排队事件、只入队一个终止事件，并在锁外取消任务；线程收尾必须依次关闭异步生成器、关闭事件循环、释放名额并置位完成；`close()` 不得 join 当前线程。反向断言禁止非 daemon 线程、严格编码计费、无超时 join 与缺少终止事件槽位的队列。同时核对技术参考的缓冲口径。检查是常量与文本扫描，真实并发与线程退出仍需按平台核对。
+
+### `check_errors.py`
+
+`scripts/check_errors.py` 核对模型错误的溢出分类、重试提示与传输诊断边界：`errors.py` 的 provider code 字符集与 128 字符上限、配额 / 临时错误码集合、408/409/500/502/503/504 状态集合、LiteLLM 2048 与代理 512 字符上限、Anthropic prompt / llama.cpp / LiteLLM / 代理正文四条精确文本模式；溢出只接受 OpenAI 精确 `context_length_exceeded`、有界 llama.cpp 文本、HTTP 400 的有界 LiteLLM 窗口拒绝、Anthropic `invalid_request_error` 的有界 prompt 数字上限，以及 HTTP 413 的有界代理正文拒绝；配额耗尽必须不可重试，临时码与状态可重试，400/401/403 不可重试，其余 429 保持未知；传输诊断必须逐层去重遍历因果链、区分 getaddrinfo 命名空间、只输出白名单 errno 与固定中文标签。反向断言禁止宽松类型判定、`search` 代替完整匹配、放开 413 状态与异常原文。同时核对技术参考的溢出与重试口径。检查是常量与文本扫描，实际分类结果仍需按技术参考核对。
 
 ### `check_compaction.py`
 
