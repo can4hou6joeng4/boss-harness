@@ -60,7 +60,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_item_content.py`](#check_item_contentpy) |
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
-| 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
+| 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
@@ -125,6 +125,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_tool_results.py`
 
 `scripts/check_tool_results.py` 核对工具结果分页与引用边界：`tool_results.py` 的内联 64 KiB / 单页 1 MiB 预算、默认 16,384 / 最大 32,768 码点与模型 8,192 码点必须保持不变，且满足 `MODEL_RESULT_READ_CHARS ≤ DEFAULT_RESULT_CHARS ≤ MAX_RESULT_CHARS`、单页预算低于内核帧上限；两条读取路径必须校验 `limit`，RPC 请求字段必须限定在 `threadId` / `itemId` / `sha256` / `cursor` / `limit`，摘要必须为 64 位小写十六进制，过期引用必须返回 `STALE_RESULT` 与 `currentRef`，游标必须校验前缀 `tr1_`、长度、条目归属与偏移。模型只读工具必须使用 `MODEL_RESULT_READ_CHARS` 上限、禁止额外属性，并透传当前引用与错误码。检查是常量与文本扫描，实际分页与读取行为仍需按用户指南核对。
+
+### `check_toolkit.py`
+
+`scripts/check_toolkit.py` 核对工具结果信封的校验、深拷贝与错误收敛边界：`toolkit.py` 的 `ToolResult` 必须保留 `ok` / `command` / `data` / `error` / `hints` / `raw` / `pagination` 七个字段及默认值；`snapshot_result` 只接受 `None`、`str`、`bool`、`int`、有限 `float`、键为字符串的 `dict` 与 `list`，嵌套最多 64 层；信封校验必须要求 `ok` 为布尔、`command` 非空、`raw` 为字符串、三个可选字段为 `dict` 或 `None`，错误信封的 `code` 非空且 `message` 为字符串；`recovery_action` 为 null 时按字段缺失规范化（下游按 `or ""` 读取，合法平台错误不会被替换为 `TOOL_ERROR`），其他非字符串值拒绝；信封必须显式构造并在 `ensure_ascii=False` 下经 JSON 往返深拷贝，任何异常统一收敛为同一个 `ValueError`。脚本反向断言不得整份展开宿主返回值、不得使用 `ensure_ascii=True`，并核对技术参考的深度与 `raw` 说明。检查是常量与顺序扫描，实际信封行为仍需按用户指南核对。
 
 ### `check_item_content.py`
 
