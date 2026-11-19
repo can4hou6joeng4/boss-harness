@@ -1,3 +1,10 @@
+## 0.2.0-rc.345 - 2026-11-20
+
+rc.345 源码候选为导出与界面的时长文案补上双端一致检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_duration_parity.py`：同时扫描内核 `session_export._duration_text` 与共享 `formatDurationMs`，固定毫秒取整方式、秒 / 分 / 小时的阈值与文案、剩余秒与剩余分分支，以及四个中文标签在两侧同时存在；核对内核导出至少四处调用 `_duration_text`、桌面通知共用 `formatDurationMs`，反向断言不得改用其它取整方式。修复 Issue [#2815](https://github.com/can4hou6joeng4/boss-harness/issues/2815)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 70 个。版本推进到 npm `0.2.0-rc.345` / Python `0.2.0rc345`。不改变运行时行为，不执行导出或发布动作。
+
 ## 0.2.0-rc.344 - 2026-11-20
 
 rc.344 源码候选补齐桌面持续工作的用户文档。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
