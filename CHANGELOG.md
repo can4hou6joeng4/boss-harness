@@ -1,3 +1,10 @@
+## 0.2.0-rc.217 - 2026-11-19
+
+rc.217 源码候选补齐首次试跑和启动故障诊断的步骤。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- README 说明从无模型试跑转到模型线路时如何重启。支持页及缺陷模板引导用户提供实际故障配置的自检结果；在临时目录通过真实 `--check` 入口确认覆盖 provider 会将 `MODEL_PROVIDER_UNKNOWN` 改成 `MODEL_DISABLED`。[Issue #2558](https://github.com/can4hou6joeng4/boss-harness/issues/2558)
+- 全部检查通过。版本推进到 npm `0.2.0-rc.217` / Python `0.2.0rc217`。不执行发布动作。
+
 ## 0.2.0-rc.216 - 2026-11-19
 
 rc.216 源码候选修正握手报告中的供应商选项。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

@@ -68,7 +68,7 @@ body:
     id: logs
     attributes:
       label: 脱敏日志或截图
-      description: 只保留定位问题所需片段；删除 Cookie、令牌、账号、职位与候选人信息。
+      description: 启动问题请按 SUPPORT.md 收集与故障配置一致的自检结果。只保留检查码和必要片段，并删除 Cookie、令牌、账号、职位与候选人信息。
       render: shell
     validations:
       required: false

@@ -84,7 +84,7 @@ BOSS_HARNESS_PROVIDER=none npm run dev
 1. 确保 `boss-agent-cli` 已安装，并按[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)确认本项目能找到其可执行文件。
 2. 输入 `/tools`，查看上游当前提供的能力目录；它不是本地授权清单，实际可调用范围仍受 Harness allowlist 限制。
 3. 输入 `/search Python`，确认上游 CLI 和工作区连接正常。
-4. 配置模型后输入：`上海 Python，20–50K，3–5 年，本科，先看第一页`。
+4. 要试用自然语言搜索，先按[模型配置来源](docs/USER_GUIDE.md#模型配置来源)配置 OpenAI 或 Anthropic，再用对应的 `BOSS_HARNESS_PROVIDER` 重新启动桌面。例如，配置 OpenAI 后运行 `BOSS_HARNESS_PROVIDER=openai npm run dev`，再输入 `上海 Python，20–50K，3–5 年，本科，先看第一页`。
 5. 回合运行中发送新消息，选择转向当前回合，或将它排到当前回合结束后的队列。
 6. 按 `⌘⇧K` 打开「运行状态」，核对内核线路、并发与保留回合、待审批调用、工具与模型目录。更多界面行为见[桌面交互指南](docs/DESKTOP_GUIDE.md)。
 
