@@ -17,15 +17,16 @@ TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 USER_GUIDE = "docs/USER_GUIDE.md"
 
 CONSTANT_FRAGMENTS = (
-    "MAX_QUEUE_VIEW_ITEMS = 200",
-    "MAX_QUEUE_VIEW_TERMINAL_ITEMS = 50",
-    "MAX_QUEUE_VIEW_INPUT_CHARS = 600",
-    "MAX_QUEUE_SKILL_IDS = 10",
-    "_MAX_QUEUE_ID_CHARS = 200",
-    "_MAX_QUEUE_VIEW_STRING_CHARS = 200",
-    "_MAX_SAFE_INTEGER = 2 ** 53 - 1",
-    'QUEUE_KINDS = frozenset({"steering", "followUp"})',
-    '_QUEUE_PAUSE_REASONS = frozenset({"COMPACTION_FAILED", "THREAD_ARCHIVED", "TURN_NOT_COMPLETED"})',
+    # 数值常量按整行锚定：200 改成 2000 之类的后缀扩展不能因前缀相同而通过。
+    "MAX_QUEUE_VIEW_ITEMS = 200\n",
+    "MAX_QUEUE_VIEW_TERMINAL_ITEMS = 50\n",
+    "MAX_QUEUE_VIEW_INPUT_CHARS = 600\n",
+    "MAX_QUEUE_SKILL_IDS = 10\n",
+    "_MAX_QUEUE_ID_CHARS = 200\n",
+    "_MAX_QUEUE_VIEW_STRING_CHARS = 200\n",
+    "_MAX_SAFE_INTEGER = 2 ** 53 - 1\n",
+    'QUEUE_KINDS = frozenset({"steering", "followUp"})\n',
+    '_QUEUE_PAUSE_REASONS = frozenset({"COMPACTION_FAILED", "THREAD_ARCHIVED", "TURN_NOT_COMPLETED"})\n',
     "_QUEUE_VIEW_FIELDS = frozenset({",
     # 白名单必须逐个声明：整份透传会让未知字段进入响应并放大读取体积。
     '"id", "kind", "input", "status", "expectedTurnId", "clientUserMessageId",',

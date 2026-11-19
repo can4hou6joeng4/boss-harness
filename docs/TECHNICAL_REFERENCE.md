@@ -62,7 +62,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
-| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy) |
+| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy) |
@@ -167,6 +167,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_request_policy.py`
 
 `scripts/check_request_policy.py` 核对模型请求策略的拒绝投影与脱敏边界：拒绝载荷必须只保留 purpose / provider / model / requestIndex / threadId / turnId / jobId，并把 `errorInfo.source` 记为 `request_policy`，同时带 `requestRejected: true`、`outputObserved: false` 与 `contextRecoveryEligible: false`；历史单元预览必须把用户文本截到 1 000 字符并脱敏、工具名最多 64 个；转换必须按整单元丢弃、取消优先；`check_model_request` 必须先把任务身份写入最终请求，并在 hook 允许后才放行；两条拒绝路径都必须先经 `redact_secrets` 再抛出；`model_error` 记录必须按 `recorded` 只写一次。脚本同时核对技术参考中的策略拒绝与取消优先级说明。检查是常量与文本扫描，实际 hook 行为仍需按技术参考核对。
+
+### `check_usage.py`
+
+`scripts/check_usage.py` 核对 provider 用量汇总的校验、来源与缓存估算边界：`usage.py` 的单次请求上限 50 000 000、四个 token 字段与两个线路的 `_REPORTED` 能力表（OpenAI 缓存 input 是子集、Anthropic 缓存读写独立计数）、七类未验证原因（`unknownProvider` / `missing` / `invalidType` / `negative` / `outOfRange` / `inconsistent` / `zero`）与 `unreportedRequests` 只来自 `missing`；来源列表 8 条、provider 64 字符、model 200 字符上限与 `wire_text` 降级；摘要任务窗口 50 条、`summaryJobCount` 与 `summaryJobsTruncated`；缓存未命中只按日志视图、`CACHE_MISS_FLOOR = 1024` 与 `min(previousPrompt, prompt) - cacheRead` 估算，checkpoint 与分支摘要重置基线，分支视图不报告 `cacheWaste`。费用没有可信价目来源，`costUsd` 必须保持 `None`。脚本同时核对技术参考与使用指南的用量说明。检查是常量与顺序扫描，实际计数仍需按用户指南核对。
 
 ### `check_startup_diagnostics.py`
 

@@ -1,3 +1,11 @@
+## 0.2.0-rc.304 - 2026-11-20
+
+rc.304 源码候选为 provider 用量汇总补上静态检查，并加固数值常量的整行锚定。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_usage.py`：固定 50 000 000 单次请求上限、两线路缓存语义与 `_REPORTED` 能力表、七类未验证原因与 `unreportedRequests` 只来自 `missing`、8 / 64 / 200 来源上限、50 条摘要任务窗口、`CACHE_MISS_FLOOR = 1024` 的日志视图估算、分支视图不报告 `cacheWaste`，以及费用恒为 `None` 的反向断言。修复 Issue [#2733](https://github.com/can4hou6joeng4/boss-harness/issues/2733)。
+- 同时把 `check_queue_view.py` 与 `check_task_ownership.py` 的数值常量改为整行锚定：此前 `200` 改成 `2000`、`8` 改成 `800` 之类的后缀扩展会因前缀相同而通过静态检查。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 32 个。版本推进到 npm `0.2.0-rc.304` / Python `0.2.0rc304`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.303 - 2026-11-20
 
 rc.303 源码候选为任务读取的所有权与恢复策略补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

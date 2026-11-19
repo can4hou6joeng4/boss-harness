@@ -17,21 +17,22 @@ TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 USER_GUIDE = "docs/USER_GUIDE.md"
 
 CONSTANT_FRAGMENTS = (
-    r'_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")',
-    '_AUTO_COMPACTION_REASONS = frozenset({"threshold", "budget", "overflow"})',
-    '_QUEUE_IDENTITY_FIELDS = ("kind", "inputDigest", "expectedTurnId", "clientUserMessageId")',
-    '_TERMINAL_TURNS = frozenset({"completed", "interrupted", "blocked", "error"})',
-    '_TASK_PHASES = frozenset({"admission", "prepare", "model_request", "tool_execution", "finish"})',
+    # 数值与枚举按整行锚定：257 改成 2570 之类的后缀扩展不能因前缀相同而通过。
+    r'_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")' + "\n",
+    '_AUTO_COMPACTION_REASONS = frozenset({"threshold", "budget", "overflow"})\n',
+    '_QUEUE_IDENTITY_FIELDS = ("kind", "inputDigest", "expectedTurnId", "clientUserMessageId")\n',
+    '_TERMINAL_TURNS = frozenset({"completed", "interrupted", "blocked", "error"})\n',
+    '_TASK_PHASES = frozenset({"admission", "prepare", "model_request", "tool_execution", "finish"})\n',
 )
 TURN_FRAGMENTS = (
-    "limit: int = 257",
-    "for offset in range(0, len(value), 4_096):",
+    "limit: int = 257\n",
+    "for offset in range(0, len(value), 4_096):\n",
     # 终态之后又出现 running 说明持久记录自相矛盾，必须标记重复而不是覆盖。
     'if (turn.get("status") in _TERMINAL_TURNS and status == "running"):',
     'if ("queueId" in payload and "queueId" in turn',
     'payload.get("ownerKind") == "turn"',
-    "1 <= attempt <= 1_000 and type(restart_limit) is int",
-    "0 <= restart_limit <= 32",
+    "and 1 <= attempt <= 1_000 and type(restart_limit) is int\n",
+    "and 0 <= restart_limit <= 32):\n",
     '"processExit", "terminalStateRecovered"',
     '{"manual", "closed"} else None',
     # 恢复策略只由内核在 finish 阶段按状态显式给出，缺省不推断。
@@ -52,8 +53,8 @@ QUEUE_FRAGMENTS = (
     "for key in _QUEUE_IDENTITY_FIELDS):",
 )
 USER_MESSAGE_FRAGMENTS = (
-    "per_queue_limit: int = 2",
-    "revision_id_limit: int = 1_024",
+    "per_queue_limit: int = 2,\n",
+    "revision_id_limit: int = 1_024\n",
     "if counts[queue_id] > per_queue_limit:",
     'refs[root]["revisionOverflow"] = True',
     'if source not in (None, "steering"):',
