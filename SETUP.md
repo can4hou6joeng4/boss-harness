@@ -38,16 +38,15 @@ npx install-electron --no
 ## 3. 运行本地配置自检
 
 ```sh
-.venv/bin/boss-harness --check --format text
+.venv/bin/boss-harness --check --provider none --format text
 ```
 
-自检不调用模型、不执行招聘 CLI、不访问招聘平台。`通过` 或 `通过，N 项警告` 可以继续；`发现 N 个错误` 先按报告里的固定检查码处理，再重新运行。常见结果：
+显式选择 `none`，与第 4 步的桌面启动一致，不继承 shell 的模型线路。自检不调用模型、不执行招聘 CLI、不访问招聘平台；目录、运行参数等其他检查仍会执行。`通过` 或 `通过，N 项警告` 可以继续；`发现 N 个错误` 先按报告里的固定检查码处理，再重新运行。常见结果：
 
 | 检查结果 | 让用户做什么 |
 | --- | --- |
-| `MODEL_NOT_CONFIGURED` / `MODEL_DISABLED` | 正常：尚未配置模型或显式以 `none` 启动；继续第 4 步。 |
-| `MODEL_SDK_UNAVAILABLE` | 确认第 2 步已在 `.venv` 中安装内核依赖；仍缺包时等用户选定模型线路后再装对应 SDK。 |
-| `BOSS_CLI_UNAVAILABLE` | 让用户先安装并登录 `boss-agent-cli`，再按[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)核对路径。 |
+| `MODEL_DISABLED` | 预期结果：本次显式禁用模型。其余检查没有错误即可继续第 4 步。 |
+| `BOSS_CLI_UNAVAILABLE` | 未找到招聘 CLI 的警告，不影响验证桌面连接。准备使用招聘工具时再按[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)安装并核对路径。 |
 | `BOSS_CLI_DATA_DIR_IN_REPO` | 让用户把 `BOSS_CLI_DATA_DIR` 移到仓库外；登录态与平台缓存不应进入可能被提交的目录。这是警告，不阻止启动。 |
 | `BOSS_CLI_DATA_DIR_OVERLAP` | 让用户为业务 CLI 数据目录与内核状态目录选择互不包含的两个目录。这是警告，不阻止启动。 |
 | `STATE_DIRECTORY_*` | 按报告建议选择当前用户拥有的独立目录，不要放宽权限。 |
@@ -69,8 +68,8 @@ BOSS_HARNESS_PROVIDER=none npm run dev
 停止自动操作，让用户自己完成：
 
 1. 按[模型配置来源](docs/USER_GUIDE.md#模型配置来源)在自己的 shell 设置 `ANTHROPIC_*` 或 `BOSS_HARNESS_OPENAI_*`；不要把密钥写进仓库、文档或日志。
-2. 关闭第 4 步的进程，用对应的 `BOSS_HARNESS_PROVIDER`（例如 `openai`）重新启动桌面；解释器与环境变量在应用启动时确定。
-3. 需要招聘平台时，由用户在桌面完成登录与浏览器来源配置；登录、验证码与风控步骤不要代劳。
+2. 可先用第 3 步的命令，把 `--provider none` 改为目标线路（例如 `--provider openai`）再自检一次。然后关闭第 4 步的进程，用同一线路的 `BOSS_HARNESS_PROVIDER` 重新启动桌面；解释器与环境变量在应用启动时确定。
+3. 需要招聘工具时，先安装并配置 `boss-agent-cli`，再由用户完成平台登录与浏览器来源配置；登录、验证码与风控步骤不要代劳。
 
 ## 6. 收尾
 

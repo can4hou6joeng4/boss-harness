@@ -65,19 +65,20 @@ BOSS Harness 不是把招聘平台包成一个聊天接口，而是把「模型�
 
 ## 快速开始
 
-前置条件：Node.js 24+、Python 3.10+（读取 Codex TOML 配置需要 3.11+，开发建议 3.12）、`uv` 以及另行安装的 `boss-agent-cli`。招聘平台登录与可执行文件路径配置见[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)。
+前置条件：Node.js 24+、Python 3.10+（读取 Codex TOML 配置需要 3.11+，开发建议 3.12）和 `uv`。只验证桌面能否连接本地内核，不需要安装招聘 CLI 或登录；使用招聘工具前再按[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)配置 `boss-agent-cli`。
 
 ```sh
 uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python -e ./harness
 npm ci
 npx install-electron --no
+.venv/bin/boss-harness --check --provider none --format text
 BOSS_HARNESS_PROVIDER=none npm run dev
 ```
 
 `BOSS_HARNESS_PROVIDER=none` 只禁用模型，不禁用招聘 CLI。Electron 需要从源码启动；`npm run build` 只生成桌面源码产物，不是独立安装包。首次运行建议使用临时工作区与只读工具，不要在此阶段输入真实凭据。
 
-安装完成后可先运行 `.venv/bin/boss-harness --check` 核对本地配置（加 `--format text` 输出终端可读文本）；这一步不调用模型、不执行招聘 CLI。也可以让编码 Agent 按 [SETUP.md](SETUP.md) 与你一起完成安装、自检与首次启动；凭据与平台登录仍由你本人完成。
+首次自检与桌面启动都显式选择 `none`，不受当前 shell 的模型线路影响。自检不调用模型、不执行招聘 CLI；`MODEL_DISABLED` 是预期结果，其他检查仍会运行。配置模型后，可将自检的 `--provider none` 换成计划启用的线路再核对一次。也可以让编码 Agent 按 [SETUP.md](SETUP.md) 协助安装、自检与首次启动；凭据与平台登录仍由你本人完成。
 
 ## 试跑一条任务
 

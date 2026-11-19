@@ -1,3 +1,10 @@
+## 0.2.0-rc.283 - 2026-11-20
+
+rc.283 源码候选统一快速开始和安装指南里的首次自检。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 首次自检显式选择 `--provider none`，与首次桌面启动使用同一线路；安装招聘 CLI 与平台登录留到需要招聘工具时。隔离安装探针验证：即使 shell 中的模型线路无效，新的首次自检也会按预期报告 `MODEL_DISABLED`，同时继续检查其他运行参数。启动行为不变。[Issue #2690](https://github.com/can4hou6joeng4/boss-harness/issues/2690)
+- 版本推进到 npm `0.2.0-rc.283` / Python `0.2.0rc283`。不执行发布动作。
+
 ## 0.2.0-rc.282 - 2026-11-20
 
 rc.282 源码候选统一回合模型请求数和附件存储上限的空白处理。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
