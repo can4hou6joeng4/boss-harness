@@ -753,6 +753,66 @@ def _check_trusted_sender() -> int:
     return len(TRUSTED_SENDER_FRAGMENTS) + 1
 
 
+STARTUP_CHECK_SIGNATURE = re.compile(
+    r'ipcMain\.handle\(\s*"harness:startup-check"\s*,\s*'
+    r"\(\s*event\s*\)\s*:\s*Promise<StartupDiagnosis>\s*=>"
+)
+STARTUP_CHECK_FRAGMENTS = (
+    "trustedSender(event);",
+    "const target = startupCheckTarget;",
+    'if (!target) return Promise.resolve({ kind: "unavailable", reason: "spawn" });',
+    "manualStartupCheck ??=",
+    "await diagnostics?.settled();",
+    "return runStartupCheck(target);",
+)
+STARTUP_CHECK_PRELOAD_CALL = (
+    'ipcRenderer.invoke("harness:startup-check") as Promise<StartupDiagnosis>'
+)
+
+
+def _check_startup_check_target() -> int:
+    """手动自检是进程执行边界：目标只能来自主进程，渲染层不得传参或并发启动。"""
+    relative = "apps/desktop/src/main/harness.ts"
+    text = _main_text("harness.ts")
+    match = STARTUP_CHECK_SIGNATURE.search(text)
+    if match is None:
+        raise ValueError(
+            f"{relative} 的 harness:startup-check 处理器必须只声明 event 参数，"
+            "并返回 Promise<StartupDiagnosis>"
+        )
+    body = _arrow_body(text, match.start())
+    if not body:
+        raise ValueError(f"{relative} 的 harness:startup-check 处理器缺少函数体")
+    missing = [fragment for fragment in STARTUP_CHECK_FRAGMENTS if fragment not in body]
+    if missing:
+        raise ValueError(
+            f"{relative} 的 harness:startup-check 处理器缺少："
+            + "、".join(missing)
+            + "（自检目标必须来自主进程、在途请求去重并先等启动自检退出）"
+        )
+    preload = (ROOT / "apps/desktop/src/preload/index.ts").read_text(encoding="utf-8")
+    if "runStartupCheck(): Promise<StartupDiagnosis> {" not in preload:
+        raise ValueError(
+            "apps/desktop/src/preload/index.ts 的 runStartupCheck 必须无参数"
+        )
+    if STARTUP_CHECK_PRELOAD_CALL not in preload:
+        raise ValueError(
+            "preload 的 runStartupCheck 只能调用 harness:startup-check 且不得附带实参"
+        )
+    bridge = (ROOT / "apps/desktop/src/preload/bridge.ts").read_text(encoding="utf-8")
+    if "runStartupCheck(): Promise<StartupDiagnosis>;" not in bridge:
+        raise ValueError("apps/desktop/src/preload/bridge.ts 的 runStartupCheck 必须无参数")
+    renderer_path = "apps/desktop/src/renderer/src/components/ConnectionSettings.tsx"
+    renderer = (ROOT / renderer_path).read_text(encoding="utf-8")
+    calls = list(re.finditer(r"runStartupCheck\s*\(", renderer))
+    if not calls:
+        raise ValueError(f"{renderer_path} 必须调用 runStartupCheck")
+    for call in calls:
+        if not renderer[call.end():].lstrip().startswith(")"):
+            raise ValueError(f"{renderer_path} 调用 runStartupCheck 时不得传参")
+    return len(STARTUP_CHECK_FRAGMENTS) + len(calls) + 5
+
+
 def check_desktop_security() -> tuple[int, int, int]:
     checked = 0
     for name, expected in EXPECTED.items():
@@ -780,10 +840,11 @@ def check_desktop_security() -> tuple[int, int, int]:
     embed = _check_renderer_embed()
     trusted = _check_trusted_sender()
     origins = _check_origin_policies()
+    startup_check = _check_startup_check_target()
     return (len(EXPECTED), checked,
             allowlist + handlers + navigation + external + preload + exposure + imports
             + boundaries + spawn + exec_guard + export + ipc + literals + boundary + restore
-            + csp + bootstrap + embed + trusted + origins)
+            + csp + bootstrap + embed + trusted + origins + startup_check)
 
 
 def main() -> int:

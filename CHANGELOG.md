@@ -1,3 +1,10 @@
+## 0.2.0-rc.250 - 2026-11-19
+
+rc.250 源码候选把手动自检通道的进程执行边界固化为静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `check_desktop_security.py` 新增 `harness:startup-check` 处理器核对：箭头函数只声明 `event` 参数，目标取自模块级 `startupCheckTarget`，缺失时返回固定的 `spawn` 不可用结论，以 `manualStartupCheck ??=` 共用在途请求，先等 `diagnostics?.settled()` 再 `runStartupCheck(target)`；preload 与 `bridge.ts` 的 `runStartupCheck` 必须无参数，preload 只能以单个通道实参调用，渲染层调用点不得传参。此前只核对通道名配对与 `trustedSender` 入口。[Issue #2624](https://github.com/can4hou6joeng4/boss-harness/issues/2624)
+- 六类注入探针确认守卫有效：给处理器加参数、改用渲染层传入的目标、删除在途去重、删除等待自动自检、给 preload 调用加实参、给渲染层调用加实参，都会以退出码 2 失败并点名文件与缺失内容；未修改源码时守卫通过，输出 175 项桌面防护核对。全部检查通过。版本推进到 npm `0.2.0-rc.250` / Python `0.2.0rc250`。不执行发布动作。
+
 ## 0.2.0-rc.249 - 2026-11-19
 
 rc.249 源码候选把手动自检结论与内核文本结论的一致性固化为静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
