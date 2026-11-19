@@ -59,7 +59,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | --- | --- |
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
-| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
+| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_client_transport.py`](#check_client_transportpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
@@ -118,6 +118,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 - **外链与会话恢复**：渲染层 `RichMarkdown.tsx` 的 `EXTERNAL_SCHEMES` 与 `security.ts` 的 `isAllowedExternalUrl` 必须非空且集合一致，渲染层的 `externalTarget` 还必须保留 `EXTERNAL_SCHEMES.includes(` 与 `new URL(url).protocol` 判定；`window.ts` 的 `openExternal` 必须先调用 `isAllowedExternalUrl` 再交给 `shell.openExternal`，`setWindowOpenHandler` 调用该封装而不是直接打开；`shell.openExternal` 只允许在该函数中出现一次。脚本还核对渲染层会话恢复边界：`harnessReplica.ts` 必须保留分页与正文预算常量，以及内容引用的编码、SHA-256、线程 / 条目 / 快照标识、`part`、字符与 UTF-8 字节关系（含 4 倍上限与 16 MiB 上限）判定。
 
 检查是静态对象字面量与文本扫描，动态生成或包装后的配置仍需人工核对。
+
+### `check_client_transport.py`
+
+`scripts/check_client_transport.py` 核对 Node 侧进程传输客户端：`packages/app-client/src/index.ts` 必须以 `shell: false` 与三条 pipe 启动内核，单帧上限 8 MiB、输入队列上限 16 MiB，请求超时默认 30 秒且提示结果未知、不自动重试，超时后移除尚未写出的帧；计时器必须 `unref()`；输出按 LF 分帧、以 `fatal: true` 严格解码 UTF-8，坏帧只记录固定诊断，超限帧触发失败并 `dispose`。回包必须恰好带 `result` 或 `error` 之一，非法回包与非法错误帧都以 `-32603` 结算；服务器请求必须校验 id、忽略重复 id、超过 256 条待答即失败，无监听者返回 `-32601`，处理器异常返回 `-32603`；失败路径清空待答、待答服务器请求、输出队列与缓冲并发出 `harness/disconnected`。关闭流程必须先 `stdin.end()`，2.5 秒后 `SIGTERM`，再 1 秒后 `SIGKILL`。反向断言禁止 `shell: true`、继承 stdio、`console.*` 与诊断夹带帧内容。
 
 ### `check_harness_tools.py`
 
