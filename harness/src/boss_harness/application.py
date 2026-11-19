@@ -11,6 +11,7 @@ import binascii
 from contextlib import contextmanager
 import hashlib
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import asdict, replace
 import json
 import math
@@ -155,12 +156,27 @@ class _ThreadAdmission:
                     del self._entries[thread_id]
 
 
-def _approval_timeout() -> float:
+def approval_timeout_from_environment(environ: Mapping[str, str] | None = None) -> tuple[float, bool]:
+    """返回 (生效期限秒, 显式值是否有效)；未设置或空值按默认且视为有效。
+
+    正常启动与自检共用这一解析：自检发现显式值无效时只报告已回退默认值，
+    启动行为与旧实现一致，不额外失败。
+    """
+    source = os.environ if environ is None else environ
+    raw = source.get("BOSS_HARNESS_APPROVAL_TIMEOUT")
+    if raw is None or raw == "":
+        return DEFAULT_APPROVAL_TIMEOUT_SECONDS, True
     try:
-        value = float(os.environ.get("BOSS_HARNESS_APPROVAL_TIMEOUT") or DEFAULT_APPROVAL_TIMEOUT_SECONDS)
+        value = float(raw)
     except ValueError:
-        return DEFAULT_APPROVAL_TIMEOUT_SECONDS
-    return value if math.isfinite(value) and value > 0 else DEFAULT_APPROVAL_TIMEOUT_SECONDS
+        return DEFAULT_APPROVAL_TIMEOUT_SECONDS, False
+    if math.isfinite(value) and value > 0:
+        return value, True
+    return DEFAULT_APPROVAL_TIMEOUT_SECONDS, False
+
+
+def _approval_timeout() -> float:
+    return approval_timeout_from_environment()[0]
 
 
 def _approval_expiry_delay(deadline: float | None, failures: dict[str, int]) -> float:
