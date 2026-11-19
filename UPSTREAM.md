@@ -1,5 +1,9 @@
 # 上游吸收记录
 
+## 空白 JSON 配置按未设置处理（Issue #2686）
+
+对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/compaction.md`（How It Works）与 `packages/ai/README.md`（Querying Models）：上游的压缩策略与模型目录均由嵌入方提供，不在启动时解析环境变量。继续 #2666、#2672 以来的空白取值口径，本轮把同一规则补到两个 JSON 启动配置：`BOSS_HARNESS_MODEL_LIMITS` 与 `BOSS_HARNESS_COMPACTION` 的空值或纯空白按未设置处理，`autoCompactionSource` 也不再把空白占位行报告为 `environment`。JSON 结构校验、容量与压缩字段语义不变，独立实现。
+
 ## 空白凭据不参与模型目录与摘要线路发现（Issue #2684）
 
 对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Provider Factories、Querying Models）和 `packages/coding-agent/src/core/model-registry.ts`。Pi 的模型注册表按已配置鉴权列出可选线路；继续 #2672、#2682 对凭据空值语义的对照，本轮把同一判定集中为 `has_anthropic_credential`，自动线路判断、模型目录发现、摘要线路解析与启动自检共用。只有空白的凭据不再让目录列出实际不可用的 anthropic 线路，摘要解析在建 provider 之前即以 `COMPACTION_MODEL_UNAVAILABLE` 拒绝。目录投影、摘要错误码与请求形状不变，独立实现。

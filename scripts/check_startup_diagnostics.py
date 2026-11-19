@@ -18,6 +18,8 @@ USER_GUIDE = "docs/USER_GUIDE.md"
 SETUP_GUIDE = "SETUP.md"
 ENTRY = "harness/src/boss_harness/__main__.py"
 PROVIDER = "harness/src/boss_harness/models/provider.py"
+CAPABILITIES = "harness/src/boss_harness/models/capabilities.py"
+COMPACTION = "harness/src/boss_harness/compaction.py"
 STRICT_ORDERED = (
     'parser.add_argument("--strict", action="store_true",',
     "if args.strict and not args.check:",
@@ -717,6 +719,31 @@ def _docs_codes(tree: ast.Module, config_tree: ast.Module, guide: str, setup: st
     return len(emitted) + _setup_codes(emitted, setup)
 
 
+def _blank_json_config(capabilities: str, compaction: str, application: str) -> int:
+    """空值或只有空白的 JSON 配置按未设置处理；占位行不能变成无效配置阻挡启动。"""
+    checked = _expect((
+        "if raw is _UNSET:\n            return cls()",
+        'if isinstance(raw, str) and not raw.strip():\n            return cls()',
+    ), capabilities, "capabilities.from_environment")
+    if capabilities.find("if isinstance(raw, str) and not raw.strip():") > capabilities.find("json.loads(raw"):
+        raise ValueError("模型容量的空白判定必须先于 JSON 解析")
+    checked += 1
+    checked += _expect((
+        'raw = os.environ.get("BOSS_HARNESS_COMPACTION")',
+        "if raw is None or not raw.strip():",
+    ), compaction, "compaction.from_environment")
+    if compaction.find("if raw is None or not raw.strip():") > compaction.find("json.loads(raw"):
+        raise ValueError("自动压缩的空白判定必须先于 JSON 解析")
+    checked += 1
+    checked += _expect((
+        'configured_compaction = (os.environ.get("BOSS_HARNESS_COMPACTION") or "").strip()',
+        'else "environment" if configured_compaction',
+    ), application, "autoCompactionSource 判定")
+    if '"BOSS_HARNESS_COMPACTION" in os.environ' in application:
+        raise ValueError("autoCompactionSource 不得按变量是否存在判定环境来源")
+    return checked + 1
+
+
 def check_startup_diagnostics() -> tuple[int, int]:
     desktop = _read(DESKTOP)
     guards = _expect(DESKTOP_FRAGMENTS, desktop, "startupCheck.ts")
@@ -743,6 +770,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _state_dir_defaults(_read(ENTRY))
     checked += _max_tokens(_read(PROVIDER))
     checked += _runtime_scope(_read(USER_GUIDE))
+    checked += _blank_json_config(_read(CAPABILITIES), _read(COMPACTION), _read(APPLICATION))
     checked += _diagnostics(config_tree, limit)
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide, _read(SETUP_GUIDE))
