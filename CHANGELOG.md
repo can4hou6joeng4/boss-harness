@@ -1,3 +1,10 @@
+## 0.2.0-rc.331 - 2026-11-20
+
+rc.331 源码候选为 Node 宿主的连接代际与审批路由补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_host_connection.py`：固定连接状态集合与 `willRetry` 公式、初始化共享飞行与代际递增、断开先确认传输层已失败、初始化回执形状与 `initialized` 通知、`approval/respond` 的布尔裁决与代际归属、持久审批释放客户端待答槽位、`reconnect` 重置恢复预算、断开事件固定 `outcome: unknown` 与 `automaticReplay: false`；固定自动重连的 `supportsReconnect` 前提、次数上限与退避封顶、计时器 `unref()`；固定审批请求字段校验与重复 id 拒绝、300 秒默认期限、损坏期限回退、过去时间过期、2,147,483,647 毫秒计时上限与四条撤销路径。反向断言禁止 `String(params.status)`、自动重放与跳过审批清理。修复 Issue [#2787](https://github.com/can4hou6joeng4/boss-harness/issues/2787)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 59 个。版本推进到 npm `0.2.0-rc.331` / Python `0.2.0rc331`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.330 - 2026-11-20
 
 rc.330 源码候选为 Node 侧进程传输客户端补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

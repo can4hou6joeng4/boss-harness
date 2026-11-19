@@ -59,7 +59,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | --- | --- |
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
-| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_client_transport.py`](#check_client_transportpy) |
+| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
@@ -122,6 +122,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_client_transport.py`
 
 `scripts/check_client_transport.py` 核对 Node 侧进程传输客户端：`packages/app-client/src/index.ts` 必须以 `shell: false` 与三条 pipe 启动内核，单帧上限 8 MiB、输入队列上限 16 MiB，请求超时默认 30 秒且提示结果未知、不自动重试，超时后移除尚未写出的帧；计时器必须 `unref()`；输出按 LF 分帧、以 `fatal: true` 严格解码 UTF-8，坏帧只记录固定诊断，超限帧触发失败并 `dispose`。回包必须恰好带 `result` 或 `error` 之一，非法回包与非法错误帧都以 `-32603` 结算；服务器请求必须校验 id、忽略重复 id、超过 256 条待答即失败，无监听者返回 `-32601`，处理器异常返回 `-32603`；失败路径清空待答、待答服务器请求、输出队列与缓冲并发出 `harness/disconnected`。关闭流程必须先 `stdin.end()`，2.5 秒后 `SIGTERM`，再 1 秒后 `SIGKILL`。反向断言禁止 `shell: true`、继承 stdio、`console.*` 与诊断夹带帧内容。
+
+### `check_host_connection.py`
+
+`scripts/check_host_connection.py` 核对 Node 宿主的连接代际、重连预算与审批路由：`host.ts` 的连接状态集合与 `willRetry` 公式；`ensureReady` 共享同一次初始化、递增代际、断开必须先确认传输层已失败、初始化回执必须带服务器名与协议版本、成功后发送 `initialized` 并进入 `ready`；`approval/respond` 的裁决必须是布尔值、审批路由必须属于当前代际、持久审批成功后释放客户端待答槽位、v0.1 内核保留兼容分支；`reconnect` 重置恢复预算并清理审批，`dispose` 后不再重连；断开事件固定携带 `outcome: unknown` 与 `automaticReplay: false`。自动重连受 `supportsReconnect`、次数上限与退避封顶约束，计时器 `unref()`。审批请求只接受 `item/tool/requestApproval`，字段缺失或重复 id 返回 `-32602`，期限默认 300 秒，损坏期限回退初始化回执、过去时间以 `-32001` 过期，计时上限 2,147,483,647 毫秒；回合终态、条目完成、工具调用完成与已裁决通知四条路径撤销审批路由。反向断言禁止 `String(params.status)` 宽松归一化、自动重放与跳过审批清理。
 
 ### `check_harness_tools.py`
 

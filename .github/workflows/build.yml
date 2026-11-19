@@ -42,6 +42,8 @@ jobs:
         run: python scripts/check_desktop_security.py
       - name: Verify desktop client transport
         run: python scripts/check_client_transport.py
+      - name: Verify host connection boundaries
+        run: python scripts/check_host_connection.py
       - name: Verify workflow security settings
         run: python scripts/check_workflows.py
       - name: Verify harness tool allowlist
