@@ -1,3 +1,10 @@
+## 0.2.0-rc.249 - 2026-11-19
+
+rc.249 源码候选把手动自检结论与内核文本结论的一致性固化为静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `check_startup_diagnostics.py` 从 `render_text` 的结论赋值提取中文片段，要求桌面 `startupConclusion` 全部包含；并核对缺失或不可用报告返回空串、错误与警告分别按 `error` / `warning` 状态计数；设置页必须使用该函数并展示「自检结论」「运行于」，复制时把不可用固定说明作为诊断内容。终端结论与设置页结论各写一份，此前只有一次性探针核对。[Issue #2622](https://github.com/can4hou6joeng4/boss-harness/issues/2622)
+- 四类注入探针确认守卫有效：删除桌面结论片段、改设置页文案、改桌面计数条件、改内核结论文案都会以退出码 2 失败并点名文件与缺失内容；未修改源码时守卫通过，输出 342 项文本核对。全部检查通过。版本推进到 npm `0.2.0-rc.249` / Python `0.2.0rc249`。不执行发布动作。
+
 ## 0.2.0-rc.248 - 2026-11-19
 
 rc.248 源码候选让启动自检核对推理强度与模型容量声明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
