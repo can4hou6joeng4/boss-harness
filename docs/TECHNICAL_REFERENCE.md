@@ -65,7 +65,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy) |
-| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy) |
+| 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy) |
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_snippet.py`](#check_search_snippetpy) |
 | 工作流与文档 | [`check_workflows.py`](#check_workflowspy)、[`check_docs_links.py`](#check_docs_linkspy) |
@@ -215,6 +215,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_persistence.py`
 
 `scripts/check_persistence.py` 核对 SQLite 投影索引的迁移、私有权限与连接边界：`persistence.py` 的 `SCHEMA_VERSION = 2`、文本列 `utf-8` 宽容解码（非法字节替换为 U+FFFD，避免损坏行变成内部错误）、私有目录与索引文件 / WAL / SHM 的权限收紧、`version > SCHEMA_VERSION` 拒绝、1 → 2 迁移顺序与 `user_version` 写入、`UPDATE threads SET indexed_size=-1` 的旧索引失效标记；表结构必须保留会话、回合、事件、审批与 checkpoint 的主键及 `ON DELETE CASCADE`；每个操作独占连接并启用 `foreign_keys`、`busy_timeout=10000`、`synchronous=FULL`，事务以 `BEGIN IMMEDIATE` 开始并在异常时回滚；事件索引 `events_method_cursor` 必须存在。脚本反向断言不得使用严格 `decode("utf-8")`，并核对技术参考与使用指南的「日志是事实源、SQLite 是可重建索引」口径。检查是常量与顺序扫描，实际索引行为仍需按用户指南核对。
+
+### `check_settings.py`
+
+`scripts/check_settings.py` 核对自动压缩设置的有界读取、原子写入与持久边界：`settings.py` 的 `config.json`、三个自动压缩字段、256 KiB 与深度 64 上限；读取只经 `open_private_file` 的私有描述符，确认 `S_ISREG`，只读到上限 + 1 字节并在多出时按不可读处理，`json.loads` 的 UTF-8 解码与宽泛异常收敛为默认值，结果必须是深度受限的 JSON 对象；保存前必须验证三个字段齐全，已存在但不可读的配置拒绝覆盖；序列化使用 `ensure_ascii=False` 保留无关键，编码异常、孤立代理项与超限分别收敛为可读中文错误；写入必须经 `tempfile.mkstemp`、`fsync` 文件、`os.replace` 与目录 `fsync`，异常时清理临时文件。脚本按首次出现顺序核对 fsync → replace → 目录同步，并反向断言不得使用 `read_text` / `write_text`；同时核对技术参考与使用指南的设置口径。检查是常量与顺序扫描，实际持久行为仍需按用户指南核对。
 
 ### `check_browser_source.py`
 
