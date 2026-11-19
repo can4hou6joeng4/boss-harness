@@ -51,6 +51,7 @@ npx install-electron --no
 | `BOSS_CLI_DATA_DIR_IN_REPO` | 让用户把 `BOSS_CLI_DATA_DIR` 移到仓库外；登录态与平台缓存不应进入可能被提交的目录。这是警告，不阻止启动。 |
 | `BOSS_CLI_DATA_DIR_OVERLAP` | 让用户为业务 CLI 数据目录与内核状态目录选择互不包含的两个目录。这是警告，不阻止启动。 |
 | `STATE_DIRECTORY_*` | 按报告建议选择当前用户拥有的独立目录，不要放宽权限。 |
+| `STATE_DIRECTORY_IN_REPO` | 让用户把状态目录移到仓库外；会话记录与附件不应进入可能被提交的目录。这是警告，不阻止启动。 |
 | `STATE_DIRECTORY_LOW_SPACE` | 提醒用户释放磁盘空间；这是警告，不阻止启动。 |
 
 完整检查码与处理建议见[本地配置自检](docs/USER_GUIDE.md#本地配置自检)。
