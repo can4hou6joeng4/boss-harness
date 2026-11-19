@@ -157,6 +157,9 @@ function diagnosisSummary(diagnosis: StartupDiagnosis | undefined): string {
 function startupRecovery(diagnosis: StartupDiagnosis | undefined): string {
   if (diagnosis?.kind === "unavailable" && diagnosis.reason === "spawn") return "解释器在应用启动时选定，处理后请重启应用。";
   if (diagnosis?.kind === "unavailable" && diagnosis.reason === "exit") return "安装依赖后可重新连接；更换解释器需重启应用。";
+  // 自检没有错误项时，最可能的原因是解释器缺少内核依赖或失败发生在自检覆盖范围之外。
+  if (diagnosis?.kind === "report" && !diagnosis.checks.some(check => check.status === "error"))
+    return "核对内核依赖是否已安装，修正配置后可重新连接；环境变量改动需重启应用。";
   return "修正配置文件或状态目录条件后可重新连接；环境变量改动需重启应用。";
 }
 
