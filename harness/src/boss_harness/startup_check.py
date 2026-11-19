@@ -15,6 +15,7 @@ from boss_harness.compaction import CompactionPolicy
 from boss_harness.models import ModelConfig, resolve_config
 from boss_harness.models.capabilities import ModelCatalog
 from boss_harness.models.config_errors import ModelConfigError
+from boss_harness.models.retry import retry_settings_from_environment
 from boss_harness.private_files import check_private_directory
 from boss_harness.protocol import PROTOCOL_VERSION
 from boss_harness.resources import AttachmentStore
@@ -235,9 +236,16 @@ def _runtime_check() -> dict[str, str]:
             "runtimeOptions", "warning", "APPROVAL_TIMEOUT_DEFAULTED", "审批期限配置无效，已回退默认值。",
             "将 BOSS_HARNESS_APPROVAL_TIMEOUT 设为正的有限秒数，或取消设置；无效值不会阻止启动。",
         )
+    # 重试配置同样不阻止启动：非整数回退默认值，越界或负数收敛到边界。
+    if retry_settings_from_environment()[2]:
+        return _check(
+            "runtimeOptions", "warning", "RETRY_CONFIG_DEFAULTED",
+            "模型重试配置显式值无效或超出范围，已回退默认值或收敛到边界。",
+            "核对 BOSS_HARNESS_RETRY_ATTEMPTS（1–10 的整数）与 BOSS_HARNESS_RETRY_BASE_MS（非负整数），或取消设置。",
+        )
     return _check(
         "runtimeOptions", "ok", "RUNTIME_OPTIONS_VALID", "内核运行参数的本地校验通过。",
-        "只校验转向模式、模型请求上限、附件存储上限、模型容量、自动压缩与审批期限环境变量的格式和取值；"
+        "只校验转向模式、模型请求上限、附件存储上限、模型容量、自动压缩、审批期限与模型重试环境变量的格式和取值；"
         "未读取状态目录中的持久设置。",
     )
 

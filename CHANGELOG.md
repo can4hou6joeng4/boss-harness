@@ -1,3 +1,10 @@
+## 0.2.0-rc.237 - 2026-11-19
+
+rc.237 源码候选让启动自检暴露无效的模型重试配置。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 模型重试配置由 `retry_settings_from_environment` 统一解析，启动与 `--check` 共用，返回生效次数、基础退避与显式值是否原样生效：不是整数时回退默认值，`BOSS_HARNESS_RETRY_ATTEMPTS` 超出 1–10、`BOSS_HARNESS_RETRY_BASE_MS` 为负时收敛到边界；自检在审批期限有效时把「运行参数」记为警告 `RETRY_CONFIG_DEFAULTED`，说明实际处理方式，不输出原始值。未设置、空值与有效值保持通过，启动行为与退出码不变。使用指南与技术参考同步。[Issue #2598](https://github.com/can4hou6joeng4/boss-harness/issues/2598)
+- 以 rc.236 合并提交导出的源码为基线，十个场景独立进程对比：未设置、空值、有效值三例仅提示补充「模型重试」措辞，状态、检查码与说明一致；两类非整数、两类越界/负数与两者同时无效共六例由 `RUNTIME_OPTIONS_VALID` 变为 `RETRY_CONFIG_DEFAULTED` 警告，退出码仍为 0；审批期限与重试同时无效时仍优先报告 `APPROVAL_TIMEOUT_DEFAULTED`。十例的 `retry_settings()` 实际次数与退避逐项一致。静态守卫在补文档前以退出码 2 报缺少新检查码，补文档后通过（285 项）。全部检查通过。版本推进到 npm `0.2.0-rc.237` / Python `0.2.0rc237`。不执行发布动作。
+
 ## 0.2.0-rc.236 - 2026-11-19
 
 rc.236 源码候选让启动自检暴露无效的审批期限配置。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

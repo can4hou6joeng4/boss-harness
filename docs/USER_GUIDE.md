@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.236` / Python `0.2.0rc236` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.237` / Python `0.2.0rc237` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -97,7 +97,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 | 业务 CLI | `BOSS_CLI_FOUND` / `BOSS_CLI_UNAVAILABLE` / `BOSS_CLI_DATA_DIR_OVERLAP` | 只发现可执行文件，不执行 `boss schema`、版本查询、登录或任何工具；未发现可执行文件记为警告，文件存在不证明 CLI 能正常运行。设置了 `BOSS_CLI_DATA_DIR` 且与内核状态目录解析后相同或互相包含时也记为警告，只读核对路径、不创建目录；两者应分别配置。 |
 | 浏览器来源 | `BROWSER_SOURCE_VALID` / `BROWSER_SOURCE_INVALID` | 只校验 `BOSS_HARNESS_BROWSER_SOURCE` 的取值，不读取浏览器或 Cookie，也不验证上游是否支持该选项。 |
 | 状态目录 | `STATE_DIRECTORY_VALID` 及下文的目录错误码 | 只读核对实际状态路径的目录类型、所有权、父目录与 ACL 安全规则，以及基本访问条件；缺失路径只核对已有父目录，不创建或试写。 |
-| 运行参数 | `RUNTIME_OPTIONS_VALID` / `APPROVAL_TIMEOUT_DEFAULTED` 及下文的运行参数错误码 | 复用正常启动的解析，校验转向模式、模型请求上限、附件存储上限、模型容量与自动压缩环境变量的格式和取值；审批期限显式无效时记为警告并说明已回退默认值，不读取状态目录中的持久设置。 |
+| 运行参数 | `RUNTIME_OPTIONS_VALID` / `APPROVAL_TIMEOUT_DEFAULTED` / `RETRY_CONFIG_DEFAULTED` 及下文的运行参数错误码 | 复用正常启动的解析，校验转向模式、模型请求上限、附件存储上限、模型容量与自动压缩环境变量的格式和取值；审批期限显式无效、模型重试配置显式无效或越界时记为警告并说明实际处理方式，不读取状态目录中的持久设置。 |
 
 运行参数检查覆盖取值无效时会让内核启动失败的环境变量，按启动时的读取顺序报告遇到的第一个错误，修复后应再次运行：
 
@@ -142,7 +142,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 从命令行直接启动内核而在构造阶段失败时（状态目录不可用、系统不满足私有状态目录要求、运行参数取值无效等），stderr 在失败行之后会追加一行固定提示，建议用相同参数与环境运行 `boss-harness --check`。解释器缺少 `anthropic` 或 `openai` 等内核依赖时，stderr 会点名缺失模块并给出 `uv pip install --python .venv/bin/python -e ./harness`，退出码同为 `2`。
 
-报告不包含端点、密钥、模型自定义值、本机路径、会话内容或异常原文，可用于报告安装问题。自检不创建状态目录、不修改权限、不读取会话、不写入索引，与 `--repair-state` 互斥。本地检查仅覆盖上表五项；模型检查用 `importlib.util.find_spec` 核对默认线路所需的 `anthropic` / `openai` 包是否可发现，但不导入 SDK、不核对已安装版本，也不核对重试次数等其余取值无效时回退默认值的参数。通过不代表模型可连接、认证有效、平台已登录或真实工具已验收；这些操作应分别在获得授权后核对。
+报告不包含端点、密钥、模型自定义值、本机路径、会话内容或异常原文，可用于报告安装问题。自检不创建状态目录、不修改权限、不读取会话、不写入索引，与 `--repair-state` 互斥。本地检查仅覆盖上表五项；模型检查用 `importlib.util.find_spec` 核对默认线路所需的 `anthropic` / `openai` 包是否可发现，但不导入 SDK、不核对已安装版本，也不核对其余取值无效时回退默认值的参数。通过不代表模型可连接、认证有效、平台已登录或真实工具已验收；这些操作应分别在获得授权后核对。
 
 ## 桌面启动失败时的自检
 
@@ -173,8 +173,8 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 | --- | --- | --- | --- |
 | `BOSS_HARNESS_MAX_TOKENS` | 单次模型请求的输出上限，同时作为上下文预算中的输出预留。 | 64000；正整数。 | 启动失败，自检报 `MODEL_MAX_TOKENS_INVALID`。 |
 | `BOSS_HARNESS_MAX_MODEL_REQUESTS` | 单个回合最多发起的模型请求数；回合自带的上限只能在此基础上收紧。 | 6；1–64 的十进制整数。 | 启动失败，自检报 `MAX_MODEL_REQUESTS_INVALID`。 |
-| `BOSS_HARNESS_RETRY_ATTEMPTS` | 模型请求在首个输出前遇到可重试失败时的最多尝试次数，含首次；设为 `1` 即不自动重试。 | 3；1–10。 | 不是整数时使用默认值；超出范围时收敛到 1 或 10。 |
-| `BOSS_HARNESS_RETRY_BASE_MS` | 自动重试的退避基数（毫秒），每次重试翻倍。 | 500；非负整数。 | 不是整数时使用默认值；负数按 0 处理。 |
+| `BOSS_HARNESS_RETRY_ATTEMPTS` | 模型请求在首个输出前遇到可重试失败时的最多尝试次数，含首次；设为 `1` 即不自动重试。 | 3；1–10。 | 不是整数时使用默认值；超出范围时收敛到 1 或 10；自检报 `RETRY_CONFIG_DEFAULTED` 警告。 |
+| `BOSS_HARNESS_RETRY_BASE_MS` | 自动重试的退避基数（毫秒），每次重试翻倍。 | 500；非负整数。 | 不是整数时使用默认值；负数按 0 处理；自检报 `RETRY_CONFIG_DEFAULTED` 警告。 |
 | `BOSS_HARNESS_APPROVAL_TIMEOUT` | 需审批的工具调用等待裁决的期限（秒），到期后该审批按过期处理，不执行调用。 | 300；正数，可带小数。 | 不是数字、非有限值或不大于 0 时使用默认值；自检报 `APPROVAL_TIMEOUT_DEFAULTED` 警告。 |
 | `BOSS_HARNESS_PYTHON` | 桌面应用启动内核与运行自检所用的 Python 解释器，需为 3.10 及以上并已安装内核。 | 仓库根目录的 `.venv/bin/python`，不存在则为 `python3`。 | 解释器无法启动时桌面提示未能启动 Python 解释器。 |
 | `BOSS_HARNESS_STEERING_MODE` | 回合运行中排队的转向消息如何进入当前回合：`all` 在每个投递点注入全部排队转向，`one-at-a-time` 每次只注入最早一条。 | `all`；未设置或为空时取默认值，取值区分大小写且不去除空白。 | 启动失败，自检报 `STEERING_MODE_INVALID`。 |
