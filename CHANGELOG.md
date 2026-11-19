@@ -1,3 +1,10 @@
+## 0.2.0-rc.311 - 2026-11-20
+
+rc.311 源码候选为宿主工具桥的幂等清理补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_bridge_lifecycle.py`：固定 `BridgeLifecycle` 的 `RLock` 清理表、弱引用去重与死引用剔除、同一对象只清理一次、仅登记可弱引用对象、`close()` 优先与 `dispose()` 回退、锁外调用钩子，以及只记录异常类型名的清理日志；反向断言禁止重新抛出、记录堆栈或异常原文。修复 Issue [#2747](https://github.com/can4hou6joeng4/boss-harness/issues/2747)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 39 个。版本推进到 npm `0.2.0-rc.311` / Python `0.2.0rc311`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.310 - 2026-11-20
 
 rc.310 源码候选为内核关闭的等待预算与中止线程所有权补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
