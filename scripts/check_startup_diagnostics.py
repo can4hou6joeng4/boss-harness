@@ -14,10 +14,13 @@ CONFIG_ERRORS = "harness/src/boss_harness/models/config_errors.py"
 DESKTOP = "apps/desktop/src/main/startupCheck.ts"
 PROTOCOL = "packages/protocol/src/index.ts"
 USER_GUIDE = "docs/USER_GUIDE.md"
+CONNECTION_NOTICE = "apps/desktop/src/renderer/src/data/connectionNotice.ts"
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,31}$")
 CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 DESKTOP_LIMIT = re.compile(r"const MAX_TEXT_LENGTH = (\d+);")
 TICKED_CODE = re.compile(r"`([A-Z][A-Z0-9_]{1,63})`")
+CHECK_TITLE = re.compile(r'\["([A-Za-z][A-Za-z0-9]*)", "([^"]+)"\]')
+DOC_CHECK_TABLE = "| 检查项 | 固定检查码 | 检查范围与限制 |"
 DOC_TABLES = (
     ("| 固定检查码 | 含义与处理 |", "模型配置错误码"),
     ("| 目录错误码 | 含义与处理 |", "目录错误码"),
@@ -284,6 +287,75 @@ def _table(document: str, header: str, label: str) -> set[str]:
     return set(codes)
 
 
+def _report_names(tree: ast.Module) -> list[str]:
+    report = next((node for node in tree.body
+                   if isinstance(node, ast.FunctionDef) and node.name == "startup_report"), None)
+    if report is None:
+        raise ValueError("缺少 startup_report")
+    checks = next((node.value for node in ast.walk(report)
+                   if isinstance(node, ast.Assign)
+                   and any(isinstance(target, ast.Name) and target.id == "checks"
+                           for target in node.targets)), None)
+    if not (isinstance(checks, ast.List) and checks.elts):
+        raise ValueError("startup_report 的 checks 必须是列表字面量")
+    names: list[str] = []
+    for element in checks.elts:
+        if not (isinstance(element, ast.Call) and isinstance(element.func, ast.Name)):
+            raise ValueError("startup_report 的 checks 只允许直接调用检查函数")
+        function = next((node for node in tree.body if isinstance(node, ast.FunctionDef)
+                         and node.name == element.func.id), None)
+        if function is None:
+            raise ValueError(f"缺少检查函数 {element.func.id}")
+        literals = {_constant(node.args[0]) for node in ast.walk(function)
+                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                    and node.func.id == "_check" and len(node.args) == 5}
+        if len(literals) != 1 or None in literals:
+            raise ValueError(f"{element.func.id} 必须在所有分支返回同一个字面检查项名称")
+        names.append(literals.pop())
+    if len(names) != len(set(names)):
+        raise ValueError("startup_report 的检查项名称必须唯一")
+    return names
+
+
+def _renderer_titles(source: str) -> list[tuple[str, str]]:
+    line = next((line for line in source.splitlines() if "const CHECK_TITLES = new Map([" in line), None)
+    if line is None:
+        raise ValueError("connectionNotice.ts 缺少 CHECK_TITLES")
+    titles = CHECK_TITLE.findall(line)
+    if not titles or len({name for name, _ in titles}) != len(titles):
+        raise ValueError("CHECK_TITLES 必须是非空且不重复的名称与标签对")
+    return titles
+
+
+def _doc_check_labels(guide: str) -> list[str]:
+    lines = guide.splitlines()
+    try:
+        start = lines.index(DOC_CHECK_TABLE)
+    except ValueError:
+        raise ValueError("使用指南缺少检查项表格") from None
+    labels: list[str] = []
+    for line in lines[start + 2:]:
+        if not line.startswith("|"):
+            break
+        labels.append(line.strip().strip("|").split("|")[0].strip())
+    if not labels:
+        raise ValueError("使用指南检查项表格为空")
+    return labels
+
+
+def _names_consistency(tree: ast.Module, guide: str, notice: str) -> int:
+    names = _report_names(tree)
+    titles = _renderer_titles(notice)
+    labels = _doc_check_labels(guide)
+    renderer_names = [name for name, _ in titles]
+    if renderer_names != names:
+        raise ValueError(f"桌面 CHECK_TITLES 与内核检查项顺序不一致：内核 {names}，桌面 {renderer_names}")
+    renderer_labels = [label for _, label in titles]
+    if renderer_labels != labels:
+        raise ValueError(f"使用指南检查项与桌面标签不一致：桌面 {renderer_labels}，文档 {labels}")
+    return len(names) * 2
+
+
 def _docs_codes(tree: ast.Module, config_tree: ast.Module, guide: str) -> int:
     diagnostics = _assignment(config_tree, "_DIAGNOSTICS")
     diagnostic_codes = {key.value for key in diagnostics.keys
@@ -332,8 +404,10 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _runtime_options(startup_tree, limit)
     checked += _hint_constants(startup_tree, limit)
     checked += _diagnostics(config_tree, limit)
-    checked += _docs_codes(startup_tree, config_tree, _read(USER_GUIDE))
-    return 5, guards + checked
+    guide = _read(USER_GUIDE)
+    checked += _docs_codes(startup_tree, config_tree, guide)
+    checked += _names_consistency(startup_tree, guide, _read(CONNECTION_NOTICE))
+    return 6, guards + checked
 
 
 def main() -> int:
@@ -342,7 +416,7 @@ def main() -> int:
     except (ValueError, SyntaxError) as error:
         print(f"启动自检字段核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"启动自检字段一致：{paths} 条读取路径、{guards} 项文本、桌面解析与文档防护")
+    print(f"启动自检字段一致：{paths} 条读取路径、{guards} 项文本、桌面解析、文档与标签防护")
     return 0
 
 

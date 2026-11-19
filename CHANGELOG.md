@@ -1,3 +1,10 @@
+## 0.2.0-rc.224 - 2026-11-19
+
+rc.224 源码候选核对启动自检项名称、桌面标签与文档顺序。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `check_startup_diagnostics.py` 从 `startup_report()` 的检查列表解析内核实际输出顺序与名称，要求桌面 `connectionNotice.ts` 的 `CHECK_TITLES` 键按同一顺序一致，中文标签与使用指南「检查项」表格的行按同一顺序一致；内核新增、重命名或重排检查项而桌面或文档未跟进时失败。[Issue #2572](https://github.com/can4hou6joeng4/boss-harness/issues/2572)
+- 在临时副本注入桌面缺标签、错序、错标签、内核合法重命名、文档错序与缺表头，脚本均以退出码 2 失败；复原后基线通过。技术参考同步更新；`npm run check` 全部通过。版本推进到 npm `0.2.0-rc.224` / Python `0.2.0rc224`。不执行发布动作。
+
 ## 0.2.0-rc.223 - 2026-11-19
 
 rc.223 源码候选让启动自检守卫同时核对使用指南的检查码表。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
