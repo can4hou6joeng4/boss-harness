@@ -80,6 +80,11 @@ def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str
         (os.environ.get(name) or "").strip() for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
     )
     if not config.model or not has_credential:
+        if config.provider == "anthropic":
+            return _check(
+                "model", "error", "MODEL_CONFIG_INCOMPLETE", "模型配置缺少必需字段。",
+                "设置非空模型 id，并配置 ANTHROPIC_API_KEY 或 ANTHROPIC_AUTH_TOKEN。",
+            )
         return _check(
             "model", "error", "MODEL_CONFIG_INCOMPLETE", "模型配置缺少必需字段。",
             "配置非空模型与对应 provider 的凭据；OpenAI 线路还需显式端点或有效 Codex profile。",

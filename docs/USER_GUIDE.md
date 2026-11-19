@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.225` / Python `0.2.0rc225` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.226` / Python `0.2.0rc226` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -126,7 +126,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 | `MODEL_REQUEST_TIMEOUT_INVALID` | `BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS` 不是 1 到 3600 的整数；修正取值，或取消设置以使用默认值。 |
 | `MODEL_SERVER_FALLBACK_INVALID` | Anthropic 线路的 `BOSS_HARNESS_SERVER_FALLBACK` 不是可识别的开关写法；设为 `1` / `true` / `yes` / `on` 或 `0` / `false` / `no` / `off`，或取消设置以按端点取默认值。 |
 
-一次自检只报告解析时遇到的第一个模型配置错误，修复后应再次运行；业务 CLI、浏览器来源与状态目录仍独立检查。配置来源与覆盖顺序不变：完整显式模型、端点和凭据会跳过 Codex 文件；需要补全时，损坏或不可读的已有文件以及可用 profile 中不支持的 `wire_api` 会明确失败，文件缺失则继续核对必需字段。正常启动对已登记的模型配置错误在 stderr 输出同一固定码与静态说明，退出码为 `2`。供应商拼写、输出上限、请求期限与服务端回退开关错误使用上表的专用码；其余未细分的错误继续返回 `MODEL_CONFIG_INVALID`；Anthropic 缺少必需字段仍为 `MODEL_CONFIG_INCOMPLETE`。报告结构与 `schemaVersion: 1` 不变，按检查码处理的调用方应保留未知码的通用错误展示。
+一次自检只报告解析时遇到的第一个模型配置错误，修复后应再次运行；业务 CLI、浏览器来源与状态目录仍独立检查。配置来源与覆盖顺序不变：完整显式模型、端点和凭据会跳过 Codex 文件；需要补全时，损坏或不可读的已有文件以及可用 profile 中不支持的 `wire_api` 会明确失败，文件缺失则继续核对必需字段。正常启动对已登记的模型配置错误在 stderr 输出同一固定码与静态说明，退出码为 `2`。供应商拼写、输出上限、请求期限与服务端回退开关错误使用上表的专用码；其余未细分的错误继续返回 `MODEL_CONFIG_INVALID`；Anthropic 缺少必需字段仍为 `MODEL_CONFIG_INCOMPLETE`，提示只列该线路的模型 id 与 `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN`，OpenAI 线路才提及端点与有效 Codex profile。报告结构与 `schemaVersion: 1` 不变，按检查码处理的调用方应保留未知码的通用错误展示。
 
 状态目录检查使用正常启动实际选择的路径：`--state-dir` 优先于 `BOSS_HARNESS_DIR`，其次为旧变量 `BOSS_CLI_HARNESS_DIR`；均未设置时，新默认目录不存在而旧默认目录存在才沿用旧目录。相对路径按启动工作目录解析，环境变量中的 `~` 不额外展开，符号链接沿用正常启动的真实路径解析方式。
 
