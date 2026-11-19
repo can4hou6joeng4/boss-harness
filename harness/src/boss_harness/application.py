@@ -665,7 +665,8 @@ class ApplicationService:
             "toolBridge": {**bridge_description, "tools": self.runner.tool_names,
                            "bundleId": self.tool_bundle.id},
             "modelBridge": {"provider": self.config.provider, "model": self.config.model,
-                "driven": self.provider is not None, "thinking": dict(self.config.thinking) if self.config.thinking else None,
+                "driven": self.provider is not None, "modelCallsDisabled": self.model_calls_disabled,
+                "thinking": dict(self.config.thinking) if self.config.thinking else None,
                 "serverSideFallback": self.config.server_side_fallback},
             "approval": {"requiredTools": sorted(self.approval_required), "timeoutSeconds": self.approval_timeout},
             "eventCursor": self.sessions.latest_event_cursor()}
@@ -702,6 +703,7 @@ class ApplicationService:
                 "maxRetainedTurns": self.runtimes.owner_capacity,
                 "maxModelRequests": self.max_model_requests,
                 "steeringMode": self.steering_mode,
+                "modelCallsDisabled": self.model_calls_disabled,
                 "maxAttachmentStorageBytes": self.attachment_limits.max_bytes,
                 "maxAttachmentStorageObjects": self.attachment_limits.max_objects,
                 "modelCapabilities": self.model_catalog.resolve(self.config.provider, self.config.model).describe(),

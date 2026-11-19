@@ -68,7 +68,8 @@ export interface InitializeResponse {
   serverVersion: string;
   protocolVersion: string;
   toolBridge: ToolBridgeStatus;
-  modelBridge: { provider: string; model: string; driven: boolean };
+  /** `modelCallsDisabled` 与 `config/read` 的同名字段取值一致：显式 none 启动为 true，其余为 false；旧内核不返回。 */
+  modelBridge: { provider: string; model: string; driven: boolean; modelCallsDisabled?: boolean };
   approval: { requiredTools: string[]; timeoutSeconds: number };
   capabilities?: { bidirectionalRequests: boolean; eventReplay: boolean; pagination: boolean;
     parallelThreads: boolean; durableApprovals?: boolean; explicitTurnContinuation?: boolean;
@@ -942,6 +943,8 @@ export interface ConfigReadResponse {
   maxModelRequests?: number;
   /** Steering delivery per injection point; absent on kernels before 0.2.0 steering modes. */
   steeringMode?: SteeringMode;
+  /** 进程以显式 none 启动、不构造任何模型传输时为 true；自动回退与真实默认线路为 false；旧内核不返回该字段。 */
+  modelCallsDisabled?: boolean;
   maxAttachmentStorageBytes?: number;
   maxAttachmentStorageObjects?: number;
   modelCapabilities?: ModelCapabilities;

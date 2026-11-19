@@ -56,3 +56,23 @@ export function modelDescriptorOf(value: unknown): ModelDescriptor | null {
 export function uniqueModelKeys(items: { provider: string; id: string }[]): boolean {
   return new Set(items.map(item => `${item.provider}:${item.id}`)).size === items.length;
 }
+
+/** 进程以显式 none 启动时的说明；模型菜单与连接设置共用同一句，处理办法是换启动方式而不是补配置。 */
+export const MODEL_CALLS_DISABLED_NOTE = "进程以 none 线路启动，不调用模型；需要模型时改用具体 provider 重新启动";
+
+const NO_MODEL_MATCH = "未找到匹配模型";
+const NO_MODEL_ROUTE = "没有可用的本机模型线路";
+
+/**
+ * 模型菜单的空态文案与进程级禁用附注。
+ *
+ * 显式 none 下 `model/list` 仍返回可选的 `none · none`，菜单并不为空：禁用说明要作为附注显示在
+ * 选项之后，只放在空态里用户看不到。目录为空（尚未读到或读取失败）时同一句说明顶替「没有可用的
+ * 本机模型线路」，不重复显示两遍。预览模式的选项是内置示例，与进程线路无关，不显示说明。
+ */
+export function modelMenuHints(input: { preview: boolean; modelCount: number; matchCount: number; modelCallsDisabled: boolean }): { empty: string; note: string } {
+  const disabled = !input.preview && input.modelCallsDisabled;
+  if (input.matchCount > 0) return { empty: "", note: disabled ? MODEL_CALLS_DISABLED_NOTE : "" };
+  if (input.preview || input.modelCount > 0) return { empty: NO_MODEL_MATCH, note: disabled ? MODEL_CALLS_DISABLED_NOTE : "" };
+  return { empty: disabled ? MODEL_CALLS_DISABLED_NOTE : NO_MODEL_ROUTE, note: "" };
+}

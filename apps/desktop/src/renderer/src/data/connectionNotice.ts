@@ -17,6 +17,8 @@ export interface ConnectionView {
   wasReady?: boolean;
   willRetry?: boolean;
   startupDiagnosis?: StartupDiagnosis;
+  /** 握手回执的模型线路；显式 none 启动时带进程级禁用标志。缺失表示尚未握手。 */
+  modelBridge?: { provider: string; model: string; driven: boolean; modelCallsDisabled?: boolean };
 }
 
 export interface ConnectionNoticeParts {
@@ -96,6 +98,17 @@ export function connectionViewOf(value: unknown): ConnectionView | null {
   if (typeof raw.willRetry === "boolean") view.willRetry = raw.willRetry;
   const diagnosis = diagnosisOf(raw.startupDiagnosis);
   if (diagnosis) view.startupDiagnosis = diagnosis;
+  const bridge = raw.modelBridge;
+  if (bridge && typeof bridge === "object" && !Array.isArray(bridge)) {
+    const record = bridge as Record<string, unknown>;
+    // 与 harnessBridge 的握手解析同一上限：畸形字段按缺失处理，不用默认值冒充事实。
+    if (typeof record.provider === "string" && record.provider.length <= 200
+      && typeof record.model === "string" && record.model.length <= 200
+      && typeof record.driven === "boolean") {
+      view.modelBridge = { provider: record.provider, model: record.model, driven: record.driven,
+        ...(record.modelCallsDisabled === true ? { modelCallsDisabled: true } : {}) };
+    }
+  }
   return view;
 }
 

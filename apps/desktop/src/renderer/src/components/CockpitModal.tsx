@@ -12,6 +12,7 @@ import {
   capabilitySourceLabel,
   compactionSummary,
   durationText,
+  modelCallsLabel,
   ownerKindLabel,
   ownerStateLabel,
   queueSummaryText,
@@ -307,6 +308,7 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({ isOpen, onClose, har
                 <div className="cockpit-facts">
                   <Fact label="Provider" value={config.provider ?? "未提供"} />
                   <Fact label="模型" value={config.model ?? "未提供"} />
+                  <Fact label="模型调用" value={modelCallsLabel(config.modelCallsDisabled)} />
                   <Fact label="协议" value={config.protocolVersion ?? "未提供"} />
                   <Fact label="工具包" value={config.toolBundleId ?? "未提供"} />
                   <Fact label="上下文窗口" value={config.contextWindow === undefined ? "未提供"

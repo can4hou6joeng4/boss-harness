@@ -102,7 +102,7 @@ interface HarnessBridge {
 export interface HarnessStatus {
   running: boolean;
   repoRoot: string;
-  modelBridge?: { provider: string; model: string; driven: boolean };
+  modelBridge?: { provider: string; model: string; driven: boolean; modelCallsDisabled?: boolean };
   capabilities?: InitializeResponse["capabilities"];
   error?: string;
   state?: string;
@@ -134,7 +134,9 @@ function modelBridgeOf(value: unknown): HarnessStatus["modelBridge"] | undefined
   if (typeof provider !== "string" || provider.length > MODEL_BRIDGE_TEXT_LIMIT) return undefined;
   if (typeof model !== "string" || model.length > MODEL_BRIDGE_TEXT_LIMIT) return undefined;
   if (typeof record.driven !== "boolean") return undefined;
-  return { provider, model, driven: record.driven };
+  const modelCallsDisabled = record.modelCallsDisabled;
+  return { provider, model, driven: record.driven,
+    ...(typeof modelCallsDisabled === "boolean" ? { modelCallsDisabled } : {}) };
 }
 
 /** 校验状态回执的基本形状；`running` 是判断连接状态的唯一依据，不能是字符串或数字。 */

@@ -4,6 +4,7 @@ import { Popover } from "../components/Popover";
 import { SlashCommandList, filterSlashCommands, slashMenuVisible, type SlashCommandItem } from "../components/SlashCommandList";
 import { MODEL_OPTIONS, type ConversationMode } from "../data/mockData";
 import { useModelSwitch } from "../data/modelSwitchState";
+import { modelMenuHints } from "../data/modelCatalog";
 import type { ModelDescriptor, SkillDescriptor, SkillProblem } from "@boss-harness/protocol";
 import { codePointLength } from "@boss-harness/shared";
 import type { SkillCatalogState } from "../data/harnessBridge";
@@ -28,6 +29,8 @@ export interface ComposerProps {
   isRunning?: boolean; blocked?: boolean; onInterrupt?: () => void; /** 停止请求在途：按钮禁用并说明正在停止。 */ stopping?: boolean; preview?: boolean;
   currentMode?: ConversationMode; onModeChange?: (mode: ConversationMode) => void;
   models?: ModelDescriptor[]; activeModelProvider?: string; activeModelId?: string; configuredModelLabel?: string;
+  /** 进程以显式 none 启动：菜单为空时据此说明是禁用而非缺配置。 */
+  modelCallsDisabled?: boolean;
   onSelectModel?: (provider: string, id: string) => void | boolean | string | Promise<void | boolean | string>; onOpenSettings?: () => void;
   sessionReasoning?: SessionReasoningControl;
   skills?: SkillDescriptor[]; skillCatalogState?: SkillCatalogState; skillCatalogError?: string; onRefreshSkills?: () => void; skillProblems?: SkillProblem[];
@@ -58,7 +61,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   threadId,
   value, onChange, onSend, draft, onDraftChange, isRunning = false, blocked = false, onInterrupt, stopping = false, preview = true, readOnly = false, archived = false,
   onQueue, onCheckQueueSubmission,
-  currentMode = "agent", onModeChange, models = [], activeModelProvider, activeModelId, configuredModelLabel, onSelectModel, onOpenSettings, home = false, onLogin,
+  currentMode = "agent", onModeChange, models = [], activeModelProvider, activeModelId, configuredModelLabel, modelCallsDisabled = false, onSelectModel, onOpenSettings, home = false, onLogin,
   skills = [], skillCatalogState = "unavailable", skillCatalogError, onRefreshSkills, skillProblems = [],
   skillsTruncated = false,
   history = [],
@@ -189,6 +192,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   const query = modelQuery.trim().toLowerCase();
   const filteredModels = availableModels.filter(model => ["name" in model ? model.name : "", model.provider, model.id].join(" ").toLowerCase().includes(query));
   const configuredModelMatches = [modelName, "启动配置 当前模型"].join(" ").toLowerCase().includes(query);
+  // 显式 none 下菜单仍有 `none · none` 一项：禁用说明作为附注显示，不能只放在空态里。
+  const menuHints = modelMenuHints({ preview, modelCount: models.length, matchCount: filteredModels.length, modelCallsDisabled });
   const mode = MODES.find(item => item.id === currentMode) ?? MODES[0];
 
   useEffect(() => {
@@ -610,9 +615,10 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
               })}
               {modelPending && <div className="composer-menu-footer" role="status">正在保存模型设置…</div>}
               {modelError && <div className="composer-menu-footer" role="alert">{modelError}</div>}
-              {!filteredModels.length && <div className="composer-menu-empty">{models.length ? "未找到匹配模型" : preview ? "未找到匹配模型" : "没有可用的本机模型线路"}</div>}
+              {menuHints.empty && <div className="composer-menu-empty">{menuHints.empty}</div>}
               {!preview && currentDescriptor && configuredModelMatches && !filteredModels.some(model => model.id === activeModelId && model.provider === activeModelProvider) && <div className="composer-configured-model"><span className="composer-model-monogram" aria-hidden="true"><IconSparkles size={15} /></span><span>{modelName}<small>当前会话</small></span><IconCheck className="menu-check" /></div>}
             </div>
+            {menuHints.note && <div className="composer-menu-footer" role="note">{menuHints.note}</div>}
             {!preview && sessionReasoning && <>
               <div className="menu-divider" /><div className="composer-menu-heading">会话推理强度</div>
               {sessionReasoning.data && <>

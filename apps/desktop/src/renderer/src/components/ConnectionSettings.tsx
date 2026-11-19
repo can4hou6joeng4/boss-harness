@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { PROTOCOL_VERSION, type ConnectionCheck, type ConnectionReport, type ConnectionTarget, type PlatformLoginStatus } from "@boss-harness/protocol";
 import { harnessErrorText, connectionReport, harnessStatus, reconnectHarness } from "../data/harnessBridge";
 import { connectionNoticeParts, connectionViewOf, mergeConnectionView, startupCheckRows, startupDiagnostics, type ConnectionView } from "../data/connectionNotice";
+import { MODEL_CALLS_DISABLED_NOTE } from "../data/modelCatalog";
 import { useClipboardCopy } from "../data/clipboardCopy";
 import { loginActive, loginSettled, platformLoginStatusOf } from "../data/platformLoginState";
 import { formatIsoClock } from "../data/timeFormat";
@@ -110,9 +111,14 @@ export function ConnectionSettings({ harnessUp, onLogin }: { harnessUp: boolean;
 
   const loginBusy = Boolean(login && loginActive(login));
   const cliBusy = report?.cli.state === "checking" || report?.platform.state === "checking" || loginBusy;
+  // 进程级禁用与「未配置默认线路」的处理办法不同：前者要换启动方式，后者要补配置或换线路。
+  // 握手的 modelBridge 随连接状态到达；未握手或已断开时没有该字段，沿用中性描述，不断言是否禁用。
+  const modelCallsDisabled = connection?.modelBridge?.modelCallsDisabled === true;
   const rows: Array<{ target: ConnectionTarget; title: string; description: string; check: ConnectionCheck | undefined; action: string }> = [
     { target: "local", title: "本机 CLI", description: "检查可执行文件、协议与本地登录态，不访问平台", check: report?.cli, action: "检查本机" },
-    { target: "model", title: "模型服务", description: report?.model.model ? `${report.model.provider} · ${report.model.model}` : "由本机模型配置决定", check: report?.model, action: "测试模型" },
+    { target: "model", title: "模型服务", description: modelCallsDisabled
+      ? MODEL_CALLS_DISABLED_NOTE
+      : report?.model.model ? `${report.model.provider} · ${report.model.model}` : "由本机模型配置决定", check: report?.model, action: "测试模型" },
     { target: "platform", title: "BOSS 直聘账号", description: `本地认证信息：${AUTH_LABELS[report?.platform.authState ?? "unknown"] ?? "未检测"}；账号验证结果以标注时间为准`, check: report?.platform, action: "验证账号" },
   ];
   // 未连接的原因与本地自检明细；已连接或仍在首次启动时不显示。
