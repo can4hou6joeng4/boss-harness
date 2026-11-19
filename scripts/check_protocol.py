@@ -19,6 +19,7 @@ SOURCE_ROOT = "harness/src/boss_harness"
 APP_CLIENT = "packages/app-client/src"
 DESKTOP_ROOT = "apps/desktop/src"
 RPC = "harness/src/boss_harness/rpc.py"
+ENTRY = "harness/src/boss_harness/__main__.py"
 APP_CLIENT_INDEX = "packages/app-client/src/index.ts"
 FRAME_DEFAULT = re.compile(r"maxFrameBytes \?\?\s*(\d+(?:\s*\*\s*\d+)*)")
 QUEUE_DEFAULT = re.compile(r"maxQueuedBytes \?\?\s*(\d+(?:\s*\*\s*\d+)*)")
@@ -422,7 +423,7 @@ def _check_error_redaction() -> int:
     missing = [fragment for fragment in required if fragment not in body]
     if missing:
         raise ValueError(f"{RPC} 的 describe_failure 缺少：" + "、".join(missing))
-    reasons = ("ENOSPC", "EDQUOT", "EACCES", "EPERM", "EROFS", "EMFILE", "ENFILE")
+    reasons = ("ENOSPC", "EDQUOT", "EACCES", "EPERM", "EROFS", "EMFILE", "ENFILE", "ENOTDIR", "ENOENT")
     missing = [name for name in reasons if f'getattr(errno, "{name}", None)' not in text]
     if missing:
         raise ValueError(f"{RPC} 的错误原因未登记：" + "、".join(missing))
@@ -430,7 +431,15 @@ def _check_error_redaction() -> int:
         raise ValueError(f"{RPC} 的错误分发必须使用 describe_failure 后再脱敏")
     if "redact_secrets(str(exc))" in text:
         raise ValueError(f"{RPC} 不得直接把 str(exc) 作为错误响应")
-    return len(required) + len(reasons) + 2
+    entry = _read(ENTRY)
+    outputs = (
+        'print(f"[harness] 索引修复失败：{describe_failure(exc)}", file=sys.stderr)',
+        'print(f"[harness] 启动失败（{type(exc).__name__}）：{describe_failure(exc)}", file=sys.stderr)',
+    )
+    missing = [fragment for fragment in outputs if entry.count(fragment) != 1]
+    if missing:
+        raise ValueError(f"{ENTRY} 的失败输出必须经过 describe_failure：" + "、".join(missing))
+    return len(required) + len(reasons) + 2 + len(outputs)
 
 
 def check_protocol() -> tuple[str, int, int, int, int, int, int, int, int]:

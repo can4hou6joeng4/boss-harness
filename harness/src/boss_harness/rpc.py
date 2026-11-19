@@ -31,6 +31,8 @@ _OS_ERROR_REASONS = {
         (getattr(errno, "EROFS", None), "文件系统为只读"),
         (getattr(errno, "EMFILE", None), "进程打开的文件过多"),
         (getattr(errno, "ENFILE", None), "系统打开的文件过多"),
+        (getattr(errno, "ENOTDIR", None), "路径中有一级不是目录"),
+        (getattr(errno, "ENOENT", None), "本地文件或目录不存在"),
     ) if code is not None
 }
 

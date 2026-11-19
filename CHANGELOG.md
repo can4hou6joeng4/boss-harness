@@ -1,3 +1,10 @@
+## 0.2.0-rc.259 - 2026-11-19
+
+rc.259 源码候选让启动与索引修复失败的 stderr 不再回显系统错误原文与目录名。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 命令行启动失败与 `--repair-state` 失败遇到带文件名的 `OSError` 时，失败行改用与 JSON-RPC 错误相同的固定中文原因与 errno 名称（如「本地文件权限不足（EACCES），操作未完成。」）。此前输出英文系统错误原文并带出状态目录路径中的某一级名称（如 `[Errno 13] Permission denied: '<目录名>'`）。新增登记 `ENOTDIR`（路径中有一级不是目录）与 `ENOENT`（本地文件或目录不存在）两种原因，RPC 错误响应同样生效。退出码仍为 2，启动失败后的自检提示行不变，`ValueError` 的固定中文说明不变。[Issue #2642](https://github.com/can4hou6joeng4/boss-harness/issues/2642)
+- `check_protocol.py` 的错误脱敏守卫扩展到入口两处失败输出与新增的两种 errno，由 14 项增至 18 项；三类注入探针（两处输出各改回异常原文、删除 `ENOTDIR` 登记）均以退出码 2 失败。子进程探针对比 rc.258 源码：状态目录为文件、父目录无权限、父目录只读三种情况在启动与修复两条路径下，新输出不含目录名；符号链接环的固定说明与正常修复输出不变。全部检查通过。版本推进到 npm `0.2.0-rc.259` / Python `0.2.0rc259`。不执行发布动作。
+
 ## 0.2.0-rc.258 - 2026-11-19
 
 rc.258 源码候选把自检严格模式的退出码语义固化为静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
