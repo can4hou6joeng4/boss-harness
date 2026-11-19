@@ -60,6 +60,8 @@ jobs:
         run: python scripts/check_maintenance.py
       - name: Verify snapshot store boundaries
         run: python scripts/check_snapshot_store.py
+      - name: Verify state directory ownership
+        run: python scripts/check_ownership.py
       - name: Verify workspace skill boundaries
         run: python scripts/check_skills.py
       - name: Verify workspace instruction boundaries
