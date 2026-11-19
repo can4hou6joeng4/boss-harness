@@ -1,3 +1,10 @@
+## 0.2.0-rc.300 - 2026-11-20
+
+rc.300 源码候选为请求身份补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_request_identity.py`：固定 `clientUserMessageId` 的 1–128 字符整串匹配、无效格式拒绝、持久链接的类型校验与两轮收敛、`queue_record` 共用契约、`CLIENT_REQUEST_CONFLICT` / `CLIENT_REQUEST_AMBIGUOUS` / `REQUEST_REQUIRES_REVIEW` 三类拒绝、UTF-8 输入摘要与持久事实一致性。修复 Issue [#2725](https://github.com/can4hou6joeng4/boss-harness/issues/2725)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 28 个。版本推进到 npm `0.2.0-rc.300` / Python `0.2.0rc300`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.299 - 2026-11-20
 
 rc.299 源码候选为条目正文补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
