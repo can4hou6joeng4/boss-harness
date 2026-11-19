@@ -1,5 +1,9 @@
 # 上游吸收记录
 
+## 不支持解析 Codex TOML 时跳过可选线路（Issue #2696）
+
+对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Provider Factories、Querying Models）与 `packages/coding-agent/src/core/model-registry.ts`（`getAvailable`、`hasConfiguredAuth`）：上游模型目录从运行时取得可用快照，未采用本项目的 Python 或 Codex TOML 读取路径。本项目延续「无法解析的可选线路不进入目录」规则；Python 3.10 缺少 `tomllib` 时抛出固定的配置错误，显式使用者获得诊断码，其他默认线路不因此中断。不改模型请求或配置优先级，不复制代码、不引入依赖。
+
 ## 独立 Anthropic 摘要线路的可用性投影（Issue #2694）
 
 对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/compaction.md`（How It Works）与 `packages/coding-agent/src/core/compaction/compaction.ts`（`prepareCompaction`、`compact`）：准备阶段按会话历史规划切点，实际生成单独接收模型；所读入口没有本项目向桌面投影摘要线路可用性的字段。沿用准备与生成的职责边界，本项目在既有 `summaryAvailable` 字段复用独立 Anthropic 线路的环境凭据判定。预算读取与整理计划不构造模型或新增配置文件读取，摘要任务、实际错误码和协议形状保持不变，不复制源码、不引入依赖。

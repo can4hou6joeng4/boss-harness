@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.285` / Python `0.2.0rc285` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.286` / Python `0.2.0rc286` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -70,7 +70,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 「设置 → 模型与连接」的「模型服务」卡片在显式禁用时显示 `MODEL_DISABLED`，提示改用具体 provider 重新启动。报告尚未读取或内核只在握手中提供禁用标志时，卡片描述行也会给出提示。自动回退时状态为「默认模型线路不调用模型」。这两种情况下「测试模型」均不可用。
 
-缺少任一项时才读取 `BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 或默认 `~/.codex/config.toml`，按此顺序选择文件，显式字段仍优先。读取 TOML 需要 Python 3.11+；已有文件不可读或语法损坏时明确报错，不退到其他 provider。文件不存在或缺少可用 profile 时继续检查端点与凭据，缺项会报错；未提供模型且没有可用文件模型时保留既有 `DEFAULT_MODEL`。
+缺少任一项时才读取 `BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 或默认 `~/.codex/config.toml`，按此顺序选择文件，显式字段仍优先。读取 TOML 需要 Python 3.11+；若选用的 OpenAI 线路需要已有配置文件，而当前解释器不能解析 TOML，启动与自检都报 `MODEL_CODEX_TOML_UNAVAILABLE`。若 OpenAI 只是可选线路，模型目录跳过此线路，当前默认线路仍可启动。已有文件不可读或语法损坏时，选用该线路会明确报错，不退到其他 provider。文件不存在或缺少可用 profile 时继续检查端点与凭据，缺项会报错；未提供模型且没有可用文件模型时保留既有 `DEFAULT_MODEL`。
 
 当前文件适配要求文件自身同时提供 `model`、`model_provider` 及该 provider 的 `base_url` 才形成可用 profile；凭据支持 provider 的 `experimental_bearer_token`，或由 `env_key` 指定环境变量名并从该变量读取；显式 `BOSS_HARNESS_OPENAI_API_KEY` 优先于文件凭据，文件内 `experimental_bearer_token` 优先于 `env_key`。OpenAI 线路仅支持 Responses：profile 的 `wire_api` 缺省或为空白时使用 `responses`，显式值忽略首尾空白并按不区分大小写处理；其他值或非字符串会以 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝，不自动改用其他协议。应选择支持 Responses 的端点，不能仅修改标识来适配只支持 Chat Completions 的服务。尚未适配 Codex 的 OAuth。配置解析只读本地文件，不探测真实服务。
 
@@ -118,6 +118,7 @@ Anthropic 线路另有两个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 | `MODEL_ENDPOINT_MISSING` | OpenAI 线路缺少端点；设置 `BOSS_HARNESS_OPENAI_BASE_URL`，或在有效 Codex profile 的 provider 中配置 `base_url`。 |
 | `MODEL_CREDENTIAL_MISSING` | OpenAI 线路缺少凭据；设置 `BOSS_HARNESS_OPENAI_API_KEY`，或在有效 Codex profile 的 provider 中配置 `experimental_bearer_token` 或 `env_key` 指向的环境变量。 |
 | `MODEL_CODEX_UNREADABLE` | 无法读取 Codex 配置文件；核对配置路径与读取权限。 |
+| `MODEL_CODEX_TOML_UNAVAILABLE` | 当前解释器缺少 Codex TOML 解析能力；改用 Python 3.11+，或显式设置 OpenAI 模型、端点与凭据以跳过该文件。 |
 | `MODEL_CODEX_INVALID_TOML` | Codex 配置的 TOML 格式无效；检查语法与文件编码。 |
 | `MODEL_CODEX_NOT_FILE` | Codex 配置路径不是普通文件；将 `BOSS_HARNESS_CODEX_CONFIG` 指向文件，或核对 `CODEX_HOME` 下的 `config.toml`。 |
 | `MODEL_CODEX_WIRE_API_UNSUPPORTED` | Codex profile 声明了内核不支持的协议或值类型；选择支持 Responses 的端点并将 `wire_api` 设为 `responses`，或使用完整显式 OpenAI 配置跳过该文件。 |

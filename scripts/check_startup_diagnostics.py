@@ -18,6 +18,7 @@ USER_GUIDE = "docs/USER_GUIDE.md"
 SETUP_GUIDE = "SETUP.md"
 ENTRY = "harness/src/boss_harness/__main__.py"
 PROVIDER = "harness/src/boss_harness/models/provider.py"
+CODEX_CONFIG = "harness/src/boss_harness/models/codex_config.py"
 CAPABILITIES = "harness/src/boss_harness/models/capabilities.py"
 COMPACTION = "harness/src/boss_harness/compaction.py"
 TURN_LIMITS = "harness/src/boss_harness/turn_limits.py"
@@ -794,6 +795,11 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _repo_walk(startup_tree, startup)
     checked += _state_dir_defaults(_read(ENTRY))
     checked += _max_tokens(_read(PROVIDER))
+    codex = _read(CODEX_CONFIG)
+    checked += _expect((
+        'if tomllib is None:',
+        'raise ModelConfigError("MODEL_CODEX_TOML_UNAVAILABLE")',
+    ), _function_source(_parse(codex, CODEX_CONFIG), codex, "load_profile"), "load_profile")
     checked += _runtime_scope(_read(USER_GUIDE))
     checked += _blank_json_config(_read(CAPABILITIES), _read(COMPACTION), _read(APPLICATION))
     checked += _blank_numeric_limits(_read(TURN_LIMITS), _read(RESOURCES))
