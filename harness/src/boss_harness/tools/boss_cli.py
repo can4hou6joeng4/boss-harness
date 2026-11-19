@@ -202,7 +202,10 @@ class BossCliTool:
         choice = resolve_binary(binary)
         self.binary = choice.path
         self.source = choice.source
-        self.data_dir = data_dir or os.environ.get("BOSS_CLI_DATA_DIR")
+        # 数据目录与自检共用同一解释：首尾空白不进入上游参数，空值或仅空白视为未设置，
+        # 否则实际使用的目录会与 `--check` 核对过的目录不同。
+        raw_dir = data_dir if data_dir is not None else os.environ.get("BOSS_CLI_DATA_DIR")
+        self.data_dir = (raw_dir or "").strip() or None
         self.browser_source = resolve_browser_source_override()
         self.browser_source_policy = self.browser_source or "inherit"
         self.cancel_event: threading.Event | None = None
