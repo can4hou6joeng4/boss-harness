@@ -1,3 +1,10 @@
+## 0.2.0-rc.323 - 2026-11-20
+
+rc.323 源码候选为模型容量配置补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_capabilities.py`：固定 64 KiB / 128 项预算、三种 provider、两个必需字段与一个可选字段、七档推理集合；固定窗口大于 4096 且输出不超过窗口、只读覆盖表、重复键与非有限常量拒绝、逐项字段白名单与固定错误说明；反向断言禁止无钩子解析、原配置回显与可变覆盖表。修复 Issue [#2771](https://github.com/can4hou6joeng4/boss-harness/issues/2771)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 51 个。版本推进到 npm `0.2.0-rc.323` / Python `0.2.0rc323`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.322 - 2026-11-20
 
 rc.322 源码候选为凭据包装与错误文本脱敏补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
