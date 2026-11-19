@@ -174,9 +174,12 @@ def resolve_binary(explicit: str | None = None) -> BinaryChoice:
     顺序：显式参数 -> 环境变量 -> 并排的上游仓库虚拟环境 -> PATH。
     并排候选是为规避 PATH 上可能存在的悬空安装（本项目早期版本留下过）。
     """
-    if explicit and _executable_path(explicit):
-        return BinaryChoice(explicit, "explicit")
-    env = os.environ.get(BINARY_ENV)
+    # 取值与数据目录、解释器同一口径：去除首尾空白，空值或仅空白视为未设置，
+    # 否则带空白的有效路径会被跳过，自检还会报「显式指定却不可执行」。
+    explicit_path = (explicit or "").strip()
+    if explicit_path and _executable_path(explicit_path):
+        return BinaryChoice(explicit_path, "explicit")
+    env = (os.environ.get(BINARY_ENV) or "").strip()
     if env and _executable_path(env):
         return BinaryChoice(env, "env")
 
