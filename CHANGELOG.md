@@ -1,3 +1,10 @@
+## 0.2.0-rc.269 - 2026-11-19
+
+rc.269 源码候选让业务 CLI 数据目录与自检使用同一个规范化后的路径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 工具桥读取 `BOSS_CLI_DATA_DIR`（或构造参数）时去除首尾空白，空值或仅含空白视为未设置、不传 `--data-dir`。此前只有空白的值会以 `--data-dir "   "` 原样传给上游，带首尾空白的路径也连空白一起传：上游实际使用的相对路径与 `--check` 去空白后核对的目录不同，仓库归属与重叠结论可能各说各话。[Issue #2662](https://github.com/can4hou6joeng4/boss-harness/issues/2662)
+- `check_harness_tools.py` 新增 3 项数据目录规范化防护，恢复原样传参的写法即失败。四例取值探针对比 rc.268 源码：未设置与空字符串不变，仅空白改为不传参，带首尾空白的路径按去空白后的值传参。全部检查通过。版本推进到 npm `0.2.0-rc.269` / Python `0.2.0rc269`。不执行发布动作。
+
 ## 0.2.0-rc.268 - 2026-11-19
 
 rc.268 源码候选让 `--check` 从被检查目录自身判断仓库归属。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

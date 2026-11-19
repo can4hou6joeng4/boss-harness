@@ -45,6 +45,11 @@ EXPECTED_TOOLS = frozenset({
     "boss_list_tools",
 })
 WRITE_TOOLS = frozenset({"boss_hr_greet"})
+#: 数据目录与自检口径一致：去除首尾空白，空值或仅空白视为未设置。
+DATA_DIR_FRAGMENTS = (
+    'raw_dir = data_dir if data_dir is not None else os.environ.get("BOSS_CLI_DATA_DIR")',
+    'self.data_dir = (raw_dir or "").strip() or None',
+)
 
 
 def _literal_dict(node: ast.AST, where: str) -> dict[str, ast.AST]:
@@ -249,20 +254,27 @@ def check_harness_tools() -> tuple[int, int, int, int, int]:
                 raise ValueError(
                     f"{message}：{path.relative_to(ROOT).as_posix()}"
                 )
-    if "shell=False" not in TOOLS_SOURCE.read_text(encoding="utf-8"):
+    tools_source = TOOLS_SOURCE.read_text(encoding="utf-8")
+    if "shell=False" not in tools_source:
         raise ValueError("boss_cli.py 的 subprocess.Popen 必须显式设置 shell=False")
+    for fragment in DATA_DIR_FRAGMENTS:
+        if fragment not in tools_source:
+            raise ValueError("boss_cli.py 的业务 CLI 数据目录必须去除首尾空白并把空值视为未设置：缺少 " + fragment)
+    if 'self.data_dir = data_dir or os.environ.get("BOSS_CLI_DATA_DIR")' in tools_source:
+        raise ValueError("boss_cli.py 不得把未规范化的业务 CLI 数据目录原样传给上游")
     return (
         len(names),
         len(names) - len(approval),
         len(write_sets),
         len(BUNDLE_FRAGMENTS),
         len(SHELL_APIS) + 1,
+        len(DATA_DIR_FRAGMENTS) + 1,
     )
 
 
 def main() -> int:
     try:
-        total, read_only, write_sets, bundle, shell = check_harness_tools()
+        total, read_only, write_sets, bundle, shell, data_dir = check_harness_tools()
     except (OSError, SyntaxError, ValueError) as error:
         print(f"内核工具允许清单核对失败，{error}", file=sys.stderr)
         return 2
@@ -270,7 +282,7 @@ def main() -> int:
         f"内核工具允许清单一致：{total} 个工具"
         f"（{read_only} 个只读、{total - read_only} 个需批准）、"
         f"schema 边界完整、{write_sets} 处写工具集合一致、"
-        f"bundle 保留 {bundle} 项审批投影、工具子进程 {shell} 项 shell 边界完整"
+        f"bundle 保留 {bundle} 项审批投影、工具子进程 {shell} 项 shell 边界与 {data_dir} 项数据目录规范化防护完整"
     )
     return 0
 
