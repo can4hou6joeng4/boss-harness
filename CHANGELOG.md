@@ -1,3 +1,10 @@
+## 0.2.0-rc.294 - 2026-11-20
+
+rc.294 源码候选统一上下文面板的断连口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 会话上下文面板在内核断连时明确：预算、工作区说明与任务信息都是上次读取结果，可能已过期，重连后重新读取并核对。此前提示只说明任务信息，预算仍以「当前预算」展示，容易当成实时值。修复 Issue [#2713](https://github.com/can4hou6joeng4/boss-harness/issues/2713)。
+- 桌面指南同步说明。版本推进到 npm `0.2.0-rc.294` / Python `0.2.0rc294`。不改变读取、缓存或重连行为，不执行发布动作。
+
 ## 0.2.0-rc.293 - 2026-11-20
 
 rc.293 源码候选修正设置页的窗口提示状态。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
