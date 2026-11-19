@@ -817,23 +817,36 @@ SHARED_INDEX = "packages/shared/src/index.ts"
 
 
 def _check_python_interpreter() -> int:
-    """解释器选择与内核同口径：空白变量按未设置，回退 .venv 或 python3。"""
+    """解释器选择与内核同口径：空白变量按未设置，只认普通文件并回退 python3。"""
     shared = (ROOT / SHARED_INDEX).read_text(encoding="utf-8")
     fragments = (
         "export function choosePythonInterpreter(",
         'const trimmed = (configured ?? "").trim();',
-        'return trimmed || (venvExists ? venvPython : "python3");',
+        'return trimmed || (venvUsable ? venvPython : "python3");',
     )
     missing = [fragment for fragment in fragments if fragment not in shared]
     if missing:
         raise ValueError("packages/shared 缺少空白解释器回退：" + "、".join(missing))
     text = _main_text("harness.ts")
-    usage = "choosePythonInterpreter(process.env.BOSS_HARNESS_PYTHON, venvPython, existsSync(venvPython))"
+    usage = "choosePythonInterpreter(process.env.BOSS_HARNESS_PYTHON, venvPython, isRegularFile(venvPython))"
     if usage not in text:
         raise ValueError("apps/desktop/src/main/harness.ts 必须经 choosePythonInterpreter 选择解释器")
     if "process.env.BOSS_HARNESS_PYTHON ??" in text:
         raise ValueError("apps/desktop/src/main/harness.ts 不得用 ?? 直接读取 BOSS_HARNESS_PYTHON")
-    return len(fragments) + 2
+    if "existsSync(venvPython)" in text:
+        raise ValueError("apps/desktop/src/main/harness.ts 必须用 isRegularFile 判断解释器可用性")
+    python_file = (ROOT / "apps/desktop/src/main/pythonFile.ts").read_text(encoding="utf-8")
+    file_fragments = (
+        "export function isRegularFile(path: string): boolean {",
+        "return statSync(path).isFile();",
+        "} catch {\n    return false;\n  }",
+    )
+    missing = [fragment for fragment in file_fragments if fragment not in python_file]
+    if missing:
+        raise ValueError("apps/desktop/src/main/pythonFile.ts 缺少普通文件判定：" + "、".join(missing))
+    if 'import { isRegularFile } from "./pythonFile";' not in text:
+        raise ValueError("apps/desktop/src/main/harness.ts 必须从 pythonFile 引入 isRegularFile")
+    return len(fragments) + len(file_fragments) + 3
 
 
 def _check_provider_override() -> int:

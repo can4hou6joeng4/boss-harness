@@ -9,6 +9,7 @@ import { isTrustedRendererUrl, sessionExportFileName, validateHarnessRequest, va
 import { PlatformLogin } from "./platformLogin";
 import { preservesRpcError } from "./rpcErrors";
 import { chooseProviderOverride, choosePythonInterpreter } from "@boss-harness/shared";
+import { isRegularFile } from "./pythonFile";
 import { sessionExportWriteError } from "./exportErrors";
 import { writeSessionExport } from "./sessionExportWrite";
 import { approvalNotificationContent, rememberApproval } from "./approvalNotification";
@@ -193,7 +194,7 @@ function withStartupDiagnosis(notification: JsonRpcNotification): JsonRpcNotific
 function createHost(): HarnessHostConnection {
   repoRoot = findRepoRoot(app.getAppPath());
   const venvPython = resolve(repoRoot, ".venv", "bin", "python");
-  const python = choosePythonInterpreter(process.env.BOSS_HARNESS_PYTHON, venvPython, existsSync(venvPython));
+  const python = choosePythonInterpreter(process.env.BOSS_HARNESS_PYTHON, venvPython, isRegularFile(venvPython));
   const env = {
     PYTHONPATH: resolve(repoRoot, "harness", "src"), PYTHONUNBUFFERED: "1",
     BOSS_HARNESS_PROVIDER: chooseProviderOverride(process.env.BOSS_HARNESS_PROVIDER),
