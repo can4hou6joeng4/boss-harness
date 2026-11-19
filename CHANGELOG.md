@@ -1,3 +1,10 @@
+## 0.2.0-rc.238 - 2026-11-19
+
+rc.238 源码候选让启动自检暴露被忽略的 `BOSS_CLI_BIN`。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 显式设置 `BOSS_CLI_BIN` 却因目录、断链或不可执行被跳过、回退到并排虚拟环境或 PATH 时，`--check` 的 `bossCli` 检查记为警告 `BOSS_CLI_BIN_IGNORED`，说明已改用其他来源并提示核对路径与执行权限；只说明来源变化，不输出实际路径。最终没有可用 CLI 时仍优先报告 `BOSS_CLI_UNAVAILABLE`。未设置、空值与已采用的显式路径保持 `BOSS_CLI_FOUND`。使用指南与技术参考同步。[Issue #2600](https://github.com/can4hou6joeng4/boss-harness/issues/2600)
+- 以 rc.237 合并提交导出的源码为基线，七个场景独立进程对比：未设置、有效显式路径、空值、仅显式路径可用、显式值无效且无其他来源五例逐字节一致；显式值无效与显式值为目录两例由 `BOSS_CLI_FOUND` 变为 `BOSS_CLI_BIN_IGNORED` 警告，退出码仍为 0。七例的 `resolve_binary()` 实际路径与来源逐项一致。静态守卫在补文档前以退出码 2 报缺少新检查码，补文档后通过（291 项）。全部检查通过。版本推进到 npm `0.2.0-rc.238` / Python `0.2.0rc238`。不执行发布动作。
+
 ## 0.2.0-rc.237 - 2026-11-19
 
 rc.237 源码候选让启动自检暴露无效的模型重试配置。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
