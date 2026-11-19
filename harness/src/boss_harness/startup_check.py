@@ -188,6 +188,21 @@ def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str
     )
 
 
+def _git_root(start: Path) -> Path | None:
+    """向上查找 git 工作区根；`.git` 可能是目录（普通仓库）或文件（worktree）。"""
+    current = start
+    while True:
+        try:
+            if (current / ".git").exists():
+                return current
+        except OSError:
+            return None
+        parent = current.parent
+        if parent == current:
+            return None
+        current = parent
+
+
 def _cli_check(state_dir: Path) -> dict[str, str]:
     choice = resolve_binary()
     try:
@@ -218,6 +233,20 @@ def _cli_check(state_dir: Path) -> dict[str, str]:
                 "将 BOSS_CLI_DATA_DIR 与 --state-dir / BOSS_HARNESS_DIR 分开配置；"
                 "上游登录与平台状态不要与内核会话共用目录。",
             )
+        # 上游登录态与平台缓存不应位于可被提交的仓库；~ 交由上游解释，内核不猜测其展开结果。
+        if not data_dir.startswith("~"):
+            try:
+                workspace = _git_root(Path.cwd().resolve())
+                resolved = Path(data_dir).resolve()
+                inside = workspace is not None and (
+                    resolved == workspace or resolved.is_relative_to(workspace))
+            except (OSError, RuntimeError):
+                inside = False
+            if inside:
+                return _check(
+                    "bossCli", "warning", "BOSS_CLI_DATA_DIR_IN_REPO", "业务 CLI 数据目录位于当前仓库内。",
+                    "将 BOSS_CLI_DATA_DIR 移到仓库外；登录态、Cookie 与平台缓存不应进入可能被提交的目录。",
+                )
     return _check(
         "bossCli", "ok", "BOSS_CLI_FOUND", "已发现业务 CLI 可执行文件。",
         "只检查文件与执行权限，未运行 CLI、查询版本或核对平台登录。",

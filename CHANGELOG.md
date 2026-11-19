@@ -1,3 +1,10 @@
+## 0.2.0-rc.255 - 2026-11-19
+
+rc.255 源码候选让本地配置自检提示业务 CLI 数据目录位于仓库内。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 业务 CLI 可执行文件可用且数据目录与内核状态目录不重叠时，若 `BOSS_CLI_DATA_DIR` 解析后等于或位于当前 git 工作区内，`bossCli` 检查返回警告 `BOSS_CLI_DATA_DIR_IN_REPO`，建议把数据目录移到仓库外；只读路径、不输出实际路径，以 `~` 开头的值不展开也不参与判断，警告不阻止启动。此前只核对数据目录与状态目录是否重叠，登录态与平台缓存落在仓库中不会提示。[Issue #2634](https://github.com/can4hou6joeng4/boss-harness/issues/2634)
+- 八例探针覆盖绝对路径、相对路径、等于仓库根、子目录启动、工作区外、非 git 目录、字面 `~` 与未设置，只有前四种报 `BOSS_CLI_DATA_DIR_IN_REPO`；数据目录同时与状态目录重叠时仍优先报 `BOSS_CLI_DATA_DIR_OVERLAP`，输出均不含实际路径。全部检查通过。版本推进到 npm `0.2.0-rc.255` / Python `0.2.0rc255`。不执行发布动作。
+
 ## 0.2.0-rc.254 - 2026-11-19
 
 rc.254 源码候选把错误响应不回显本地路径固化为静态守卫。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
