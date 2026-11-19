@@ -64,7 +64,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy)、[`check_turn_stream.py`](#check_turn_streampy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
-| 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
+| 上下文保留与编辑 | [`check_context_keep.py`](#check_context_keeppy)、[`check_context_edits.py`](#check_context_editspy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_secret.py`](#check_secretpy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy) |
 | 关闭与中止 | [`check_shutdown.py`](#check_shutdownpy)、[`check_bridge_lifecycle.py`](#check_bridge_lifecyclepy) |
@@ -208,6 +208,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_context_keep.py`
 
 `scripts/check_context_keep.py` 固定保留目标提示的接线：判定函数 `keepTargetReachesLimit` 只在 `compactionSettings.ts` 定义一次，保留目标与上限都必须是正整数且保留目标不低于上限；会话上下文面板的两处提示都必须先确认预算已读取，再以 `budget.inputBudget` 调用；设置页从 `config/read` 的 `modelCapabilities.contextWindow` 取得正整数窗口后以 `compactionWindow` 调用。两处提示在使用指南与桌面指南中的说明片段也纳入核对。脚本不执行渲染层代码，提示的实际布局与触发时刻仍需运行桌面核对。
+
+### `check_context_edits.py`
+
+`scripts/check_context_edits.py` 核对上下文编辑与摘要检查点的读取边界：`_FINISHED_TURN_STATUSES` 固定四种已结束状态，替换文本上限为 32 000 字符与 128 KiB UTF-8；编辑记录的负载必须恰好是 `targetItemId` 与 `replacementText`，目标必须指向此前出现过的条目，替换文本不得为空白或超限；模型路径严格校验时整体拒绝损坏记录，`context_edit_states` 是唯一允许 `strict=False` 跳过的展示入口。`_apply_context_edits` 必须剥离 `originalInput`，只允许用户或助手文本，并把排除标记写入 `contextEdit`；读取侧统一经 `_context_edit` 映射，标注缺失或类型不符时按空对象处理。编辑入口 `context_edit` 先校验替换文本、`sourceDigest` 的 64 位小写十六进制与 `itemId`，在同一写入锁与索引事务内读取现状、拒绝不可编辑与摘要不符，再构造提交后的投影并先经 `validate_response` 校验，之后才追加记录并重建索引。检查点只信任 `_PUBLIC_CHECKPOINT_TEXT_LIMITS` 与 `_PUBLIC_CHECKPOINT_INT_FIELDS` 白名单字段，整数字段必须是非负安全整数；`_validated_checkpoint` 要求摘要非空且不超过 32 000 字符、来源摘要为规范 SHA-256、`throughTurnId` 存在、前缀回合全部结束、`sourceItemIds` / `sourceItemCount` 至少一项且与实际条目一致、拒绝运行中条目，并比对摘要前的原始记录与当前选择一致。脚本反向断言宽松读取只有一处、编辑标注只经 `_context_edit` 读取。检查是源码片段与顺序扫描，不执行编辑或摘要，运行时行为仍需按用户指南核对。
 
 ### `check_summary.py`
 
