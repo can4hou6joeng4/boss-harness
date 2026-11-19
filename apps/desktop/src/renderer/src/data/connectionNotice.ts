@@ -160,6 +160,9 @@ function startupRecovery(diagnosis: StartupDiagnosis | undefined): string {
   // 自检没有错误项时，最可能的原因是解释器缺少内核依赖或失败发生在自检覆盖范围之外。
   if (diagnosis?.kind === "report" && !diagnosis.checks.some(check => check.status === "error"))
     return "核对内核依赖是否已安装，修正配置后可重新连接；环境变量改动需重启应用。";
+  if (diagnosis?.kind === "report"
+    && diagnosis.checks.some(check => check.status === "error" && check.code === "MODEL_SDK_UNAVAILABLE"))
+    return "安装内核依赖后可重新连接；环境变量改动需重启应用。";
   return "修正配置文件或状态目录条件后可重新连接；环境变量改动需重启应用。";
 }
 

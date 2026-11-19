@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import errno
+import importlib.util
 import os
 import sys
 from collections.abc import Callable
@@ -48,6 +49,14 @@ def _unconfigured_hint(requested_model: str | None) -> str:
     return _OPENAI_AVAILABLE_HINT
 
 
+def _module_available(name: str) -> bool:
+    """只发现模块，不导入 SDK；元数据异常同样按不可用处理。"""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
 def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str,
                  requested_model: str | None = None) -> dict[str, str]:
     try:
@@ -88,6 +97,17 @@ def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str
         return _check(
             "model", "error", "MODEL_CONFIG_INCOMPLETE", "模型配置缺少必需字段。",
             "配置非空模型与对应 provider 的凭据；OpenAI 线路还需显式端点或有效 Codex profile。",
+        )
+    # 配置可解析不代表进程能构造 provider：模型 SDK 是内核依赖，缺失时启动会直接失败。
+    if not _module_available(config.provider):
+        if config.provider == "anthropic":
+            return _check(
+                "model", "error", "MODEL_SDK_UNAVAILABLE", "缺少内核运行依赖 anthropic。",
+                "按安装步骤安装内核依赖：uv pip install --python .venv/bin/python -e ./harness。",
+            )
+        return _check(
+            "model", "error", "MODEL_SDK_UNAVAILABLE", "缺少内核运行依赖 openai。",
+            "按安装步骤安装内核依赖：uv pip install --python .venv/bin/python -e ./harness。",
         )
     return _check(
         "model", "ok", "MODEL_CONFIG_VALID", "本地模型配置解析通过。",
