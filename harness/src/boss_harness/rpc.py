@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from concurrent.futures import Future
 from dataclasses import dataclass
+import errno
 import json
 import math
 import sys
@@ -19,6 +20,29 @@ from boss_harness.models.secret import redact_secrets
 Handler = Callable[[dict[str, Any] | None], Any]
 MAX_FRAME_BYTES = 8 * 1024 * 1024
 MAX_JSON_DEPTH = 64
+
+# OSError 的 str() 在带文件名时会拼出本机绝对路径；错误响应只保留可行动原因。
+_OS_ERROR_REASONS = {
+    code: reason for code, reason in (
+        (getattr(errno, "ENOSPC", None), "磁盘空间不足"),
+        (getattr(errno, "EDQUOT", None), "磁盘配额不足"),
+        (getattr(errno, "EACCES", None), "本地文件权限不足"),
+        (getattr(errno, "EPERM", None), "本地文件操作被系统拒绝"),
+        (getattr(errno, "EROFS", None), "文件系统为只读"),
+        (getattr(errno, "EMFILE", None), "进程打开的文件过多"),
+        (getattr(errno, "ENFILE", None), "系统打开的文件过多"),
+    ) if code is not None
+}
+
+
+def describe_failure(exc: Exception) -> str:
+    """错误响应与 stderr 诊断共用的文本：带文件名的 OSError 不回显本机路径。"""
+    if isinstance(exc, OSError) and exc.filename is not None:
+        name = errno.errorcode.get(exc.errno) if exc.errno is not None else None
+        reason = _OS_ERROR_REASONS.get(exc.errno, "本地文件操作失败")
+        suffix = f"（{name}）" if name else ""
+        return f"{reason}{suffix}，操作未完成。"
+    return str(exc)
 
 
 def _reject_json_constant(_: str) -> None:
@@ -313,7 +337,7 @@ class JsonRpcServer:
                 raise RpcError(-32601, "未知方法")
             result = handler(message.get("params"))
         except Exception as exc:
-            safe_message = redact_secrets(str(exc))
+            safe_message = redact_secrets(describe_failure(exc))
             try:
                 # 诊断行与响应帧共用同一文本：异常消息可能带孤立代理项，终端编码
                 # 失败也只能丢掉这一行诊断，不能让异常从 _dispatch 逃逸退出内核。

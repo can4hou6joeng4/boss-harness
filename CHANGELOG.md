@@ -1,3 +1,10 @@
+## 0.2.0-rc.253 - 2026-11-19
+
+rc.253 源码候选让 JSON-RPC 错误响应不再回显本地文件路径。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 未捕获异常的错误消息此前直接使用 `str(exc)` 脱敏后返回；带文件名的 `OSError` 会拼出本机绝对路径，磁盘写满、权限不足或只读文件系统导致会话 / 附件写入失败时，桌面提示可能显示该路径。现在这类错误改写为固定中文原因（`ENOSPC` 磁盘空间不足、`EDQUOT` 配额不足、`EACCES` 权限不足、`EPERM` 被拒绝、`EROFS` 只读、`EMFILE` / `ENFILE` 文件过多），附 errno 名称并去掉文件名；其他 errno 使用通用说明。无文件名的 `OSError`、`ValueError` 与 `RpcError` 的消息、错误码与 data 保持不变。[Issue #2630](https://github.com/can4hou6joeng4/boss-harness/issues/2630)
+- 探针覆盖七种登记 errno、未知 errno、无文件名 `OSError`、`ValueError` 与 `RpcError`；再以子进程启动真实 `JsonRpcServer`，让处理器抛出带 `/Users/...` 路径的 `ENOSPC`，响应与 stderr 都不含该路径，`RpcError` 的错误码、消息与 data 不变。全部检查通过。版本推进到 npm `0.2.0-rc.253` / Python `0.2.0rc253`。不执行发布动作。
+
 ## 0.2.0-rc.252 - 2026-11-19
 
 rc.252 源码候选增加供编码 Agent 与用户协作安装的本地指南。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
