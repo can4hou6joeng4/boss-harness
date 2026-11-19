@@ -1,3 +1,10 @@
+## 0.2.0-rc.292 - 2026-11-20
+
+rc.292 源码候选补齐状态页的能力清单。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `docs/STATUS.md` 的「已具备」补充工作区常驻说明与业务 CLI 浏览器来源覆盖：前者有界、只读、每回合重新读取且不授予工具权限；后者只在启动阶段校验取值，不读取浏览器或 Cookie。措辞与使用指南、技术参考一致。[Issue #2708](https://github.com/can4hou6joeng4/boss-harness/issues/2708)
+- 不改变版本声明、待完成范围或任何代码行为。版本推进到 npm `0.2.0-rc.292` / Python `0.2.0rc292`。不执行发布动作。
+
 ## 0.2.0-rc.291 - 2026-11-20
 
 rc.291 源码候选为保留目标提示补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
