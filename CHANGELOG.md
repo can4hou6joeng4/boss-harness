@@ -1,3 +1,10 @@
+## 0.2.0-rc.256 - 2026-11-19
+
+rc.256 源码候选补齐安装指南的检查码表并防止其与内核漂移。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SETUP.md` 的检查结果表新增 `BOSS_CLI_DATA_DIR_IN_REPO` 与 `BOSS_CLI_DATA_DIR_OVERLAP` 两个业务 CLI 数据目录警告及处理建议。`check_startup_diagnostics.py` 新增对该表的核对：表内检查码必须由内核实际产出，`PREFIX_*` 通配至少匹配一个内核检查码，表不得缺失、为空或重复。此前该表只靠人工维护，内核改名或删除检查码后会静默残留。[Issue #2636](https://github.com/can4hou6joeng4/boss-harness/issues/2636)
+- 四类注入探针确认守卫有效：写入不存在的检查码、无匹配的通配、改掉表头、重复检查码都会以退出码 2 失败并点名原因；未修改时守卫通过，读取路径由 7 条增至 8 条。不改变自检行为、协议与桌面界面。全部检查通过。版本推进到 npm `0.2.0-rc.256` / Python `0.2.0rc256`。不执行发布动作。
+
 ## 0.2.0-rc.255 - 2026-11-19
 
 rc.255 源码候选让本地配置自检提示业务 CLI 数据目录位于仓库内。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
