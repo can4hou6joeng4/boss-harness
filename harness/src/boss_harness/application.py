@@ -395,7 +395,8 @@ class ApplicationService:
                 lifecycle_hooks=self.lifecycle_hooks,
                 bridge_factory=self._new_bridge if self._business_services else None,
                 browser_source_policy=getattr(self.tools, "browser_source_policy", None),
-                bridge_lifecycle=self.bridge_lifecycle)
+                bridge_lifecycle=self.bridge_lifecycle,
+                model_calls_disabled=self.model_calls_disabled)
             self.connections.on_idle = self._close_application_resources_if_idle
             self.runtimes.on_idle = self._close_application_resources_if_idle
             self.handlers = self.registry.handlers

@@ -98,7 +98,8 @@ def check_model_disable() -> tuple[int, int]:
     if app_sites.get("provider_factory") != ["_provider_for"]:
         raise ValueError("application.py 中 provider_factory 的调用点必须只有 _provider_for")
     connections = _read(CONNECTIONS)
-    conn_sites = _call_sites(_parse(connections, CONNECTIONS))
+    conn_tree = _parse(connections, CONNECTIONS)
+    conn_sites = _call_sites(conn_tree)
     if conn_sites.get("provider_factory") != ["_run"]:
         raise ValueError("connections.py 中 provider_factory 的调用点必须只有 _run")
     sites = len(app_sites.get("provider_factory", [])) + len(conn_sites.get("provider_factory", []))
@@ -216,11 +217,24 @@ def check_model_disable() -> tuple[int, int]:
         "其他已配置线路与摘要线路同样不可用",
     ), _function(_parse(startup, STARTUP), startup, "_model_check"), "_model_check")
 
+    guards += _ordered(init, "self.model_calls_disabled = model_calls_disabled",
+                       "self.connections = ConnectionChecks(", "ApplicationService.__init__")
+    guards += _expect(("model_calls_disabled=self.model_calls_disabled",),
+                      init, "ApplicationService.__init__")
+    guards += _expect(('_MODEL_CALLS_DISABLED_CODE = "MODEL_DISABLED"',),
+                      connections, "connections.py 常量")
     guards += _expect((
+        "model_calls_disabled: bool = False) -> None:",
+        "if type(model_calls_disabled) is not bool:",
+        'if model_calls_disabled and config.provider != "none":',
+        'raise ValueError("model_calls_disabled 只能用于 none 默认线路")',
         'real = config.provider in {"openai", "anthropic"}',
         '"state": "unchecked" if real else "disabled",',
-        'self.report[key]["state"] == "disabled"',
-    ), connections, "connections.py")
+        'if model_calls_disabled:\n            self.report["model"]["code"] = _MODEL_CALLS_DISABLED_CODE',
+    ), _method(conn_tree, connections, "ConnectionChecks", "__init__"), "ConnectionChecks.__init__")
+    guards += _ordered(_method(conn_tree, connections, "ConnectionChecks", "start"),
+                       'self.report[key]["state"] == "disabled"', "threading.Thread(",
+                       "ConnectionChecks.start")
 
     provider_source = _read(PROVIDER)
     build = _function(_parse(provider_source, PROVIDER), provider_source, "build_provider")
@@ -239,7 +253,7 @@ def main() -> int:
     except (ValueError, SyntaxError) as error:
         print(f"显式禁用模型边界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"显式禁用模型边界一致：{sites} 个工厂调用点、{guards} 项目录、摘要、续接与入口防护")
+    print(f"显式禁用模型边界一致：{sites} 个工厂调用点、{guards} 项目录、摘要、续接、连接与入口防护")
     return 0
 
 
