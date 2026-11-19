@@ -1,3 +1,10 @@
+## 0.2.0-rc.296 - 2026-11-20
+
+rc.296 源码候选补齐使用指南的工作区说明入口。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 使用指南新增「工作区常驻说明」小节：路径与旧目录兼容、8 KiB / UTF-8 / 拒绝符号链接、每回合组装系统提示时重读、内容不授予或扩大工具权限，以及上下文面板与「技能与工具」页的查看与保存入口；交互细节链接桌面指南。修复 Issue [#2717](https://github.com/can4hou6joeng4/boss-harness/issues/2717)。
+- 不重复桌面指南的交互细节，不改变代码行为。版本推进到 npm `0.2.0-rc.296` / Python `0.2.0rc296`。不执行发布动作。
+
 ## 0.2.0-rc.295 - 2026-11-20
 
 rc.295 源码候选补齐首页能力地图。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
