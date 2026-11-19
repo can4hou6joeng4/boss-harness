@@ -289,6 +289,18 @@ def check_model_disable() -> tuple[int, int]:
         'value = (env.get(name) or "").strip()',
         "if value:\n            return value",
     ), _function(provider_tree, provider_source, "_configured_model"), "_configured_model")
+    # 自动线路判断与启动自检共用同一条凭据规则：只有空白的值视为未设置。
+    guards += _expect((
+        "def _has_configured_value(env: Mapping[str, str], *names: str) -> bool:",
+        'return any((env.get(name) or "").strip() for name in names)',
+    ), _function(provider_tree, provider_source, "_has_configured_value"), "_has_configured_value")
+    guards += _expect((
+        "has_anthropic_credential = _has_configured_value(\n"
+        '            env, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")',
+    ), _function(provider_tree, provider_source, "resolve_config"), "resolve_config")
+    if 'bool(env.get("ANTHROPIC_API_KEY")' in provider_source:
+        raise ValueError("provider.py 不得绕过 _has_configured_value 直接判定 Anthropic 凭据")
+    guards += 1
     guards += _expect((
         'override = (model_override or "").strip()',
         'if override:\n        env["BOSS_HARNESS_MODEL"] = override',

@@ -1,3 +1,10 @@
+## 0.2.0-rc.274 - 2026-11-20
+
+rc.274 源码候选让自动线路判断忽略只有空白的 Anthropic 凭据。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 未显式指定 provider 时，`ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` 去除首尾空白后为空视为未配置，自动回退 `none`。此前只有空白的占位值被当作真实凭据，实际启动会构造 Anthropic 线路，而同一份配置的 `--check` 报 `MODEL_CONFIG_INCOMPLETE` 错误并建议配置凭据，两处结论互相矛盾；首个模型请求才会以认证失败告终。显式 `BOSS_HARNESS_PROVIDER=anthropic` / `none` 与带空白的真实凭据行为不变。[Issue #2672](https://github.com/can4hou6joeng4/boss-harness/issues/2672)
+- `check_model_disable.py` 新增 4 项凭据规则守卫，恢复未去除空白的旧判定即失败。十例解析探针对比 rc.273 源码：三种纯空白凭据从 `anthropic` 变为 `none`，其余七例一致；同一环境下 `--check` 从错误 `MODEL_CONFIG_INCOMPLETE` 变为警告 `MODEL_NOT_CONFIGURED`，与实际确定性启动一致。全部检查通过。版本推进到 npm `0.2.0-rc.274` / Python `0.2.0rc274`。不执行发布动作。
+
 ## 0.2.0-rc.273 - 2026-11-19
 
 rc.273 源码候选让桌面的 Python 解释器选择忽略空白取值。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

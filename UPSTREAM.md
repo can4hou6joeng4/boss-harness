@@ -1,5 +1,9 @@
 # 上游吸收记录
 
+## 空白 Anthropic 凭据不参与自动线路判断（Issue #2672）
+
+对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Provider Factories、Querying Models）和 `packages/coding-agent/src/core/model-registry.ts`。Pi 由运行时解析认证，本仓库的自动线路判断在 `resolve_config` 内完成。本次只统一凭据的空值语义：`ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` 去除首尾空白后为空时按未配置处理，避免自检报告「配置不完整」而实际启动仍构造 Anthropic 线路。显式 provider、凭据来源顺序与请求形状不变，独立实现。
+
 ## 空白模型值按配置优先级回退（Issue #2658）
 
 对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Provider Factories、Querying Models）和 `packages/coding-agent/src/core/model-registry.ts`。Pi 将模型查找交给运行时，供应商工厂独立加载。本仓库沿用模型选择与供应商请求分开的边界，让正常启动和自检的回退提示都交由 `resolve_config` 按优先级选择第一个非空模型值。`--model`、环境变量和 Codex 配置的优先级由本仓库定义，独立实现。
