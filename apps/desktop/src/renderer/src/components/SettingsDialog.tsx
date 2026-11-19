@@ -29,7 +29,7 @@ import {
   type Motion,
   type PreferencesFileValues,
 } from "../data/preferencesFile";
-import { compactionDraft, compactionFields, compactionSourceLabel, sameCompactionDraft, type CompactionSettingDraft } from "../data/compactionSettings";
+import { compactionDraft, compactionFields, compactionSourceLabel, keepTargetReachesLimit, sameCompactionDraft, type CompactionSettingDraft } from "../data/compactionSettings";
 import { readSessionIndexHealth, sessionIndexHealthLabel, type SessionIndexHealth } from "../data/sessionIndexHealth";
 import { currentCommandPlatform } from "../data/shortcuts";
 import { shortcutKeyLabel } from "../data/shortcutLabels";
@@ -161,6 +161,8 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
   const [compactionError, setCompactionError] = useState("");
   const [compactionNotice, setCompactionNotice] = useState("");
   const [compactionSaved, setCompactionSaved] = useState(false);
+  /** 当前模型的上下文窗口；缺失或无效时不做保留目标提示。 */
+  const [compactionWindow, setCompactionWindow] = useState<number | null>(null);
   // 最后一次成功读取 / 保存的内核值；重连和读取失败不会消除未保存状态。
   const [compactionBaseline, setCompactionBaseline] = useState<CompactionSettingDraft | null>(null);
   const compactionDirty = !sameCompactionDraft(compaction, compactionBaseline);
@@ -250,6 +252,8 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
       if (keepDraft) setCompactionNotice("已重新读取内核默认值；你的未保存修改已保留，请核对后再保存。");
       else setCompaction(draft);
       setCompactionSource(config.autoCompactionSource);
+      const window = config.modelCapabilities?.contextWindow;
+      setCompactionWindow(typeof window === "number" && Number.isSafeInteger(window) && window > 0 ? window : null);
       setCompactionCurrent(true);
     }).catch(cause => {
       if (compactionGeneration.current !== generation) return;
@@ -589,6 +593,8 @@ export function SettingsDialog({ isOpen, onClose, theme, onThemeChange, onOpenSh
                         : <span className="settings-static-value">{compaction.keepRecentTokens} token</span>}
                     </SettingRow>
                     <SettingRow title="策略来源" description="环境变量显式设置时优先生效，界面不会覆盖它"><span className="settings-static-value">{compactionSourceLabel(compactionSource)}</span></SettingRow>
+                    {compactionWindow !== null && keepTargetReachesLimit(Number(compaction.keepRecentTokens), compactionWindow)
+                      && <p className="settings-policy-status" role="status">近期保留目标不低于当前模型的上下文窗口（{compactionWindow} token）：自动压缩通常没有更早的可压缩内容，压缩后也可能仍超出窗口。请调低保留目标。</p>}
                     {showCompactionInputs && <div className="settings-policy-actions"><button type="button" className="settings-button" disabled={compactionFieldsDisabled || !compactionCurrent}
                       onClick={() => { void saveCompaction(); }}>{compactionSaving ? "保存中…" : "保存默认策略"}</button></div>}
                     {harnessUp && !compactionEditable && <p className="settings-policy-status">{compactionSource === "environment"

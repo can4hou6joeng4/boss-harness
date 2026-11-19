@@ -27,13 +27,13 @@ export function compactionFields(draft: CompactionSettingDraft): AutoCompactionS
 }
 
 /**
- * 保留目标不低于输入预算时，压缩后的上下文仍可能超出预算，通常没有更早的可压缩内容。
- * 只用于界面提示，不改变内核的接受范围。
+ * 保留目标不低于给定上限（输入预算或上下文窗口）时，压缩后的上下文仍可能超出上限，
+ * 通常没有更早的可压缩内容。只用于界面提示，不改变内核的接受范围。
  */
-export function keepTargetExceedsBudget(keepRecentTokens: number, inputBudget: number): boolean {
+export function keepTargetReachesLimit(keepRecentTokens: number, limit: number): boolean {
   return Number.isSafeInteger(keepRecentTokens) && keepRecentTokens >= 1
-    && Number.isSafeInteger(inputBudget) && inputBudget > 0
-    && keepRecentTokens >= inputBudget;
+    && Number.isSafeInteger(limit) && limit > 0
+    && keepRecentTokens >= limit;
 }
 
 /**
