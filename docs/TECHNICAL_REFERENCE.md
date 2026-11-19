@@ -91,7 +91,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 - 宿主与桌面源码中的 `protocolVersion ?? "…"` 默认值必须引用 `PROTOCOL_VERSION`，不得另立协议版本字面量；
 - 根 `package.json` 声明的工作区源码导入 `@boss-harness/*` 时，对应包必须出现在该工作区的 `dependencies` 或 `devDependencies` 中；
 - 内核 `rpc.py` 的 `MAX_FRAME_BYTES` 是正整数常量表达式，app-client 的 `maxFrameBytes` 默认值与它相等且全部默认字面量唯一，`maxQueuedBytes` 默认值不小于帧上限；
-- 内核 `rpc.py` 的错误分发必须先用 `describe_failure` 处理未捕获异常再脱敏：保留 `OSError` 与文件名判定、`errno.errorcode` 与通用说明、`操作未完成` 文案，登记 `ENOSPC`、`EDQUOT`、`EACCES`、`EPERM`、`EROFS`、`EMFILE`、`ENFILE` 七种 errno，且不得再直接使用 `redact_secrets(str(exc))`。
+- 内核 `rpc.py` 的错误分发必须先用 `describe_failure` 处理未捕获异常再脱敏：保留 `OSError` 与文件名判定、`errno.errorcode` 与通用说明、`操作未完成` 文案，登记 `ENOSPC`、`EDQUOT`、`EACCES`、`EPERM`、`EROFS`、`EMFILE`、`ENFILE`、`ENOTDIR`、`ENOENT` 九种 errno，且不得再直接使用 `redact_secrets(str(exc))`；入口 `__main__.py` 的启动失败与索引修复失败输出也必须经过 `describe_failure`。
 
 检查是静态扫描：通过变量拼接的方法名、运行时注册或动态生成的字段不在覆盖范围；新增此类路径时仍需人工核对协议常量。
 
