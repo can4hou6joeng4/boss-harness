@@ -64,7 +64,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
-| 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy) |
+| 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy) |
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_snippet.py`](#check_search_snippetpy) |
@@ -183,6 +183,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_context_keep.py`
 
 `scripts/check_context_keep.py` 固定保留目标提示的接线：判定函数 `keepTargetReachesLimit` 只在 `compactionSettings.ts` 定义一次，保留目标与上限都必须是正整数且保留目标不低于上限；会话上下文面板的两处提示都必须先确认预算已读取，再以 `budget.inputBudget` 调用；设置页从 `config/read` 的 `modelCapabilities.contextWindow` 取得正整数窗口后以 `compactionWindow` 调用。两处提示在使用指南与桌面指南中的说明片段也纳入核对。脚本不执行渲染层代码，提示的实际布局与触发时刻仍需运行桌面核对。
+
+### `check_summary.py`
+
+`scripts/check_summary.py` 核对摘要规划的预算、逐字来源与无工具边界：`summary.py` 的输出上限 8 192、请求上限 32、摘要器提示对执行状态（只有「已执行成功」可说成已发生）与授权（既有审批只属于对应工具调用、摘要不扩大未来操作授权）的措辞、分支摘要的来源说明；来源先经 `wire_text` 降级并计算 SHA-256，单次输出预留模型上限与 4096 余量后的四分之一，滚动摘要预算按 32 000 字符与可用输入折算；预算不足或滚动摘要超限必须分别以 `ContextBudgetExceeded` 与 `ValueError` 拒绝，不得截断已有摘要；摘要请求必须 `tools=()`、`thinking=None`、`ensure_ascii=False`，来源按 `start:end` 逐字发送；片段切分按上下文窗口两倍的二分查找，起点无法容纳时以 `ContextBudgetExceeded` 失败。脚本反向断言来源不得从头截断、不得使用 `ensure_ascii=True`，并核对技术参考的摘要说明。检查是常量与顺序扫描，实际摘要质量仍需按用户指南核对。
 
 ### `check_private_files.py`
 
