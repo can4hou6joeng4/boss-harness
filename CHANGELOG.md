@@ -1,3 +1,10 @@
+## 0.2.0-rc.302 - 2026-11-20
+
+rc.302 源码候选为队列读取投影补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_queue_view.py`：固定待处理项 200、已终结窗口 50、正文预览 600 字符、可选字符串与队列 id 200、技能 10 项与 2^53−1 安全整数上限；核对 `_QUEUE_VIEW_FIELDS` 逐字段白名单且禁止整份透传、`queue_record` 的 `kind` / `status` / `id` 校验与 `wire_value` 降级、`queue_view_record` 的可选字段收敛与暂停来源枚举、`project_queue` 的暂停优先排序、`inputTruncated` 标注与分类计数来源。修复 Issue [#2729](https://github.com/can4hou6joeng4/boss-harness/issues/2729)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 30 个。版本推进到 npm `0.2.0-rc.302` / Python `0.2.0rc302`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.301 - 2026-11-20
 
 rc.301 源码候选为模型请求策略补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
