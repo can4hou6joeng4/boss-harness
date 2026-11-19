@@ -1,3 +1,10 @@
+## 0.2.0-rc.324 - 2026-11-20
+
+rc.324 源码候选为 Codex 本地配置读数补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_codex_config.py`：固定显式入参 / `BOSS_HARNESS_CODEX_CONFIG` / `CODEX_HOME` / 默认路径的优先级、非普通文件与不可读及 TOML 语法错误的固定码、Python 3.10 缺 `tomllib` 的 `MODEL_CODEX_TOML_UNAVAILABLE`、profile 的模型 / provider / 端点要求、`wire_api` 去空白转小写与仅接受 `responses`、`Secret` 包装与 `env_key` 仅记录名称；反向断言禁止文本模式读取、写入与配置原文回显。修复 Issue [#2773](https://github.com/can4hou6joeng4/boss-harness/issues/2773)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 52 个。版本推进到 npm `0.2.0-rc.324` / Python `0.2.0rc324`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.323 - 2026-11-20
 
 rc.323 源码候选为模型容量配置补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
