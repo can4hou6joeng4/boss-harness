@@ -817,7 +817,7 @@ SHARED_INDEX = "packages/shared/src/index.ts"
 
 
 def _check_python_interpreter() -> int:
-    """解释器选择与内核同口径：空白变量按未设置，只认普通文件并回退 python3。"""
+    """空白变量按未设置，自动选择的虚拟环境解释器须为可执行的普通文件。"""
     shared = (ROOT / SHARED_INDEX).read_text(encoding="utf-8")
     fragments = (
         "export function choosePythonInterpreter(",
@@ -828,24 +828,24 @@ def _check_python_interpreter() -> int:
     if missing:
         raise ValueError("packages/shared 缺少空白解释器回退：" + "、".join(missing))
     text = _main_text("harness.ts")
-    usage = "choosePythonInterpreter(process.env.BOSS_HARNESS_PYTHON, venvPython, isRegularFile(venvPython))"
+    usage = "choosePythonInterpreter(process.env.BOSS_HARNESS_PYTHON, venvPython, isExecutableFile(venvPython))"
     if usage not in text:
         raise ValueError("apps/desktop/src/main/harness.ts 必须经 choosePythonInterpreter 选择解释器")
     if "process.env.BOSS_HARNESS_PYTHON ??" in text:
         raise ValueError("apps/desktop/src/main/harness.ts 不得用 ?? 直接读取 BOSS_HARNESS_PYTHON")
     if "existsSync(venvPython)" in text:
-        raise ValueError("apps/desktop/src/main/harness.ts 必须用 isRegularFile 判断解释器可用性")
+        raise ValueError("apps/desktop/src/main/harness.ts 不得只按路径是否存在判断解释器可用性")
     python_file = (ROOT / "apps/desktop/src/main/pythonFile.ts").read_text(encoding="utf-8")
     file_fragments = (
-        "export function isRegularFile(path: string): boolean {",
-        "return statSync(path).isFile();",
+        "export function isExecutableFile(path: string): boolean {",
+        "if (!statSync(path).isFile()) return false;\n    accessSync(path, constants.X_OK);\n    return true;",
         "} catch {\n    return false;\n  }",
     )
     missing = [fragment for fragment in file_fragments if fragment not in python_file]
     if missing:
-        raise ValueError("apps/desktop/src/main/pythonFile.ts 缺少普通文件判定：" + "、".join(missing))
-    if 'import { isRegularFile } from "./pythonFile";' not in text:
-        raise ValueError("apps/desktop/src/main/harness.ts 必须从 pythonFile 引入 isRegularFile")
+        raise ValueError("apps/desktop/src/main/pythonFile.ts 缺少普通文件或执行权限判定：" + "、".join(missing))
+    if 'import { isExecutableFile } from "./pythonFile";' not in text:
+        raise ValueError("apps/desktop/src/main/harness.ts 必须从 pythonFile 引入 isExecutableFile")
     return len(fragments) + len(file_fragments) + 3
 
 

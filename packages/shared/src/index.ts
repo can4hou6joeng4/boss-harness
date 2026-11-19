@@ -9,8 +9,8 @@ const pad2 = (part: number) => String(part).padStart(2, "0");
  *
  * 显式变量去除首尾空白后非空时使用它；空值或只有空白（脚本与 .env 占位行常见）
  * 按未设置处理，回退仓库 `.venv/bin/python`，不可用则回退 PATH 上的 `python3`。
- * 「可用」由调用方按普通文件判断：目录与断链不是解释器。与内核侧「空白取值按未设置」
- * 的口径一致；内核与自检共用这一个结论。
+ * 「可用」由调用方按普通文件和执行权限判断。显式选择仍优先，不做自动回退；
+ * 内核与自检共用这一个选择。
  */
 export function choosePythonInterpreter(
   configured: string | undefined, venvPython: string, venvUsable: boolean,
