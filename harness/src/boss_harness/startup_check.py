@@ -233,6 +233,14 @@ def startup_report(
 
 
 _STATUS_TEXT = {"ok": "通过", "warning": "警告", "error": "错误"}
+# 与桌面 CHECK_TITLES 和使用指南检查项表保持一致；文本输出只借用这些固定标签。
+_CHECK_TITLES = {
+    "model": "模型配置",
+    "bossCli": "业务 CLI",
+    "browserSource": "浏览器来源",
+    "stateDirectory": "状态目录",
+    "runtimeOptions": "运行参数",
+}
 
 
 def render_text(report: dict[str, Any]) -> str:
@@ -251,8 +259,9 @@ def render_text(report: dict[str, Any]) -> str:
         f"内核 {report['version']} · 协议 {report['protocolVersion']} · Python {report['pythonVersion']}",
     ]
     for check in checks:
+        title = _CHECK_TITLES.get(check["name"], check["name"])
         lines.append(f"[{_STATUS_TEXT.get(check['status'], check['status'])}] "
-                     f"{check['code']}（{check['name']}）")
+                     f"{title}（{check['code']}）")
         lines.append(f"  说明：{check['message']}")
         lines.append(f"  建议：{check['hint']}")
     return "\n".join(lines)

@@ -1,3 +1,10 @@
+## 0.2.0-rc.234 - 2026-11-19
+
+rc.234 源码候选让文本自检显示中文检查项名称。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `--check --format text` 每项标题改用内核 `_CHECK_TITLES` 的固定中文名称（如「模型配置（MODEL_DISABLED）」）；未登记名称仍回退内部名称。`--check` 帮助改为「输出脱敏报告（默认 JSON）」。`check_startup_diagnostics.py` 要求内核标题表与桌面 `CHECK_TITLES` 键值一致，标题文本也通过长度与控制字符校验。[Issue #2592](https://github.com/can4hou6joeng4/boss-harness/issues/2592)
+- 以 rc.233 合并提交导出的源码为基线：默认 JSON 逐字节一致；文本输出仅五项标题行变化，其余逐字节一致；未登记名称回退探针通过。在临时副本分别改动内核与桌面标题，门禁均以退出码 2 失败。技术参考同步说明。全部检查通过。版本推进到 npm `0.2.0-rc.234` / Python `0.2.0rc234`。不执行发布动作。
+
 ## 0.2.0-rc.233 - 2026-11-19
 
 rc.233 源码候选同步自检文本输出的技术参考并锁定渲染边界。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
