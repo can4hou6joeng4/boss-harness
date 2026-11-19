@@ -32,7 +32,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.270` / Python `0.2.0rc270` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.271` / Python `0.2.0rc271` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -173,7 +173,7 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 
 | 变量 | 作用 | 默认值与范围 | 取值无效时 |
 | --- | --- | --- | --- |
-| `BOSS_HARNESS_MAX_TOKENS` | 单次模型请求的输出上限，同时作为上下文预算中的输出预留。 | 64000；正整数。 | 启动失败，自检报 `MODEL_MAX_TOKENS_INVALID`。 |
+| `BOSS_HARNESS_MAX_TOKENS` | 单次模型请求的输出上限，同时作为上下文预算中的输出预留。 | 64000；正整数；空值或只有空白时使用默认值。 | 启动失败，自检报 `MODEL_MAX_TOKENS_INVALID`。 |
 | `BOSS_HARNESS_MAX_MODEL_REQUESTS` | 单个回合最多发起的模型请求数；回合自带的上限只能在此基础上收紧。 | 6；1–64 的十进制整数。 | 启动失败，自检报 `MAX_MODEL_REQUESTS_INVALID`。 |
 | `BOSS_HARNESS_RETRY_ATTEMPTS` | 模型请求在首个输出前遇到可重试失败时的最多尝试次数，含首次；设为 `1` 即不自动重试。 | 3；1–10。 | 不是整数时使用默认值；超出范围时收敛到 1 或 10；自检报 `RETRY_CONFIG_DEFAULTED` 警告。 |
 | `BOSS_HARNESS_RETRY_BASE_MS` | 自动重试的退避基数（毫秒），每次重试翻倍。 | 500；非负整数。 | 不是整数时使用默认值；负数按 0 处理；自检报 `RETRY_CONFIG_DEFAULTED` 警告。 |
