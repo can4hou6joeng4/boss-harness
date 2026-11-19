@@ -1,3 +1,10 @@
+## 0.2.0-rc.235 - 2026-11-19
+
+rc.235 源码候选让启动自检提示业务 CLI 数据目录与内核状态目录重叠。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 业务 CLI 可执行文件存在时，`--check` 将 `BOSS_CLI_DATA_DIR` 与状态目录解析后比较；相同或互相包含时 `bossCli` 检查记为警告 `BOSS_CLI_DATA_DIR_OVERLAP`，建议分别配置。只读路径，不创建目录、不执行 CLI、不输出完整路径；CLI 不可用时仍优先报告 `BOSS_CLI_UNAVAILABLE`。使用指南与技术参考同步。[Issue #2594](https://github.com/can4hou6joeng4/boss-harness/issues/2594)
+- 以 rc.234 合并提交导出的源码为基线，七个场景独立进程对比：未设置、独立目录、CLI 不可用三例逐字节一致；相同、子目录、父目录与含 `..` 路径四例由 `BOSS_CLI_FOUND` 变为重叠警告，检查状态、说明与建议一致。文本与 JSON 输出均带新检查码；全部检查通过。版本推进到 npm `0.2.0-rc.235` / Python `0.2.0rc235`。不执行发布动作。
+
 ## 0.2.0-rc.234 - 2026-11-19
 
 rc.234 源码候选让文本自检显示中文检查项名称。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

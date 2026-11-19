@@ -64,6 +64,13 @@ def _module_available(name: str) -> bool:
         return False
 
 
+def _directories_overlap(left: Path, right: Path) -> bool:
+    """按解析后的路径判断两目录是否相同或互相包含；只读路径，不访问文件内容。"""
+    left = left.resolve()
+    right = right.resolve()
+    return left == right or left in right.parents or right in left.parents
+
+
 def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str,
                  requested_model: str | None = None) -> dict[str, str]:
     try:
@@ -122,7 +129,7 @@ def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str
     )
 
 
-def _cli_check() -> dict[str, str]:
+def _cli_check(state_dir: Path) -> dict[str, str]:
     try:
         available = binary_available(resolve_binary().path)
     except (OSError, ValueError):
@@ -132,6 +139,19 @@ def _cli_check() -> dict[str, str]:
             "bossCli", "warning", "BOSS_CLI_UNAVAILABLE", "未发现可用的业务 CLI 可执行文件。",
             "安装 boss-agent-cli，核对 BOSS_CLI_BIN、并排虚拟环境或 PATH；同时检查文件执行权限。",
         )
+    # 上游登录状态与本项目会话分开配置；重叠时只警告，启动与工具调用本身不受影响。
+    data_dir = (os.environ.get("BOSS_CLI_DATA_DIR") or "").strip()
+    if data_dir:
+        try:
+            overlap = _directories_overlap(Path(data_dir), state_dir)
+        except (OSError, RuntimeError):
+            overlap = False
+        if overlap:
+            return _check(
+                "bossCli", "warning", "BOSS_CLI_DATA_DIR_OVERLAP", "业务 CLI 数据目录与内核状态目录重叠。",
+                "将 BOSS_CLI_DATA_DIR 与 --state-dir / BOSS_HARNESS_DIR 分开配置；"
+                "上游登录与平台状态不要与内核会话共用目录。",
+            )
     return _check(
         "bossCli", "ok", "BOSS_CLI_FOUND", "已发现业务 CLI 可执行文件。",
         "只检查文件与执行权限，未运行 CLI、查询版本或核对平台登录。",
@@ -220,7 +240,7 @@ def startup_report(
     requested_model: str | None = None,
 ) -> dict[str, Any]:
     """汇总静态检查；检查结果与实际模型、CLI 和平台可用性分别核对。"""
-    checks = [_model_check(load_config, requested_provider, requested_model), _cli_check(), _browser_check(),
+    checks = [_model_check(load_config, requested_provider, requested_model), _cli_check(state_dir), _browser_check(),
               _state_check(state_dir), _runtime_check()]
     return {
         "schemaVersion": 1,
