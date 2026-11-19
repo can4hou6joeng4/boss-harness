@@ -50,6 +50,14 @@ PROTECTED_MODULES = (
     "maintenance.py",
     "resources.py",
 )
+# 索引修复只针对已有状态目录：存在性核对必须先于会创建目录的占用锁与备份目录。
+REPAIR_ORDERED = (
+    "root = resolve_private_path(root)",
+    "root.lstat()",
+    'raise ValueError("状态目录不存在，未执行索引修复；核对 --state-dir 或 BOSS_HARNESS_DIR") from None',
+    "owner = StateDirectoryOwner(root)",
+    "ensure_private_directory(backup)",
+)
 DIRECT_WRITE = re.compile(r'(?<!fd)\b(?:open\([^)]*["\']([wa])|(write_text|write_bytes)\()')
 
 
@@ -72,7 +80,16 @@ def check_private_files() -> tuple[int, int, int]:
         match = DIRECT_WRITE.search(_read(f"{HARNESS}/{name}"))
         if match is not None:
             raise ValueError(f"{name} 不得直接写状态文件：{match.group(0)}")
-    return len(PRIVATE_FRAGMENTS), len(CALL_SITES), len(PROTECTED_MODULES)
+    maintenance = _read(f"{HARNESS}/maintenance.py")
+    position = -1
+    for fragment in REPAIR_ORDERED:
+        if maintenance.count(fragment) != 1:
+            raise ValueError(f"maintenance.py 的修复前置核对片段缺失或重复：{fragment}")
+        found = maintenance.index(fragment)
+        if found < position:
+            raise ValueError(f"maintenance.py 必须先核对状态目录存在再占用或创建：{fragment}")
+        position = found
+    return len(PRIVATE_FRAGMENTS), len(CALL_SITES) + len(REPAIR_ORDERED), len(PROTECTED_MODULES)
 
 
 def main() -> int:

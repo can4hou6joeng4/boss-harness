@@ -48,6 +48,12 @@ def _manifest_entry(path: Path) -> dict:
 
 def repair_index(root: Path) -> dict:
     root = resolve_private_path(root)
+    # 修复只针对已有状态目录：路径写错时不新建目录、不报告「已修复」。占用锁会创建目录，须先核对。
+    # 只把确实不存在当作缺失；权限不足、路径中有非目录等仍按原有的系统错误报告。
+    try:
+        root.lstat()
+    except FileNotFoundError:
+        raise ValueError("状态目录不存在，未执行索引修复；核对 --state-dir 或 BOSS_HARNESS_DIR") from None
     owner = StateDirectoryOwner(root)
     backup = root / "repairs" / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8])
     names = ("state.sqlite3", "state.sqlite3-wal", "state.sqlite3-shm")
