@@ -239,8 +239,7 @@ def check_model_disable() -> tuple[int, int]:
         'def _unconfigured_hint(requested_model: str | None) -> str:',
     ), startup, "startup_check.py 回退提示常量")
     guards += _expect((
-        'environ["BOSS_HARNESS_MODEL"] = requested_model',
-        'resolve_config(environ=environ, provider="openai")',
+        'resolve_config(provider="openai", model_override=requested_model)',
         "except Exception:",
         "return _UNCONFIGURED_HINT",
         'if not _module_available("openai"):',
@@ -272,13 +271,35 @@ def check_model_disable() -> tuple[int, int]:
                        "ConnectionChecks.start")
 
     provider_source = _read(PROVIDER)
-    build = _function(_parse(provider_source, PROVIDER), provider_source, "build_provider")
+    provider_tree = _parse(provider_source, PROVIDER)
+    build = _function(provider_tree, provider_source, "build_provider")
     guards += _expect((
         "def build_provider(config: ModelConfig) -> Provider | None:",
         'if config.provider == "none":',
         "return None",
     ), build, "build_provider")
     guards += _ordered(build, 'if config.provider == "none":', "return None", "build_provider")
+
+    # 启动和自检提示共用模型选择。参数与环境变量分别去除首尾空白，再判断是否覆盖下一项。
+    guards += _expect((
+        "return resolve_config(provider=explicit, model_override=args.model)",
+    ), _function(entry_tree, entry, "_build_config"), "_build_config")
+    guards += _expect((
+        "for name in names:",
+        'value = (env.get(name) or "").strip()',
+        "if value:\n            return value",
+    ), _function(provider_tree, provider_source, "_configured_model"), "_configured_model")
+    guards += _expect((
+        'override = (model_override or "").strip()',
+        'if override:\n        env["BOSS_HARNESS_MODEL"] = override',
+        'model=_configured_model(env, "BOSS_HARNESS_MODEL", "BOSS_HARNESS_ANTHROPIC_MODEL") or DEFAULT_MODEL,',
+    ), _function(provider_tree, provider_source, "resolve_config"), "resolve_config")
+    guards += _expect((
+        'explicit_model = _configured_model(env, "BOSS_HARNESS_MODEL", "BOSS_HARNESS_OPENAI_MODEL")',
+    ), _function(provider_tree, provider_source, "_openai_config"), "_openai_config")
+    if 'env.get("BOSS_HARNESS_MODEL")' in provider_source:
+        raise ValueError("provider.py 不得绕过 _configured_model 直接读取 BOSS_HARNESS_MODEL")
+    guards += 1
     return sites, guards
 
 

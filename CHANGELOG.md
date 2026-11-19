@@ -1,3 +1,10 @@
+## 0.2.0-rc.267 - 2026-11-19
+
+rc.267 源码候选按优先级选择首个非空模型值。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 依次检查 `--model`、`BOSS_HARNESS_MODEL` 和线路专属变量（`BOSS_HARNESS_OPENAI_MODEL` / `BOSS_HARNESS_ANTHROPIC_MODEL`），每项去除首尾空白后为空就继续检查下一项。OpenAI 线路在缺少显式配置时仍可用 Codex 配置补齐。此前空白的 `--model` 会覆盖有效的通用模型变量，纯空白的通用变量也会遮蔽线路专属模型，导致意外使用默认模型或读取不需要的 Codex 文件。正常启动和自检现在使用同一套规则。[Issue #2658](https://github.com/can4hou6joeng4/boss-harness/issues/2658)
+- `check_model_disable.py` 新增模型值优先级检查。55 个离线场景覆盖两条线路的启动与自检，以及自动回退提示。rc.266 有 20 个场景不符合预期，修复后全部通过。源码版本推进到 npm `0.2.0-rc.267` / Python `0.2.0rc267`。
+
 ## 0.2.0-rc.266 - 2026-11-19
 
 rc.266 源码候选让空的 `--state-dir` 不再把状态文件写进当前工作目录。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

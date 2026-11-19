@@ -1,5 +1,9 @@
 # 上游吸收记录
 
+## 空白模型值按配置优先级回退（Issue #2658）
+
+对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/ai/README.md`（Provider Factories、Querying Models）和 `packages/coding-agent/src/core/model-registry.ts`。Pi 将模型查找交给运行时，供应商工厂独立加载。本仓库沿用模型选择与供应商请求分开的边界，让正常启动和自检的回退提示都交由 `resolve_config` 按优先级选择第一个非空模型值。`--model`、环境变量和 Codex 配置的优先级由本仓库定义，独立实现。
+
 ## 握手报告默认线路的请求选项（Issue #2556）
 
 对照 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/src/core/model-registry.ts`。Pi 将具体模型交给运行时解析认证和兼容请求配置。本仓库的 stdio 握手报告进程默认线路，因此只在 Anthropic 默认线路上展示该 provider 的思考与回退选项；沿用握手字段类型以及既有的模型请求和续接指纹规则。

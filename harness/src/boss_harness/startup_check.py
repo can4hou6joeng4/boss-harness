@@ -45,11 +45,8 @@ _OPENAI_SDK_MISSING_HINT = (
 
 def _unconfigured_hint(requested_model: str | None) -> str:
     """解释自动回退：能按正常启动的模型覆盖解析出 OpenAI 线路时，点名该线路与启动方式。"""
-    environ = dict(os.environ)
-    if requested_model:
-        environ["BOSS_HARNESS_MODEL"] = requested_model
     try:
-        resolve_config(environ=environ, provider="openai")
+        resolve_config(provider="openai", model_override=requested_model)
     except Exception:
         # 与 `_model_check` 的配置解析一致：tomllib 的 RecursionError 等普通异常同样退回
         # 通用提示，不让自检打印回溯。中断与退出（BaseException）不在此列。

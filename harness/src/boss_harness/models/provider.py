@@ -81,22 +81,38 @@ class Provider(Protocol):
         ...
 
 
+def _configured_model(env: Mapping[str, str], *names: str) -> str:
+    """按顺序取第一个去除空白后非空的模型变量；只有空白的值视为未设置，不遮蔽后面的变量。"""
+    for name in names:
+        value = (env.get(name) or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def resolve_config(
-    environ: Mapping[str, str] | None = None, provider: str | None = None
+    environ: Mapping[str, str] | None = None,
+    provider: str | None = None,
+    *,
+    model_override: str | None = None,
 ) -> ModelConfig:
     """决定用哪个供应商。
 
     优先级：显式 `provider` 入参（来自命令行）> `BOSS_HARNESS_PROVIDER` >「有 Anthropic
     凭据就用 anthropic，否则 none」。没有可用凭据时返回 `none`，退回确定性回合。
 
-    `BOSS_HARNESS_MODEL` 覆盖进程默认线路的模型；未设置时分别读取 provider 专属模型变量或
-    Codex profile。provider 专属变量也用于同一进程列举其他已配置线路。
+    非空 `model_override`（来自命令行）优先于 `BOSS_HARNESS_MODEL`，其次是线路专属变量。
+    OpenAI 还可从 Codex profile 补齐模型。纯空白的模型取值按未设置处理。
+    provider 专属变量也用于同一进程列举其他已配置线路。
 
     `provider` 必须在这里就参与决策，不能在解析完之后再替换 provider 字段：各线路的端点与
     凭据来源不同（anthropic 取 `ANTHROPIC_*`，openai 取 Codex 配置），事后替换会拿到另一条
     线路的端点，并丢掉这条线路的凭据。
     """
     env = dict(os.environ if environ is None else environ)
+    override = (model_override or "").strip()
+    if override:
+        env["BOSS_HARNESS_MODEL"] = override
 
     requested = (
         provider if provider is not None else env.get("BOSS_HARNESS_PROVIDER") or ""
@@ -130,9 +146,7 @@ def resolve_config(
 
     return ModelConfig(
         provider=resolved,
-        model=(env.get("BOSS_HARNESS_MODEL")
-               or env.get("BOSS_HARNESS_ANTHROPIC_MODEL")
-               or DEFAULT_MODEL).strip() or DEFAULT_MODEL,
+        model=_configured_model(env, "BOSS_HARNESS_MODEL", "BOSS_HARNESS_ANTHROPIC_MODEL") or DEFAULT_MODEL,
         max_tokens=_max_tokens(env),
         request_timeout_seconds=_request_timeout_seconds(env),
         effort=(env.get("BOSS_HARNESS_EFFORT") or "").strip() or None,
@@ -149,7 +163,7 @@ def _openai_config(env: Mapping[str, str]) -> ModelConfig:
     """
     from boss_harness.models.codex_config import load_profile
 
-    explicit_model = (env.get("BOSS_HARNESS_MODEL") or env.get("BOSS_HARNESS_OPENAI_MODEL") or "").strip()
+    explicit_model = _configured_model(env, "BOSS_HARNESS_MODEL", "BOSS_HARNESS_OPENAI_MODEL")
     explicit_url = (env.get("BOSS_HARNESS_OPENAI_BASE_URL") or "").strip()
     explicit_key = (env.get("BOSS_HARNESS_OPENAI_API_KEY") or "").strip()
     # Optional file settings must not make a fully specified route depend on
