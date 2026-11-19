@@ -1,3 +1,10 @@
+## 0.2.0-rc.298 - 2026-11-20
+
+rc.298 源码候选为工具桥输出上限补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 扩展 `scripts/check_harness_tools.py`：固定 `MAX_CLI_OUTPUT_BYTES = 16 * 1024 * 1024`、`BoundedProcessOutput` 接收该上限、`CLI_OUTPUT_LIMIT` 的「不要自动重试」说明，以及 `process_io.py` 的 64 KiB 分块、累计字节与上限比较、溢出标记、`BrokenPipeError` 处理与三路收尾计数。修复 Issue [#2721](https://github.com/can4hou6joeng4/boss-harness/issues/2721)。
+- 技术参考补充核对范围；删除或放宽任一关键片段时检查会失败。版本推进到 npm `0.2.0-rc.298` / Python `0.2.0rc298`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.297 - 2026-11-20
 
 rc.297 源码候选为工作区常驻说明补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
