@@ -4,6 +4,7 @@ from boss_harness.models.provider import (
     ModelConfig,
     Provider,
     build_provider,
+    has_anthropic_credential,
     resolve_config,
 )
 from boss_harness.models.types import (
@@ -44,5 +45,6 @@ __all__ = [
     "Usage",
     "UserMessage",
     "build_provider",
+    "has_anthropic_credential",
     "resolve_config",
 ]

@@ -291,18 +291,33 @@ def check_model_disable() -> tuple[int, int]:
         'value = (env.get(name) or "").strip()',
         "if value:\n            return value",
     ), _function(provider_tree, provider_source, "_configured_model"), "_configured_model")
-    # 自动线路判断与启动自检共用同一条凭据规则：只有空白的值视为未设置。
+    # 自动线路判断、目录发现、摘要解析与启动自检共用同一条凭据规则：只有空白的值视为未设置。
     guards += _expect((
         "def _has_configured_value(env: Mapping[str, str], *names: str) -> bool:",
         'return any((env.get(name) or "").strip() for name in names)',
     ), _function(provider_tree, provider_source, "_has_configured_value"), "_has_configured_value")
     guards += _expect((
-        "has_anthropic_credential = _has_configured_value(\n"
-        '            env, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")',
+        "def has_anthropic_credential(env: Mapping[str, str]) -> bool:",
+        'return _has_configured_value(env, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")',
+    ), _function(provider_tree, provider_source, "has_anthropic_credential"), "has_anthropic_credential")
+    guards += _expect((
+        'resolved = "anthropic" if has_anthropic_credential(env) else "none"',
     ), _function(provider_tree, provider_source, "resolve_config"), "resolve_config")
     if 'bool(env.get("ANTHROPIC_API_KEY")' in provider_source:
         raise ValueError("provider.py 不得绕过 _has_configured_value 直接判定 Anthropic 凭据")
     guards += 1
+    if "ANTHROPIC_API_KEY" in application or "ANTHROPIC_AUTH_TOKEN" in application:
+        raise ValueError("application.py 不得直接读取 Anthropic 凭据变量，须共用 has_anthropic_credential")
+    guards += 1
+    guards += _expect((
+        'if provider == "anthropic" and not has_anthropic_credential(environ):',
+        "continue",
+    ), discover, "_discover_model_configs")
+    guards += _expect((
+        'if provider == "anthropic" and not has_anthropic_credential(environ):',
+        'raise RpcError(-32013, "本机没有可用的摘要模型线路配置",',
+    ), _method(app_tree, application, "ApplicationService", "_compaction_model_config"),
+        "_compaction_model_config")
     guards += _expect((
         'override = (model_override or "").strip()',
         'if override:\n        env["BOSS_HARNESS_MODEL"] = override',
