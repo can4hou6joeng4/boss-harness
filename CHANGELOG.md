@@ -1,3 +1,10 @@
+## 0.2.0-rc.310 - 2026-11-20
+
+rc.310 源码候选为内核关闭的等待预算与中止线程所有权补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_shutdown.py`：固定 `TrackedAbort` 的只发信号语义（callback 优先、`request_abort` 回退、异常收敛、`finally` 收尾）、幂等收尾顺序（占锁判重 → 置位 → `done.set()` → `on_done()`）、一次性启动与线程启动失败只退休记账（绝不回退为内联 abort）、`join_until` 跳过未启动 / 当前线程 / 重复 worker 并以剩余期限 join；同时固定 runtime / application / connections 的最多两秒共享期限与「先取消派发、再各域等待」的关闭顺序。修复 Issue [#2745](https://github.com/can4hou6joeng4/boss-harness/issues/2745)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 38 个。版本推进到 npm `0.2.0-rc.310` / Python `0.2.0rc310`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.309 - 2026-11-20
 
 rc.309 源码候选为自动压缩设置的持久化补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
