@@ -102,6 +102,8 @@ jobs:
         run: python scripts/check_summary.py
       - name: Verify compaction policy boundaries
         run: python scripts/check_compaction.py
+      - name: Verify turn request limits
+        run: python scripts/check_turn_limits.py
       - name: Verify context retention hint boundaries
         run: python scripts/check_context_keep.py
       - name: Verify catch-up steering boundary

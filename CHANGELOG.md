@@ -1,3 +1,10 @@
+## 0.2.0-rc.316 - 2026-11-20
+
+rc.316 源码候选为回合模型请求上限补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_turn_limits.py`：固定默认 6 次与最大 64 次、精确整数与 1–宿主上限范围（拒绝布尔）、环境变量去空白与空值默认、最多两位十进制文本判定、转换失败与格式错误统一固定说明；反向断言禁止错误回显原值。修复 Issue [#2757](https://github.com/can4hou6joeng4/boss-harness/issues/2757)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 44 个。版本推进到 npm `0.2.0-rc.316` / Python `0.2.0rc316`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.315 - 2026-11-20
 
 rc.315 源码候选为自动压缩策略补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
