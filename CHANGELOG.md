@@ -1,3 +1,10 @@
+## 0.2.0-rc.334 - 2026-11-20
+
+rc.334 源码候选为上下文编辑与摘要检查点补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_context_edits.py`：固定编辑记录负载键、目标必须已出现、替换文本 32 000 字符 / 128 KiB 上限、模型路径严格拒绝与展示路径单处宽松读取、`originalInput` 剥离与 `contextEdit` 标注；编辑入口在写入锁内校验现状、来源摘要与不可编辑原因，先构造并校验响应再落盘；检查点字段白名单与安全整数、摘要长度与规范 SHA-256、来源回合与条目完整性、运行中条目拒绝和原始记录一致性。修复 Issue [#2793](https://github.com/can4hou6joeng4/boss-harness/issues/2793)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 61 个。版本推进到 npm `0.2.0-rc.334` / Python `0.2.0rc334`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.333 - 2026-11-20
 
 rc.333 源码候选把首页快速开始拆成「安装已发布的内核」与「从源码启动桌面」两个入口。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
