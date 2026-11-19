@@ -403,7 +403,37 @@ def _describe(missing: set[str], extra: set[str]) -> str:
     return "；".join(parts)
 
 
-def check_protocol() -> tuple[str, int, int, int, int, int, int, int]:
+def _check_error_redaction() -> int:
+    """带文件名的 OSError 不得把本机路径写进错误响应或 stderr 诊断。"""
+    text = _read(RPC)
+    tree = ast.parse(text)
+    function = next((node for node in tree.body
+                     if isinstance(node, ast.FunctionDef) and node.name == "describe_failure"), None)
+    if function is None:
+        raise ValueError(f"{RPC} 缺少 describe_failure")
+    body = ast.get_source_segment(text, function) or ""
+    required = (
+        "isinstance(exc, OSError)",
+        "exc.filename is not None",
+        "errno.errorcode.get(",
+        "本地文件操作失败",
+        "操作未完成",
+    )
+    missing = [fragment for fragment in required if fragment not in body]
+    if missing:
+        raise ValueError(f"{RPC} 的 describe_failure 缺少：" + "、".join(missing))
+    reasons = ("ENOSPC", "EDQUOT", "EACCES", "EPERM", "EROFS", "EMFILE", "ENFILE")
+    missing = [name for name in reasons if f'getattr(errno, "{name}", None)' not in text]
+    if missing:
+        raise ValueError(f"{RPC} 的错误原因未登记：" + "、".join(missing))
+    if "redact_secrets(describe_failure(exc))" not in text:
+        raise ValueError(f"{RPC} 的错误分发必须使用 describe_failure 后再脱敏")
+    if "redact_secrets(str(exc))" in text:
+        raise ValueError(f"{RPC} 不得直接把 str(exc) 作为错误响应")
+    return len(required) + len(reasons) + 2
+
+
+def check_protocol() -> tuple[str, int, int, int, int, int, int, int, int]:
     protocol = _read(PROTOCOL)
     python_protocol = _python_protocol_version()
     typescript_protocol = _typescript_protocol_version(protocol)
@@ -446,19 +476,20 @@ def check_protocol() -> tuple[str, int, int, int, int, int, int, int]:
     renderer, thread = _check_desktop(client)
     capabilities = _check_capabilities(protocol)
     limits = _check_transport_limits()
+    redaction = _check_error_redaction()
     return (python_protocol, len(client), len(notifications), len(requests),
-            capabilities, renderer, thread, limits)
+            capabilities, renderer, thread, limits, redaction)
 
 
 def main() -> int:
     try:
-        version, methods, notifications, requests, capabilities, renderer, thread, limits = check_protocol()
+        version, methods, notifications, requests, capabilities, renderer, thread, limits, redaction = check_protocol()
     except ValueError as error:
         print(f"协议常量核对失败，{error}", file=sys.stderr)
         return 2
     print(f"协议 {version}、{methods} 个方法、{notifications} 个通知、{requests} 个服务端请求、"
           f"{capabilities} 个能力、{renderer} 个渲染层方法、{thread} 个线程方法、"
-          f"{limits} 项传输上限一致性")
+          f"{limits} 项传输上限一致性、{redaction} 项错误脱敏防护")
     return 0
 
 
