@@ -58,6 +58,8 @@ jobs:
         run: python scripts/check_bridge_lifecycle.py
       - name: Verify index repair boundaries
         run: python scripts/check_maintenance.py
+      - name: Verify snapshot store boundaries
+        run: python scripts/check_snapshot_store.py
       - name: Verify workspace skill boundaries
         run: python scripts/check_skills.py
       - name: Verify workspace instruction boundaries
