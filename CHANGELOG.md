@@ -1,3 +1,10 @@
+## 0.2.0-rc.305 - 2026-11-20
+
+rc.305 源码候选为工具结果信封补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_toolkit.py`：固定 `ToolResult` 七个字段与默认值、`snapshot_result` 的 JSON-only 值判定（拒绝 tuple / set / 非有限浮点 / 自定义对象）、64 层深度、错误信封的 `code` / `message` 校验、`recovery_action` 的 null 规范化与非字符串拒绝、`ensure_ascii=False` 的 JSON 往返深拷贝与统一 `ValueError` 收敛；反向断言禁止整份展开宿主返回值与 `ensure_ascii=True`。修复 Issue [#2735](https://github.com/can4hou6joeng4/boss-harness/issues/2735)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 33 个。版本推进到 npm `0.2.0-rc.305` / Python `0.2.0rc305`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.304 - 2026-11-20
 
 rc.304 源码候选为 provider 用量汇总补上静态检查，并加固数值常量的整行锚定。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

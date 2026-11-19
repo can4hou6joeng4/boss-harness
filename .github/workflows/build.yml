@@ -54,6 +54,8 @@ jobs:
         run: python scripts/check_attachments.py
       - name: Verify tool result boundaries
         run: python scripts/check_tool_results.py
+      - name: Verify tool envelope boundaries
+        run: python scripts/check_toolkit.py
       - name: Verify item content boundaries
         run: python scripts/check_item_content.py
       - name: Verify tool argument boundaries
