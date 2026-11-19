@@ -59,7 +59,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | --- | --- |
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
-| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
+| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_window_state.py`](#check_window_statepy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy)、[`check_turn_stream.py`](#check_turn_streampy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
@@ -126,6 +126,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_notifications.py`
 
 `scripts/check_notifications.py` 核对桌面通知的内容、去重、保留与点击定位边界：`approvalNotification.ts` 只接受 `approval/requested`，`approvalId` / `threadId` / `itemId` 至多 200、工具名 120、标题 80、正文 240、已提醒集合 200；字段先 trim 且不超限，摘要折叠空白后以 `safeSlice(limit - 1)…` 截断，缺摘要时用固定回退文案，会话与条目 id 必须成对出现；`rememberApproval` 首次返回 `true`，满额淘汰最早一条。`turnNotification.ts` 只接受 `turn/started` 与 `turn/completed`，状态截断 32 字符，开始时间表上限 200 并按插入顺序淘汰；时长必须是有限非负数；结束提醒只接受 `completed`、窗口不在前台且运行不少于 `TURN_NOTIFY_MIN_MS = 20_000`，标题为状态标签、正文为时长，不携带会话内容。`notificationRegistry.ts` 保留上限 32、校验正整数，重复显示重新排到最新，先注册 `close` / `failed` 释放监听再 `show()`。`notificationBadge.ts` 只接受 0–999 的整数。`harness.ts` 的前台守卫、同一审批去重、`Notification.isSupported()`、点击聚焦与审批双 id 定位、徽标空值忽略、测试通知固定文案都必须保留。反向断言通知内容不得出现会话标题、预览或记录参数。检查是源码字面量与首次出现顺序扫描，系统通知的实际展示与点击仍需按平台核对。
+
+### `check_window_state.py`
+
+`scripts/check_window_state.py` 核对窗口状态的解析、恢复与原子保存边界：`windowState.ts` 的最小尺寸 240×160、默认 1440×900、上限 16_384、最小可见 80×40；解析要求 JSON 对象、四个字段都是安全整数、宽高在上下限内，任何一项不合格整体丢弃，`maximized` 只在严格 `true` 时成立；恢复要求至少一块工作区的重叠达到最小可见尺寸，否则回到默认尺寸并交给系统居中；有效状态收敛到重叠面积最大的工作区，宽高不超过工作区，位置钳制在工作区内。保存用 `${path}.${pid}.${时间戳36}.${计数器36}.tmp` 独占创建（`0600` 与 `wx`），`EEXIST` 说明路径被预植文件或链接占用、不得删除，改名失败清理临时文件；`resize` / `move` 后 500 毫秒防抖保存，关闭前补存一次，最大化时用 `getNormalBounds()` 保存还原边界。`index.ts` 从 `userData/window-state.json` 读取、按 `workArea` 恢复并开始跟踪。检查是源码字面量与首次出现顺序扫描，不创建窗口或写盘。
 
 ### `check_client_transport.py`
 

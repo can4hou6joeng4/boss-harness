@@ -1,3 +1,10 @@
+## 0.2.0-rc.340 - 2026-11-20
+
+rc.340 源码候选为窗口状态的解析、恢复与原子保存补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_window_state.py`：固定窗口尺寸上下限与最小可见阈值，状态 JSON 的整体校验与安全整数要求，重叠判定与最大工作区收敛、位置钳制与最大化保留；保存用进程号 / 时间戳 / 计数器命名的独占临时文件、`0600` 与 `wx`、`EEXIST` 不清理、改名失败清理，以及防抖保存、关闭补存与 `getNormalBounds()` 边界；同时核对 `index.ts` 的状态路径、工作区来源与跟踪调用。修复 Issue [#2805](https://github.com/can4hou6joeng4/boss-harness/issues/2805)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 66 个。版本推进到 npm `0.2.0-rc.340` / Python `0.2.0rc340`。不改变运行时行为，不创建窗口或执行发布动作。
+
 ## 0.2.0-rc.339 - 2026-11-20
 
 rc.339 源码候选为桌面通知的内容、去重与点击定位补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
