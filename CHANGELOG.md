@@ -1,3 +1,10 @@
+## 0.2.0-rc.288 - 2026-11-20
+
+rc.288 源码候选修正审批期限与重试配置的空白判定。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `BOSS_HARNESS_APPROVAL_TIMEOUT`、`BOSS_HARNESS_RETRY_ATTEMPTS`、`BOSS_HARNESS_RETRY_BASE_MS` 只含空白时按未设置处理，与其余环境变量口径一致；此前会被当成显式无效值，自检报 `APPROVAL_TIMEOUT_DEFAULTED` 或 `RETRY_CONFIG_DEFAULTED` 警告。生效值不变，都是默认值。[Issue #2700](https://github.com/can4hou6joeng4/boss-harness/issues/2700)
+- 对 rc.287 离线对比：三个变量的纯空白取值由「无效并告警」改为「视为未设置」；空字符串、合法数字、非数字、非有限值、非正数与越界取值的结论保持一致。同步静态检查与文档。版本推进到 npm `0.2.0-rc.288` / Python `0.2.0rc288`。不执行发布动作。
+
 ## 0.2.0-rc.287 - 2026-11-20
 
 rc.287 源码候选修复退出应用后手动配置自检进程残留的问题。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

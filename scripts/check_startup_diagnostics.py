@@ -23,6 +23,7 @@ CAPABILITIES = "harness/src/boss_harness/models/capabilities.py"
 COMPACTION = "harness/src/boss_harness/compaction.py"
 TURN_LIMITS = "harness/src/boss_harness/turn_limits.py"
 RESOURCES = "harness/src/boss_harness/resources.py"
+RETRY = "harness/src/boss_harness/models/retry.py"
 STRICT_ORDERED = (
     'parser.add_argument("--strict", action="store_true",',
     "if args.strict and not args.check:",
@@ -747,6 +748,26 @@ def _blank_json_config(capabilities: str, compaction: str, application: str) -> 
     return checked + 1
 
 
+def _blank_runtime_limits(application: str, retry: str) -> int:
+    """审批期限与重试配置只含空白时按未设置处理，不再当作显式无效值告警。"""
+    segment = _function_source(_parse(application, APPLICATION), application,
+                               "approval_timeout_from_environment")
+    checked = _expect(('raw = source.get("BOSS_HARNESS_APPROVAL_TIMEOUT")',
+                       "if raw is None or not raw.strip():"),
+                      segment, "approval_timeout_from_environment")
+    if 'raw == ""' in segment:
+        raise ValueError("审批期限不得只把空字符串当作未设置")
+    retry_segment = _function_source(_parse(retry, RETRY), retry, "retry_settings_from_environment")
+    checked += _expect(('raw_attempts = source.get("BOSS_HARNESS_RETRY_ATTEMPTS")',
+                        "if raw_attempts is None or not raw_attempts.strip():",
+                        'raw_base_ms = source.get("BOSS_HARNESS_RETRY_BASE_MS")',
+                        "if raw_base_ms is None or not raw_base_ms.strip():"),
+                       retry_segment, "retry_settings_from_environment")
+    if 'raw == ""' in retry_segment:
+        raise ValueError("重试配置不得只把空字符串当作未设置")
+    return checked + 1
+
+
 def _blank_numeric_limits(turn_limits: str, resources: str) -> int:
     """数值上限先去空白再判空与校验：空值或只有空白用默认值，合法数字照常生效。"""
     checked = _expect((
@@ -803,6 +824,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _runtime_scope(_read(USER_GUIDE))
     checked += _blank_json_config(_read(CAPABILITIES), _read(COMPACTION), _read(APPLICATION))
     checked += _blank_numeric_limits(_read(TURN_LIMITS), _read(RESOURCES))
+    checked += _blank_runtime_limits(_read(APPLICATION), _read(RETRY))
     checked += _diagnostics(config_tree, limit)
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide, _read(SETUP_GUIDE))
