@@ -4369,9 +4369,13 @@ class ApplicationService:
             # 归档会话没有派发路径（_dispatch_follow_up 直接返回 idle），
             # 新请求入队只会长期停在 queued。与 turn/start 一致，要求先恢复；
             # 已存在队列项的重试仍按幂等返回，不被归档状态打断。
-            if (self.sessions.get_thread(thread_id).get("archived")
-                    and identity.queue is None and identity.turn is None):
+            thread = self.sessions.get_thread(thread_id)
+            if thread.get("archived") and identity.queue is None and identity.turn is None:
                 raise RpcError(-32004, "请先恢复归档会话，再添加排队消息")
+            if identity.queue is None and identity.turn is None:
+                # 与 turn/start 相同：线路不可用时当场说清，而不是入队后以
+                # 通用的 TURN_START_FAILED 暂停。既有队列项仍按幂等返回。
+                self._thread_route(thread)
             for source in (identity.queue, identity.turn):
                 if source is not None and (source.get("skillIds") or []) != skill_ids:
                     raise RpcError(-32004, "clientUserMessageId 已用于不同技能组合",

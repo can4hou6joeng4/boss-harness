@@ -183,6 +183,17 @@ def check_model_disable() -> tuple[int, int]:
                        'config = self._model_config(thread, {"model": source_model})',
                        "_turn_continuation_plan")
 
+    # 新的排队消息与 turn/start 同一入口校验线路：线路不可用时当场拒绝，不留下只会暂停的队列项。
+    queue_add = _method(app_tree, application, "ApplicationService", "on_queue_add")
+    guards += _expect((
+        'raise RpcError(-32004, "请先恢复归档会话，再添加排队消息")',
+        "if identity.queue is None and identity.turn is None:",
+        "self._thread_route(thread)",
+    ), queue_add, "on_queue_add")
+    guards += _ordered(queue_add, "identity = resolve_request(", "self._thread_route(thread)", "on_queue_add")
+    guards += _ordered(queue_add, 'raise RpcError(-32004, "请先恢复归档会话，再添加排队消息")',
+                       "self._thread_route(thread)", "on_queue_add")
+
     init = _method(app_tree, application, "ApplicationService", "__init__")
     guards += _expect((
         "model_calls_disabled: bool = False) -> None:",
@@ -253,7 +264,7 @@ def main() -> int:
     except (ValueError, SyntaxError) as error:
         print(f"显式禁用模型边界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"显式禁用模型边界一致：{sites} 个工厂调用点、{guards} 项目录、摘要、续接、连接与入口防护")
+    print(f"显式禁用模型边界一致：{sites} 个工厂调用点、{guards} 项目录、摘要、续接、连接、排队与入口防护")
     return 0
 
 
