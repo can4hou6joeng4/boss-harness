@@ -1,3 +1,10 @@
+## 0.2.0-rc.346 - 2026-11-20
+
+rc.346 源码候选为会话导出 HTML 的转义与页面约束补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_export_html.py`：固定会话元数据、回合、用户与模型正文、附件、工具调用、审批、结果、摘要与队列字段的 `_h(` 转义入口，结果明文只在 `included` 分支写入，文档头保留 charset / viewport / CSP / referrer；反向断言页面不含脚本、事件属性、帧、`javascript:`、`src=` 或 `href=`。修复 Issue [#2817](https://github.com/can4hou6joeng4/boss-harness/issues/2817)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 71 个。版本推进到 npm `0.2.0-rc.346` / Python `0.2.0rc346`。不改变运行时行为，不生成或打开导出文件。
+
 ## 0.2.0-rc.345 - 2026-11-20
 
 rc.345 源码候选为导出与界面的时长文案补上双端一致检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
