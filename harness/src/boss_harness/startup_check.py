@@ -161,6 +161,19 @@ def _model_check(load_config: Callable[[], ModelConfig], requested_provider: str
             "将 BOSS_HARNESS_EFFORT 设为 none、minimal、low、medium、high、xhigh 或 max，"
             "或取消设置；无效值不会阻止启动，但模型请求可能失败。",
         )
+    # 容量配置可为模型声明支持档位；配置级强度不经过会话校验，这里按声明再核对一次。
+    # 声明无效时由运行参数检查报告，这里不抢先给出另一种结论。
+    if config.effort:
+        try:
+            declared = ModelCatalog.from_environment().resolve(config.provider, config.model)
+        except Exception:
+            declared = None
+        if declared is not None and declared.reasoning_efforts and config.effort not in declared.reasoning_efforts:
+            return _check(
+                "model", "warning", "MODEL_EFFORT_UNSUPPORTED", "模型推理强度与容量声明不符。",
+                "核对 BOSS_HARNESS_MODEL_LIMITS 中该模型的 reasoningEfforts 与 BOSS_HARNESS_EFFORT；"
+                "不会阻止启动，但模型请求可能失败。",
+            )
     # 思考模式只对 Anthropic 线路生效，其他取值当前被静默忽略；OpenAI 线路与该开关无关。
     if (config.provider == "anthropic"
             and (os.environ.get("BOSS_HARNESS_THINKING") or "").strip() not in ("", "summarized")):

@@ -1,3 +1,11 @@
+## 0.2.0-rc.248 - 2026-11-19
+
+rc.248 源码候选让启动自检核对推理强度与模型容量声明。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `BOSS_HARNESS_MODEL_LIMITS` 为当前 provider/model 声明了非空 `reasoningEfforts`，而生效的 `BOSS_HARNESS_EFFORT` 属于全局七档、却不在声明范围内时，模型检查记为警告 `MODEL_EFFORT_UNSUPPORTED`，说明与容量声明不符、不会阻止启动但模型请求可能失败；不输出声明的档位或配置值。会话级推理强度本来会按声明拒绝，配置级此前没有提醒。[Issue #2620](https://github.com/can4hou6joeng4/boss-harness/issues/2620)
+- 未声明档位、模型没有容量覆盖、未配置强度或强度属于声明范围时保持原有结果；容量配置本身无效时仍由运行参数检查报 `MODEL_LIMITS_INVALID`，不由模型检查抢先给出另一种结论。全局七档之外的取值仍使用原有说明。
+- 以 rc.247 合并提交导出的源码为基线，十一个场景独立进程对比：声明包含、声明为空、无覆盖、其他模型、全局无效档位、未配置强度与 Anthropic 两例共九例逐字节一致；OpenAI 与 Anthropic 各一例声明不含当前强度时变为警告，退出码仍为 0；无效容量配置两版都以 `MODEL_LIMITS_INVALID` 和退出码 2 结束，模型检查保持通过。全部检查通过。版本推进到 npm `0.2.0-rc.248` / Python `0.2.0rc248`。不执行发布动作。
+
 ## 0.2.0-rc.247 - 2026-11-19
 
 rc.247 源码候选让启动自检提示状态目录中的 `~` 不会展开。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
