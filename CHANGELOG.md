@@ -1,3 +1,10 @@
+## 0.2.0-rc.332 - 2026-11-20
+
+rc.332 源码候选为回合循环与流式终态补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_turn_stream.py`：固定 13 个通知名、`MAX_TOOL_ROUNDS` 与 300 秒审批默认值、请求偏移校验、恢复预算与循环守卫；工具批次上限先于续接与长度截断，截断与续接失败都不执行工具，四个固定错误码保持原样；重试事件成对且早于回合终态、输出预算计入与最终复核、`CONTEXT_OVERFLOW` 恢复资格、用量条目资格、终态 `failed` / `completed` 判定、摘要分页顺序与失败脱敏、模型结果默认字节上限。反向断言禁止中断时标成完成、`redact_secrets(str(exc))` 与未定义恢复标记。修复 Issue [#2789](https://github.com/can4hou6joeng4/boss-harness/issues/2789)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 60 个。版本推进到 npm `0.2.0-rc.332` / Python `0.2.0rc332`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.331 - 2026-11-20
 
 rc.331 源码候选为 Node 宿主的连接代际与审批路由补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
