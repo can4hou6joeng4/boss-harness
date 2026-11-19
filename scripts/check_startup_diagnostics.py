@@ -16,6 +16,7 @@ DESKTOP = "apps/desktop/src/main/startupCheck.ts"
 PROTOCOL = "packages/protocol/src/index.ts"
 USER_GUIDE = "docs/USER_GUIDE.md"
 CONNECTION_NOTICE = "apps/desktop/src/renderer/src/data/connectionNotice.ts"
+CONNECTION_SETTINGS = "apps/desktop/src/renderer/src/components/ConnectionSettings.tsx"
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,31}$")
 CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 DESKTOP_LIMIT = re.compile(r"const MAX_TEXT_LENGTH = (\d+);")
@@ -378,6 +379,67 @@ def _warning_order(tree: ast.Module, source: str) -> int:
     return len(checks)
 
 
+def _conclusion_fragments(tree: ast.Module) -> list[str]:
+    """收集 render_text 结论文本的中文片段，作为桌面结论的对照基准。"""
+    function = next((node for node in tree.body
+                     if isinstance(node, ast.FunctionDef) and node.name == "render_text"), None)
+    if function is None:
+        raise ValueError("缺少 render_text")
+    fragments: list[str] = []
+    for node in ast.walk(function):
+        if not (isinstance(node, ast.Assign)
+                and any(isinstance(target, ast.Name) and target.id == "conclusion"
+                        for target in node.targets)):
+            continue
+        for part in ast.walk(node.value):
+            if isinstance(part, ast.Constant) and isinstance(part.value, str) and part.value:
+                if part.value not in fragments:
+                    fragments.append(part.value)
+    if len(fragments) < 4 or "通过" not in fragments or not any("错误" in item for item in fragments):
+        raise ValueError("render_text 的结论片段不完整")
+    return fragments
+
+
+def _ts_function(source: str, name: str) -> str:
+    """截取桌面顶层函数源码；模板字符串里的 ${...} 花括号成对，按花括号配对即可。"""
+    start = source.find(f"export function {name}(")
+    if start < 0:
+        raise ValueError(f"connectionNotice.ts 缺少 {name}")
+    opening = source.find("{", start)
+    if opening < 0:
+        raise ValueError(f"{name} 缺少函数体")
+    depth = 0
+    for index in range(opening, len(source)):
+        if source[index] == "{":
+            depth += 1
+        elif source[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start:index + 1]
+    raise ValueError(f"{name} 的函数体不完整")
+
+
+def _conclusion_parity(tree: ast.Module, notice: str, component: str) -> int:
+    """内核文本结论与桌面手动自检结论各写一份：措辞与计数口径必须一致。"""
+    fragments = _conclusion_fragments(tree)
+    conclusion = _ts_function(notice, "startupConclusion")
+    missing = [fragment for fragment in fragments if fragment not in conclusion]
+    if missing:
+        raise ValueError(f"startupConclusion 与内核文本结论不一致，缺少片段 {missing}")
+    required = ('kind !== "report"', 'return ""',
+                'check.status === "error"', 'check.status === "warning"')
+    missing = [item for item in required if item not in conclusion]
+    if missing:
+        raise ValueError(f"startupConclusion 缺少结论口径 {missing}")
+    if "startupConclusion" not in component or "自检结论：" not in component:
+        raise ValueError("连接设置页必须使用 startupConclusion 展示自检结论")
+    if "运行于 " not in component:
+        raise ValueError("连接设置页必须展示手动自检的运行时间")
+    if "diagnosis: manualUnavailable" not in component:
+        raise ValueError("手动自检复制必须包含不可用说明")
+    return len(fragments) + len(required) + 3
+
+
 def _literal_codes(tree: ast.Module) -> set[str]:
     codes: set[str] = set()
     for node in ast.walk(tree):
@@ -550,6 +612,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide)
     checked += _names_consistency(startup_tree, guide, _read(CONNECTION_NOTICE))
+    checked += _conclusion_parity(startup_tree, _read(CONNECTION_NOTICE), _read(CONNECTION_SETTINGS))
     return 7, guards + checked
 
 
