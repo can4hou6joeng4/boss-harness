@@ -285,6 +285,20 @@ def _hint_constants(tree: ast.Module, limit: int) -> int:
     return checked + 1
 
 
+def _titles(tree: ast.Module, name: str) -> dict[str, str]:
+    node = _assignment(tree, name)
+    if not isinstance(node, ast.Dict):
+        raise ValueError(f"{name} 必须是字典字面量")
+    values: dict[str, str] = {}
+    for key, value in zip(node.keys, node.values):
+        label = _constant(key) if key is not None else None
+        text = _constant(value) if value is not None else None
+        if label is None or text is None:
+            raise ValueError(f"{name} 的键值必须是字符串字面量")
+        values[label] = text
+    return values
+
+
 def _text_output(tree: ast.Module, source: str, limit: int) -> int:
     """自检文本常被复制到 Issue：渲染函数只能使用报告字段，不读取环境或直接打印。"""
     function = next((node for node in tree.body
@@ -305,6 +319,9 @@ def _text_output(tree: ast.Module, source: str, limit: int) -> int:
         raise ValueError("_STATUS_TEXT 的状态集合与桌面不一致")
     checked = sum(_validate_text(f"_STATUS_TEXT[{name}]", text, limit)
                   for name, text in statuses.items()) + 1
+    titles = _titles(tree, "_CHECK_TITLES")
+    checked += sum(_validate_text(f"_CHECK_TITLES[{name}]", text, limit)
+                   for name, text in titles.items()) + 1
     checked += len(TEXT_FORBIDDEN)
     nodes = [node for statement in function.body for node in ast.walk(statement)]
     for node in nodes:
@@ -323,7 +340,7 @@ def _text_output(tree: ast.Module, source: str, limit: int) -> int:
                 raise ValueError(f"render_text 读取了未登记字段 {base}[{key!r}]")
     checked += 1
     segment = ast.get_source_segment(source, function) or ""
-    checked += _expect(("说明：", "建议：", "_STATUS_TEXT.get"), segment, "render_text")
+    checked += _expect(("说明：", "建议：", "_STATUS_TEXT.get", "_CHECK_TITLES.get"), segment, "render_text")
     return checked
 
 
@@ -439,7 +456,10 @@ def _names_consistency(tree: ast.Module, guide: str, notice: str) -> int:
     renderer_labels = [label for _, label in titles]
     if renderer_labels != labels:
         raise ValueError(f"使用指南检查项与桌面标签不一致：桌面 {renderer_labels}，文档 {labels}")
-    return len(names) * 2
+    kernel_titles = _titles(tree, "_CHECK_TITLES")
+    if kernel_titles != dict(titles):
+        raise ValueError(f"内核 _CHECK_TITLES 与桌面 CHECK_TITLES 不一致：内核 {kernel_titles}，桌面 {dict(titles)}")
+    return len(names) * 3
 
 
 def _docs_codes(tree: ast.Module, config_tree: ast.Module, guide: str) -> int:
