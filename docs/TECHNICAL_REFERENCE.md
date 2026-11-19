@@ -62,7 +62,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy) |
-| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy) |
+| 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留提示 | [`check_context_keep.py`](#check_context_keeppy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
 | 本地资源与隐私 | [`check_private_files.py`](#check_private_filespy)、[`check_export_privacy.py`](#check_export_privacypy)、[`check_skills.py`](#check_skillspy)、[`check_workspace_instructions.py`](#check_workspace_instructionspy)、[`check_attachments.py`](#check_attachmentspy)、[`check_hooks.py`](#check_hookspy)、[`check_persistence.py`](#check_persistencepy)、[`check_settings.py`](#check_settingspy)、[`check_maintenance.py`](#check_maintenancepy)、[`check_snapshot_store.py`](#check_snapshot_storepy)、[`check_ownership.py`](#check_ownershippy) |
@@ -224,6 +224,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_snapshot_store.py`
 
 `scripts/check_snapshot_store.py` 核对冻结快照的预算、发布与读取边界：`snapshot_store.py` 的十条预算常量；快照库文本的 `utf-8` 宽容解码、条目载荷与 id 的损坏校验；单条记录 32 MiB 与源文件 1 GiB 上限；构建器的私有建库、`max_page_count` 余量、条目与队列共享的内容预算、重复 id 保留首条与先保存修订目标再清理载荷；构建取消每 128 行、叶过滤、磁盘预算与悬空编辑拒绝；临时 `.building` 文件完成后 `os.replace`、收紧权限并同步父目录，成功后登记缓存与 TTL，失败清理临时与最终文件；读取的视图 / 游标 / 载荷预算 / 编辑状态校验；叶失效墓碑与缓存淘汰；关闭时失效在途构建并清理残留文件。反向断言禁止严格 `utf-8` 解码、裸 `unlink`、`shutil.rmtree` / `os.remove` 与 NaN 序列化；同时核对技术参考与使用指南的快照口径。脚本只扫描源码，不证明运行时快照已落盘。
+
+### `check_turn_limits.py`
+
+`scripts/check_turn_limits.py` 核对回合模型请求上限的严格整数与有界解析：`turn_limits.py` 的默认 6 次与最大 64 次；`model_request_limit` 只接受精确整数并限定 1 到宿主上限，布尔值按非法拒绝；环境变量先去首尾空白、空值回退默认值，再按最多两位的十进制文本形态判定，转换失败与格式错误统一使用固定说明。反向断言禁止错误回显原值；同时核对技术参考与使用指南的回合上限口径。脚本只扫描源码，不运行环境变量解析。
 
 ### `check_compaction.py`
 
