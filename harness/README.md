@@ -16,6 +16,8 @@ uv pip install --python .venv/bin/python -e ./harness
 .venv/bin/boss-harness --check --provider none
 ```
 
+`--check` 默认输出 JSON；加 `--format text` 可输出终端可读文本。
+
 桌面外壳、协议包与完整使用说明在主仓库：<https://github.com/can4hou6joeng4/boss-harness>
 
 变更记录见 [CHANGELOG](https://github.com/can4hou6joeng4/boss-harness/blob/main/CHANGELOG.md)。

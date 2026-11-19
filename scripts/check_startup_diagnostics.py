@@ -28,6 +28,10 @@ DOC_TABLES = (
     ("| 固定检查码 | 环境变量与处理 |", "运行参数错误码"),
 )
 STATUSES = frozenset({"ok", "warning", "error"})
+# 自检文本会被复制到 Issue 或日志：渲染函数只允许读取已校验的报告字段。
+TEXT_REPORT_KEYS = frozenset({"version", "protocolVersion", "pythonVersion", "checks"})
+TEXT_CHECK_KEYS = frozenset({"name", "status", "code", "message", "hint"})
+TEXT_FORBIDDEN = ("os", "sys", "open", "Path", "environ", "subprocess", "socket")
 # 与桌面 CONTROL_PATTERN 相同的码位：C0/C1 控制字符与行分隔符。
 CONTROL_RANGES = ((0x00, 0x1F), (0x7F, 0x9F))
 CONTROL_POINTS = frozenset({0x2028, 0x2029})
@@ -281,6 +285,48 @@ def _hint_constants(tree: ast.Module, limit: int) -> int:
     return checked + 1
 
 
+def _text_output(tree: ast.Module, source: str, limit: int) -> int:
+    """自检文本常被复制到 Issue：渲染函数只能使用报告字段，不读取环境或直接打印。"""
+    function = next((node for node in tree.body
+                     if isinstance(node, ast.FunctionDef) and node.name == "render_text"), None)
+    if function is None:
+        raise ValueError("缺少 render_text")
+    labels = _assignment(tree, "_STATUS_TEXT")
+    if not isinstance(labels, ast.Dict):
+        raise ValueError("_STATUS_TEXT 必须是字典字面量")
+    statuses: dict[str, str] = {}
+    for key, value in zip(labels.keys, labels.values):
+        name = _constant(key) if key is not None else None
+        text = _constant(value) if value is not None else None
+        if name is None or text is None:
+            raise ValueError("_STATUS_TEXT 的键值必须是字符串字面量")
+        statuses[name] = text
+    if set(statuses) != STATUSES:
+        raise ValueError("_STATUS_TEXT 的状态集合与桌面不一致")
+    checked = sum(_validate_text(f"_STATUS_TEXT[{name}]", text, limit)
+                  for name, text in statuses.items()) + 1
+    checked += len(TEXT_FORBIDDEN)
+    nodes = [node for statement in function.body for node in ast.walk(statement)]
+    for node in nodes:
+        if isinstance(node, ast.Name) and node.id in TEXT_FORBIDDEN:
+            raise ValueError(f"render_text 不得访问 {node.id}")
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "print":
+            raise ValueError("render_text 必须返回文本，不能直接打印")
+        if (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+                and node.value.id in {"report", "check"}):
+            raise ValueError("render_text 只能按固定字段读取报告")
+        if isinstance(node, ast.Subscript):
+            base = node.value.id if isinstance(node.value, ast.Name) else ""
+            key = _constant(node.slice) if isinstance(node.slice, ast.Constant) else None
+            allowed = {"report": TEXT_REPORT_KEYS, "check": TEXT_CHECK_KEYS}.get(base)
+            if key is None or allowed is None or key not in allowed:
+                raise ValueError(f"render_text 读取了未登记字段 {base}[{key!r}]")
+    checked += 1
+    segment = ast.get_source_segment(source, function) or ""
+    checked += _expect(("说明：", "建议：", "_STATUS_TEXT.get"), segment, "render_text")
+    return checked
+
+
 def _literal_codes(tree: ast.Module) -> set[str]:
     codes: set[str] = set()
     for node in ast.walk(tree):
@@ -444,6 +490,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _runtime_options(startup_tree, limit)
     checked += _runtime_order(startup_tree, _parse(_read(APPLICATION), APPLICATION))
     checked += _hint_constants(startup_tree, limit)
+    checked += _text_output(startup_tree, startup, limit)
     checked += _diagnostics(config_tree, limit)
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide)
