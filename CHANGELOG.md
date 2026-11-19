@@ -1,3 +1,10 @@
+## 0.2.0-rc.216 - 2026-11-19
+
+rc.216 源码候选修正握手报告中的供应商选项。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `initialize.modelBridge` 在 `none` 与 `openai` 线路返回 `thinking: null` 和 `serverSideFallback: false`。Anthropic 继续返回生效选项；模型请求、配置解析和续接仍使用既有规则。TypeScript 协议类型补充两项已有字段。[Issue #2556](https://github.com/can4hou6joeng4/boss-harness/issues/2556)
+- 同一离线探针对比 rc.215 与新源码的八个启动场景，五个 `none` 场景的误报消失，三个 Anthropic 或 OpenAI 对照的模型握手回执逐字段一致。全部检查通过。版本推进到 npm `0.2.0-rc.216` / Python `0.2.0rc216`。不执行发布动作。
+
 ## 0.2.0-rc.215 - 2026-11-19
 
 rc.215 源码候选让连接检查区分显式禁用模型和默认线路回退。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

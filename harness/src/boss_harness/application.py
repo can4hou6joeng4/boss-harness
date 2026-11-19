@@ -648,6 +648,7 @@ class ApplicationService:
         self._protocol = protocol
         self.server.opt_out_notifications = frozenset(opt_out)
         self._state = "initializing" if protocol == PROTOCOL_VERSION else "ready"
+        anthropic = self.config.provider == "anthropic"
         return {"serverName": "boss-harness", "serverVersion": __version__, "protocolVersion": protocol,
             "capabilities": {"bidirectionalRequests": True, "eventReplay": True,
                              "pagination": True, "parallelThreads": True,
@@ -667,8 +668,8 @@ class ApplicationService:
                            "bundleId": self.tool_bundle.id},
             "modelBridge": {"provider": self.config.provider, "model": self.config.model,
                 "driven": self.provider is not None, "modelCallsDisabled": self.model_calls_disabled,
-                "thinking": dict(self.config.thinking) if self.config.thinking else None,
-                "serverSideFallback": self.config.server_side_fallback},
+                "thinking": dict(self.config.thinking) if anthropic and self.config.thinking else None,
+                "serverSideFallback": anthropic and self.config.server_side_fallback},
             "approval": {"requiredTools": sorted(self.approval_required), "timeoutSeconds": self.approval_timeout},
             "eventCursor": self.sessions.latest_event_cursor()}
 
