@@ -1,3 +1,10 @@
+## 0.2.0-rc.336 - 2026-11-20
+
+rc.336 源码候选补齐上游招聘 CLI 的安装入口。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 使用指南「上游 CLI 设置」新增上游仓库链接与 `uv tool install boss-agent-cli` / `boss doctor` 安装诊断入口，说明登录、平台认证与网络边界由上游维护；README 从源码启动入口加同一链接。修复 Issue [#2797](https://github.com/can4hou6joeng4/boss-harness/issues/2797)。
+- 版本推进到 npm `0.2.0-rc.336` / Python `0.2.0rc336`。不改变运行时行为，不执行安装、发布或平台操作。
+
 ## 0.2.0-rc.335 - 2026-11-20
 
 rc.335 源码候选为会话日志的编码、严格解码与有界快照补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
