@@ -1,3 +1,10 @@
+## 0.2.0-rc.309 - 2026-11-20
+
+rc.309 源码候选为自动压缩设置的持久化补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_settings.py`：固定 `config.json` 的 256 KiB / 深度 64 上限、基于私有描述符的 `S_ISREG` 读取与「上限 + 1 字节」判定、宽泛异常收敛为默认值、三个自动压缩字段完整性、拒绝覆盖不可读配置、`ensure_ascii=False` 与编码 / 超限错误、临时文件 + `fsync` + `os.replace` + 目录同步与异常清理；反向断言禁止 `read_text` / `write_text`。修复 Issue [#2743](https://github.com/can4hou6joeng4/boss-harness/issues/2743)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 37 个。版本推进到 npm `0.2.0-rc.309` / Python `0.2.0rc309`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.308 - 2026-11-20
 
 rc.308 源码候选为 SQLite 投影索引补上静态检查，并加固顺序断言的首次出现语义。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
