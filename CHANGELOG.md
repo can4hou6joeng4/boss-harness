@@ -1,3 +1,10 @@
+## 0.2.0-rc.326 - 2026-11-20
+
+rc.326 源码候选为模型可见的结果读取工具补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_model_tools.py`：固定 `read_session_tool_result` 的四字段模式与顺序、两个必需字段、禁止额外字段、`sha256` 仅 64 位小写十六进制、`limit` 引用共享字符常量；固定读取流程（参数校验 → 会话查找 → 缺失拒绝 → 条目形状 → 规范化正文 → 有界分段）与 64 KiB 整份载荷上限；固定三段错误映射顺序、`currentRef` 透传与固定错误码；反向断言禁止整份回灌、复制字符常量、允许额外字段。修复 Issue [#2777](https://github.com/can4hou6joeng4/boss-harness/issues/2777)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 54 个。版本推进到 npm `0.2.0-rc.326` / Python `0.2.0rc326`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.325 - 2026-11-20
 
 rc.325 源码候选为模型重试配置与观测事件补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
