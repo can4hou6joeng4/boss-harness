@@ -1,14 +1,14 @@
-import { statSync } from "node:fs";
+import { accessSync, constants, statSync } from "node:fs";
 
 /**
- * 只把普通文件（含指向文件的符号链接）视为可用路径。
- *
- * `existsSync` 对目录同样返回 true；把目录当成 Python 解释器会让 spawn 直接失败，
- * 而同一位置的 PATH 回退本来可用。目录、断链与其他文件类型一律视为不可用。
+ * 默认虚拟环境解释器须为有执行权限的普通文件；符号链接按目标判断。
+ * 不启动候选，也不验证其内容、Python 版本或内核依赖。
  */
-export function isRegularFile(path: string): boolean {
+export function isExecutableFile(path: string): boolean {
   try {
-    return statSync(path).isFile();
+    if (!statSync(path).isFile()) return false;
+    accessSync(path, constants.X_OK);
+    return true;
   } catch {
     return false;
   }

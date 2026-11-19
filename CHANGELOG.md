@@ -1,3 +1,10 @@
+## 0.2.0-rc.284 - 2026-11-20
+
+rc.284 源码候选修复桌面自动选择不可执行的虚拟环境解释器。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `.venv/bin/python` 仅在目标为普通文件且可执行时才作为桌面内核和自检的默认解释器，否则回退 PATH 上的 `python3`。显式 `BOSS_HARNESS_PYTHON` 优先级不变，也不会因路径无效而静默回退。[Issue #2692](https://github.com/can4hou6joeng4/boss-harness/issues/2692)
+- 八例离线探针对比 rc.283：仅无执行权限的普通文件及指向它的符号链接由采用变为回退，其余六例不变。同步静态检查和解释器文档。版本推进到 npm `0.2.0-rc.284` / Python `0.2.0rc284`。不执行发布动作。
+
 ## 0.2.0-rc.283 - 2026-11-20
 
 rc.283 源码候选统一快速开始和安装指南里的首次自检。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
