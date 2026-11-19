@@ -339,9 +339,43 @@ def _text_output(tree: ast.Module, source: str, limit: int) -> int:
             if key is None or allowed is None or key not in allowed:
                 raise ValueError(f"render_text 读取了未登记字段 {base}[{key!r}]")
     checked += 1
+    # 错误与警告并存时结论行必须同时给出警告数量；只查行为不查文案，允许等价重构。
+    error_branch = next((node for node in function.body
+                         if isinstance(node, ast.If) and isinstance(node.test, ast.Name)
+                         and node.test.id == "errors"), None)
+    if error_branch is None:
+        raise ValueError("render_text 缺少 errors 结论分支")
+    if not any(isinstance(node, ast.Name) and node.id == "warnings"
+               for statement in error_branch.body for node in ast.walk(statement)):
+        raise ValueError("render_text 的 errors 结论分支必须同时给出 warnings 数量")
+    checked += 1
     segment = ast.get_source_segment(source, function) or ""
     checked += _expect(("说明：", "建议：", "_STATUS_TEXT.get", "_CHECK_TITLES.get"), segment, "render_text")
     return checked
+
+
+def _function_source(tree: ast.Module, source: str, name: str) -> str:
+    function = next((node for node in tree.body
+                     if isinstance(node, ast.FunctionDef) and node.name == name), None)
+    if function is None:
+        raise ValueError(f"缺少 {name}")
+    return ast.get_source_segment(source, function) or ""
+
+
+def _warning_order(tree: ast.Module, source: str) -> int:
+    """警告优先级写在使用指南里：更根本的问题先报，避免次要警告掩盖主因。"""
+    checks = (
+        ("_runtime_check", "APPROVAL_TIMEOUT_DEFAULTED", "RETRY_CONFIG_DEFAULTED"),
+        ("_cli_check", "BOSS_CLI_UNAVAILABLE", "BOSS_CLI_BIN_IGNORED"),
+    )
+    for name, first, second in checks:
+        segment = _function_source(tree, source, name)
+        for code in (first, second):
+            if code not in segment:
+                raise ValueError(f"{name} 缺少 {code}")
+        if segment.index(first) > segment.index(second):
+            raise ValueError(f"{name} 必须先报告 {first} 再报告 {second}")
+    return len(checks)
 
 
 def _literal_codes(tree: ast.Module) -> set[str]:
@@ -511,6 +545,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _runtime_order(startup_tree, _parse(_read(APPLICATION), APPLICATION))
     checked += _hint_constants(startup_tree, limit)
     checked += _text_output(startup_tree, startup, limit)
+    checked += _warning_order(startup_tree, startup)
     checked += _diagnostics(config_tree, limit)
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide)
