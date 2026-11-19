@@ -12,6 +12,7 @@ ModelConfigErrorCode = Literal[
     "MODEL_ENDPOINT_MISSING",
     "MODEL_CREDENTIAL_MISSING",
     "MODEL_CODEX_UNREADABLE",
+    "MODEL_CODEX_TOML_UNAVAILABLE",
     "MODEL_CODEX_INVALID_TOML",
     "MODEL_CODEX_NOT_FILE",
     "MODEL_CODEX_WIRE_API_UNSUPPORTED",
@@ -45,6 +46,10 @@ _DIAGNOSTICS: dict[ModelConfigErrorCode, tuple[str, str]] = {
     "MODEL_CODEX_UNREADABLE": (
         "无法读取 Codex 模型配置文件。",
         "核对 BOSS_HARNESS_CODEX_CONFIG、CODEX_HOME 或默认 Codex 配置的路径与读取权限。",
+    ),
+    "MODEL_CODEX_TOML_UNAVAILABLE": (
+        "当前 Python 解释器无法解析 Codex TOML 配置。",
+        "改用 Python 3.11 或更高版本，或显式设置 OpenAI 模型、端点与凭据以跳过该文件。",
     ),
     "MODEL_CODEX_INVALID_TOML": (
         "Codex 模型配置的 TOML 格式无效。",

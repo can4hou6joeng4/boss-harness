@@ -86,8 +86,9 @@ def load_profile(
         if strict:
             raise ModelConfigError("MODEL_CODEX_UNREADABLE") from None
         return None
-    if tomllib is None:  # pragma: no cover - 仅在 3.10 上触发
-        raise RuntimeError("openai 线路需要 Python 3.11+ 才能解析 Codex 的 TOML 配置")
+    if tomllib is None:  # 仅在 Python 3.10 上触发
+        # 按模型配置错误上报，让调用方能跳过不可用的可选线路。
+        raise ModelConfigError("MODEL_CODEX_TOML_UNAVAILABLE")
 
     try:
         with target.open("rb") as handle:

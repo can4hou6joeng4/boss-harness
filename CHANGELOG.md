@@ -1,3 +1,10 @@
+## 0.2.0-rc.286 - 2026-11-20
+
+rc.286 源码候选修复 Python 3.10 上可选 Codex 配置阻断启动的问题。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 需要读取 Codex TOML 而当前解释器缺少解析器时，返回 `MODEL_CODEX_TOML_UNAVAILABLE`。OpenAI 若只是目录中的可选线路，会被跳过，默认线路照常启动；若明确选择该线路，启动和自检给出同一诊断码。完整显式 OpenAI 配置仍无需读取该文件。[Issue #2696](https://github.com/can4hou6joeng4/boss-harness/issues/2696)
+- 用真实 Python 3.10 与 3.11 离线对比 rc.285：自动线路从启动退出 1 改为正常握手，独立摘要解析从未处理异常改为 `COMPACTION_MODEL_UNAVAILABLE`；3.11 解析合成 TOML 和 3.10 解析完整显式配置均保持可用。同步静态检查与文档。版本推进到 npm `0.2.0-rc.286` / Python `0.2.0rc286`。不执行发布动作。
+
 ## 0.2.0-rc.285 - 2026-11-20
 
 rc.285 源码候选修正独立 Anthropic 摘要线路的可用性提示。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
