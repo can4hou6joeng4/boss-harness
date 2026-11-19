@@ -1,3 +1,10 @@
+## 0.2.0-rc.315 - 2026-11-20
+
+rc.315 源码候选为自动压缩策略补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_compaction.py`：固定六个字段与 provider 白名单、布尔 / 1–100 / 1–1000000 的精确类型与范围、codex → openai 归一化、model 与 effort 校验、`verified_policy` 的未知字段拒绝与字段顺序、`override` 只接受三个界面字段、`from_environment` 的空白处理 / 4096 字节上限 / 重复键钩子 / 未知字段拒绝与固定错误文本；反向断言禁止无钩子解析与错误回显原文。修复 Issue [#2755](https://github.com/can4hou6joeng4/boss-harness/issues/2755)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 43 个。版本推进到 npm `0.2.0-rc.315` / Python `0.2.0rc315`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.314 - 2026-11-20
 
 rc.314 源码候选为状态目录独占锁补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
