@@ -1,3 +1,10 @@
+## 0.2.0-rc.226 - 2026-11-19
+
+rc.226 源码候选让不完整模型配置的提示按线路给出凭据变量。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- Anthropic 线路缺少模型 id 或凭据时，`--check` 的 `MODEL_CONFIG_INCOMPLETE` 建议只说明非空模型 id 与 `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN`，不再附带 OpenAI / Codex 说明；OpenAI 线路保留端点与有效 Codex profile 的建议。检查码、状态与退出码不变。[Issue #2576](https://github.com/can4hou6joeng4/boss-harness/issues/2576)
+- 以 rc.225 合并提交导出的源码为基线，同一入口探针覆盖无凭据自动回退、显式 `none`、OpenAI 缺端点、Anthropic 缺凭据、运行参数无效与浏览器来源无效六个场景：只有 Anthropic 缺凭据的建议发生变化，其余检查项与退出码逐项一致。使用指南同步说明。`npm run check` 全部通过。版本推进到 npm `0.2.0-rc.226` / Python `0.2.0rc226`。不执行发布动作。
+
 ## 0.2.0-rc.225 - 2026-11-19
 
 rc.225 源码候选核对自检运行参数顺序与应用启动顺序。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
