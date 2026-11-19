@@ -1,3 +1,10 @@
+## 0.2.0-rc.299 - 2026-11-20
+
+rc.299 源码候选为条目正文补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_item_content.py`：固定 64 KiB 内联阈值、16 384 / 32 768 分页常量、64 层投影深度与占位文本；孤立代理项替换为 U+FFFD、非有限浮点降级为 `None`、内联正文先经 `wire_text`；摘要按传输文本分块计算，`ic1_` 游标校验前缀、2048 上限、归属五元组与 offset 范围，过期引用返回带 `currentRef` 的 `STALE_CONTENT`。修复 Issue [#2723](https://github.com/can4hou6joeng4/boss-harness/issues/2723)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 27 个。版本推进到 npm `0.2.0-rc.299` / Python `0.2.0rc299`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.298 - 2026-11-20
 
 rc.298 源码候选为工具桥输出上限补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

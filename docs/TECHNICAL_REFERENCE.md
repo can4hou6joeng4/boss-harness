@@ -58,7 +58,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 领域 | 脚本 |
 | --- | --- |
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
-| 协议与传输 | [`check_protocol.py`](#check_protocolpy) |
+| 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_item_content.py`](#check_item_contentpy) |
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_approval.py`](#check_approvalpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy) |
@@ -125,6 +125,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_tool_results.py`
 
 `scripts/check_tool_results.py` 核对工具结果分页与引用边界：`tool_results.py` 的内联 64 KiB / 单页 1 MiB 预算、默认 16,384 / 最大 32,768 码点与模型 8,192 码点必须保持不变，且满足 `MODEL_RESULT_READ_CHARS ≤ DEFAULT_RESULT_CHARS ≤ MAX_RESULT_CHARS`、单页预算低于内核帧上限；两条读取路径必须校验 `limit`，RPC 请求字段必须限定在 `threadId` / `itemId` / `sha256` / `cursor` / `limit`，摘要必须为 64 位小写十六进制，过期引用必须返回 `STALE_RESULT` 与 `currentRef`，游标必须校验前缀 `tr1_`、长度、条目归属与偏移。模型只读工具必须使用 `MODEL_RESULT_READ_CHARS` 上限、禁止额外属性，并透传当前引用与错误码。检查是常量与文本扫描，实际分页与读取行为仍需按用户指南核对。
+
+### `check_item_content.py`
+
+`scripts/check_item_content.py` 核对条目正文的传输降级与分页边界：`item_content.py` 必须保留 64 KiB 内联阈值、默认 16 384 / 最大 32 768 码点、64 层投影深度与占位文本；孤立代理项必须替换为 U+FFFD、非有限浮点降级为 `None`，内联正文必须先经 `wire_text`；内容摘要必须按 `wire_text` 后的文本分块计算，超过内联阈值时写入 `textOmitted` / `thinkingOmitted` 与内容引用；读取必须校验 `limit`、64 位摘要、32 位 `snapshotId`、`ic1_` 前缀与 2048 字符上限、线程 / 条目 / 字段 / 摘要 / 快照的归属与 offset 范围，过期引用返回带 `currentRef` 的 `STALE_CONTENT`。脚本同时核对桌面指南的大正文恢复说明。检查是常量与文本扫描，实际降级、分页与渲染行为仍需按桌面指南核对。
 
 ### `check_approval.py`
 
