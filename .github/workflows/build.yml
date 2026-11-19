@@ -82,6 +82,8 @@ jobs:
         run: python scripts/check_usage.py
       - name: Verify startup diagnostics boundaries
         run: python scripts/check_startup_diagnostics.py
+      - name: Verify summary planning boundaries
+        run: python scripts/check_summary.py
       - name: Verify context retention hint boundaries
         run: python scripts/check_context_keep.py
       - name: Verify catch-up steering boundary

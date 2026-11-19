@@ -1,3 +1,10 @@
+## 0.2.0-rc.306 - 2026-11-20
+
+rc.306 源码候选为摘要规划补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_summary.py`：固定 8 192 输出上限与 32 次请求上限、摘要器与分支摘要的执行状态 / 授权措辞、`wire_text` 降级与 SHA-256 来源摘要、4096 余量与 32 000 字符滚动预算、`ContextBudgetExceeded` 与超限拒绝、`tools=()` / `thinking=None` / `ensure_ascii=False`、逐字 `start:end` 切片与二分切分；反向断言来源不得从头截断。修复 Issue [#2737](https://github.com/can4hou6joeng4/boss-harness/issues/2737)。
+- 接入 CI 的 Source build 并在技术参考补同名小节；检查脚本增至 34 个。版本推进到 npm `0.2.0-rc.306` / Python `0.2.0rc306`。不改变运行时行为，不执行发布动作。
+
 ## 0.2.0-rc.305 - 2026-11-20
 
 rc.305 源码候选为工具结果信封补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
