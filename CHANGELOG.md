@@ -1,3 +1,10 @@
+## 0.2.0-rc.231 - 2026-11-19
+
+rc.231 源码候选修正混合错误时的恢复建议。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 桌面提示条仅在自检报告的全部错误均为 `MODEL_SDK_UNAVAILABLE` 时，把安装内核依赖作为恢复建议；与其他错误并存时回到通用建议，逐条安装与修正提示仍由自检摘要列出。[Issue #2586](https://github.com/can4hou6joeng4/boss-harness/issues/2586)
+- 以 rc.230 合并提交导出的源码为基线，同一转译纯函数探针覆盖十个场景：单个 / 全部 SDK 错误、仅其他错误、仅警告、无错误与 spawn / exit / 超时逐字节一致；SDK 与状态目录、SDK 与配置不完整两种混合错误由安装建议变为通用建议。桌面交互指南同步说明。全部检查通过。版本推进到 npm `0.2.0-rc.231` / Python `0.2.0rc231`。不执行发布动作。
+
 ## 0.2.0-rc.230 - 2026-11-19
 
 rc.230 源码候选让自动回退提示核对 OpenAI 线路的模型 SDK。公开下载仍对应最新预发布 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
