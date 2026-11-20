@@ -1,3 +1,10 @@
+## 0.2.0-rc.363 - 2026-11-20
+
+rc.363 源码候选固定会话内查找沿用选中文本的放行条件。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_find_seed.py`，固定可编辑控件、非字符串、空选择、多行与 120 码点上限的判定顺序，以及 `isEditableTarget` 的标签与 `isContentEditable` 检查；反向断言不得按 UTF-16 码元判长、多行校验不得先于 `trim()`。修复 Issue [#2850](https://github.com/can4hou6joeng4/boss-harness/issues/2850)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 86 个。版本推进到 npm `0.2.0-rc.363` / Python `0.2.0rc363`。不改变运行时行为，只固定既有放行契约。
+
 ## 0.2.0-rc.362 - 2026-11-20
 
 rc.362 源码候选固定会话内查找状态行的计数单位与分支。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
