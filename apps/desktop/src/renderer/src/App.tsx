@@ -23,6 +23,7 @@ import { MOCK_PROJECT_FOLDERS, MOCK_CONVERSATION_THREAD, type ProjectFolder, typ
 import { HARNESS_PROJECT_ID, HARNESS_PROJECT_NAME, archiveThread, configuredModels, deleteThread, harnessErrorText, harnessStatus, isHarnessRpcRejection, forkThread, interruptTurn, listThreads, listQueue, readTurnSkillIds, queueFollowUp, readQueueItem, reconnectHarness, removeQueuedItem, renameThread, respondApproval, sendTurn, setThreadModel, startThread, steerTurn, steerQueuedItem, readTurnContinuation, continueTurn, unarchiveThread, updateQueuedItem } from "./data/harnessBridge";
 import { approvalRejectionNotice, approvalRejectionRefreshes, approvalUnconfirmedNotice, autoApprovalRejectionNotice } from "./data/approvalFailure";
 import { approvalSubmissionFor } from "./data/approvalSubmission";
+import { forgetDeletedThread } from "./data/deletedThreadState";
 import { deleteThreadFailure } from "./data/deleteThreadError";
 import { resolveQuickAskRoute } from "./data/quickAsk";
 import { sessionTitleFromPrompt } from "./data/sessionTitle";
@@ -196,6 +197,8 @@ export function App(): JSX.Element {
   const queueCache = useRef(new Map<string, QueuePage>());
   const versions = useRef(new Map<string, number>());
   const rememberedApprovals = useRef(new Map<string, Set<string>>());
+  /** 删除通知可能先于本机删除回执到达：当前会话被删除时立即退出视图。回调在声明后写入，供通知处理调用。 */
+  const clearDeletedConversationRef = useRef<((id: string) => void) | null>(null);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const selectionVersion = useRef(0);
   // 启动恢复上次会话：会话列表完成首次加载后才判断，记录指向已删除会话时留在首页。
@@ -381,10 +384,12 @@ export function App(): JSX.Element {
         const deleted = (params as { deletedThreadId?: unknown }).deletedThreadId;
         if (typeof deleted === "string") {
           threadListVersion.current += 1;
-          cache.current.delete(deleted);
-          queueCache.current.delete(deleted);
-          sessionErrors.current.delete(deleted);
+          // 通知先于本机删除回执到达：一并遗忘该会话的连接内状态，不能只清列表与缓存。
+          forgetDeletedThread([cache.current, queueCache.current, sessionErrors.current, versions.current, turnIds.current, rememberedApprovals.current], deleted);
+          clearCompletedUnread(deleted);
           releaseInterrupt(deleted);
+          // 回执未确认时列表按约定保留过，但内核已经提交删除：当前会话被删就立即退出，不能再往里发送。
+          clearDeletedConversationRef.current?.(deleted);
           if (errorOwner.current === deleted) showError("");
           setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== deleted) })));
           void refresh();
@@ -633,7 +638,7 @@ export function App(): JSX.Element {
     });
     void refresh();
     return () => { cancelled = true; replica.invalidate(); unsubscribe(); if (replicaRef.current === replica) replicaRef.current = null; };
-  }, [applyQueueBadge, applyQueuePage, clearModelRetry, markCompletedUnread, markRunning, readContinuationCheck, releaseInterrupt, reportSessionError, updateModelRetry, updateThread]);
+  }, [applyQueueBadge, applyQueuePage, clearCompletedUnread, clearModelRetry, markCompletedUnread, markRunning, readContinuationCheck, releaseInterrupt, reportSessionError, updateModelRetry, updateThread]);
   useEffect(() => () => {
     for (const timer of timers.current.values()) clearTimeout(timer);
     for (const timer of retryTimers.current.values()) clearTimeout(timer);
@@ -717,6 +722,11 @@ export function App(): JSX.Element {
     homeModelChoiceRef.current = null;
     if (defaultModel) { setActiveModelProvider(defaultModel.provider); setActiveModelId(defaultModel.model); setConfiguredModelLabel(`${defaultModel.provider} · ${defaultModel.model}`); }
   }, [defaultModel]);
+  // 通知处理在声明前运行不到这里：渲染时写入最新回调，删除回执未确认也能退出已删除的会话。
+  const clearDeletedConversation = useCallback((id: string) => {
+    if (activeRef.current?.id === id) clearActiveConversation();
+  }, [clearActiveConversation]);
+  clearDeletedConversationRef.current = clearDeletedConversation;
   const handleNewTask = useCallback(() => {
     clearActiveConversation(); showError("");
   }, [clearActiveConversation]);
@@ -732,14 +742,15 @@ export function App(): JSX.Element {
       warning = failure.message;
     }
     threadListVersion.current += 1;
-    cache.current.delete(session.id);
-    queueCache.current.delete(session.id);
+    // 与删除通知共用同一组清理：本机回执确认后，连接内不再保留该会话的任何条目。
+    forgetDeletedThread([cache.current, queueCache.current, sessionErrors.current, versions.current, turnIds.current, rememberedApprovals.current], session.id);
+    clearCompletedUnread(session.id);
     setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== session.id) })));
     // 只清空会话视图，不调用 handleNewTask，避免连删除结果提示一起清掉。
     if (activeRef.current?.id === session.id) clearActiveConversation();
     if (warning) showError(warning);
     return true;
-  }, [clearActiveConversation]);
+  }, [clearActiveConversation, clearCompletedUnread]);
   /** 归档/恢复会话：成功由内核事件触发列表刷新；失败保留原状态并给出真实原因。 */
   const handleArchiveSession = useCallback(async (session: SessionItem, archived: boolean): Promise<boolean> => {
     try {

@@ -60,7 +60,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
 | 共享工具 | [`check_shared_utils.py`](#check_shared_utilspy)、[`check_duration_parity.py`](#check_duration_paritypy) |
-| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_window_state.py`](#check_window_statepy)、[`check_renderer_recovery.py`](#check_renderer_recoverypy)、[`check_lifecycle.py`](#check_lifecyclepy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
+| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_window_state.py`](#check_window_statepy)、[`check_renderer_recovery.py`](#check_renderer_recoverypy)、[`check_deleted_thread_state.py`](#check_deleted_thread_statepy)、[`check_lifecycle.py`](#check_lifecyclepy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_approval_remember.py`](#check_approval_rememberpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy)、[`check_turn_stream.py`](#check_turn_streampy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
@@ -405,6 +405,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_delete_thread_error.py`
 
 `scripts/check_delete_thread_error.py` 核对删除会话失败的原因码映射：只有内核 `rpcError === true` 且 `data.code` 为字符串时才读取原因码；`THREAD_BUSY` 映射为 `failed`，`THREAD_DELETE_INCOMPLETE` 与 `THREAD_NOT_FOUND` 映射为 `incomplete`，其他原因映射为 `unknown` 并带原始错误文本与刷新核对提示。反向断言原因码只允许三种、不得把结果说成已删除、未知原因必须带原始错误文本。检查是源码字面量扫描，不调用内核。
+
+### `check_deleted_thread_state.py`
+
+`scripts/check_deleted_thread_state.py` 核对删除会话通知的连接内状态清理：`deletedThreadState.ts` 的 `forgetDeletedThread` 接受可按键删除的状态，空 id 直接返回 `false`，逐项删除并返回是否确实删除过内容。主界面的 `thread/deleted` 分支按消息缓存、队列投影、失败提示、条目版本、回合标识与记住的审批依次遗忘，再清后台完成标记、释放停止状态、退出被删除的当前会话、移除列表项并刷新；`handleDeleteSession` 复用同一组目标并直接退出视图。反向断言两条路径不得退回只删缓存的旧写法，删除回执不得依赖通知回调。检查是源码字面量与首次出现顺序扫描，不渲染界面。
 
 ### `check_session_error_notice.py`
 
