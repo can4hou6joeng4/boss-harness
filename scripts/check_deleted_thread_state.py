@@ -64,6 +64,8 @@ BRANCH_FRAGMENTS = (
     "versions.current.set(id, (versions.current.get(id) ?? 0) + 1);",
     "if (target.current?.threadId === id) target.current = null;",
     "if (!current.current.connected || !current.current.support || forgotten.current.has(id)) return;",
+    "if (!id || !available || !supported || forgotten.current.has(id)) return false;",
+    "const valid = () => alive.current && epoch.current === connectionEpoch && !forgotten.current.has(id);",
     "const next = withoutThread(stateRef.current, id);",
     "forgotten.current.clear();",
     'if (event.method === "thread/deleted") {',
@@ -236,6 +238,14 @@ def check_deleted_thread_state() -> int:
             raise ValueError(f"{APP} 的删除通知分支缺少或首次出现顺序变化：{fragment}")
         position = index
         checked += 1
+
+    # 切换回执在调用 onSwitched 之前必须过一次归属判定，判定包含遗忘检查。
+    switch = _slice(_read(BRANCHES), "const switchTo = useCallback", "}, [applyJob, refresh, update]);", BRANCHES)
+    gate = switch.find("if (!valid()) return false;")
+    callback = switch.find("await current.current.onSwitched(id);")
+    if gate < 0 or callback < 0 or gate > callback:
+        raise ValueError(f"{BRANCHES} 的切换回执必须在重读会话之前核对归属")
+    checked += 1
 
     delete_session = _slice(app, "const handleDeleteSession = useCallback", "/** 归档/恢复会话", APP)
     for fragment in (
