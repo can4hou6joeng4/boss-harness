@@ -1,3 +1,10 @@
+## 0.2.0-rc.370 - 2026-11-20
+
+rc.370 源码候选固定用量范围单选组的方向键循环。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_usage_view_keys.py`，固定左右与上下方向键的 ±1 映射、其他按键返回 `null`、`indexOf` 越界保护与非负取模循环；反向断言不得只处理左右键、取模前必须补齐长度、未知视图不得回退首项。修复 Issue [#2865](https://github.com/can4hou6joeng4/boss-harness/issues/2865)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 93 个。版本推进到 npm `0.2.0-rc.370` / Python `0.2.0rc370`。不改变运行时行为，只固定既有键盘契约。
+
 ## 0.2.0-rc.369 - 2026-11-20
 
 rc.369 源码候选固定侧栏提示的序号重播与清空语义。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

@@ -110,6 +110,8 @@ jobs:
         run: python scripts/check_notification_labels.py
       - name: Verify sidebar notices
         run: python scripts/check_sidebar_notice.py
+      - name: Verify usage view keys
+        run: python scripts/check_usage_view_keys.py
       - name: Verify private state boundaries
         run: python scripts/check_private_files.py
       - name: Verify credential redaction
