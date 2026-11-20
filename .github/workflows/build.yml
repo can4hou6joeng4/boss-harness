@@ -80,6 +80,8 @@ jobs:
         run: python scripts/check_usage_report.py
       - name: Verify recent search history
         run: python scripts/check_recent_search.py
+      - name: Verify session titles
+        run: python scripts/check_session_title.py
       - name: Verify private state boundaries
         run: python scripts/check_private_files.py
       - name: Verify credential redaction
