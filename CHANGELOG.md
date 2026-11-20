@@ -1,3 +1,11 @@
+## 0.2.0-rc.411 - 2026-11-20
+
+rc.411 源码候选让 `thread/read` 分支视图的各项出自同一份条目快照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `thread/read` / `thread/resume` 的非快照分支视图在一次响应里读取四次会话：条目快照生成 `items`，随后 `branch_last_turn`、`list_branch_turns` 与 `read_leaf` 各自重新读取条目，分别生成 `thread.lastTurn`、`turns` 与 `branch`。处理器只持有事件锁，位置切换与回合写入不经过它：期间位置变化时，同一响应里的消息属于旧分支，末回合、回合列表与位置却属于新分支。现在这三个读取接受调用方已读到的条目快照，处理器把同一份快照传给它们；`excludeTurns` 时 `branch` 与 `lastTurn` 同样与 `items` 同源。每次分支视图读取少解码或投影三遍会话条目。日志视图、冻结快照、`thread/turns/list` 与 `thread/leaf/read` 不变，协议字段不增不减。修复 Issue [#2947](https://github.com/can4hou6joeng4/boss-harness/issues/2947)，rc.410 记录的未处理项随之关闭。
+- 边界：回合的成员与位置取自快照，回合元数据（状态、时间）仍取自投影索引，可能比快照新；这与其他按时间点读取的接口一致。
+- `check_branch_pagination.py` 扩展到 67 项：三个读取的快照参数、带快照时不重新读取条目、处理器内四项的同源步骤与顺序，以及不带快照的旧调用不再出现。从 rc.410 提交导出真实内核源码与修改版执行同一探针：在条目快照返回后插入一次位置切换，旧版响应的消息为旧分支而末回合、回合与位置为新分支（含 `excludeTurns`），修改版四项一致；位置稳定与日志视图两边逐项相同。同步技术参考与上游吸收记录。版本推进到 npm `0.2.0-rc.411` / Python `0.2.0rc411`。
+
 ## 0.2.0-rc.410 - 2026-11-20
 
 rc.410 源码候选让分支视图回合页的 `turns` 与 `branch` 出自同一次读取。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

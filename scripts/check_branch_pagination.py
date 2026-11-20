@@ -7,7 +7,8 @@
 不一致就放弃本次结果。旧内核的回合页不带位置时，翻页才回退到端点复核。
 
 逐页比较依赖内核响应自身一致：分支视图回合页的 `turns` 与 `branch` 必须出自同一次
-加锁读取的同一份条目，处理器不得在释放锁后另行读取位置。
+加锁读取的同一份条目，处理器不得在释放锁后另行读取位置。`thread/read` 的非快照
+分支视图同理：条目、末回合、回合页与位置都从处理器读到的同一份条目快照算出。
 """
 
 from __future__ import annotations
@@ -29,6 +30,24 @@ KERNEL_SESSION = (
     '"branch": leaf}',
     "def _leaf_state(self, thread_id: str, entries: list[dict], active: list[dict] | None = None, *,",
     "turns: list[dict] | None = None) -> dict:",
+)
+
+KERNEL_PINNED = (
+    "def list_branch_turns(self, thread_id: str, *, cursor: str | None = None, limit: int = 50,",
+    "entries: list[dict] | None = None) -> dict:",
+    "pinned = entries",
+    "entries = self.read_entries(thread_id) if pinned is None else pinned",
+    "def branch_last_turn(self, thread_id: str, *, entries: list[dict] | None = None) -> dict | None:",
+    "def read_leaf(self, thread_id: str, *, entries: list[dict] | None = None) -> dict:",
+)
+
+THREAD_READ = (
+    "entries = self.sessions.read_entries_snapshot(thread_id)",
+    "pinned = entries",
+    "entries = self.sessions._active_entries(pinned)",
+    'thread = {**thread, "lastTurn": self.sessions.branch_last_turn(thread_id, entries=pinned)}',
+    "self.sessions.list_branch_turns(thread_id, entries=pinned) if branch",
+    'result["branch"] = self.sessions.read_leaf(thread_id, entries=pinned)',
 )
 
 KERNEL_HANDLER = (
@@ -161,6 +180,39 @@ def check_branch_pagination() -> int:
     if "read_leaf(" in handler or "**result" in handler:
         raise ValueError("回合列表处理器不得另行读取位置，也不得透传未声明的字段")
     checked += 1
+
+    # thread/read 非快照分支视图：四项都从处理器读到的同一份条目快照算出。
+    checked += _expect(KERNEL_PINNED, session, SESSION)
+    snapshot_start = application.find("            entries = self.sessions.read_entries_snapshot(thread_id)")
+    snapshot_end = application.find("self._check_response_budget(result)", snapshot_start)
+    if snapshot_start < 0 or snapshot_end < 0:
+        raise ValueError(f"{APPLICATION} 缺少会话读取的条目快照或其收尾标记")
+    thread_read = application[snapshot_start:snapshot_end]
+    position = -1
+    for marker in THREAD_READ:
+        index = thread_read.find(marker)
+        if index < 0 or index <= position:
+            raise ValueError(f"会话读取的分支视图缺少同源步骤或顺序变化：{marker}")
+        position = index
+        checked += 1
+    # 旧形态：不带快照的调用会在处理器内重新读取条目，位置变化后与 items 分属两条分支。
+    for stale in ("self.sessions.branch_last_turn(thread_id)", "self.sessions.list_branch_turns(thread_id)",
+                  "self.sessions.read_leaf(thread_id)\n"):
+        if stale in thread_read:
+            raise ValueError(f"会话读取的分支视图仍重新读取条目：{stale.strip()}")
+        checked += 1
+    # 带快照的位置读取不加锁重读；未带快照时保持原有持锁读取。
+    for name, end_marker in (("def branch_last_turn(", "self._sync_thread(thread_id)"), ("def read_leaf(", "def branch_snapshot_projection(")):
+        start = session.find(name)
+        end = session.find(end_marker, start)
+        if start < 0 or end < 0:
+            raise ValueError(f"{SESSION} 缺少 {name} 或其收尾标记")
+        part = session[start:end]
+        pinned_index = part.find("if entries is not None:")
+        if pinned_index < 0 or part.count("self.read_entries(thread_id)") != 1 \
+                or not pinned_index < part.find("self.read_entries(thread_id)"):
+            raise ValueError(f"{name} 带快照时不得重新读取条目")
+        checked += 1
     return checked
 
 
@@ -170,7 +222,7 @@ def main() -> int:
     except ValueError as error:
         print(f"分支分页一致性核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"分支分页一致：{checked} 项页数统计、逐页位置核对与内核同源读取")
+    print(f"分支分页一致：{checked} 项页数统计、逐页位置核对与内核同源读取（回合页与会话读取）")
     return 0
 
 

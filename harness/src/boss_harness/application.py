@@ -944,9 +944,12 @@ class ApplicationService:
             thread = self.sessions.get_thread(thread_id)
             job = self.runtimes.active.get(thread_id)
             entries = self.sessions.read_entries_snapshot(thread_id)
+            # 分支视图的条目、末回合、回合页与位置都从这一份快照算出：处理器只持有事件锁，
+            # 位置切换与回合写入不经过它，逐项重新读取会让同一响应分属两条分支。
+            pinned = entries
             if branch:
-                entries = self.sessions._active_entries(entries)
-                thread = {**thread, "lastTurn": self.sessions.branch_last_turn(thread_id)}
+                entries = self.sessions._active_entries(pinned)
+                thread = {**thread, "lastTurn": self.sessions.branch_last_turn(thread_id, entries=pinned)}
             canonical_items = [] if exclude else self.events.items(
                 thread_id, entries=entries)
             edit_states = self.context.context_edit_states(entries)
@@ -957,15 +960,16 @@ class ApplicationService:
                     item["contextEdit"] = edit_states[item["id"]]
             queue = self.queue.view(thread_id)
             result = {"thread": thread, "items": [] if exclude else items,
-                    "turns": None if exclude else (self.sessions.list_branch_turns(thread_id) if branch
-                                                   else self.sessions.list_turns(thread_id))["turns"],
+                    "turns": None if exclude else (
+                        self.sessions.list_branch_turns(thread_id, entries=pinned) if branch
+                        else self.sessions.list_turns(thread_id))["turns"],
                     "activeTurnId": job["turnId"] if job else None,
                     "eventCursor": self.sessions.latest_event_cursor(), "queue": queue["items"],
                     "queueTotalItems": queue["totalItems"], "queueActiveItems": queue["activeItems"],
                     "queueCounts": queue["counts"], "queueTruncated": queue["truncated"]}
             if branch:
                 result["view"] = "branch"
-                result["branch"] = self.sessions.read_leaf(thread_id)
+                result["branch"] = self.sessions.read_leaf(thread_id, entries=pinned)
             self._check_response_budget(result)
             return result
 
