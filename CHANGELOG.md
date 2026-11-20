@@ -1,3 +1,10 @@
+## 0.2.0-rc.402 - 2026-11-20
+
+rc.402 源码候选让推理档位状态随删除遗忘。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `useSessionReasoning` 按会话保存推理档位的读取结果、在途保存锁与失败原因，但不处理 `thread/deleted`：被删除会话的条目一直留在应用生命周期内，删除时在途的 `thread/reasoning/read` 与 `thread/reasoning/set` 回执返回后仍会写回。现在收到删除通知即移除该会话的状态并递增读取版本，读取归属判定与回执写回都要求会话未被遗忘，删除后不再发起读取；其他会话的读取、保存与提示不变。断连时与其他连接内记录一起重置。修复 Issue [#2929](https://github.com/can4hou6joeng4/boss-harness/issues/2929)。
+- `check_deleted_thread_state.py` 增至 108 项，固定删除通知先于方法白名单、遗忘不经 `update`、读取归属包含遗忘判定与保存回执的核对。从 rc.401 提交导出真实 hook 源码与修改版执行同一探针：旧版 10 项中 2 项失败（缺少遗忘回调、迟到回执重建状态），修改版 10 项全部通过。同步桌面指南与技术参考。版本推进到 npm `0.2.0-rc.402` / Python `0.2.0rc402`。
+
 ## 0.2.0-rc.401 - 2026-11-20
 
 rc.401 源码候选让上下文面板与分支弹窗在删除会话后停止轮询。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

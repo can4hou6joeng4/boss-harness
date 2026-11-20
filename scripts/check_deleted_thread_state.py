@@ -18,6 +18,7 @@ APPROVAL = "apps/desktop/src/renderer/src/data/approvalSubmission.ts"
 DIALOGS = "apps/desktop/src/renderer/src/data/deletedDialogTarget.ts"
 PANEL = "apps/desktop/src/renderer/src/data/useContextPanel.ts"
 BRANCHES = "apps/desktop/src/renderer/src/data/useSessionBranches.ts"
+REASONING = "apps/desktop/src/renderer/src/data/useSessionReasoning.ts"
 APP = "apps/desktop/src/renderer/src/App.tsx"
 
 MODULE_FRAGMENTS = (
@@ -66,6 +67,21 @@ BRANCH_FRAGMENTS = (
     "forgotten.current.clear();",
     'if (event.method === "thread/deleted") {',
     "if (typeof params.threadId === \"string\") forget(params.threadId);",
+)
+
+REASONING_FRAGMENTS = (
+    'import { withoutThread } from "./deletedThreadState";',
+    "const forgotten = useRef(new Set<string>());",
+    "if (forgotten.current.has(id)) return;",
+    "const forget = useCallback((id: string) => {",
+    "if (!id || forgotten.current.has(id)) return;",
+    "readVersions.current.set(id, (readVersions.current.get(id) ?? 0) + 1);",
+    "const next = withoutThread(stateRef.current, id);",
+    'if (forgotten.current.has(id)) throw new Error("会话已删除，不再读取推理设置");',
+    "const valid = () => !forgotten.current.has(id) && epoch.current === connectionEpoch && readVersions.current.get(id) === version;",
+    'if (event.method === "thread/deleted") { forget(id); return; }',
+    "forgotten.current.clear();",
+    "if (epoch.current !== connectionEpoch || forgotten.current.has(target.threadId)) return;",
 )
 
 APPROVAL_FRAGMENTS = (
@@ -134,7 +150,22 @@ def check_deleted_thread_state() -> int:
     checked += _expect(withoutThread_FRAGMENTS, module, MODULE)
     checked += _expect(PANEL_FRAGMENTS, _read(PANEL), PANEL)
     checked += _expect(BRANCH_FRAGMENTS, _read(BRANCHES), BRANCHES)
+    reasoning = _read(REASONING)
+    checked += _expect(REASONING_FRAGMENTS, reasoning, REASONING)
     checked += _expect(APP_FRAGMENTS, app, APP)
+
+    # 推理档位：删除通知必须先于方法白名单处理；遗忘不得经 update，且必须从状态表移除。
+    removal = reasoning.find('if (event.method === "thread/deleted") { forget(id); return; }')
+    allowlist = reasoning.find('if (!["thread/reasoning/updated"')
+    if removal < 0 or allowlist < 0 or removal > allowlist:
+        raise ValueError(f"{REASONING} 的删除通知必须先于方法白名单处理")
+    checked += 1
+    forget = _slice(reasoning, "const forget = useCallback((id: string) => {", "\n  }, []);", REASONING)
+    if "update(id" in forget:
+        raise ValueError(f"{REASONING} 的遗忘不得经 update 写入状态")
+    if "stateRef.current = next;" not in forget or "setStates(next);" not in forget:
+        raise ValueError(f"{REASONING} 的遗忘必须从状态表移除会话并更新界面")
+    checked += 1
 
     # 两个 hook 都必须在通用会话 id 分支之前处理删除通知，且处理完直接返回：
     # 否则通用分支会按旧状态继续读取，或把删除事件当成任务事件刷新。
