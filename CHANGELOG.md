@@ -1,3 +1,10 @@
+## 0.2.0-rc.371 - 2026-11-20
+
+rc.371 源码候选固定发送失败与结果未确认的措辞边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_send_failure.py`，固定内核拒绝写「发送失败」、不确定情况写「提交结果尚未确认」、两条主提示的下一步说明与复核提示的主因复用；反向断言两种来源不得对调、复核提示不得重复读取说明。修复 Issue [#2867](https://github.com/can4hou6joeng4/boss-harness/issues/2867)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 94 个。版本推进到 npm `0.2.0-rc.371` / Python `0.2.0rc371`。不改变运行时行为，只固定既有措辞契约。
+
 ## 0.2.0-rc.370 - 2026-11-20
 
 rc.370 源码候选固定用量范围单选组的方向键循环。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
