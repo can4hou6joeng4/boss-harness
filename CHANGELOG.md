@@ -1,3 +1,10 @@
+## 0.2.0-rc.364 - 2026-11-20
+
+rc.364 源码候选固定搜索回执的形状校验与上限。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_thread_search_result.py`，固定标识与标题片段的长度上限、角色白名单、`SEARCH_MATCH_LIMIT = 200`、`truncated` 只接受布尔或缺省，以及任一命中非法时整体拒绝；反向断言角色先校验再断言类型、截断标记只取显式 `true`、单条非法不得跳过。修复 Issue [#2851](https://github.com/can4hou6joeng4/boss-harness/issues/2851)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 87 个。版本推进到 npm `0.2.0-rc.364` / Python `0.2.0rc364`。不改变运行时行为，只固定既有回执契约。
+
 ## 0.2.0-rc.363 - 2026-11-20
 
 rc.363 源码候选固定会话内查找沿用选中文本的放行条件。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
