@@ -1,3 +1,10 @@
+## 0.2.0-rc.379 - 2026-11-20
+
+rc.379 源码候选固定单飞读取的尾随补跑与取消。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_single_flight.py`，固定取消与 `canRun` 入口守卫、在途只置尾随标记、同步抛错转为已解决 Promise、`catch().finally()` 收尾释放与尾随复检，以及 `cancel` 同时清除两个标记；反向断言单飞标记只能在收尾释放、尾随标记只在补跑与取消时清除、不得用延时轮询代替尾随补跑。修复 Issue [#2882](https://github.com/can4hou6joeng4/boss-harness/issues/2882)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 102 个。版本推进到 npm `0.2.0-rc.379` / Python `0.2.0rc379`。不改变运行时行为，只固定既有刷新与取消契约。
+
 ## 0.2.0-rc.378 - 2026-11-20
 
 rc.378 源码候选固定主题偏好的解析、合成与写回。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
