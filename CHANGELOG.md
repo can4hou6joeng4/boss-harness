@@ -1,3 +1,10 @@
+## 0.2.0-rc.356 - 2026-11-20
+
+rc.356 源码候选固定会话行的归档过滤、关键词与排序。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_search_rows.py`，固定归档默认排除、按会话 id 去重顺序、标题与项目名拼接后的整串 NFKC 小写、关键词全部命中（`every`）与更新时间降序，并跨文件核对高亮使用的 `searchText` 为同一归一化口径。修复 Issue [#2837](https://github.com/can4hou6joeng4/boss-harness/issues/2837)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 79 个。版本推进到 npm `0.2.0-rc.356` / Python `0.2.0rc356`。不改变运行时行为，只固定既有过滤与排序契约。
+
 ## 0.2.0-rc.355 - 2026-11-20
 
 rc.355 源码候选固定会话标题的项目前缀剥离与码点截断。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
