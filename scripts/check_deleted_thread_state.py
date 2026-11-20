@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = "apps/desktop/src/renderer/src/data/deletedThreadState.ts"
 APPROVAL = "apps/desktop/src/renderer/src/data/approvalSubmission.ts"
 DIALOGS = "apps/desktop/src/renderer/src/data/deletedDialogTarget.ts"
+PANEL = "apps/desktop/src/renderer/src/data/useContextPanel.ts"
+BRANCHES = "apps/desktop/src/renderer/src/data/useSessionBranches.ts"
 APP = "apps/desktop/src/renderer/src/App.tsx"
 
 MODULE_FRAGMENTS = (
@@ -25,6 +27,45 @@ MODULE_FRAGMENTS = (
     "let forgotten = false;",
     "for (const target of targets) if (target.delete(threadId)) forgotten = true;",
     "return forgotten;",
+)
+
+withoutThread_FRAGMENTS = (
+    "export function withoutThread<T>(record: Record<string, T>, threadId: string): Record<string, T> {",
+    "if (!threadId || !Object.prototype.hasOwnProperty.call(record, threadId)) return record;",
+    "const next = { ...record };",
+    "delete next[threadId];",
+    "return next;",
+)
+
+PANEL_FRAGMENTS = (
+    'import { withoutThread } from "./deletedThreadState";',
+    "const forgotten = useRef(new Set<string>());",
+    "if (!alive.current || forgotten.current.has(id)) return;",
+    "const forget = useCallback((id: string) => {",
+    "if (!id || !alive.current || forgotten.current.has(id)) return;",
+    "forgotten.current.add(id);",
+    "readVersions.current.set(id, (readVersions.current.get(id) ?? 0) + 1);",
+    "readFlights.current.delete(id);",
+    "if (!current.current.connected || forgotten.current.has(id)) return Promise.resolve();",
+    "const next = withoutThread(stateRef.current, id);",
+    "forgotten.current.clear();",
+    'if (event.method === "thread/deleted") {',
+    "if (typeof params.threadId === \"string\") forget(params.threadId);",
+)
+
+BRANCH_FRAGMENTS = (
+    'import { withoutThread } from "./deletedThreadState";',
+    "const forgotten = useRef(new Set<string>());",
+    "if (!alive.current || forgotten.current.has(id)) return;",
+    "const forget = useCallback((id: string) => {",
+    "if (!id || !alive.current || forgotten.current.has(id)) return;",
+    "versions.current.set(id, (versions.current.get(id) ?? 0) + 1);",
+    "if (target.current?.threadId === id) target.current = null;",
+    "if (!current.current.connected || !current.current.support || forgotten.current.has(id)) return;",
+    "const next = withoutThread(stateRef.current, id);",
+    "forgotten.current.clear();",
+    'if (event.method === "thread/deleted") {',
+    "if (typeof params.threadId === \"string\") forget(params.threadId);",
 )
 
 APPROVAL_FRAGMENTS = (
@@ -90,7 +131,36 @@ def check_deleted_thread_state() -> int:
     checked = _expect(MODULE_FRAGMENTS, module, MODULE)
     checked += _expect(APPROVAL_FRAGMENTS, _read(APPROVAL), APPROVAL)
     checked += _expect(DIALOG_FRAGMENTS, _read(DIALOGS), DIALOGS)
+    checked += _expect(withoutThread_FRAGMENTS, module, MODULE)
+    checked += _expect(PANEL_FRAGMENTS, _read(PANEL), PANEL)
+    checked += _expect(BRANCH_FRAGMENTS, _read(BRANCHES), BRANCHES)
     checked += _expect(APP_FRAGMENTS, app, APP)
+
+    # 两个 hook 都必须在通用会话 id 分支之前处理删除通知，且处理完直接返回：
+    # 否则通用分支会按旧状态继续读取，或把删除事件当成任务事件刷新。
+    for relative, after in ((PANEL, "const id = typeof params.threadId"), (BRANCHES, "if (!id || !current.current.support)")):
+        hook = _read(relative)
+        removal = hook.find('if (event.method === "thread/deleted") {')
+        generic = hook.find(after)
+        if removal < 0 or generic < 0 or removal > generic:
+            raise ValueError(f"{relative} 的删除通知必须在通用会话分支之前处理")
+        checked += 1
+        deleted = _slice(hook, 'if (event.method === "thread/deleted") {', "\n      }\n", relative)
+        if "return;" not in deleted:
+            raise ValueError(f"{relative} 的删除通知处理必须直接返回，不进入通用刷新")
+        checked += 1
+        forget = _slice(hook, "const forget = useCallback((id: string) => {", "\n  }, []);", relative)
+        # 遗忘直接改写状态表；经 update 写入会被自身守卫丢弃，也说明删除路径仍在走常规更新。
+        if "update(id" in forget:
+            raise ValueError(f"{relative} 的遗忘不得经 update 写入状态")
+        if "stateRef.current = next;" not in forget or "setStates(next);" not in forget:
+            raise ValueError(f"{relative} 的遗忘必须从状态表移除会话并更新界面")
+        checked += 1
+        # 定时器仍只遍历状态表：会话被移除后自然不再轮询，不依赖逐项跳过。
+        interval = 2000 if relative == BRANCHES else 1500
+        if "}, " + str(interval) + ");" not in hook:
+            raise ValueError(f"{relative} 的轮询间隔或收尾标记变化")
+        checked += 1
 
     branch = _slice(app, 'if (event.method === "thread/deleted")', "if (!id) return;", APP)
     # 通知分支：先让在途队列读取失效并遗忘六类连接内状态，再清完成标记与视图，最后移除列表项并刷新。

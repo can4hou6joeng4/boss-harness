@@ -4,6 +4,7 @@ import { compactionReferenceOf, contextJobOf, manualCompactionJob } from "./cont
 import { contextPlanOf, type ContextPlan } from "./contextPlan";
 import { contextReadOf } from "./contextRead";
 import { disconnectPatch, lifecycleReleasePatch, missingJobPatch, settleReadFlight, terminalDetailPatch, unresolvedStartPatch } from "./contextPanelState";
+import { withoutThread } from "./deletedThreadState";
 import { abortContextCompaction, harnessErrorText, planContextCompaction, readContext, readContextCompaction, startContextCompaction } from "./harnessBridge";
 
 interface StartAttempt {
@@ -53,9 +54,11 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
   const planVersions = useRef(new Map<string, number>());
   // 连续无法核对「运行中摘要任务」详情的次数；达到阈值后解除 lifecycleActive 界面锁。
   const lifecycleFailures = useRef(new Map<string, number>());
+  // 当前连接内已删除的会话：迟到的读取、计划、开始与取消回执都不能重建它的状态或轮询。
+  const forgotten = useRef(new Set<string>());
   const get = useCallback((id: string) => stateRef.current[id] ?? initial(), []);
   const update = useCallback((id: string, change: Partial<ContextPanelState> | ((state: ContextPanelState) => ContextPanelState)) => {
-    if (!alive.current) return;
+    if (!alive.current || forgotten.current.has(id)) return;
     const previous = stateRef.current[id] ?? initial();
     const next = typeof change === "function" ? change(previous) : { ...previous, ...change };
     stateRef.current = { ...stateRef.current, [id]: next };
@@ -84,7 +87,7 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
     });
   }, [update]);
   const refresh = useCallback((id: string): Promise<void> => {
-    if (!current.current.connected) return Promise.resolve();
+    if (!current.current.connected || forgotten.current.has(id)) return Promise.resolve();
     const existing = readFlights.current.get(id);
     if (existing) { refreshAgain.current.add(id); return existing; }
     const connectionEpoch = epoch.current;
@@ -177,6 +180,26 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
     });
     return flight;
   }, [applyJob, get, update]);
+  /**
+   * 会话被删除：作废在途读取与本会话的重读请求，清掉该会话的面板状态。
+   * 之后的读取、计划、开始与取消回执仍可能返回，`update` 按 `forgotten` 丢弃，
+   * 不能让定时器重新开始或让旧回执重建状态。重连时随连接内记录一起重置。
+   */
+  const forget = useCallback((id: string) => {
+    if (!id || !alive.current || forgotten.current.has(id)) return;
+    forgotten.current.add(id);
+    readVersions.current.set(id, (readVersions.current.get(id) ?? 0) + 1);
+    revisions.current.set(id, (revisions.current.get(id) ?? 0) + 1);
+    jobs.current.delete(id);
+    readFlights.current.delete(id);
+    refreshAgain.current.delete(id);
+    planVersions.current.delete(id);
+    lifecycleFailures.current.delete(id);
+    const next = withoutThread(stateRef.current, id);
+    if (next === stateRef.current) return;
+    stateRef.current = next;
+    setStates(next);
+  }, []);
 
   useEffect(() => {
     alive.current = true;
@@ -187,6 +210,7 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
         readFlights.current.clear();
         refreshAgain.current.clear();
         lifecycleFailures.current.clear();
+        forgotten.current.clear();
         for (const id of Object.keys(stateRef.current)) update(id, state => ({ ...state, ...disconnectPatch(state) }));
         return;
       }
@@ -195,6 +219,11 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
           if (state.discoveryStopped) update(id, { discoveryStopped: false });
           if (state.job || state.unknownStart || (current.current.isOpen && id === current.current.threadId)) void refresh(id);
         }
+        return;
+      }
+      if (event.method === "thread/deleted") {
+        // 删除通知先于删除回执；面板不再对已删除会话读取或保留进度。
+        if (typeof params.threadId === "string") forget(params.threadId);
         return;
       }
       const id = typeof params.threadId === "string" ? params.threadId : null;
@@ -233,7 +262,7 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
       }
     }, 1500);
     return () => { alive.current = false; unsubscribe?.(); clearInterval(timer); };
-  }, [applyJob, refresh, update]);
+  }, [applyJob, forget, refresh, update]);
   useEffect(() => {
     if (connected) {
       for (const [id, state] of Object.entries(stateRef.current)) if (state.job || (state.unknownStart && !state.discoveryStopped) || (isOpen && id === threadId)) {

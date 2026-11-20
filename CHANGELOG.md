@@ -1,3 +1,10 @@
+## 0.2.0-rc.401 - 2026-11-20
+
+rc.401 源码候选让上下文面板与分支弹窗在删除会话后停止轮询。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 两个 hook 都不处理 `thread/deleted`：被删除会话若停在「开始压缩回执未知」「lifecycleActive 为真」或「摘要任务 running」，1.5 秒与 2 秒的定时器会一直对已不存在的会话读取，删除时在途的计划、开始、取消与切换回执返回后还会把状态写回。现在收到删除通知即记录该会话 id 并移除它的面板状态，`update` 与 `refresh` 对已删除会话不再写状态或发起读取，迟到的回执无法重建状态或重新开始轮询；分支弹窗固定目标被删除时一并解除固定，其他会话不受影响。断连重连时按连接内记录重置。修复 Issue [#2927](https://github.com/can4hou6joeng4/boss-harness/issues/2927)。
+- 新增 `deletedThreadState.ts` 的 `withoutThread`；`check_deleted_thread_state.py` 增至 94 项，固定两个 hook 的删除分支先于通用会话分支处理并直接返回、遗忘不经 `update`、定时器仍只遍历状态表。从 rc.400 提交导出真实 hook 源码与修改版执行同一探针：旧版 8 项全部失败（模块与遗忘回调缺席、迟到回执重建状态、轮询仍读取被删除会话），修改版 8 项全部通过。同步桌面指南与技术参考。版本推进到 npm `0.2.0-rc.401` / Python `0.2.0rc401`。
+
 ## 0.2.0-rc.400 - 2026-11-20
 
 rc.400 源码候选在删除会话时收起固定在该会话的弹窗。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
