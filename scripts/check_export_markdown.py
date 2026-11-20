@@ -61,7 +61,7 @@ EXPORT_FRAGMENTS = (
     "_inline_code(unit['errorCode'])",
     "_inline_text(unit['recoveryAction'])",
     'f"{key}={_inline_text(value)}"',
-    'f"{_inline_text(key)}={json.dumps(value, ensure_ascii=False)}"',
+    'f"{_inline_text(key)}={_inline_text(json.dumps(value, ensure_ascii=False))}"',
     '_inline_text("；".join(facts))',
     # 结果明文：只在 included 分支以 json 围栏写入。
     'lines.append(_fence(result["text"], "json"))',

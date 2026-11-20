@@ -2,7 +2,7 @@
 
 rc.348 源码候选修复 Markdown 导出单行元数据的行内定界符转义。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
 
-- 拆分 `_code_text` 与 `_inline_text`：前者只处理反引号、回车与换行，供行内代码与 HTML 文本使用；后者在此基础上把 `\`、`[`、`]`、`<`、`>`、`*`、`_`、`~`、`|` 转义为字面字符。会话标题、工具来源、恢复建议等单行元数据不再能把链接、图片、原生 HTML 或强调带进渲染结果。修复 Issue [#2821](https://github.com/can4hou6joeng4/boss-harness/issues/2821)。
+- 拆分 `_code_text` 与 `_inline_text`：前者只处理反引号、回车与换行，供行内代码与 HTML 文本使用；后者在此基础上把 `\`、`[`、`]`、`<`、`>`、`*`、`_`、`~`、`|` 转义为字面字符。会话标题、工具来源、恢复建议与工具参数 JSON 等单行元数据不再能把链接、图片、原生 HTML 或强调带进渲染结果。修复 Issue [#2821](https://github.com/can4hou6joeng4/boss-harness/issues/2821)。
 - HTML 导出的摘要任务行改用 `_code_text`，避免把 Markdown 反斜杠写进页面；JSON 导出不变。`check_export_markdown.py` 增至 90 项并补反向断言，检查脚本仍为 72 个。版本推进到 npm `0.2.0-rc.348` / Python `0.2.0rc348`。
 
 ## 0.2.0-rc.347 - 2026-11-20

@@ -949,7 +949,7 @@ def _render_unit(unit: dict, view_log: bool) -> str:
             lines.append("- 来源：" + "；".join(f"{key}={_inline_text(value)}"
                                               for key, value in unit["source"].items()))
         if unit["arguments"]:
-            lines.append("- 参数：" + "，".join(f"{_inline_text(key)}={json.dumps(value, ensure_ascii=False)}"
+            lines.append("- 参数：" + "，".join(f"{_inline_text(key)}={_inline_text(json.dumps(value, ensure_ascii=False))}"
                                               if not (isinstance(value, str) and value.startswith(OMITTED))
                                               else f"{_inline_text(key)}={value}"
                                               for key, value in unit["arguments"].items()))
