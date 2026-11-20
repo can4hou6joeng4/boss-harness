@@ -2,13 +2,16 @@
 
 本页说明 BOSS Harness 当前可核实的能力、尚未完成的范围与不承诺的事项。版本号以根 [package.json](../package.json) 和 [CHANGELOG](../CHANGELOG.md) 为准；实际发布以 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) 为准。
 
-> **English summary**: `main` is the development branch. The latest published prerelease is `v0.2.0-rc.15`; the desktop is built from source and has no standalone installer. npm / PyPI publishing, real-model and real-platform acceptance, and signed installers remain pending. See the [English overview](../README.md#english-overview) for architecture and setup.
+> **English summary**: `main` is the development branch. The latest published prerelease is `v0.2.0-rc.15`; its tag, release notes and downloadable asset hashes were re-checked on 2026-11-20. Later source candidates on `main` have not been published. The desktop is built from source and has no standalone installer. npm / PyPI publishing, real-model and real-platform acceptance, and signed installers remain pending. See the [English overview](../README.md#english-overview) for architecture and setup.
 
 ## 发布状态
 
 - `main` 是开发分支，源码候选号随合并推进，不等同于已发布版本。
 - 最新实际预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。桌面从源码构建，尚无独立安装包或签名发行。
+- 该预发布的发布记录已于 2026-11-20 重新核对：远程 annotated tag、Release 正文与 `build-info.json`（`schemaVersion: 1`）指向同一提交 `560c86e2593592f86c61bdeddf0be099ec9d1272`；从 GitHub 下载的 wheel、sdist 与清单的 SHA-256 与 `SHA256SUMS.txt` 一致，清单记录的版本、包长度与哈希也与下载文件一致。这次核对由项目维护流程执行，只覆盖发布记录与可下载资产，不是第三方审计，也没有重建该版本或重做桌面验收。
+- `v0.2.0-rc.15` 之后合入 `main` 的源码候选尚未聚合为新的预发布。下一次发布的准备记录滚动维护在 [Issue #2351](https://github.com/can4hou6joeng4/boss-harness/issues/2351)，包含固定的候选提交、变化范围、本地构建与隔离安装结果；其中的本地候选资产没有上传，实际发布须从最终 tag 提交重新构建并复核。
 - Python wheel / sdist 可构建并隔离安装，但尚未发布到 npm 或 PyPI。
+- 社区介绍草稿保存在 [Issue #2312](https://github.com/can4hou6joeng4/boss-harness/issues/2312)，尚未向外部渠道发送；发送目标与正文按[对外介绍](../RELEASING.md#对外介绍)的规则单独确认。
 - 源码采用 MIT 许可证；仓库可见性与许可证不因发布候选而改变。
 
 ## 已具备
@@ -25,8 +28,8 @@
 
 - 独立安装包、代码签名与 macOS / Windows / Linux 完整安装验收。
 - 真实模型线路、真实招聘平台账号与浏览器登录的完整验收。
-- npm / PyPI 发布渠道与版本发布授权。
-- 已发布资产的独立复核（tag、Release 正文与资产哈希）。
+- 下一次实际预发布：独立 release PR 尚未建立；tag、GitHub Release 与资产上传需对应授权后执行，发布后按[合并与发布](../RELEASING.md#合并与发布)再次核对远程记录。
+- npm / PyPI 发布渠道尚未启用，发布需单独授权。
 
 ## 非目标
 

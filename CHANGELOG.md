@@ -1,3 +1,10 @@
+## 0.2.0-rc.392 - 2026-11-20
+
+rc.392 源码候选更新项目状态页的发布记录。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 项目状态页此前仍把「已发布资产的独立复核」列为待验收。现在写明 2026-11-20 对 `v0.2.0-rc.15` 的核对范围：远程 annotated tag、Release 正文与 schema 1 清单指向同一提交，下载的 wheel、sdist 与清单哈希和 `SHA256SUMS.txt` 一致；同时说明这次核对不是第三方审计，也没有重建该版本或重做桌面验收。关联 Issue [#2909](https://github.com/can4hou6joeng4/boss-harness/issues/2909)。
+- 状态页新增下一次发布的滚动准备记录与未发送社区介绍草稿的入口，并把待验收项改为尚未建立的独立 release PR 与未启用的注册表渠道；独立安装包、真实模型与招聘平台的待验收边界保持不变。同步 English summary；README 不改。仅调整文档与版本元数据，没有创建 tag、Release 或上传资产。版本推进到 npm `0.2.0-rc.392` / Python `0.2.0rc392`。
+
 ## 0.2.0-rc.391 - 2026-11-20
 
 rc.391 源码候选阻止删除会话后的迟到恢复结果重新写回。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
