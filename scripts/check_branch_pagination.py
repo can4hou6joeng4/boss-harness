@@ -4,7 +4,10 @@
 分支端点与当前分支回合始终分多次读取，内核每次请求都按当下的 leaf 计算回合集合，
 并在同一响应里报告该位置。两次请求之间位置变化时，各页分属不同位置，且不会出现
 重复回合可供查重；界面必须逐页比较响应报告的位置（含单页读取与切走又切回），
-不一致就放弃本次结果。旧内核的回合页不带位置时，翻页才回退到端点复核。
+不一致就放弃这一遍结果。旧内核的回合页不带位置时，翻页才回退到端点复核。
+
+位置变化多是一次性的：发现不一致后只重读一遍，一致就照常展示；仍不一致才提示并放弃，
+不得循环重读。读取失败时弹窗继续显示上次成功读取的列表，必须同时说明它是旧结果。
 
 逐页比较依赖内核响应自身一致：分支视图回合页的 `turns` 与 `branch` 必须出自同一次
 加锁读取的同一份条目，处理器不得在释放锁后另行读取位置。`thread/read` 的非快照
@@ -26,6 +29,12 @@ PAGES = "apps/desktop/src/renderer/src/data/branchPages.ts"
 SESSION = "harness/src/boss_harness/session.py"
 APPLICATION = "harness/src/boss_harness/application.py"
 USAGE = "apps/desktop/src/renderer/src/data/useThreadUsage.ts"
+DIALOG = "apps/desktop/src/renderer/src/components/BranchDialog.tsx"
+
+STALE_NOTICE = (
+    '{state.error && state.loaded && <p className="branch-block" role="status" data-branch-stale>'
+    "下方仍是上次成功读取的列表：当前位置标记与可切换目标可能已变化，刷新成功后再据此操作。</p>}"
+)
 
 USAGE_FRAGMENTS = (
     'import { branchPageLeafOf, sameLeafAcrossPages } from "./branchPages";',
@@ -77,19 +86,27 @@ KERNEL_HANDLER = (
 )
 
 DRIFT_CHECK = (
-    'const LEAF_DRIFT = "分支在读取期间发生变化：当前位置已改变（切换了分支或开始了新回合），'
-    '本次列表可能混用两个位置的结果，已放弃；请刷新后重试。";',
+    'const LEAF_DRIFT = "分支在读取期间持续变化：已重读一次，当前位置仍在改变（正在切换分支或有回合开始），'
+    '本次列表可能混用两个位置的结果，已放弃；请稍后刷新。";',
+    "const readLists = async () => {",
+    "const first: { page: Awaited<ReturnType<typeof listThreadBranches>> | null } = { page: null };",
+    "first.page ??= page;",
     "const pageLeaves: { seen: (string | null)[]; missing: boolean } = { seen: [], missing: false };",
     "pageLeaves.seen.push(page.leafTurnId);",
     "const leaf = branchPageLeafOf(page.branch, id);",
     'if (leaf === "invalid") throw new Error("当前分支回合响应的位置信息不属于当前会话或无法识别");',
     'if (leaf === "missing") pageLeaves.missing = true;',
     "else pageLeaves.seen.push(leaf.leafTurnId);",
-    "if (!sameLeafAcrossPages(pageLeaves.seen)) {",
+    'if (!sameLeafAcrossPages(pageLeaves.seen)) return "drift" as const;',
     "if (pageLeaves.missing && (endpointPage.pages > 1 || turnPage.pages > 1)) {",
     "const check = await listThreadBranches(id);",
     "if (check.threadId !== id || !Array.isArray(check.endpoints)) {",
-    "if ((check.leafTurnId ?? null) !== (pageLeaves.seen[0] ?? null)) {",
+    'if ((check.leafTurnId ?? null) !== (pageLeaves.seen[0] ?? null)) return "drift" as const;',
+    "return { head: first.page, endpointPage, turnPage };",
+    "let lists = await readLists();",
+    'if (lists === "drift") lists = await readLists();',
+    "if (lists === null) return;",
+    "const { head, endpointPage, turnPage } = lists;",
 )
 
 PAGE_LEAF_FRAGMENTS = (
@@ -131,11 +148,17 @@ def check_branch_pagination() -> int:
     checked += _expect(DRIFT_CHECK, branches, BRANCHES)
     checked += _expect(PAGE_LEAF_FRAGMENTS, pages, PAGES)
 
-    # 顺序：两段列表拼完 → 逐页比较 → 旧内核回退复核 → 摘要读取。
+    # 顺序：两段列表拼完 → 逐页比较 → 旧内核回退复核 → 重读一遍 → 过期退出 → 仍不一致则提示 → 摘要读取。
     # 摘要读取失败不能掩盖放弃本次结果，回退复核也不能先于逐页比较。
+    compare = 'if (!sameLeafAcrossPages(pageLeaves.seen)) return "drift" as const;'
+    retry = 'if (lists === "drift") lists = await readLists();'
+    abort = "update(id, { loading: false, error: LEAF_DRIFT });\n        return;"
     position = -1
-    for marker in ("if (!uniqueTurnIds(turnPage.items))", "if (!sameLeafAcrossPages(pageLeaves.seen)) {",
+    for marker in ("const readLists = async () => {", "if (!uniqueTurnIds(turnPage.items))", compare,
                    "if (pageLeaves.missing && (endpointPage.pages > 1 || turnPage.pages > 1)) {",
+                   "return { head: first.page, endpointPage, turnPage };",
+                   "let lists = await readLists();", retry, "if (lists === null) return;",
+                   'if (lists === "drift") {', abort, "const { head, endpointPage, turnPage } = lists;",
                    "const context = await readContext(id);"):
         index = branches.find(marker)
         if index < 0 or index <= position:
@@ -143,15 +166,25 @@ def check_branch_pagination() -> int:
         position = index
         checked += 1
 
-    compare_index = branches.find("if (!sameLeafAcrossPages(pageLeaves.seen)) {")
+    compare_index = branches.find(compare)
     context_index = branches.find("const context = await readContext(id);")
     aborted = branches[compare_index:context_index]
     # 发现位置变化后必须立即结束：不能让后续摘要读取写入旧 leaf 与端点。
     if "update(id, state => ({ ...state, loading: false, loaded: true" in aborted:
         raise ValueError("位置变化后仍继续写入分支状态")
-    if aborted.count("update(id, { loading: false, error: LEAF_DRIFT });\n        return;") != 1 \
-            or aborted.count("update(id, { loading: false, error: LEAF_DRIFT });\n          return;") != 1:
-        raise ValueError("逐页比较与回退复核发现变化后都必须提示并立即返回")
+    # 两处发现变化的位置都只上报 "drift"，由唯一一处决定重读还是提示；提示不清除已载入的旧列表。
+    if branches.count('return "drift" as const;') != 2 or aborted.count('return "drift" as const;') != 2:
+        raise ValueError("逐页比较与回退复核发现变化后都必须上报，且只有这两处上报")
+    if branches.count("LEAF_DRIFT") != 2 or aborted.count(abort) != 1:
+        raise ValueError("仍不一致时必须在唯一一处提示并立即返回")
+    checked += 2
+    # 只重读一次：读取函数恰好调用两次，第二次只在第一次不一致时发生，中间没有循环。
+    retry_index = branches.find("let lists = await readLists();")
+    attempts = branches[retry_index:context_index]
+    if branches.count("readLists()") != 2 or branches.count(retry) != 1:
+        raise ValueError("位置不一致时只能重读一次")
+    if any(loop in attempts for loop in ("while (", "for (", "do {", "setTimeout(", "refresh(")):
+        raise ValueError("位置不一致后的重读不得循环、延时或递归刷新")
     checked += 2
     # 回合页带位置时不再多发端点请求：复核只允许出现在「缺失且翻页」的回退分支里。
     if branches.count("const check = await listThreadBranches(id);") != 1:
@@ -162,13 +195,29 @@ def check_branch_pagination() -> int:
     checked += 1
 
     # 旧形态不再出现：只在翻页时复核、只比较首尾位置，或把缺失的位置当作空位置。
+    # 以及发现变化后不重读、直接提示的旧文案与旧写法。
     for stale in ("if (endpointPage.pages > 1 || turnPage.pages > 1) {", "const firstLeaf = leafOfHead();",
-                  "当前位置已被切换，本次列表可能混用两条分支"):
+                  "当前位置已被切换，本次列表可能混用两条分支", "分支在读取期间发生变化：当前位置已改变",
+                  "if (!sameLeafAcrossPages(pageLeaves.seen)) {"):
         if stale in branches:
             raise ValueError(f"仍保留只在翻页时复核的旧实现：{stale}")
         checked += 1
     if "truncated: false }" in paged or "truncated: true }" in paged:
         raise ValueError("分页结果仍缺少页数统计")
+    checked += 1
+
+    # 弹窗：读取失败时旧列表仍在下方展示，必须紧跟错误提示说明它是旧结果；从未成功读取时不显示。
+    dialog = _read(DIALOG)
+    position = -1
+    for marker in ('{state.error && <p className="branch-error" role="alert">{state.error}</p>}', STALE_NOTICE,
+                   "data-branch-endpoint={endpoint.turnId}"):
+        index = dialog.find(marker)
+        if index < 0 or index <= position:
+            raise ValueError(f"{DIALOG} 缺少旧列表提示或顺序变化：{marker}")
+        position = index
+        checked += 1
+    if dialog.count("data-branch-stale") != 1:
+        raise ValueError("旧列表提示只应出现一次")
     checked += 1
 
     # 内核：回合集合与位置同源。位置必须在持锁读取条目之后、释放锁之前由同一份回合算出。
@@ -281,7 +330,7 @@ def main() -> int:
     except ValueError as error:
         print(f"分支分页一致性核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"分支分页一致：{checked} 项页数统计、逐页位置核对与内核同源读取（回合页、会话读取与用量）")
+    print(f"分支分页一致：{checked} 项页数统计、逐页位置核对、单次重读、旧列表提示与内核同源读取（回合页、会话读取与用量）")
     return 0
 
 

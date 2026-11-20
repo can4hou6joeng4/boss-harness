@@ -60,6 +60,8 @@ export function BranchDialog({ isOpen, onClose, state, support, owner, messages,
       {block && <p className="branch-block" role="status" data-branch-block>{block}</p>}
       {state.switchError && <p className="branch-error" role="alert">{state.switchError}</p>}
       {state.error && <p className="branch-error" role="alert">{state.error}</p>}
+      {/* 读取失败只更新提示，上次成功读取的列表仍在下方：必须说明它是旧结果。 */}
+      {state.error && state.loaded && <p className="branch-block" role="status" data-branch-stale>下方仍是上次成功读取的列表：当前位置标记与可切换目标可能已变化，刷新成功后再据此操作。</p>}
       {state.summaryError && <p className="branch-block" role="status">{state.summaryError}</p>}
       {state.summaryIssueCount > 0 && <div className="branch-block branch-summary-issues" role="status" data-branch-summary-issues>
         <strong>{state.summaryIssueCount} 条被放弃分支摘要未生效</strong>
