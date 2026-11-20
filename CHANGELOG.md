@@ -1,3 +1,10 @@
+## 0.2.0-rc.381 - 2026-11-20
+
+rc.381 源码候选固定在途请求标记的推进与作废。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_attempt_token.py`，固定标记初值为 0、`startAttempt` 与 `invalidateAttempts` 都递增、`startAttempt` 返回新标记、`attemptCurrent` 严格相等；反向断言开始与作废都必须推进标记、开始提交不得重置标记、比较不得放宽。修复 Issue [#2885](https://github.com/can4hou6joeng4/boss-harness/issues/2885)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 104 个。版本推进到 npm `0.2.0-rc.381` / Python `0.2.0rc381`。不改变运行时行为，只固定在途请求标记契约。
+
 ## 0.2.0-rc.380 - 2026-11-20
 
 rc.380 源码候选固定队列读取的代数票据与失效语义。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
