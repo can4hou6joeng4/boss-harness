@@ -4,7 +4,7 @@ import { abortContextCompaction, harnessErrorText, listBranchTurns, listQueue, l
 import { readPagedItems } from "./pagedRead";
 import { branchJobOf, compactionReferenceOf } from "./contextJob";
 import { branchSummariesOf } from "./branchSummaries";
-import { branchEndpointOf, branchTurnOf, uniqueTurnIds } from "./branchPages";
+import { branchEndpointOf, branchPageLeafOf, branchTurnOf, sameLeafAcrossPages, uniqueTurnIds } from "./branchPages";
 import { withoutThread } from "./deletedThreadState";
 
 /**
@@ -44,6 +44,9 @@ export interface SessionBranchState {
   switchError: string;
   cancelInFlight: boolean;
 }
+
+/** 读取期间位置变化：本次列表不可信，放弃并让用户刷新。 */
+const LEAF_DRIFT = "分支在读取期间发生变化：当前位置已改变（切换了分支或开始了新回合），本次列表可能混用两个位置的结果，已放弃；请刷新后重试。";
 
 const initial = (): SessionBranchState => ({ loading: false, loaded: false, error: "", branched: false, leafTurnId: null, turnCount: 0,
   endpoints: [], endpointsTruncated: false, turns: [], turnsTruncated: false, summaries: [], summaryIssues: [], summaryIssueCount: 0,
@@ -174,6 +177,8 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
     update(id, { loading: true });
     try {
       let head: Awaited<ReturnType<typeof listThreadBranches>> | null = null;
+      // 每一页响应都带有内核计算该页时的当前位置；按请求顺序记录，读完后逐页比较。
+      const pageLeaves: { seen: (string | null)[]; missing: boolean } = { seen: [], missing: false };
       const endpointPage = await readPagedItems("分支列表", async cursor => {
         const page = await listThreadBranches(id, cursor);
         if (!valid()) throw new Error("分支列表读取已过期");
@@ -187,6 +192,7 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
         const endpoints = page.endpoints.map(branchEndpointOf);
         if (endpoints.some(endpoint => endpoint === null)) throw new Error("分支列表包含无法识别的端点");
         head ??= page;
+        pageLeaves.seen.push(page.leafTurnId);
         return { items: endpoints as ThreadBranchEndpoint[], nextCursor: page.nextCursor ?? null };
       }, MAX_PAGES);
       if (!uniqueTurnIds(endpointPage.items)) throw new Error("分支列表包含重复端点");
@@ -197,24 +203,29 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
         // 其他会话的回合是归属错误，不能静默过滤后展示少一截的列表。
         const turns = page.turns.map(turn => branchTurnOf(turn, id));
         if (turns.some(turn => turn === null)) throw new Error("当前分支回合响应包含无法识别的条目");
+        const leaf = branchPageLeafOf(page.branch, id);
+        if (leaf === "invalid") throw new Error("当前分支回合响应的位置信息不属于当前会话或无法识别");
+        if (leaf === "missing") pageLeaves.missing = true;
+        else pageLeaves.seen.push(leaf.leafTurnId);
         return { items: turns as TurnSummary[], nextCursor: page.nextCursor ?? null };
       }, MAX_PAGES);
       if (!uniqueTurnIds(turnPage.items)) throw new Error("当前分支回合包含重复条目");
-      // 分页结果由多次读取拼成，内核每次请求都按当下的 leaf 计算「当前分支回合」：
-      // 翻页期间若位置被切换，两页会分属两条分支，且不会出现重复条目可供查重。
-      // 只要有一侧翻了页，就用端点的 leaf 复核一次，不把两条分支混成一条展示。
-      if (endpointPage.pages > 1 || turnPage.pages > 1) {
-        // head 在分页回调里赋值；经函数读取，避免控制流分析把它收窄成初始的 null。
-        const leafOfHead = (): string | null => head?.leafTurnId ?? null;
-        const firstLeaf = leafOfHead();
+      // 端点与回合始终是多次请求，内核每次都按当下的位置计算「当前分支回合」：两次请求之间
+      // 位置变化时，各页会分属不同位置，且不会出现重复条目可供查重。逐页比较响应里报告的
+      // 位置（含单页读取与切走又切回），不一致就放弃，不把两条分支混成一条展示。
+      if (!sameLeafAcrossPages(pageLeaves.seen)) {
+        update(id, { loading: false, error: LEAF_DRIFT });
+        return;
+      }
+      // 旧内核的回合页不带位置：只有翻页时才用端点复核一次，单页读取不增加请求。
+      if (pageLeaves.missing && (endpointPage.pages > 1 || turnPage.pages > 1)) {
         const check = await listThreadBranches(id);
         if (!valid()) return;
         if (check.threadId !== id || !Array.isArray(check.endpoints)) {
           throw new Error("分支列表不属于当前会话或格式无法识别");
         }
-        if ((check.leafTurnId ?? null) !== firstLeaf) {
-          update(id, { loading: false,
-            error: "分支在读取期间发生变化：当前位置已被切换，本次列表可能混用两条分支，已放弃；请刷新后重试。" });
+        if ((check.leafTurnId ?? null) !== (pageLeaves.seen[0] ?? null)) {
+          update(id, { loading: false, error: LEAF_DRIFT });
           return;
         }
       }
