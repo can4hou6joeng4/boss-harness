@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 参数可传递性在审批之前收敛（Issue #2921）
+
+重新核对 Pi MIT 固定提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md` 与工具审批入口：调用参数经 `beforeToolCall` 一类闸门后才执行，所读入口没有约定参数能否作为子进程 argv 传递的字符级校验。本项目在注册表的参数快照阶段独立收敛：含空字符的字符串与对象键在审批与处理器之前返回参数错误；子进程仍未能启动时以独立的 `CLI_ARGUMENT_ERROR` 结算为未执行并暂停回合，不把结果说成可能已生效。不复制源码、不引入依赖，审批权限与内核裁决不变。
+
+离线对照用固定 rc.397 提交导出的真实内核源码与修改版执行同一探针，共 12 项断言：旧版有 4 项空字符参数通过注册表、直接调用抛 `ValueError`、未启动被结算为 `outcome_unknown`；修改版全部通过，且已派发失败的 `outcome_unknown` 语义保持不变。探针只留本地；未启动模型、招聘平台或真实 CLI 二进制。
+
 ## 删除后审批回执的实例归属（Issue #2919）
 
 重新核对 Pi MIT 固定提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（会话选择器删除入口）与 `packages/coding-agent/src/core/session-manager.ts`（`setSessionFile`、`newSession` 重建本地条目索引）：所读入口没有本项目跨进程审批 RPC 与删除通知交错的状态实例契约。本项目在客户端独立实现实例身份比较：发送前固定审批状态，回执到达后用只读 `Map.get` 判断该实例是否仍属于来源会话。删除或替换使旧回执的界面写入失效；普通会话切换不影响结算。不复制源码、不引入依赖，不改变审批权限或内核裁决。

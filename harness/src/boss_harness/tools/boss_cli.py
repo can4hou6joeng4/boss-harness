@@ -238,6 +238,10 @@ class BossCliTool:
                                     start_new_session=os.name == "posix", shell=False)
         except OSError:
             return failure("CLI_ERROR", "上游 CLI 不可执行，请检查 BOSS_CLI_BIN")
+        except ValueError:
+            # argv 含空字符或无法按文件系统编码转换时 Popen 直接拒绝：进程没有
+            # 启动，任何对外操作都未发出，不能按「可能已生效」结算。
+            return failure("CLI_ARGUMENT_ERROR", "工具参数无法作为命令行参数传递，CLI 未启动；本次操作未发出，请修正参数后重新发起新回合。")
         deadline = time.monotonic() + timeout
         output = None
         try:

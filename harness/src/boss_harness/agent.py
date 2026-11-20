@@ -665,8 +665,11 @@ class TurnRunner:
                 pause = True
         if prepared.policy_denied:
             self._blocked = result
-        if not result.ok and (pause
-                              or (name in self.approval_required and (result.error or {}).get("code") not in {"INVALID_PARAM", "CANCELLED"})):
+        # CLI_ARGUMENT_ERROR 表示子进程从未启动：既不把结果说成可能已生效（终态按
+        # 未执行结算），也要暂停本回合让操作者看到原因，不能由模型自行重试。
+        unstarted = (result.error or {}).get("code") == "CLI_ARGUMENT_ERROR"
+        if not result.ok and (pause or unstarted
+                              or (name in self.approval_required and (result.error or {}).get("code") not in {"INVALID_PARAM", "CANCELLED", "CLI_ARGUMENT_ERROR"})):
             self._blocked = result
         unknown = (dispatched and name in self.approval_required and not result.ok
                    and (result.error or {}).get("code") in {
@@ -674,7 +677,7 @@ class TurnRunner:
                        "GREET_RESULT_UNKNOWN", "ACTION_UNCONFIRMED"})
         execution_state = ("not_executed" if prepared.policy_denied or prepared.dispatch_persistence_failed
                            or prepared.cancelled_before_dispatch or prepared.invalid is not None
-                           or prepared.handler is None
+                           or prepared.handler is None or unstarted
                            else "outcome_unknown" if unknown else None)
         final_state = execution_state or ("completed" if result.ok else "failed")
         disposition = disposition_for_state(final_state, write=name in self.approval_required)
