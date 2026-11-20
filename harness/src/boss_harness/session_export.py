@@ -348,14 +348,33 @@ def _pagination(value: Any) -> dict | None:
     return out
 
 
-def _inline_text(value: Any) -> str:
-    """Neutralise Markdown delimiters in a single line of platform/user-supplied text."""
+def _code_text(value: Any) -> str:
+    """Neutralise backticks and line breaks for a code span or escaped HTML text."""
     return str(value).replace("`", "'").replace("\r", " ").replace("\n", " ")
+
+
+# 正文里的行内 Markdown 定界符：链接、图片、原生 HTML、强调、删除线与表格单元。
+_INLINE_ESCAPES = str.maketrans({
+    "\\": "\\\\",
+    "[": "\\[",
+    "]": "\\]",
+    "<": "\\<",
+    ">": "\\>",
+    "*": "\\*",
+    "_": "\\_",
+    "~": "\\~",
+    "|": "\\|",
+})
+
+
+def _inline_text(value: Any) -> str:
+    """Escape inline Markdown delimiters in a single line of platform/user-supplied text."""
+    return _code_text(value).translate(_INLINE_ESCAPES)
 
 
 def _inline_code(value: Any) -> str:
     """A code span that cannot be broken by backticks or line breaks in platform-supplied text."""
-    return "`" + _inline_text(value) + "`"
+    return "`" + _code_text(value) + "`"
 
 
 def _duration_text(ms: int) -> str:
@@ -930,7 +949,7 @@ def _render_unit(unit: dict, view_log: bool) -> str:
             lines.append("- 来源：" + "；".join(f"{key}={_inline_text(value)}"
                                               for key, value in unit["source"].items()))
         if unit["arguments"]:
-            lines.append("- 参数：" + "，".join(f"{_inline_text(key)}={json.dumps(value, ensure_ascii=False)}"
+            lines.append("- 参数：" + "，".join(f"{_inline_text(key)}={_inline_text(json.dumps(value, ensure_ascii=False))}"
                                               if not (isinstance(value, str) and value.startswith(OMITTED))
                                               else f"{_inline_text(key)}={value}"
                                               for key, value in unit["arguments"].items()))
@@ -1251,7 +1270,7 @@ def _render_unit_html(unit: dict) -> str:
         if unit.get("summaryModel"):
             extra.append(f"摘要模型 {unit['summaryModel']}")
         if unit.get("summaryJobId"):
-            extra.append(f"摘要任务 {_inline_text(unit['summaryJobId'])}")
+            extra.append(f"摘要任务 {_code_text(unit['summaryJobId'])}")
         if unit.get("reason") in _JOB_REASON:
             extra.append(_JOB_REASON[unit["reason"]])
         extra_text = f"；{'；'.join(extra)}" if extra else ""
@@ -1307,7 +1326,7 @@ def _render_html(meta: dict, units: list[tuple[str, dict]], counts: dict, total_
     if jobs:
         shown = jobs[-MAX_EXPORT_SUMMARY_JOBS:]
         rows.append(f"摘要任务明细：最近 {len(shown)} / {usage.get('summaryJobCount', len(jobs))} 个任务")
-        rows += [f"摘要任务：{_h(_inline_text('；'.join(_summary_job_facts(job))))}" for job in shown]
+        rows += [f"摘要任务：{_h(_code_text('；'.join(_summary_job_facts(job))))}" for job in shown]
     if queue["totalItems"]:
         rows.append(f"消息队列：{queue['totalItems']} 个未形成回合的队列项")
     parts = ['<!doctype html>', '<html lang="zh-CN"><head><meta charset="utf-8">',
