@@ -55,6 +55,14 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
   const sessionDrafts = useRef(new Map<string, AutoCompactionDraft>());
   // 记录存在未应用手动改动的会话，避免关闭重开、读取失败后重试或重连时的回执覆盖草稿。
   const dirtyThreads = useRef(new Set<string>());
+  // 已取出但结果未知的覆盖：明确拒绝时按取出时的标记恢复；期间重新应用、清除或再次取用则不再恢复。
+  const consumed = useRef(new Map<string, { policy: TurnAutoCompactionOverride; stamp: number }>());
+  const stamps = useRef(new Map<string, number>());
+  const stampOf = (id: string) => {
+    const next = (stamps.current.get(id) ?? 0) + 1;
+    stamps.current.set(id, next);
+    return next;
+  };
   // 每次用户改动草稿都递增；读取默认值的回执只在不晚于读取起点时才能覆盖草稿。
   const editVersion = useRef(0);
   const [draft, setDraft] = useState<AutoCompactionDraft>(DEFAULT_AUTO_COMPACTION_DRAFT);
@@ -72,6 +80,8 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
       if (!id) return;
       sessionDrafts.current.delete(id);
       dirtyThreads.current.delete(id);
+      consumed.current.delete(id);
+      stamps.current.delete(id);
       editVersion.current += 1;
       if (lastThread.current === id) {
         const reset = resetAutoCompactionDraft(undefined);
@@ -169,6 +179,8 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
     overridesRef.current = nextOverrides;
     dirtyThreads.current.delete(threadId);
     sessionDrafts.current.delete(threadId);
+    consumed.current.delete(threadId);
+    stampOf(threadId);
     const synced = draftFrom(policy);
     draftRef.current = synced;
     setDraft(synced);
@@ -180,6 +192,8 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
     if (threadId) {
       dirtyThreads.current.delete(threadId);
       sessionDrafts.current.delete(threadId);
+      consumed.current.delete(threadId);
+      stampOf(threadId);
       if (Object.prototype.hasOwnProperty.call(overridesRef.current, threadId)) {
         const { [threadId]: _removed, ...rest } = overridesRef.current;
         overridesRef.current = rest;
@@ -193,7 +207,10 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
     setDraft(reset);
   }, [defaults, threadId]);
 
-  /** 取出并消耗本会话待应用的覆盖；发送失败或回执未知时也视为已消耗。 */
+  /**
+   * 取出并消耗本会话待应用的覆盖；回执未知或成功时视为已消耗。
+   * 明确拒绝时调用方用返回值调用 `restore` 写回。
+   */
   const take = useCallback((id: string): TurnAutoCompactionOverride | undefined => {
     const pending = overridesRef.current[id];
     if (!pending) return undefined;
@@ -201,6 +218,7 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
     overridesRef.current = rest;
     dirtyThreads.current.delete(id);
     sessionDrafts.current.delete(id);
+    consumed.current.set(id, { policy: pending, stamp: stampOf(id) });
     setOverrides(rest);
     // 覆盖已随这次发送消耗：若当前正显示该会话，表单回到内核默认值，下次打开可继续同步最新默认值。
     if (lastThread.current === id) {
@@ -211,10 +229,30 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
     return pending;
   }, [defaults]);
 
+  /**
+   * 明确拒绝后恢复本次取出的覆盖。只有取出后没有重新应用、清除或再次取用时才恢复；
+   * 回执未知与成功路径不调用，保持「已消耗」语义。
+   */
+  const restore = useCallback((id: string, policy: TurnAutoCompactionOverride | undefined) => {
+    if (!policy) return;
+    const record = consumed.current.get(id);
+    if (!record || record.policy !== policy || record.stamp !== stamps.current.get(id)) return;
+    consumed.current.delete(id);
+    stampOf(id);
+    const next = { ...overridesRef.current, [id]: policy };
+    overridesRef.current = next;
+    setOverrides(next);
+    if (lastThread.current === id) {
+      const restored = draftFrom(policy);
+      draftRef.current = restored;
+      setDraft(restored);
+    }
+  }, []);
+
   return {
     defaults, draft, reading, error, valid,
     active: threadId ? overrides[threadId] : undefined,
-    setEnabled, setTriggerPercent, setKeepRecentTokens, apply, clear, take,
+    setEnabled, setTriggerPercent, setKeepRecentTokens, apply, clear, take, restore,
   };
 }
 

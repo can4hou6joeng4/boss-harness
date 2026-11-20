@@ -873,9 +873,11 @@ export function App(): JSX.Element {
     if (!real) { simulate(id); return true; }
     markRunning(id, true);
     let rejected = false;
+    // 压缩覆盖只作用于本会话下一条直接发送；入队、转向与续接不携带该覆盖。
+    // 明确拒绝时写回本次取出的覆盖，回执未知与成功则保持已消耗。
+    const override = autoCompaction.take(id);
     try {
-      // 压缩覆盖只作用于本会话下一条直接发送；入队、转向与续接不携带该覆盖。
-      const accepted = await sendTurn(id, text, clientId, model, skillIds, autoCompaction.take(id));
+      const accepted = await sendTurn(id, text, clientId, model, skillIds, override);
       turnIds.current.set(id, accepted.turnId);
       // 回合列表要等回合持久化后才包含本次技能；先用发送参数补上，运行中的用户消息即可显示。
       // 去重回执复用已有回合，本次参数未必等于该回合实际注入的技能，交给回合列表核对。
@@ -886,8 +888,11 @@ export function App(): JSX.Element {
       markRunning(id, false);
       rejected = isHarnessRpcRejection(cause);
       reportSessionError(id, sendFailureNotice(cause));
-      // 明确拒绝说明回合没有启动：撤回乐观插入的消息，调用方据返回的 false 保留草稿。
-      if (rejected) updateThread(id, previous => previous.filter(item => item.id !== clientId));
+      // 明确拒绝说明回合没有启动：撤回乐观插入的消息并恢复本次消耗的覆盖，调用方据返回的 false 保留草稿。
+      if (rejected) {
+        autoCompaction.restore(id, override);
+        updateThread(id, previous => previous.filter(item => item.id !== clientId));
+      }
       // 两种失败都重新读取会话收敛；明确拒绝也可能已经留下失败回合记录。
       const replica = replicaRef.current;
       const snapshot = await replica?.resume(id);
@@ -900,7 +905,7 @@ export function App(): JSX.Element {
       return rejected ? false : "uncertain";
     }
     return true;
-  }, [harnessUp, updateThread, markRunning, reportSessionError, simulate, autoCompaction.take]);
+  }, [harnessUp, updateThread, markRunning, reportSessionError, simulate, autoCompaction.restore, autoCompaction.take]);
   const handleStartSessionWithPrompt = useCallback((prompt: string, _domain: string, provider: string, modelId: string, skillIds: string[] = []): Promise<SessionStartOutcome> => {
     return (async (): Promise<SessionStartOutcome> => {
       if (window.boss && !harnessUp) { showError("本地内核未连接，请检查启动配置并重启应用。"); return { status: "failed" }; }
@@ -1028,13 +1033,17 @@ export function App(): JSX.Element {
     // 后续回合与直接发送共享同一个待应用覆盖；转向消息不支持该覆盖。
     const policy = autoCompaction.take(session.id);
     const item = await queueFollowUp({ threadId: session.id, input: text, clientUserMessageId, skillIds,
-      ...(policy ? { autoCompaction: policy } : {}) });
+      ...(policy ? { autoCompaction: policy } : {}) }).catch(cause => {
+      // 明确拒绝说明消息没有入队：恢复本次消耗的覆盖后继续抛出，调用方行为不变。
+      if (isHarnessRpcRejection(cause)) autoCompaction.restore(session.id, policy);
+      throw cause;
+    });
     if (activeRef.current?.id === session.id) {
       queueReads.current.invalidate(session.id);
       applyQueuePage(patchQueuePage(queueCache.current.get(session.id), item), session.id);
     }
     return true;
-  }, [harnessUp, autoCompaction.take]);
+  }, [harnessUp, autoCompaction.restore, autoCompaction.take]);
   const handleCheckQueueSubmission = useCallback(async (clientUserMessageId: string): Promise<QueueSubmissionCheck> => {
     const session = activeRef.current;
     if (!session || session.projectId !== HARNESS_PROJECT_ID || !harnessUp) return { status: "unavailable" };
