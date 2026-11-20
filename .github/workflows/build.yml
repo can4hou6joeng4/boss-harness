@@ -72,6 +72,8 @@ jobs:
         run: python scripts/check_export_markdown.py
       - name: Verify session export JSON
         run: python scripts/check_export_json.py
+      - name: Verify local Markdown export
+        run: python scripts/check_local_export.py
       - name: Verify private state boundaries
         run: python scripts/check_private_files.py
       - name: Verify credential redaction

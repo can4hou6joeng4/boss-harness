@@ -1,3 +1,10 @@
+## 0.2.0-rc.351 - 2026-11-20
+
+rc.351 源码候选收敛旧内核回退路径的本地 Markdown 导出标题。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `exportMarkdown` 先把标题的连续空白折叠为单个空格、去除首尾空白，用共享 `safeSlice` 限制 200 个字符，空标题回退为「当前会话」，标题不再能把换行或超长内容带进 `#` 标题行。正文、段落、列表与工具复制文本保持原顺序。修复 Issue [#2827](https://github.com/can4hou6joeng4/boss-harness/issues/2827)。
+- 新增 `scripts/check_local_export.py`，固定标题收敛、拼装顺序与工具文本复用，并反向断言标题不得直接进入模板或绕过共享截断。接入 CI 并在技术参考补同名小节；检查脚本增至 74 个。版本推进到 npm `0.2.0-rc.351` / Python `0.2.0rc351`。
+
 ## 0.2.0-rc.350 - 2026-11-20
 
 rc.350 源码候选固定 JSON 导出的 schema 标识并写入文档。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
