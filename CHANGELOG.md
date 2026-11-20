@@ -1,3 +1,10 @@
+## 0.2.0-rc.405 - 2026-11-20
+
+rc.405 源码候选修正删除通知字段，让删除时的 hook 状态遗忘真正生效。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 内核 `thread/deleted` 通知的参数是 `deletedThreadId`、`eventId` 与 `eventCursor`（恢复标记冲突时明确拒绝带 `threadId` 的记录），协议也只声明 `deletedThreadId`；rc.401–rc.404 新增的上下文面板、分支、推理档位与自动压缩草稿删除处理都读 `params.threadId`，取不到即返回，遗忘逻辑从未执行。因此那几版描述的清理在上次修正前仍是空操作：两个 hook 的 1.5 秒 / 2 秒轮询会继续读取已删除会话，推理档位与压缩草稿也不会释放。现在四个 hook 都只读 `deletedThreadId`，与主界面和 replay 侧一致；推理档位的删除分支移到通用 id 提取之前，避免再次不可达。修复 Issue [#2935](https://github.com/can4hou6joeng4/boss-harness/issues/2935)。
+- `check_deleted_thread_state.py` 增至 125 项，固定四个 hook 读取 `deletedThreadId`，并附反向断言禁止删除分支读取通用 `threadId`。从 rc.404 提交导出真实 hook 源码与修改版按真实通知形状执行同一探针：旧版 8 项中 7 项失败（四个 hook 都未触发遗忘，自动压缩还接受了通用 `threadId`），修改版 8 项全部通过。同步技术参考。版本推进到 npm `0.2.0-rc.405` / Python `0.2.0rc405`。
+
 ## 0.2.0-rc.404 - 2026-11-20
 
 rc.404 源码候选让删除后迟到的分支切换回执失效。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

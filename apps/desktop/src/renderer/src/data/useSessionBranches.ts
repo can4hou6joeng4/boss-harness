@@ -285,7 +285,7 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       }
       if (event.method === "thread/deleted") {
         // 删除通知先于删除回执；分支弹窗不再对已删除会话读取、轮询或提交切换。
-        if (typeof params.threadId === "string") forget(params.threadId);
+        if (typeof params.deletedThreadId === "string") forget(params.deletedThreadId);
         return;
       }
       const id = typeof params.threadId === "string" ? params.threadId : null;

@@ -67,8 +67,8 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
   useEffect(() => {
     const unsubscribe = window.boss?.onNotification(event => {
       const params = event.params && typeof event.params === "object" ? event.params as Record<string, unknown> : {};
-      if (event.method !== "thread/deleted" || typeof params.threadId !== "string") return;
-      const id = params.threadId;
+      if (event.method !== "thread/deleted" || typeof params.deletedThreadId !== "string") return;
+      const id = params.deletedThreadId;
       if (!id) return;
       sessionDrafts.current.delete(id);
       dirtyThreads.current.delete(id);

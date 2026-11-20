@@ -52,7 +52,7 @@ PANEL_FRAGMENTS = (
     "const next = withoutThread(stateRef.current, id);",
     "forgotten.current.clear();",
     'if (event.method === "thread/deleted") {',
-    "if (typeof params.threadId === \"string\") forget(params.threadId);",
+    "if (typeof params.deletedThreadId === \"string\") forget(params.deletedThreadId);",
 )
 
 BRANCH_FRAGMENTS = (
@@ -69,7 +69,7 @@ BRANCH_FRAGMENTS = (
     "const next = withoutThread(stateRef.current, id);",
     "forgotten.current.clear();",
     'if (event.method === "thread/deleted") {',
-    "if (typeof params.threadId === \"string\") forget(params.threadId);",
+    "if (typeof params.deletedThreadId === \"string\") forget(params.deletedThreadId);",
 )
 
 REASONING_FRAGMENTS = (
@@ -82,14 +82,16 @@ REASONING_FRAGMENTS = (
     "const next = withoutThread(stateRef.current, id);",
     'if (forgotten.current.has(id)) throw new Error("会话已删除，不再读取推理设置");',
     "const valid = () => !forgotten.current.has(id) && epoch.current === connectionEpoch && readVersions.current.get(id) === version;",
-    'if (event.method === "thread/deleted") { forget(id); return; }',
+    'if (event.method === "thread/deleted") {',
+    'const deleted = event.params?.deletedThreadId;',
+    'if (typeof deleted === "string" && current.current.connected) forget(deleted);',
     "forgotten.current.clear();",
     "if (epoch.current !== connectionEpoch || forgotten.current.has(target.threadId)) return;",
 )
 
 COMPACTION_FRAGMENTS = (
-    'if (event.method !== "thread/deleted" || typeof params.threadId !== "string") return;',
-    "const id = params.threadId;",
+    'if (event.method !== "thread/deleted" || typeof params.deletedThreadId !== "string") return;',
+    "const id = params.deletedThreadId;",
     "sessionDrafts.current.delete(id);",
     "dirtyThreads.current.delete(id);",
     "editVersion.current += 1;",
@@ -179,9 +181,13 @@ def check_deleted_thread_state() -> int:
     if "const next = { ...previous };" not in override_reset:
         raise ValueError(f"{COMPACTION} 的删除必须复制后再移除会话覆盖")
     checked += 1
+    compaction_deleted = _slice(compaction, 'if (event.method !== "thread/deleted"', "\n      if (!id) return;", COMPACTION)
+    if "params.threadId" in compaction_deleted:
+        raise ValueError(f"{COMPACTION} 的删除分支不得读取通用 threadId 字段")
+    checked += 1
 
     # 推理档位：删除通知必须先于方法白名单处理；遗忘不得经 update，且必须从状态表移除。
-    removal = reasoning.find('if (event.method === "thread/deleted") { forget(id); return; }')
+    removal = reasoning.find('if (event.method === "thread/deleted") {')
     allowlist = reasoning.find('if (!["thread/reasoning/updated"')
     if removal < 0 or allowlist < 0 or removal > allowlist:
         raise ValueError(f"{REASONING} 的删除通知必须先于方法白名单处理")
@@ -191,6 +197,9 @@ def check_deleted_thread_state() -> int:
         raise ValueError(f"{REASONING} 的遗忘不得经 update 写入状态")
     if "stateRef.current = next;" not in forget or "setStates(next);" not in forget:
         raise ValueError(f"{REASONING} 的遗忘必须从状态表移除会话并更新界面")
+    deleted = _slice(reasoning, 'if (event.method === "thread/deleted") {', "\n      }\n", REASONING)
+    if "deletedThreadId" not in deleted or "threadId" in deleted.replace("deletedThreadId", ""):
+        raise ValueError(f"{REASONING} 的删除分支必须只读取 deletedThreadId")
     checked += 1
 
     # 两个 hook 都必须在通用会话 id 分支之前处理删除通知，且处理完直接返回：
@@ -205,6 +214,9 @@ def check_deleted_thread_state() -> int:
         deleted = _slice(hook, 'if (event.method === "thread/deleted") {', "\n      }\n", relative)
         if "return;" not in deleted:
             raise ValueError(f"{relative} 的删除通知处理必须直接返回，不进入通用刷新")
+        # 内核与协议用 deletedThreadId；读通用 threadId 会让遗忘在真实通知上永远不触发。
+        if "params.threadId" in deleted or "params?.threadId" in deleted:
+            raise ValueError(f"{relative} 的删除分支不得读取通用 threadId 字段")
         checked += 1
         forget = _slice(hook, "const forget = useCallback((id: string) => {", "\n  }, []);", relative)
         # 遗忘直接改写状态表；经 update 写入会被自身守卫丢弃，也说明删除路径仍在走常规更新。
