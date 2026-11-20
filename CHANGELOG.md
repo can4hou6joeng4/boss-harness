@@ -1,3 +1,10 @@
+## 0.2.0-rc.373 - 2026-11-20
+
+rc.373 源码候选固定界面偏好的旧命名空间迁移。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_ui_storage.py`，固定先收集旧键再写入、前缀替换、新键存在时跳过、值非空才写入与整体异常回退；反向断言不得删除旧键、不得让旧值覆盖新键、迁移必须捕获异常。修复 Issue [#2871](https://github.com/can4hou6joeng4/boss-harness/issues/2871)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 96 个。版本推进到 npm `0.2.0-rc.373` / Python `0.2.0rc373`。不改变运行时行为，只固定既有迁移契约。
+
 ## 0.2.0-rc.372 - 2026-11-20
 
 rc.372 源码候选固定最近打开会话的存储解析与回退。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
