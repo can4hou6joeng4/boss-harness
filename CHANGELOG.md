@@ -1,3 +1,10 @@
+## 0.2.0-rc.384 - 2026-11-20
+
+rc.384 源码候选固定旧显示名称迁移的筛选与上限。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_alias_migration.py`，固定只遍历当前会话列表并按会话去重、非字符串 / 空白 / 同名别名只删除、名称按码点计数并受 500 与单次 50 条上限约束；反向断言不得遍历别名键、不得按 UTF-16 码元判长、空白或同名别名不得发起写入。修复 Issue [#2890](https://github.com/can4hou6joeng4/boss-harness/issues/2890)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 107 个。版本推进到 npm `0.2.0-rc.384` / Python `0.2.0rc384`。不改变运行时行为，只固定既有迁移契约。
+
 ## 0.2.0-rc.383 - 2026-11-20
 
 rc.383 源码候选固定 `session/error` 通知的形状校验与单行摘要。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
