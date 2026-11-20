@@ -12,6 +12,10 @@
 位置变化之后要有重读：内核在回合开始时先写入运行中的回合、再发出 `turn/started`，此时当前
 位置已是新回合。分支读取必须把它列入触发重读的通知，否则弹窗在整个回合运行期间停在旧位置。
 
+位置变化还使「会话上下文」面板已生成的整理计划失效：同一分支上回退时截止回合与来源摘要
+不变，内核仍会接受旧计划，但保留范围与估算已经不同。面板必须在 `thread/leafChanged` 时
+清除计划并作废在途的计划请求。
+
 逐页比较依赖内核响应自身一致：分支视图回合页的 `turns` 与 `branch` 必须出自同一次
 加锁读取的同一份条目，处理器不得在释放锁后另行读取位置。`thread/read` 的非快照
 分支视图同理：条目、末回合、回合页与位置都从处理器读到的同一份条目快照算出。
@@ -33,6 +37,20 @@ SESSION = "harness/src/boss_harness/session.py"
 APPLICATION = "harness/src/boss_harness/application.py"
 USAGE = "apps/desktop/src/renderer/src/data/useThreadUsage.ts"
 DIALOG = "apps/desktop/src/renderer/src/components/BranchDialog.tsx"
+CONTEXT_PANEL = "apps/desktop/src/renderer/src/data/useContextPanel.ts"
+
+PLAN_INVALIDATION = (
+    'const PLAN_INVALIDATING_EVENTS: readonly string[] = ["turn/started", "turn/completed", "thread/updated", '
+    '"context/compacted", "thread/leafChanged"];',
+    "if (PLAN_INVALIDATING_EVENTS.includes(event.method)) {\n"
+    "        revisions.current.set(id, (revisions.current.get(id) ?? 0) + 1);\n"
+    "        update(id, state => ({ ...state, plan: undefined, planning: false,",
+    'turnActive: event.method === "turn/started" ? true : ["turn/completed", "thread/updated"].includes(event.method) '
+    "? false : state.turnActive }));\n"
+    "        if (current.current.isOpen && current.current.threadId === id) void refresh(id);",
+    "const valid = () => alive.current && epoch.current === connectionEpoch && planVersions.current.get(id) === version "
+    "&& (revisions.current.get(id) ?? 0) === revision;",
+)
 
 REFRESH_EVENTS = (
     'const BRANCH_REFRESH_EVENTS: readonly string[] = ["thread/leafChanged", "turn/started", "turn/completed", '
@@ -245,9 +263,23 @@ def check_branch_pagination() -> int:
         raise ValueError("分支重读仍使用缺少回合开始的旧通知清单")
     checked += 2
 
+    # 上下文面板：位置变化清除整理计划、推进修订号（在途计划请求按修订号作废），打开时重读预算；
+    # 回合运行标记只随回合通知变化。
+    panel = _read(CONTEXT_PANEL)
+    checked += _expect(PLAN_INVALIDATION, panel, CONTEXT_PANEL)
+    if panel.count("PLAN_INVALIDATING_EVENTS") != 2:
+        raise ValueError("整理计划失效的通知清单只应定义一次、使用一次")
+    if '["turn/started", "turn/completed", "thread/updated", "context/compacted"].includes(event.method)' in panel:
+        raise ValueError("上下文面板仍使用缺少位置变化的旧通知清单")
+    checked += 2
+
     # 内核：回合集合与位置同源。位置必须在持锁读取条目之后、释放锁之前由同一份回合算出。
     session = _read(SESSION)
     application = _read(APPLICATION)
+    # 位置切换提交后才发通知：面板与分支读取据此重读。
+    if application.count('self._emit_committed("thread/leafChanged", {"threadId": thread_id, "leafTurnId": result["leafTurnId"]})') != 1:
+        raise ValueError(f"{APPLICATION} 的位置切换通知缺失或不再唯一")
+    checked += 1
     # 回合开始通知必须晚于运行中回合的写入：界面收到通知后重读，读到的才是新位置。
     recorded = _positions(application, 'self.sessions.record_turn(thread_id, job["turnId"], "running"')
     started = _positions(application, 'self.events.emit("turn/started"')
@@ -363,7 +395,7 @@ def main() -> int:
     except ValueError as error:
         print(f"分支分页一致性核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"分支分页一致：{checked} 项页数统计、逐页位置核对、单次重读、重读触发、旧列表提示与内核同源读取（回合页、会话读取与用量）")
+    print(f"分支分页一致：{checked} 项页数统计、逐页位置核对、单次重读、重读触发、整理计划失效、旧列表提示与内核同源读取（回合页、会话读取与用量）")
     return 0
 
 

@@ -34,6 +34,8 @@ export interface ContextPanelState {
 }
 const initial = (): ContextPanelState => ({ keepRecentTokens: "20000", lifecycleActive: null, reading: false, planning: false, starting: false, cancelRequested: false, cancelInFlight: false, turnActive: false, error: "" });
 const terminal = (job: ContextCompactJob) => job.status !== "running";
+// 这些通知之后已生成的整理计划不再对应当前会话状态：清除计划、作废在途的计划请求，面板打开时重读预算。
+const PLAN_INVALIDATING_EVENTS: readonly string[] = ["turn/started", "turn/completed", "thread/updated", "context/compacted", "thread/leafChanged"];
 const rpcResponseError = (error: unknown): error is Error & { rpcError: true; code: number } => Boolean(error && typeof error === "object"
   && (error as { rpcError?: unknown }).rpcError === true && typeof (error as { code?: unknown }).code === "number");
 /** App lifetime ownership: closing the view never cancels or forgets an operation. */
@@ -248,7 +250,9 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
           if (terminal(manual)) void refresh(id);
         } catch (error) { update(id, { error: harnessErrorText(error) }); }
       }
-      if (["turn/started", "turn/completed", "thread/updated", "context/compacted"].includes(event.method)) {
+      // 位置切换同样使计划失效：截止回合与来源摘要可能不变（同一分支上回退），内核仍会接受旧计划，
+      // 但保留范围与估算已按新位置变化；计划按会话保存，面板关闭期间的切换也要清除。回合运行标记不受影响。
+      if (PLAN_INVALIDATING_EVENTS.includes(event.method)) {
         revisions.current.set(id, (revisions.current.get(id) ?? 0) + 1);
         update(id, state => ({ ...state, plan: undefined, planning: false,
           turnActive: event.method === "turn/started" ? true : ["turn/completed", "thread/updated"].includes(event.method) ? false : state.turnActive }));
