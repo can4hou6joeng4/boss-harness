@@ -1,3 +1,10 @@
+## 0.2.0-rc.358 - 2026-11-20
+
+rc.358 源码候选固定会话内查找的高亮区间与折叠块语义。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_find_highlight.py`，固定 200 个区间上限、归一化文本扫描与偏移映射、同一次字素展开的重叠合并（取最大结束位置）、片段拆分顺序、关闭 `<details>` 的排除与 `summary` 例外，以及 `includeFolded` 语义。修复 Issue [#2841](https://github.com/can4hou6joeng4/boss-harness/issues/2841)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 81 个。版本推进到 npm `0.2.0-rc.358` / Python `0.2.0rc358`。不改变运行时行为，只固定既有查找契约。
+
 ## 0.2.0-rc.357 - 2026-11-20
 
 rc.357 源码候选固定消息搜索的批次失效与内核响应校验。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
