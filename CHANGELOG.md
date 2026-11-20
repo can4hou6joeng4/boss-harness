@@ -1,3 +1,10 @@
+## 0.2.0-rc.365 - 2026-11-20
+
+rc.365 源码候选固定模型线路切换的在途锁与回执令牌。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_model_switch.py`，固定 `begin` 的在途拒绝与令牌自增、结算前核对令牌、按会话复用实例与匿名预览的本地实例；反向断言在途不得交出令牌、迟到回执不得越过核对、实例不得每次新建。修复 Issue [#2854](https://github.com/can4hou6joeng4/boss-harness/issues/2854)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 88 个。版本推进到 npm `0.2.0-rc.365` / Python `0.2.0rc365`。不改变运行时行为，只固定既有在途锁契约。
+
 ## 0.2.0-rc.364 - 2026-11-20
 
 rc.364 源码候选固定搜索回执的形状校验与上限。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
