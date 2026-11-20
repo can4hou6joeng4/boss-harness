@@ -328,7 +328,8 @@ export interface ThreadSummary {
   /**
    * 仅切换过分支位置的会话携带：当前分支末回合，位于会话开头时为 null。
    * `lastTurn` 仍是日志中最后写入的回合；状态展示与继续入口应优先使用本字段。
-   * 索引在会话文件变化后才重建，旧版本留下的已分支会话在下一次写入前没有该字段。
+   * 字段可能缺省：未切换过位置的会话没有它；由不带该字段的旧内核写入过的已分支会话，
+   * 也要到下一次写入后才重新带上。缺省时按 `lastTurn` 处理。
    */
   branchLastTurn?: ThreadSummary["lastTurn"];
   sessionId?: string;

@@ -130,6 +130,30 @@ def _record_id(value: object) -> str | None:
 # In-session branch pointer (Pi session-manager leafId).  Sessions that never
 # record one keep the historical linear projection byte-for-byte.
 LEAF_ENTRY_TYPE = "leaf"
+# 会话投影内容的版本。投影只在会话文件变化后重建，新增派生字段时已有会话不会自动获得；
+# 版本变化后首次打开状态目录，让受影响的会话失效一次。记在 checkpoints 表而不是索引
+# 结构版本里：结构没有变化，旧版本仍能打开同一状态目录。
+# 2：切换过位置的会话带 branchLastTurn。
+THREAD_PROJECTION_VERSION = "2"
+_LEAF_RECORD_MARKERS = tuple(
+    f'"type":{separator}"{LEAF_ENTRY_TYPE}"'.encode("ascii") for separator in ("", " "))
+
+
+def _log_mentions_leaf(path: Path) -> bool:
+    """按字节查找位置记录的类型标记，不解析日志。
+
+    只用来挑出需要重建投影的会话：工具数据里出现同样的片段只会多重建一次，重建结果
+    仍由 ``_index_thread`` 按解析后的条目决定。分块读取并保留跨块的尾部。
+    """
+    overlap = max(len(marker) for marker in _LEAF_RECORD_MARKERS) - 1
+    tail = b""
+    with path.open("rb") as handle:
+        while chunk := handle.read(1 << 20):
+            window = tail + chunk
+            if any(marker in window for marker in _LEAF_RECORD_MARKERS):
+                return True
+            tail = window[-overlap:]
+    return False
 # Pi branchWithSummary(): a model summary of the abandoned branch, appended
 # right after the leaf record it belongs to, so it projects only on that branch.
 BRANCH_SUMMARY_ENTRY_TYPE = "branch_summary"
@@ -690,6 +714,7 @@ class SessionStore:
         # Unindexed logs that could not be projected on the last refresh; repair
         # reports them so a skipped session does not disappear silently.
         self.unreadable_threads: set[str] = set()
+        self._expire_outdated_projections()
         self._refresh_threads()
         self._sync_events()
 
@@ -2130,6 +2155,35 @@ class SessionStore:
                     skip.add(exc.thread_id)
                     self.unreadable_threads.add(exc.thread_id)
 
+
+    def _expire_outdated_projections(self) -> None:
+        """投影内容版本变化后，让含位置记录的会话失效一次，由随后的刷新重建。
+
+        只有切换过位置的会话的投影内容随版本变化，其余会话不重建：启动耗时不随全部
+        日志的解析量增长。失效与版本记录在同一事务提交；重建中途退出时这些行仍是失效
+        状态，下次启动继续。读不出的日志同样标记失效，不当作已处理，也不阻断启动。
+        """
+        with self._lock, self._index.transaction() as connection:
+            row = connection.execute(
+                "SELECT value FROM checkpoints WHERE name='threadProjection'").fetchone()
+            if row is not None and row["value"] == THREAD_PROJECTION_VERSION:
+                return
+            for indexed in connection.execute("SELECT id FROM threads WHERE indexed_size>=0").fetchall():
+                thread_id = indexed["id"]
+                if not isinstance(thread_id, str) or not _THREAD_ID.fullmatch(thread_id):
+                    continue
+                try:
+                    outdated = _log_mentions_leaf(self.root / f"{thread_id}.jsonl")
+                except FileNotFoundError:
+                    continue
+                except OSError:
+                    outdated = True
+                if outdated:
+                    connection.execute(
+                        "UPDATE threads SET indexed_size=-1,indexed_mtime_ns=-1 WHERE id=?", (thread_id,))
+            connection.execute(
+                "INSERT INTO checkpoints(name,value) VALUES('threadProjection',?) "
+                "ON CONFLICT(name) DO UPDATE SET value=excluded.value", (THREAD_PROJECTION_VERSION,))
 
     def _refresh_threads(self) -> None:
         with self._lock, self._index.transaction() as connection:

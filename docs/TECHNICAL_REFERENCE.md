@@ -378,7 +378,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 `scripts/check_thread_list.py` 核对 `thread/list` 条目的逐项校验与分页去重：标识、标题、更新时间与可选文本各有上限；`archived` 只接受布尔，`toolPolicy` 只接受 `readOnly` / `approval`；`optionalText` 把缺省与非法分开；`lastTurn` 与 `branchLastTurn` 共用一个校验函数：非空 `turnId`、状态属于 `running` / `completed` / `interrupted` / `blocked` / `error`，失败码与恢复策略出现时必须是字符串。`uniqueThreadIds` 用集合大小比较拒绝重复 id。
 
-同一脚本还固定末回合的来源：切换过分支位置的会话，`lastTurn` 仍是日志中最后写入的回合，可能属于已放弃的分支；内核索引另写 `branchLastTurn`（当前分支末回合，位于会话开头时为 `null`），写入前先清掉会话头或会话信息记录带来的同名值，只对含位置记录的会话推导，分支无法投影时不写字段也不让列表失败，分叉出的会话头不继承。`thread/read` / `thread/resume` 的分支视图（普通读取与冻结快照）经同一个辅助函数把两个字段换成本次读取的同一个值，未切换过位置的会话不补字段。桌面端两处会话摘要映射都经 `summaryTurnOf` 选出回合（有 `branchLastTurn` 键就用它，否则用 `lastTurn`），不得直接读取任一字段；收到 `thread/leafChanged` 后除重读会话外还刷新会话列表，继续检查取自刷新后的摘要。索引只在会话文件变化后重建：旧版本留下的已分支会话在下一次写入前没有该字段，表现与此前相同。检查是源码字面量扫描，不读取会话索引。
+同一脚本还固定末回合的来源：切换过分支位置的会话，`lastTurn` 仍是日志中最后写入的回合，可能属于已放弃的分支；内核索引另写 `branchLastTurn`（当前分支末回合，位于会话开头时为 `null`），写入前先清掉会话头或会话信息记录带来的同名值，只对含位置记录的会话推导，分支无法投影时不写字段也不让列表失败，分叉出的会话头不继承。`thread/read` / `thread/resume` 的分支视图（普通读取与冻结快照）经同一个辅助函数把两个字段换成本次读取的同一个值，未切换过位置的会话不补字段。桌面端两处会话摘要映射都经 `summaryTurnOf` 选出回合（有 `branchLastTurn` 键就用它，否则用 `lastTurn`），不得直接读取任一字段；收到 `thread/leafChanged` 后除重读会话外还刷新会话列表，继续检查取自刷新后的摘要。索引只在会话文件变化后重建：升级前已切换过位置的会话由投影内容版本在首次启动时失效一次（见 [`check_persistence.py`](#check_persistencepy)）；之后若降级到不带该字段的版本并写入过这类会话，再升级后要到下一次写入才重新带上字段，缺省时桌面端按 `lastTurn` 处理。检查是源码字面量扫描，不读取会话索引。
 
 ### `check_session_start.py`
 
@@ -478,7 +478,9 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_persistence.py`
 
-`scripts/check_persistence.py` 核对 SQLite 投影索引的迁移、私有权限与连接边界：`persistence.py` 的 `SCHEMA_VERSION = 2`、文本列 `utf-8` 宽容解码（非法字节替换为 U+FFFD，避免损坏行变成内部错误）、私有目录与索引文件 / WAL / SHM 的权限收紧、`version > SCHEMA_VERSION` 拒绝、1 → 2 迁移顺序与 `user_version` 写入、`UPDATE threads SET indexed_size=-1` 的旧索引失效标记；表结构必须保留会话、回合、事件、审批与 checkpoint 的主键及 `ON DELETE CASCADE`；每个操作独占连接并启用 `foreign_keys`、`busy_timeout=10000`、`synchronous=FULL`，事务以 `BEGIN IMMEDIATE` 开始并在异常时回滚；事件索引 `events_method_cursor` 必须存在。脚本反向断言不得使用严格 `decode("utf-8")`，并核对技术参考与使用指南的「日志是事实源、SQLite 是可重建索引」口径。检查是常量与顺序扫描，实际索引行为仍需按用户指南核对。
+`scripts/check_persistence.py` 核对 SQLite 投影索引的迁移、私有权限与连接边界：`persistence.py` 的 `SCHEMA_VERSION = 2`、文本列 `utf-8` 宽容解码（非法字节替换为 U+FFFD，避免损坏行变成内部错误）、私有目录与索引文件 / WAL / SHM 的权限收紧、`version > SCHEMA_VERSION` 拒绝、1 → 2 迁移顺序与 `user_version` 写入、`UPDATE threads SET indexed_size=-1` 的旧索引失效标记；表结构必须保留会话、回合、事件、审批与 checkpoint 的主键及 `ON DELETE CASCADE`；每个操作独占连接并启用 `foreign_keys`、`busy_timeout=10000`、`synchronous=FULL`，事务以 `BEGIN IMMEDIATE` 开始并在异常时回滚；事件索引 `events_method_cursor` 必须存在。脚本反向断言不得使用严格 `decode("utf-8")`，并核对技术参考与使用指南的「日志是事实源、SQLite 是可重建索引」口径。
+
+同一脚本固定投影内容版本：会话投影只在会话文件的大小或修改时间变化后重建，投影新增派生字段时已有会话不会自动获得。`session.py` 的 `THREAD_PROJECTION_VERSION` 记在 `checkpoints` 表的 `threadProjection` 行，不并入 `SCHEMA_VERSION`（结构没有变化，旧版本仍能打开同一状态目录）。启动时在恢复未完成的删除之后、刷新会话之前比对一次：记录缺失或不同就按字节查找位置记录的类型标记（紧凑与带空格两种写法，1 MiB 分块并保留跨块尾部，不解析日志），只让命中的已索引会话失效，再在同一事务写回版本；文件已不存在的行跳过，读取失败的行按需要重建处理。失效函数只在构造时调用一次，失效语句必须限定到具体会话，不得整库失效。工具数据里出现同样片段只会多重建一次，重建结果仍由解析后的条目决定。重建中途退出时这些行保持失效，下次启动继续。检查是常量与顺序扫描，实际索引行为仍需按用户指南核对。
 
 ### `check_session_log.py`
 
