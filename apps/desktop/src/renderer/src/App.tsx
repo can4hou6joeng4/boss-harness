@@ -22,7 +22,7 @@ import { IconClose } from "./components/Icons";
 import { MOCK_PROJECT_FOLDERS, MOCK_CONVERSATION_THREAD, type ProjectFolder, type SessionItem, type MessageItem, type ConversationMode } from "./data/mockData";
 import { HARNESS_PROJECT_ID, HARNESS_PROJECT_NAME, archiveThread, configuredModels, deleteThread, harnessErrorText, harnessStatus, isHarnessRpcRejection, forkThread, interruptTurn, listThreads, listQueue, readTurnSkillIds, queueFollowUp, readQueueItem, reconnectHarness, removeQueuedItem, renameThread, respondApproval, sendTurn, setThreadModel, startThread, steerTurn, steerQueuedItem, readTurnContinuation, continueTurn, unarchiveThread, updateQueuedItem } from "./data/harnessBridge";
 import { approvalRejectionNotice, approvalRejectionRefreshes, approvalUnconfirmedNotice, autoApprovalRejectionNotice } from "./data/approvalFailure";
-import { approvalSubmissionFor } from "./data/approvalSubmission";
+import { approvalSubmissionFor, forgetApprovalSubmission } from "./data/approvalSubmission";
 import { forgetDeletedThread } from "./data/deletedThreadState";
 import { deleteThreadFailure } from "./data/deleteThreadError";
 import { resolveQuickAskRoute } from "./data/quickAsk";
@@ -385,7 +385,10 @@ export function App(): JSX.Element {
         if (typeof deleted === "string") {
           threadListVersion.current += 1;
           // 通知先于本机删除回执到达：一并遗忘该会话的连接内状态，不能只清列表与缓存。
+          // 先让在途队列读取失效，晚到的结果才不会重新写回刚清掉的队列投影。
+          queueReads.current.invalidate(deleted);
           forgetDeletedThread([cache.current, queueCache.current, sessionErrors.current, versions.current, turnIds.current, rememberedApprovals.current], deleted);
+          forgetApprovalSubmission(deleted);
           clearCompletedUnread(deleted);
           releaseInterrupt(deleted);
           // 回执未确认时列表按约定保留过，但内核已经提交删除：当前会话被删就立即退出，不能再往里发送。
@@ -743,7 +746,9 @@ export function App(): JSX.Element {
     }
     threadListVersion.current += 1;
     // 与删除通知共用同一组清理：本机回执确认后，连接内不再保留该会话的任何条目。
+    queueReads.current.invalidate(session.id);
     forgetDeletedThread([cache.current, queueCache.current, sessionErrors.current, versions.current, turnIds.current, rememberedApprovals.current], session.id);
+    forgetApprovalSubmission(session.id);
     clearCompletedUnread(session.id);
     setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== session.id) })));
     // 只清空会话视图，不调用 handleNewTask，避免连删除结果提示一起清掉。

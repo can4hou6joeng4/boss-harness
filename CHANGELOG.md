@@ -1,3 +1,10 @@
+## 0.2.0-rc.394 - 2026-11-20
+
+rc.394 源码候选补齐删除会话后的在途读取与审批状态清理。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 删除前发出的 `queue/list` 若晚到，其票据仍是最新一代，会把队列投影重新写回刚清掉的缓存，并再次尝试更新侧栏徽标。现在删除通知与删除回执都先让该会话的在途队列读取失效，迟到的结果不再写回，其他会话照常提交。修复 Issue [#2913](https://github.com/can4hou6joeng4/boss-harness/issues/2913)。
+- 审批提交状态按会话保存在模块表中，此前在删除后不回收，迟到回执仍会写入。新增 `forgetApprovalSubmission`，两条删除路径都调用；遗忘后再次取用得到全新状态，其他会话保留。对真实 rc.393 模块执行同一探针：旧版 10 项、新版 16 项断言通过。扩展 `check_deleted_thread_state.py` 至 29 项，同步桌面指南、上游阅读记录与技术参考；不新增 RPC 或平台调用。版本推进到 npm `0.2.0-rc.394` / Python `0.2.0rc394`。
+
 ## 0.2.0-rc.393 - 2026-11-20
 
 rc.393 源码候选修正删除会话后仍停留在已删除视图的问题。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
