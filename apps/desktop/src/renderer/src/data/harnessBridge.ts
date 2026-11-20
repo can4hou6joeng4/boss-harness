@@ -77,7 +77,7 @@ import { TURN_SKILL_PAGE_LIMIT, turnSkillPageOf } from "./turnSkills";
 import { approvalDeadlineMs, mapPendingApprovals, type PendingApprovalList } from "./pendingApprovals";
 import { readPagedItems } from "./pagedRead";
 import { trackCursor } from "./cursorChain";
-import { threadSummaryOf, uniqueThreadIds } from "./threadList";
+import { summaryTurnOf, threadSummaryOf, uniqueThreadIds } from "./threadList";
 import { skillDescriptorOf, uniqueSkillIds } from "./skillCatalog";
 import { modelDescriptorOf, uniqueModelKeys } from "./modelCatalog";
 import { toolDescriptorOf, uniqueToolNames } from "./toolCatalog";
@@ -260,7 +260,7 @@ export async function listThreads(archived = false): Promise<SessionItem[]> {
         { archived, cursor, limit: 200 },
       );
       if (!response || !Array.isArray(response.threads)) throw new Error("会话列表响应格式无法识别");
-      // 侧栏直接使用 id / title / updatedAt 与 lastTurn；损坏条目会让去重、key 与操作目标失真。
+      // 侧栏直接使用 id / title / updatedAt 与末回合字段；损坏条目会让去重、key 与操作目标失真。
       const threads = response.threads.map(threadSummaryOf);
       if (threads.some(thread => thread === null)) throw new Error("会话列表包含无法识别的条目");
       return { items: threads as ThreadSummary[], nextCursor: response.nextCursor ?? null };
@@ -271,17 +271,18 @@ export async function listThreads(archived = false): Promise<SessionItem[]> {
   if (!uniqueThreadIds(threads)) throw new Error("会话列表包含重复会话");
   return threads.map((thread) => {
     const queue = threadQueueCountsOf(thread.queueActiveItems, thread.queueCounts);
+    const turn = summaryTurnOf(thread);
     return {
       id: thread.id,
       title: thread.title,
       timeAgo: formatRelativeTime(thread.updatedAt),
       updatedAt: thread.updatedAt,
-      status: thread.lastTurn?.status === "running" ? "running" as const
-        : thread.lastTurn?.status === "interrupted" ? "interrupted" as const : "idle" as const,
-      turnId: thread.lastTurn?.turnId,
-      lastTurnStatus: thread.lastTurn?.status,
-      lastTurnErrorCode: thread.lastTurn?.failureCode,
-      taskResumePolicy: thread.lastTurn?.taskResumePolicy,
+      status: turn?.status === "running" ? "running" as const
+        : turn?.status === "interrupted" ? "interrupted" as const : "idle" as const,
+      turnId: turn?.turnId,
+      lastTurnStatus: turn?.status,
+      lastTurnErrorCode: turn?.failureCode,
+      taskResumePolicy: turn?.taskResumePolicy,
       queueActiveItems: queue.activeItems,
       queueCounts: queue.counts,
       toolPolicy: thread.toolPolicy ?? "approval",
@@ -413,12 +414,13 @@ export async function setThreadReasoning(threadId: string, effort: string | null
   const thread = threadSummaryOf(response?.thread);
   if (!thread) throw new Error("推理设置响应无法识别");
   const queue = threadQueueCountsOf(thread.queueActiveItems, thread.queueCounts);
+  const turn = summaryTurnOf(thread);
   return { id: thread.id, title: thread.title, timeAgo: formatRelativeTime(thread.updatedAt),
-    updatedAt: thread.updatedAt, status: thread.lastTurn?.status === "running" ? "running"
-      : thread.lastTurn?.status === "interrupted" ? "interrupted" : "idle",
-    turnId: thread.lastTurn?.turnId, lastTurnStatus: thread.lastTurn?.status,
-    lastTurnErrorCode: thread.lastTurn?.failureCode,
-    taskResumePolicy: thread.lastTurn?.taskResumePolicy,
+    updatedAt: thread.updatedAt, status: turn?.status === "running" ? "running"
+      : turn?.status === "interrupted" ? "interrupted" : "idle",
+    turnId: turn?.turnId, lastTurnStatus: turn?.status,
+    lastTurnErrorCode: turn?.failureCode,
+    taskResumePolicy: turn?.taskResumePolicy,
     queueActiveItems: queue.activeItems, queueCounts: queue.counts,
     toolPolicy: thread.toolPolicy ?? "approval", model: thread.model,
     reasoningEffort: thread.reasoningEffort, projectId: HARNESS_PROJECT_ID };

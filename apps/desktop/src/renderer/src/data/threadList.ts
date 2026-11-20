@@ -20,7 +20,7 @@ function optionalText(value: unknown, limit: number): string | null | undefined 
  * `thread/list` 的会话条目校验。
  *
  * 侧栏把条目直接映射为 `SessionItem`：`id` 用于去重、key、选择 / 重命名 / 删除目标，
- * `title` 与 `updatedAt` 用于展示与排序，`lastTurn.turnId` 会作为恢复目标继续传递。
+ * `title` 与 `updatedAt` 用于展示与排序，`summaryTurnOf` 选出的回合编号会作为恢复目标继续传递。
  * 缺 `id` 的条目会被 `sessionRows` 的按 id 去重静默吞掉，重复 `id` 让多个会话共用同一
  * 目标；因此这里逐项校验，调用方遇到非法条目整体失败，不展示部分可疑列表。
  */
@@ -36,16 +36,30 @@ export function threadSummaryOf(value: unknown): ThreadSummary | null {
   const model = optionalText(raw.model, ID_LIMIT);
   const reasoningEffort = optionalText(raw.reasoningEffort, ID_LIMIT);
   if (provider === undefined || model === undefined || reasoningEffort === undefined) return null;
-  const lastTurn = raw.lastTurn;
-  if (lastTurn !== undefined && lastTurn !== null) {
-    if (!lastTurn || typeof lastTurn !== "object" || Array.isArray(lastTurn)) return null;
-    const turn = lastTurn as Record<string, unknown>;
-    if (!text(turn.turnId, ID_LIMIT)) return null;
-    if (typeof turn.status !== "string" || !TURN_STATUSES.has(turn.status)) return null;
-    if (optionalText(turn.failureCode, CODE_LIMIT) === undefined) return null;
-    if (optionalText(turn.taskResumePolicy, CODE_LIMIT) === undefined) return null;
-  }
+  // 两个末回合字段都会进入侧栏状态与继续目标，按同一规则校验。
+  if (!summaryTurnValid(raw.lastTurn) || !summaryTurnValid(raw.branchLastTurn)) return null;
   return raw as unknown as ThreadSummary;
+}
+
+function summaryTurnValid(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value !== "object" || Array.isArray(value)) return false;
+  const turn = value as Record<string, unknown>;
+  if (!text(turn.turnId, ID_LIMIT)) return false;
+  if (typeof turn.status !== "string" || !TURN_STATUSES.has(turn.status)) return false;
+  if (optionalText(turn.failureCode, CODE_LIMIT) === undefined) return false;
+  return optionalText(turn.taskResumePolicy, CODE_LIMIT) !== undefined;
+}
+
+/**
+ * 侧栏状态、失败标记与继续入口使用的回合。
+ *
+ * 切换过分支位置的会话带有 `branchLastTurn`（当前分支末回合，位于会话开头时为 null）；
+ * 此时日志末回合 `lastTurn` 可能属于已放弃的分支，不能再代表会话现状。没有该字段时
+ * （未切换过位置，或索引尚未重建）沿用 `lastTurn`。
+ */
+export function summaryTurnOf(thread: ThreadSummary): ThreadSummary["lastTurn"] {
+  return thread.branchLastTurn !== undefined ? thread.branchLastTurn : thread.lastTurn;
 }
 
 /** 分页合并后的重复检查；重复 id 会让侧栏静默合并会话并把操作落到同一目标。 */

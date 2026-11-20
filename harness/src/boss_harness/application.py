@@ -872,6 +872,19 @@ class ApplicationService:
         return self.sessions.list_threads_page(cursor=params.get("cursor"), limit=params.get("limit", 50),
                                                archived=params.get("archived", False), project_id=params.get("projectId"))
 
+    @staticmethod
+    def _branch_view_thread(thread: dict, last_turn: dict | None) -> dict:
+        """分支视图的会话摘要：末回合取自本次读取固定的那份快照。
+
+        索引里的 ``branchLastTurn`` 与条目不是同一次读取；分支视图把它与 ``lastTurn``
+        一起换成同一个值，避免同一响应里出现两个不同的「当前分支末回合」。未切换过位置的
+        会话索引里没有这个字段，这里不凭空补出。
+        """
+        view = {**thread, "lastTurn": last_turn}
+        if "branchLastTurn" in view:
+            view["branchLastTurn"] = last_turn
+        return view
+
     def _snapshot(self, thread_id: str, *, exclude: bool = False, paged: bool = False,
                   branch: bool = False) -> dict:
         if paged:
@@ -912,7 +925,7 @@ class ApplicationService:
                         raise RpcError(-32010, "会话响应过大，请用 thread/resume snapshot=true 后分页读取条目",
                                        {"code": "RESPONSE_TOO_LARGE", "recoveryMethod": "thread/resume",
                                         "snapshot": True})
-                    thread = {**thread, "lastTurn": projection["lastTurn"]}
+                    thread = self._branch_view_thread(thread, projection["lastTurn"])
                     snapshot_turns = projection["turns"]
                     branch_extra = {"view": "branch", "branch": projection["leaf"]}
                     item_count, _ = self.snapshots.create(
@@ -949,7 +962,8 @@ class ApplicationService:
             pinned = entries
             if branch:
                 entries = self.sessions._active_entries(pinned)
-                thread = {**thread, "lastTurn": self.sessions.branch_last_turn(thread_id, entries=pinned)}
+                thread = self._branch_view_thread(
+                    thread, self.sessions.branch_last_turn(thread_id, entries=pinned))
             canonical_items = [] if exclude else self.events.items(
                 thread_id, entries=entries)
             edit_states = self.context.context_edit_states(entries)
