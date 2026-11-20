@@ -1,3 +1,10 @@
+## 0.2.0-rc.387 - 2026-11-20
+
+rc.387 源码候选固定首页草稿的填充意图与技能并入。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_home_draft.py`，固定正文 / 附件 / 技能 / 读取附件 / 提交中五类「有未发送内容」、模板在读取或提交中先确认、「同文、无附件、无技能」才直接应用，以及技能入口已选或达 10 项时原样返回；反向断言读取或提交期间不得直接应用、技能上限必须包含第 10 项、重复技能不得追加。修复 Issue [#2898](https://github.com/can4hou6joeng4/boss-harness/issues/2898)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 110 个。版本推进到 npm `0.2.0-rc.387` / Python `0.2.0rc387`。不改变运行时行为，只固定既有草稿填充契约。
+
 ## 0.2.0-rc.386 - 2026-11-20
 
 rc.386 源码候选固定剪贴板写入结果与迟到回执。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
