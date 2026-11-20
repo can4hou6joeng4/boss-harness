@@ -1008,7 +1008,9 @@ class ApplicationService:
             thread_id = _text(params, "threadId")
             result = self.sessions.list_branch_turns(thread_id, cursor=params.get("cursor"),
                                                      limit=params.get("limit", 50))
-            return {**result, "view": "branch", "branch": self.sessions.read_leaf(thread_id)}
+            # branch 与 turns 出自同一次加锁读取；不再另行 read_leaf，避免响应内部位置不一致。
+            return {"turns": result["turns"], "nextCursor": result["nextCursor"],
+                    "view": "branch", "branch": result["branch"]}
         return self.sessions.list_turns(_text(params, "threadId"), cursor=params.get("cursor"), limit=params.get("limit", 50))
 
     @contextmanager

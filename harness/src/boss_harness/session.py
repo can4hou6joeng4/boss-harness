@@ -2999,7 +2999,12 @@ class SessionStore:
         return self._with_repaired_index(read)
 
     def list_branch_turns(self, thread_id: str, *, cursor: str | None = None, limit: int = 50) -> dict:
-        """Indexed turn metadata restricted to the current branch (same order/cursor shape as list_turns)."""
+        """Indexed turn metadata restricted to the current branch (same order/cursor shape as list_turns).
+
+        ``branch`` is the leaf state of the very entries the page was filtered by:
+        callers compare it across pages to detect a leaf move between requests,
+        so it must not come from a second read taken after the lock is released.
+        """
         _limit(limit)
         self.path_for(thread_id)
         scope = {"threadId": thread_id, "view": "branch"}
@@ -3013,7 +3018,11 @@ class SessionStore:
         def read() -> dict:
             with self._lock:
                 entries = self.read_entries(thread_id)
-                active_ids = {turn["turnId"] for turn in self._turns(self._active_entries(entries), thread_id)}
+                active_turns = self._turns(self._active_entries(entries), thread_id)
+                active_ids = {turn["turnId"] for turn in active_turns}
+                # 回合集合与位置必须出自同一份条目：释放锁后再读一次，期间的切换或
+                # 新回合会让同一响应里的 turns 属于旧位置、branch 却是新位置。
+                leaf = self._leaf_state(thread_id, entries, turns=active_turns)
                 with self._index.connection() as connection:
                     rows = connection.execute(
                         "SELECT * FROM turns WHERE thread_id=? ORDER BY first_ordinal,turn_id",
@@ -3037,7 +3046,8 @@ class SessionStore:
             page = selected[:limit]
             next_cursor = (_page_cursor("turns", scope, [page[-1]["first_ordinal"], page[-1]["turn_id"]])
                            if len(selected) > limit else None)
-            return {"turns": [self._turn_metadata(row) for row in page], "nextCursor": next_cursor}
+            return {"turns": [self._turn_metadata(row) for row in page], "nextCursor": next_cursor,
+                    "branch": leaf}
 
         return self._with_repaired_index(read)
 
@@ -3233,9 +3243,12 @@ class SessionStore:
     def read_active_entries(self, thread_id: str) -> list[dict]:
         return self._active_entries(self.read_entries(thread_id))
 
-    def _leaf_state(self, thread_id: str, entries: list[dict], active: list[dict] | None = None) -> dict:
-        active = self._active_entries(entries) if active is None else active
-        turns = self._turns(active, thread_id)
+    def _leaf_state(self, thread_id: str, entries: list[dict], active: list[dict] | None = None, *,
+                    turns: list[dict] | None = None) -> dict:
+        # ``turns`` 供已算出当前分支回合的调用方复用，保证位置与其回合集合同源。
+        if turns is None:
+            active = self._active_entries(entries) if active is None else active
+            turns = self._turns(active, thread_id)
         turn_ids = [turn["turnId"] for turn in turns]
         return {"threadId": thread_id,
                 "branched": any(entry.get("type") == LEAF_ENTRY_TYPE for entry in entries),
