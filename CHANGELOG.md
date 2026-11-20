@@ -1,3 +1,10 @@
+## 0.2.0-rc.386 - 2026-11-20
+
+rc.386 源码候选固定剪贴板写入结果与迟到回执。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_clipboard_copy.py`，固定写入成功才显示「已复制」、失败原因只取错误消息并按 80 字符截断且不含正文、版本令牌丢弃迟到回执、计时器与卸载 / 重置清空反馈；反向断言失败原因不得拼接正文、迟到回执不得恢复提示、版本令牌必须在卸载与重置时推进。修复 Issue [#2896](https://github.com/can4hou6joeng4/boss-harness/issues/2896)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 109 个。版本推进到 npm `0.2.0-rc.386` / Python `0.2.0rc386`。不改变运行时行为，只固定既有复制反馈契约。
+
 ## 0.2.0-rc.385 - 2026-11-20
 
 rc.385 源码候选固定暂停队列项的重试条件与原因文案。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
