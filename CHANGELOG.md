@@ -1,3 +1,10 @@
+## 0.2.0-rc.350 - 2026-11-20
+
+rc.350 源码候选固定 JSON 导出的 schema 标识并写入文档。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 扩充 `scripts/check_export_json.py`：固定 `EXPORT_SCHEMA = "boss-harness-session-export/1"` 与 `meta` 对常量的引用，校验 schema 仍为「名称/整数版本」形式，禁止在 `meta` 另写 schema 字面量。检查增至 45 项。修复 Issue [#2825](https://github.com/can4hou6joeng4/boss-harness/issues/2825)。
+- 桌面指南写明 JSON 的 `schema` 字段与版本含义，技术参考同步核对范围；检查脚本仍为 73 个。版本推进到 npm `0.2.0-rc.350` / Python `0.2.0rc350`。不改变运行时行为，只固定既有导出契约。
+
 ## 0.2.0-rc.349 - 2026-11-20
 
 rc.349 源码候选为会话导出 JSON 的分组结构与严格编码补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
