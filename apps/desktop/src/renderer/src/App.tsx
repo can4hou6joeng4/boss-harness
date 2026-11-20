@@ -24,6 +24,7 @@ import { HARNESS_PROJECT_ID, HARNESS_PROJECT_NAME, archiveThread, configuredMode
 import { approvalRejectionNotice, approvalRejectionRefreshes, approvalUnconfirmedNotice, autoApprovalRejectionNotice } from "./data/approvalFailure";
 import { approvalSubmissionFor, approvalSubmissionIsCurrent, forgetApprovalSubmission } from "./data/approvalSubmission";
 import { forgetDeletedThread } from "./data/deletedThreadState";
+import { detachedTarget } from "./data/deletedDialogTarget";
 import { deleteThreadFailure } from "./data/deleteThreadError";
 import { resolveQuickAskRoute } from "./data/quickAsk";
 import { sessionTitleFromPrompt } from "./data/sessionTitle";
@@ -199,6 +200,8 @@ export function App(): JSX.Element {
   const rememberedApprovals = useRef(new Map<string, Set<string>>());
   /** 删除通知可能先于本机删除回执到达：当前会话被删除时立即退出视图。回调在声明后写入，供通知处理调用。 */
   const clearDeletedConversationRef = useRef<((id: string) => void) | null>(null);
+  /** 固定在被删除会话上的弹窗同样随删除通知收起；回调在弹窗状态声明之后写入。 */
+  const dismissDeletedTargetsRef = useRef<((id: string) => void) | null>(null);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const selectionVersion = useRef(0);
   // 启动恢复上次会话：会话列表完成首次加载后才判断，记录指向已删除会话时留在首页。
@@ -393,6 +396,8 @@ export function App(): JSX.Element {
           releaseInterrupt(deleted);
           // 回执未确认时列表按约定保留过，但内核已经提交删除：当前会话被删就立即退出，不能再往里发送。
           clearDeletedConversationRef.current?.(deleted);
+          // 固定在该会话的弹窗一并收起，不能继续对已删除会话读取或提交操作。
+          dismissDeletedTargetsRef.current?.(deleted);
           if (errorOwner.current === deleted) showError("");
           setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== deleted) })));
           void refresh();
@@ -733,6 +738,20 @@ export function App(): JSX.Element {
     if (activeRef.current?.id === id) clearActiveConversation();
   }, [clearActiveConversation]);
   clearDeletedConversationRef.current = clearDeletedConversation;
+  // 弹窗在打开时固定目标会话：删除后继续读取或提交只会得到「不存在」，必须随之收起。
+  // 其他会话的目标原样保留；`detachedTarget` 返回同一对象时不触发状态更新。
+  dismissDeletedTargetsRef.current = (id: string) => {
+    const context = detachedTarget(contextTarget, id);
+    if (context !== contextTarget) { contextPanel.close(); setContextTarget(context); }
+    const usage = detachedTarget(usageTarget, id);
+    if (usage !== usageTarget) { threadUsage.close(); setUsageTarget(usage); }
+    const exported = detachedTarget(exportTarget, id);
+    if (exported !== exportTarget) setExportTarget(exported);
+    const branch = detachedTarget(branchTarget, id);
+    if (branch !== branchTarget) { setIsBranchesOpen(false); setBranchTarget(branch); }
+    const rewind = detachedTarget(rewindTarget, id);
+    if (rewind !== rewindTarget) setRewindTarget(rewind);
+  };
   const handleNewTask = useCallback(() => {
     clearActiveConversation(); showError("");
   }, [clearActiveConversation]);
@@ -756,6 +775,7 @@ export function App(): JSX.Element {
     setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== session.id) })));
     // 只清空会话视图，不调用 handleNewTask，避免连删除结果提示一起清掉。
     if (activeRef.current?.id === session.id) clearActiveConversation();
+    dismissDeletedTargetsRef.current?.(session.id);
     if (warning) showError(warning);
     return true;
   }, [clearActiveConversation, clearCompletedUnread]);
