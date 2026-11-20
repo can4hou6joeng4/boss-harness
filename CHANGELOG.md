@@ -1,3 +1,10 @@
+## 0.2.0-rc.357 - 2026-11-20
+
+rc.357 源码候选固定消息搜索的批次失效与内核响应校验。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_message_search.py`，固定批次与当前查询 / 归档范围不一致时返回空结果、非数组回退、命中逐项校验（非空 `threadId` / `itemId`、`threadTitle` 与 `snippet` 字符串、`role` 白名单含 `tool`）、按可见会话过滤与 `truncated === true`，以及 `liveMessageSearchState` 的四条分支。修复 Issue [#2839](https://github.com/can4hou6joeng4/boss-harness/issues/2839)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 80 个。版本推进到 npm `0.2.0-rc.357` / Python `0.2.0rc357`。不改变运行时行为，只固定既有响应校验与状态契约。
+
 ## 0.2.0-rc.356 - 2026-11-20
 
 rc.356 源码候选固定会话行的归档过滤、关键词与排序。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
