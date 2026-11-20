@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ThreadReasoningReadResponse } from "@boss-harness/protocol";
 import { harnessErrorText, readThreadReasoning, setThreadReasoning } from "./harnessBridge";
 import { reasoningReadOf, reasoningTarget } from "./reasoningControl";
+import { withoutThread } from "./deletedThreadState";
 
 export interface SessionReasoningControl {
   data: ThreadReasoningReadResponse | null;
@@ -39,19 +40,35 @@ export function useSessionReasoning(threadId: string | null, connected: boolean)
   const readVersions = useRef(new Map<string, number>());
   // 每个会话同一时间只允许一个保存请求。
   const saving = useRef(new Set<string>());
+  // 当前连接内已删除的会话：迟到的读取与保存回执都不能重建它的状态。
+  const forgotten = useRef(new Set<string>());
   const update = useCallback((id: string, change: Partial<ReasoningState> | ((state: ReasoningState) => ReasoningState)) => {
+    if (forgotten.current.has(id)) return;
     const previous = stateRef.current[id] ?? initial();
     const next = typeof change === "function" ? change(previous) : { ...previous, ...change };
     stateRef.current = { ...stateRef.current, [id]: next };
     setStates(stateRef.current);
   }, []);
 
+  /** 会话被删除：作废在途读取并移除该会话的推理设置。之后迟到的回执由 `update` 丢弃。 */
+  const forget = useCallback((id: string) => {
+    if (!id || forgotten.current.has(id)) return;
+    forgotten.current.add(id);
+    readVersions.current.set(id, (readVersions.current.get(id) ?? 0) + 1);
+    const next = withoutThread(stateRef.current, id);
+    if (next === stateRef.current) return;
+    stateRef.current = next;
+    setStates(next);
+  }, []);
+
   /** 读取并校验一个会话的推理设置；成功时按需清除该会话的失败原因。 */
   const load = useCallback(async (id: string, clearError: boolean): Promise<ThreadReasoningReadResponse> => {
+    // 已删除会话不再发起读取；调用方只把失败写进该会话状态，而它已被遗忘。
+    if (forgotten.current.has(id)) throw new Error("会话已删除，不再读取推理设置");
     const connectionEpoch = epoch.current;
     const version = (readVersions.current.get(id) ?? 0) + 1;
     readVersions.current.set(id, version);
-    const valid = () => epoch.current === connectionEpoch && readVersions.current.get(id) === version;
+    const valid = () => !forgotten.current.has(id) && epoch.current === connectionEpoch && readVersions.current.get(id) === version;
     try {
       const result = reasoningReadOf(await readThreadReasoning(id), id);
       if (!result) throw new Error("推理设置响应无效");
@@ -81,19 +98,21 @@ export function useSessionReasoning(threadId: string | null, connected: boolean)
       const event = raw as { method?: string; params?: { threadId?: string } };
       const id = event.params?.threadId;
       if (!id || !current.current.connected) return;
+      if (event.method === "thread/deleted") { forget(id); return; }
       if (!["thread/reasoning/updated", "thread/model/updated", "turn/started", "turn/completed", "context/compactionStarted", "context/compactionCompleted", "context/compactionFailed"].includes(event.method ?? "")) return;
       // 当前会话与仍在保存的会话都需要刷新；其他会话切回时会自行读取。
       if (id !== current.current.threadId && !saving.current.has(id)) return;
       void load(id, false).catch(() => { /* 原因已写入该会话状态 */ });
     });
     return () => unsubscribe?.();
-  }, [load]);
+  }, [forget, load]);
 
   // 断连后旧连接上的请求不会再有回执：解除在途锁，避免重连后一直显示保存中。
   useEffect(() => {
     if (connected) return;
     epoch.current += 1;
     saving.current.clear();
+    forgotten.current.clear();
     for (const id of Object.keys(stateRef.current)) update(id, state => ({ ...state, pending: false }));
   }, [connected, update]);
 
@@ -118,10 +137,11 @@ export function useSessionReasoning(threadId: string | null, connected: boolean)
     update(target.threadId, { pending: true, error: "" });
     try {
       await setThreadReasoning(target.threadId, effort);
-      if (epoch.current !== connectionEpoch) return;
+      // 会话在保存途中被删除：回执不再触发回读，也不写回任何状态。
+      if (epoch.current !== connectionEpoch || forgotten.current.has(target.threadId)) return;
       await load(target.threadId, true);
     } catch (cause) {
-      if (epoch.current !== connectionEpoch) return;
+      if (epoch.current !== connectionEpoch || forgotten.current.has(target.threadId)) return;
       try {
         const actual = await load(target.threadId, false);
         if (epoch.current === connectionEpoch) {
