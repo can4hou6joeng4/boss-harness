@@ -27,12 +27,18 @@ _INVALID_STRUCTURED_JSON = object()
 #: 命令行参数永远无法携带的字符：空字符会截断 argv，孤立代理项无法按 UTF-8 编码。
 #: 两者都在参数快照阶段拒绝，审批与处理器因此看不到注定启动失败的调用。
 _UNPASSABLE_STRING_CHARS = ("\x00",)
+#: 参数错误里点名具体原因：模型据此删掉字符即可自修复，重试同样的写法必然再次失败。
+_UNPASSABLE_TEXT_ERROR = "工具参数包含无法作为命令行参数传递的字符（如空字符或孤立代理项），请去掉后重试"
+
+
+class _UnpassableTextError(ValueError):
+    """参数文本含无法传递的字符；由参数校验统一转换为可操作的错误文案。"""
 
 
 def _reject_unpassable_text(text: str) -> None:
     if any(char in text for char in _UNPASSABLE_STRING_CHARS) or any(
             0xD800 <= ord(char) <= 0xDFFF for char in text):
-        raise ValueError
+        raise _UnpassableTextError
 
 
 _KEYWORDS = frozenset({"type", "properties", "required", "additionalProperties", "enum", "anyOf",
@@ -300,5 +306,8 @@ def validated_arguments(schema_json: str, arguments: dict[str, Any]) -> dict[str
         if not _matches(schema, validated):
             raise ValueError
         return validated
+    except _UnpassableTextError:
+        # 字符本身无法传递与 schema 不符是两种问题：前者点名原因，模型才改得动参数。
+        raise ValueError(_UNPASSABLE_TEXT_ERROR) from None
     except Exception:
         raise ValueError(_ARGUMENT_ERROR) from None

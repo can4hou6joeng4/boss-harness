@@ -166,7 +166,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_tool_arguments.py`
 
-`scripts/check_tool_arguments.py` 核对工具参数里的空字符与未启动结算：`tool_schema.py` 必须在参数快照阶段拒绝含 `\u0000` 的字符串与对象键（孤立代理项同样拒绝），使需批准的工具在审批之前就返回参数错误；`tools/boss_cli.py` 在 `Popen` 因参数无法编码或含空字符而抛 `ValueError` 时返回独立的 `CLI_ARGUMENT_ERROR`，不得与「可执行文件缺失」共用错误码；`agent.py` 必须把该错误码结算为 `not_executed` 并暂停回合，同时不进入「已派发、结果不确定」集合。脚本还会构造真实注册表与执行器跑一遍：空字符参数被拒绝、正常参数放行、`CLI_ARGUMENT_ERROR` 收尾为 `not_executed` 且暂停、`TOOL_ERROR` 仍收尾为 `outcome_unknown`。临时会话目录在隔离环境创建，检查不调用模型、招聘平台或真实 CLI 二进制。
+`scripts/check_tool_arguments.py` 核对工具参数里的空字符与未启动结算：`tool_schema.py` 必须在参数快照阶段拒绝含 `\u0000` 的字符串与对象键（孤立代理项同样拒绝），使需批准的工具在审批之前就返回参数错误；这类错误必须点名「无法作为命令行参数传递的字符」，与其他 schema 不符的通用文案分开，模型才能据此删掉字符重试；`tools/boss_cli.py` 在 `Popen` 因参数无法编码或含空字符而抛 `ValueError` 时返回独立的 `CLI_ARGUMENT_ERROR`，不得与「可执行文件缺失」共用错误码；`agent.py` 必须把该错误码结算为 `not_executed` 并暂停回合，同时不进入「已派发、结果不确定」集合。脚本还会构造真实注册表与执行器跑一遍：空字符参数被拒绝并点名原因、普通 schema 不符保持通用文案、正常参数放行、`CLI_ARGUMENT_ERROR` 收尾为 `not_executed` 且暂停、`TOOL_ERROR` 仍收尾为 `outcome_unknown`。临时会话目录在隔离环境创建，检查不调用模型、招聘平台或真实 CLI 二进制。
 
 ### `check_model_tools.py`
 
