@@ -24,14 +24,23 @@ FRAGMENTS = (
     "const data = value?.data && typeof value.data === \"object\" ? value.data as Record<string, unknown> : null;",
     'const code = value?.rpcError === true && typeof data?.code === "string" ? data.code : "";',
     "switch (code) {",
-    'case "THREAD_BUSY":',
-    'return { status: "failed", message: "该聊天仍有运行中的回合或排队消息，无法删除。请先停止当前回合并清空队列，再重试。" };',
+    'case "THREAD_BUSY": {',
+    'const reason = typeof data?.reason === "string" ? data.reason : "";',
+    'return { status: "failed", message: BUSY_HINTS.get(reason) ?? BUSY_FALLBACK };',
     'case "THREAD_DELETE_INCOMPLETE":',
     'return { status: "incomplete", message: "聊天已从列表移除，但本机数据尚未清理完；内核重启后会继续清理。" };',
     'case "THREAD_NOT_FOUND":',
     'return { status: "incomplete", message: "该聊天已不存在，已从列表移除。" };',
     "default:",
     'return { status: "unknown", message: `删除结果尚未确认：${harnessErrorText(error)}。请刷新会话列表核对；若该聊天已消失，无需重试。` };',
+)
+
+# 内核 `THREAD_BUSY` 的四种原因各自给出可执行的下一步；文案必须互不相同。
+BUSY_HINTS = (
+    '["turn", "该聊天仍有运行中的回合，无法删除。请先停止当前回合，再重试。"]',
+    '["compaction", "该聊天正在生成上下文摘要，无法删除。请等摘要结束后再重试。"]',
+    '["dispatch", "该聊天仍有队列消息正在投递，无法删除。请等投递结束后再重试。"]',
+    '["cleanup", "该聊天仍有后台清理任务在进行，无法删除。请稍后再重试。"]',
 )
 
 ORDERED = (
@@ -45,7 +54,7 @@ ORDERED = (
     # 三种已知原因在前，未知原因兜底。
     (
         "switch (code) {",
-        'case "THREAD_BUSY":',
+        'case "THREAD_BUSY": {',
         'case "THREAD_DELETE_INCOMPLETE":',
         'case "THREAD_NOT_FOUND":',
         "default:",
@@ -81,6 +90,7 @@ def check_delete_thread_error() -> int:
     checked += _expect(FRAGMENTS, source, DELETE)
     for group in ORDERED:
         checked += _ordered(group, source, DELETE)
+    checked += _expect(BUSY_HINTS, source, DELETE)
     # 反向断言：原因码只允许三种；不得臆断删除结果；未知原因必须带原始错误文本。
     if source.count('case "') != 3:
         raise ValueError(f"{DELETE} 的原因码只允许三种")
@@ -88,7 +98,15 @@ def check_delete_thread_error() -> int:
         raise ValueError(f"{DELETE} 不得把删除结果说成已删除")
     if source.count("harnessErrorText(") != 1:
         raise ValueError(f"{DELETE} 的未知原因必须带原始错误文本")
-    return checked + 3
+    # 占用原因查表只走 Map：方括号读取会让 `__proto__` 等键名命中原型链。
+    if "BUSY_HINTS[" in source:
+        raise ValueError(f"{DELETE} 的占用原因查表不得使用方括号")
+    if "BUSY_HINTS.get(reason) ?? BUSY_FALLBACK" not in source:
+        raise ValueError(f"{DELETE} 的未知占用原因必须回退到兜底提示")
+    hint_messages = {fragment.split('", "', 1)[1] for fragment in BUSY_HINTS}
+    if len(hint_messages) != len(BUSY_HINTS):
+        raise ValueError(f"{DELETE} 的四种占用原因提示必须互不相同")
+    return checked + 6
 
 
 def main() -> int:

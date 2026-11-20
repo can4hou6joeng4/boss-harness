@@ -1,3 +1,10 @@
+## 0.2.0-rc.396 - 2026-11-20
+
+rc.396 源码候选让删除被拒的提示区分占用原因。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 内核以 `THREAD_BUSY` 拒绝删除时会带 `data.reason`（运行中回合、摘要任务、队列投递或后台清理）。桌面此前忽略该字段，一律提示「停止当前回合并清空队列」；遇到摘要或投递时按提示操作并不会让删除成功。现在按原因给出对应的下一步，缺失或未知原因回退到不针对具体原因的兜底文案；查表使用 `Map`，特殊键名不会命中原型链。修复 Issue [#2917](https://github.com/can4hou6joeng4/boss-harness/issues/2917)。
+- `check_delete_thread_error.py` 增至 37 项，固定四种提示互不相同、兜底文案与方括号查表禁令；使用指南补一句提示会说明占用原因。真实 rc.395 模块对照：旧版 3 项、新版 16 项断言通过。不新增 RPC 或平台调用。版本推进到 npm `0.2.0-rc.396` / Python `0.2.0rc396`。
+
 ## 0.2.0-rc.395 - 2026-11-20
 
 rc.395 源码候选为两处桌面修复补上构建前静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

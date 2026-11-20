@@ -404,7 +404,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_delete_thread_error.py`
 
-`scripts/check_delete_thread_error.py` 核对删除会话失败的原因码映射：只有内核 `rpcError === true` 且 `data.code` 为字符串时才读取原因码；`THREAD_BUSY` 映射为 `failed`，`THREAD_DELETE_INCOMPLETE` 与 `THREAD_NOT_FOUND` 映射为 `incomplete`，其他原因映射为 `unknown` 并带原始错误文本与刷新核对提示。反向断言原因码只允许三种、不得把结果说成已删除、未知原因必须带原始错误文本。检查是源码字面量扫描，不调用内核。
+`scripts/check_delete_thread_error.py` 核对删除会话失败的原因码映射：只有内核 `rpcError === true` 且 `data.code` 为字符串时才读取原因码；`THREAD_BUSY` 按 `data.reason` 查表给出运行中回合、摘要任务、队列投递与后台清理四种可执行提示，原因缺失、非字符串或未知时回退到不针对具体原因的兜底文案，且查表只走 `Map`，`__proto__`、`constructor` 等键名不能命中原型链；`THREAD_DELETE_INCOMPLETE` 与 `THREAD_NOT_FOUND` 映射为 `incomplete`，其他原因映射为 `unknown` 并带原始错误文本与刷新核对提示。反向断言原因码只允许三种、四种占用提示互不相同、不得把结果说成已删除、未知原因必须带原始错误文本。检查是源码字面量扫描，不调用内核。
 
 ### `check_deleted_thread_state.py`
 
