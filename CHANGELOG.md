@@ -1,3 +1,10 @@
+## 0.2.0-rc.390 - 2026-11-20
+
+rc.390 源码候选补齐实时工具卡的恢复建议。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 实时 `toolCall/completed` 此前遗漏内核已投影的 `error.recovery_action`，导致工具卡、消息复制与详情查找缺少建议，重新读取历史后才出现。现在映射到与历史相同的 `recoveryAction`，只接受字符串；新的完成结果未带合法建议时清除旧值，避免显示上一次的建议。修复 Issue [#2905](https://github.com/can4hou6joeng4/boss-harness/issues/2905)。
+- 用导出的 rc.389 源码与修改后的源码执行同一组 27 项离线断言，覆盖实时与历史映射、复制、详情查找、畸形输入及旧值清理。同步桌面交互指南；不新增 RPC、工具调用或自动重试。版本推进到 npm `0.2.0-rc.390` / Python `0.2.0rc390`。
+
 ## 0.2.0-rc.389 - 2026-11-20
 
 rc.389 源码候选让审批高风险标记在缺省或畸形时统一按必须逐次确认处理。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

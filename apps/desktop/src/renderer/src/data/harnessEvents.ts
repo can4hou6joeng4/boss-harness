@@ -16,7 +16,7 @@ export interface HarnessEvent {
     status?: string; toolName?: string; arguments?: Record<string, unknown>;
     /** 工具事件的执行状态；内核旧版本缺省，渲染层按未知处理。 */
     executionState?: string;
-    resultSummary?: string; error?: { code?: string; message?: string };
+    resultSummary?: string; error?: { code?: string; message?: string; recovery_action?: string };
     code?: string; recoveryAttempted?: boolean; outputObserved?: boolean;
     errorInfo?: ProviderFailureInfo;
     result?: ThreadItem["result"];
@@ -113,6 +113,8 @@ export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent,
       const status = toolStatus(params.status);
       const executionState = toolExecutionState(params.executionState);
       const errorCode = itemText(params.error?.code);
+      // 完成通知里的错误已由内核有界投影；与历史条目一样保留恢复建议。
+      const recoveryAction = itemText(params.error?.recovery_action);
       const durationMs = toolDurationMs(params.durationMs);
       const resultRef = itemResultRef(params.resultRef);
       const toolUse: NonNullable<MessageItem["toolUse"]> = { ...item.toolUse,
@@ -124,6 +126,7 @@ export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent,
       if (status) toolUse.status = status; else delete toolUse.status;
       if (executionState) toolUse.executionState = executionState; else delete toolUse.executionState;
       if (errorCode) toolUse.errorCode = errorCode; else delete toolUse.errorCode;
+      if (recoveryAction !== undefined) toolUse.recoveryAction = recoveryAction; else delete toolUse.recoveryAction;
       if (durationMs !== undefined) toolUse.durationMs = durationMs; else delete toolUse.durationMs;
       // 内核耗时缺失时用本机时钟回退；没有开始记录（如刷新后接入在途调用）则不显示耗时。
       if (at !== undefined && item.toolUse?.startedAt !== undefined) toolUse.endedAt = at; else delete toolUse.endedAt;
