@@ -94,6 +94,8 @@ jobs:
         run: python scripts/check_search_options.py
       - name: Verify find cursor steps
         run: python scripts/check_find_step.py
+      - name: Verify find status copy
+        run: python scripts/check_find_status.py
       - name: Verify private state boundaries
         run: python scripts/check_private_files.py
       - name: Verify credential redaction
