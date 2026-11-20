@@ -190,6 +190,8 @@ jobs:
         run: python scripts/check_item_content.py
       - name: Verify tool argument boundaries
         run: python scripts/check_tool_schema.py
+      - name: Verify tool argument characters
+        run: python scripts/check_tool_arguments.py
       - name: Verify model result read tool
         run: python scripts/check_model_tools.py
       - name: Verify domain tool instructions

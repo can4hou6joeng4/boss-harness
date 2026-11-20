@@ -1,3 +1,11 @@
+## 0.2.0-rc.398 - 2026-11-20
+
+rc.398 源码候选在审批之前拒绝无法作为命令行参数传递的工具参数。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 字符串工具参数（含对象键）携带 `\u0000` 时，注册表原先照常放行：需逐次批准的 `boss_hr_greet` 会先弹出审批卡，批准后 `Popen` 才以 `embedded null byte` 失败，并被记为「已派发、可能已生效」，回合暂停要求核对平台状态——实际什么都没发出。现在 `tool_schema.py` 在参数快照阶段一并拒绝空字符与孤立代理项，参数错误在审批之前返回。修复 Issue [#2921](https://github.com/can4hou6joeng4/boss-harness/issues/2921)。
+- `tools/boss_cli.py` 在 `Popen` 因参数无法编码而抛 `ValueError` 时返回独立的 `CLI_ARGUMENT_ERROR`，与「可执行文件缺失」的 `CLI_ERROR` 分开；`agent.py` 把该错误码结算为 `not_executed` 并暂停回合，不再进入「已派发、结果不确定」集合。其他已派发失败仍按 `outcome_unknown` 处理。
+- 新增 `check_tool_arguments.py`：除固定三层实现位置外，用真实注册表与执行器跑一遍空字符拒绝、正常参数放行、未启动结算与已派发失败的对照，共 18 项；接入 CI 与技术参考，静态检查增至 116 个。从 rc.397 提交导出真实源码与修改版执行同一探针：旧版 12 项中 6 项失败（4 项空字符放行、直接调用抛 `ValueError`、未启动被记为 `outcome_unknown`），修改版 12 项全部通过。同步桌面指南、使用指南与技术参考，并记录与 Pi 固定提交的对照结论。版本推进到 npm `0.2.0-rc.398` / Python `0.2.0rc398`。
+
 ## 0.2.0-rc.397 - 2026-11-20
 
 rc.397 源码候选阻止删除后的迟到审批回执重建界面状态。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

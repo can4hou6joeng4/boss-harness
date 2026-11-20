@@ -24,6 +24,17 @@ _MAX_SCHEMA_DEPTH = 32
 _MAX_NORMALIZATION_VISITS = _MAX_JSON_NODES * 2
 _TYPES = frozenset({"string", "integer", "number", "boolean", "null", "object", "array"})
 _INVALID_STRUCTURED_JSON = object()
+#: 命令行参数永远无法携带的字符：空字符会截断 argv，孤立代理项无法按 UTF-8 编码。
+#: 两者都在参数快照阶段拒绝，审批与处理器因此看不到注定启动失败的调用。
+_UNPASSABLE_STRING_CHARS = ("\x00",)
+
+
+def _reject_unpassable_text(text: str) -> None:
+    if any(char in text for char in _UNPASSABLE_STRING_CHARS) or any(
+            0xD800 <= ord(char) <= 0xDFFF for char in text):
+        raise ValueError
+
+
 _KEYWORDS = frozenset({"type", "properties", "required", "additionalProperties", "enum", "anyOf",
     "minimum", "maximum", "minLength", "maxLength", "pattern", "items", "minItems", "maxItems",
     "uniqueItems", "description", "title", "default"})
@@ -48,6 +59,7 @@ def _json_snapshot(value: Any, *, maximum: int, allow_mappings: bool = False) ->
             raise ValueError
         if type(item) is str:
             account(len(item) + 2)
+            _reject_unpassable_text(item)
             return item
         if item is None or type(item) in {bool, int}:
             account(len(json.dumps(item)))
@@ -70,6 +82,7 @@ def _json_snapshot(value: Any, *, maximum: int, allow_mappings: bool = False) ->
                     for index, (key, child) in enumerate(item.items()):
                         if type(key) is not str:
                             raise ValueError
+                        _reject_unpassable_text(key)
                         account(len(key) + 3 + bool(index))
                         result[key] = copy(child, depth + 1)
                     return result
