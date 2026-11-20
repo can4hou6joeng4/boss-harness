@@ -56,6 +56,17 @@ export function approvalSubmissionFor(threadId: string) {
   return created;
 }
 
+/**
+ * 会话删除后丢弃其审批提交状态。
+ *
+ * 删除通知可能先于本机回执到达，迟到的审批回执不应再写进已删除会话的条目；
+ * 之后再取用该 id 得到全新状态，其他会话的条目保留。
+ */
+export function forgetApprovalSubmission(threadId: string): boolean {
+  if (!threadId) return false;
+  return submissions.delete(threadId);
+}
+
 export function useApprovalSubmission(threadId?: string) {
   // 未关联会话时沿用组件自身生命周期，不把匿名预览的状态混进会话缓存。
   const [local] = useState(createSubmissions);

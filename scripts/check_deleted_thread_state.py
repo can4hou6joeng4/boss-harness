@@ -14,6 +14,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "apps/desktop/src/renderer/src/data/deletedThreadState.ts"
+APPROVAL = "apps/desktop/src/renderer/src/data/approvalSubmission.ts"
 APP = "apps/desktop/src/renderer/src/App.tsx"
 
 MODULE_FRAGMENTS = (
@@ -25,8 +26,15 @@ MODULE_FRAGMENTS = (
     "return forgotten;",
 )
 
+APPROVAL_FRAGMENTS = (
+    "export function forgetApprovalSubmission(threadId: string): boolean {",
+    "if (!threadId) return false;",
+    "return submissions.delete(threadId);",
+)
+
 APP_FRAGMENTS = (
     'import { forgetDeletedThread } from "./data/deletedThreadState";',
+    'import { approvalSubmissionFor, forgetApprovalSubmission } from "./data/approvalSubmission";',
     'const clearDeletedConversationRef = useRef<((id: string) => void) | null>(null);',
     "const clearDeletedConversation = useCallback((id: string) => {",
     "if (activeRef.current?.id === id) clearActiveConversation();",
@@ -62,13 +70,16 @@ def check_deleted_thread_state() -> int:
     module = _read(MODULE)
     app = _read(APP)
     checked = _expect(MODULE_FRAGMENTS, module, MODULE)
+    checked += _expect(APPROVAL_FRAGMENTS, _read(APPROVAL), APPROVAL)
     checked += _expect(APP_FRAGMENTS, app, APP)
 
     branch = _slice(app, 'if (event.method === "thread/deleted")', "if (!id) return;", APP)
-    # 通知分支：先遗忘六类连接内状态，再清完成标记与视图，最后移除列表项并刷新。
+    # 通知分支：先让在途队列读取失效并遗忘六类连接内状态，再清完成标记与视图，最后移除列表项并刷新。
     position = -1
     for fragment in (
+        "queueReads.current.invalidate(deleted);",
         f"{FORGET_TARGETS}, deleted);",
+        "forgetApprovalSubmission(deleted);",
         "clearCompletedUnread(deleted);",
         "releaseInterrupt(deleted);",
         "clearDeletedConversationRef.current?.(deleted);",
@@ -83,7 +94,9 @@ def check_deleted_thread_state() -> int:
 
     delete_session = _slice(app, "const handleDeleteSession = useCallback", "/** 归档/恢复会话", APP)
     for fragment in (
+        "queueReads.current.invalidate(session.id);",
         f"{FORGET_TARGETS}, session.id);",
+        "forgetApprovalSubmission(session.id);",
         "clearCompletedUnread(session.id);",
         "if (activeRef.current?.id === session.id) clearActiveConversation();",
     ):
@@ -108,7 +121,7 @@ def main() -> int:
     except ValueError as error:
         print(f"删除会话状态清理核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"删除会话状态清理一致：{checked} 项遗忘、视图退出与复用防护")
+    print(f"删除会话状态清理一致：{checked} 项遗忘、在途失效与视图退出防护")
     return 0
 
 

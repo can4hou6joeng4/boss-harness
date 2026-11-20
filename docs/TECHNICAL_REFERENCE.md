@@ -408,7 +408,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_deleted_thread_state.py`
 
-`scripts/check_deleted_thread_state.py` 核对删除会话通知的连接内状态清理：`deletedThreadState.ts` 的 `forgetDeletedThread` 接受可按键删除的状态，空 id 直接返回 `false`，逐项删除并返回是否确实删除过内容。主界面的 `thread/deleted` 分支按消息缓存、队列投影、失败提示、条目版本、回合标识与记住的审批依次遗忘，再清后台完成标记、释放停止状态、退出被删除的当前会话、移除列表项并刷新；`handleDeleteSession` 复用同一组目标并直接退出视图。反向断言两条路径不得退回只删缓存的旧写法，删除回执不得依赖通知回调。检查是源码字面量与首次出现顺序扫描，不渲染界面。
+`scripts/check_deleted_thread_state.py` 核对删除会话通知的连接内状态清理：`deletedThreadState.ts` 的 `forgetDeletedThread` 接受可按键删除的状态，空 id 直接返回 `false`，逐项删除并返回是否确实删除过内容；`approvalSubmission.ts` 的 `forgetApprovalSubmission` 同样拒绝空 id 并丢弃模块表中的会话条目。主界面的 `thread/deleted` 分支先让该会话的在途队列读取失效，再按消息缓存、队列投影、失败提示、条目版本、回合标识与记住的审批依次遗忘，随后丢弃审批提交状态、清后台完成标记、释放停止状态、退出被删除的当前会话、移除列表项并刷新；`handleDeleteSession` 复用同一组调用并直接退出视图。反向断言两条路径不得退回只删缓存的旧写法，删除回执不得依赖通知回调。检查是源码字面量与首次出现顺序扫描，不渲染界面。
 
 ### `check_session_error_notice.py`
 
