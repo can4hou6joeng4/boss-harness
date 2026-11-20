@@ -1,3 +1,11 @@
+## 0.2.0-rc.410 - 2026-11-20
+
+rc.410 源码候选让分支视图回合页的 `turns` 与 `branch` 出自同一次读取。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `thread/turns/list` 带 `view=branch` 时，内核先在 `list_branch_turns` 里加锁读取条目、算出当前分支回合并取页，释放锁后再调用 `read_leaf` 重新读取条目计算 `branch`。两次读取之间发生 `thread/leaf/set` 或写入新回合时，同一响应里的 `turns` 属于旧位置，`branch.leafTurnId` 却是新位置；rc.409 起桌面端按每页的 `branch` 判断读取期间位置是否变化，会因此漏判或误判。现在 `list_branch_turns` 在同一次持锁读取里用同一份条目算出回合集合与 `branch`，处理器直接返回它；每次分支视图翻页少读一遍会话条目。`branch` 的字段与 `thread/leaf/read` 相同，游标、排序、页大小、索引重建重试、日志视图与 `thread/read` 的分支回合不变，协议字段不增不减。修复 Issue [#2945](https://github.com/can4hou6joeng4/boss-harness/issues/2945)，rc.409 记录的同页不一致边界随之消除。
+- 未处理：`thread/read` 的分支视图仍分别读取条目快照、分支回合与 `branch`，同类不一致仍可能出现在该响应内。
+- `check_branch_pagination.py` 扩展到 50 项：内核回合集合与位置同源、持锁步骤顺序、只读取一次条目且不调用 `read_leaf`，以及处理器按字段返回、不另行读取位置。从 rc.409 提交导出真实内核源码与修改版执行同一探针：在回合读取返回后插入一次位置切换，旧版响应的回合为旧位置而 `branch` 为新位置，修改版两者一致；位置稳定、翻页游标、日志视图与 `thread/read` 的分支回合两边逐项相同。同步技术参考与上游吸收记录。版本推进到 npm `0.2.0-rc.410` / Python `0.2.0rc410`。
+
 ## 0.2.0-rc.409 - 2026-11-20
 
 rc.409 源码候选逐页核对分支读取时的当前位置。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

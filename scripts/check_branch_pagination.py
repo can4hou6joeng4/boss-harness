@@ -5,6 +5,9 @@
 并在同一响应里报告该位置。两次请求之间位置变化时，各页分属不同位置，且不会出现
 重复回合可供查重；界面必须逐页比较响应报告的位置（含单页读取与切走又切回），
 不一致就放弃本次结果。旧内核的回合页不带位置时，翻页才回退到端点复核。
+
+逐页比较依赖内核响应自身一致：分支视图回合页的 `turns` 与 `branch` 必须出自同一次
+加锁读取的同一份条目，处理器不得在释放锁后另行读取位置。
 """
 
 from __future__ import annotations
@@ -16,6 +19,22 @@ ROOT = Path(__file__).resolve().parents[1]
 PAGED = "apps/desktop/src/renderer/src/data/pagedRead.ts"
 BRANCHES = "apps/desktop/src/renderer/src/data/useSessionBranches.ts"
 PAGES = "apps/desktop/src/renderer/src/data/branchPages.ts"
+SESSION = "harness/src/boss_harness/session.py"
+APPLICATION = "harness/src/boss_harness/application.py"
+
+KERNEL_SESSION = (
+    "active_turns = self._turns(self._active_entries(entries), thread_id)",
+    'active_ids = {turn["turnId"] for turn in active_turns}',
+    "leaf = self._leaf_state(thread_id, entries, turns=active_turns)",
+    '"branch": leaf}',
+    "def _leaf_state(self, thread_id: str, entries: list[dict], active: list[dict] | None = None, *,",
+    "turns: list[dict] | None = None) -> dict:",
+)
+
+KERNEL_HANDLER = (
+    'return {"turns": result["turns"], "nextCursor": result["nextCursor"],',
+    '"view": "branch", "branch": result["branch"]}',
+)
 
 DRIFT_CHECK = (
     'const LEAF_DRIFT = "分支在读取期间发生变化：当前位置已改变（切换了分支或开始了新回合），'
@@ -111,6 +130,37 @@ def check_branch_pagination() -> int:
     if "truncated: false }" in paged or "truncated: true }" in paged:
         raise ValueError("分页结果仍缺少页数统计")
     checked += 1
+
+    # 内核：回合集合与位置同源。位置必须在持锁读取条目之后、释放锁之前由同一份回合算出。
+    session = _read(SESSION)
+    application = _read(APPLICATION)
+    checked += _expect(KERNEL_SESSION, session, SESSION)
+    checked += _expect(KERNEL_HANDLER, application, APPLICATION)
+    start = session.find("def list_branch_turns(")
+    end = session.find("def branch_last_turn(", start)
+    if start < 0 or end < 0:
+        raise ValueError(f"{SESSION} 缺少分支回合读取或其收尾标记")
+    body = session[start:end]
+    position = -1
+    for marker in ("with self._lock:", "entries = self.read_entries(thread_id)",
+                   "leaf = self._leaf_state(thread_id, entries, turns=active_turns)",
+                   "with self._index.connection() as connection:", "selected = []"):
+        index = body.find(marker)
+        if index < 0 or index <= position:
+            raise ValueError(f"分支回合读取步骤缺少或顺序变化：{marker}")
+        position = index
+        checked += 1
+    if body.count("self.read_entries(thread_id)") != 1 or "self.read_leaf(" in body:
+        raise ValueError("分支回合读取只能读取一次条目，不得另行读取位置")
+    checked += 1
+    handler_start = application.find("def on_turn_list(")
+    handler_end = application.find("\n    @contextmanager", handler_start)
+    if handler_start < 0 or handler_end < 0:
+        raise ValueError(f"{APPLICATION} 缺少回合列表处理器或其收尾标记")
+    handler = application[handler_start:handler_end]
+    if "read_leaf(" in handler or "**result" in handler:
+        raise ValueError("回合列表处理器不得另行读取位置，也不得透传未声明的字段")
+    checked += 1
     return checked
 
 
@@ -120,7 +170,7 @@ def main() -> int:
     except ValueError as error:
         print(f"分支分页一致性核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"分支分页一致：{checked} 项页数统计与逐页位置核对")
+    print(f"分支分页一致：{checked} 项页数统计、逐页位置核对与内核同源读取")
     return 0
 
 
