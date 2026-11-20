@@ -350,12 +350,13 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
     const targetSnapshot = target.current;
     const { threadId: activeId, connected: available, support: supported } = current.current;
     const id = targetSnapshot?.threadId ?? activeId;
-    if (!id || !available || !supported) return false;
+    if (!id || !available || !supported || forgotten.current.has(id)) return false;
     if (targetSnapshot && (!targetSnapshot.connected || targetSnapshot.support !== supported)) return false;
     const state = stateRef.current[id] ?? initial();
     if (state.switching) return false;
     const connectionEpoch = epoch.current;
-    const valid = () => alive.current && epoch.current === connectionEpoch;
+    // 会话在切换途中被删除：回执不再重读该会话，也不写回或刷新。
+    const valid = () => alive.current && epoch.current === connectionEpoch && !forgotten.current.has(id);
     update(id, { switching: true, switchError: "" });
     let attempted = false;
     try {

@@ -1,3 +1,10 @@
+## 0.2.0-rc.404 - 2026-11-20
+
+rc.404 源码候选让删除后迟到的分支切换回执失效。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- rc.401 起分支弹窗会随 `thread/deleted` 遗忘会话，但 `switchTo` 的回执归属判定只比较连接代际：删除途中发出的 `thread/leaf/set` 回执返回后仍会调用 `onSwitched`，重新读取一个已删除的会话，失败原因还可能以提示形式出现。现在切换入口与回执判定都要求会话未被遗忘，已删除会话不再发起切换，迟到的回执不重读、不写状态、不刷新，也不关闭窗口；其他会话的切换行为不变。修复 Issue [#2933](https://github.com/can4hou6joeng4/boss-harness/issues/2933)。
+- `check_deleted_thread_state.py` 增至 122 项，固定切换入口的遗忘拦截、回执判定包含遗忘检查，以及调用 `onSwitched` 之前必须先过归属判定。从 rc.403 提交导出真实 hook 源码与修改版执行同一探针：旧版 6 项中 2 项失败（已删除会话的回执仍被当作有效、入口未拦截），修改版 6 项全部通过。同步桌面指南与技术参考。版本推进到 npm `0.2.0-rc.404` / Python `0.2.0rc404`。
+
 ## 0.2.0-rc.403 - 2026-11-20
 
 rc.403 源码候选让自动压缩草稿与覆盖随删除遗忘。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
