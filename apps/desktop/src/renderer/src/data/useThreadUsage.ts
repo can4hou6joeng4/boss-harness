@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ThreadUsageBucket, ThreadUsageCacheWaste, ThreadUsageReadResponse, ThreadUsageSummaryJob, ThreadUsageTurn } from "@boss-harness/protocol";
 import { harnessErrorText, readThreadUsage } from "./harnessBridge";
 import { readPagedItems } from "./pagedRead";
+import { branchPageLeafOf, sameLeafAcrossPages } from "./branchPages";
 import { bucketOf, cacheWasteOf, isCount as count, summaryJobsOf, turnOf, verifyUsageTurns } from "./usageMapping";
 
 /**
@@ -23,6 +24,8 @@ export interface ThreadUsageState {
 }
 
 const MAX_PAGES = 10;
+/** 分支视图翻页期间位置变化：各页的回合与合计分属不同位置，放弃并让用户刷新。 */
+const USAGE_LEAF_DRIFT = "当前分支在读取用量期间发生变化（切换了分支或开始了新回合），本次结果可能混用两个位置的用量，已放弃；请刷新后重试。";
 
 /** 按页读取（每页 200 个回合，最多 10 页），任一页形状不符即整体报错，不展示部分可疑数据。 */
 async function readAll(threadId: string, view: UsageView, valid: () => boolean): Promise<ThreadUsageState["data"]> {
@@ -31,12 +34,20 @@ async function readAll(threadId: string, view: UsageView, valid: () => boolean):
   let summaryMeta: ReturnType<typeof summaryJobsOf> | null = null;
   let cacheWaste: ThreadUsageCacheWaste | undefined;
   let lastTurnCount: number | undefined;
+  // 分支视图的每一页都带有内核计算该页时的位置；合计取自第一页、回合逐页拼接，位置必须一致。
+  const leaves: (string | null)[] = [];
   const reads = await readPagedItems<ThreadUsageTurn>("回合用量", async cursor => {
     const page: ThreadUsageReadResponse = await readThreadUsage(threadId, view, cursor);
     if (!valid()) throw new Error("回合用量读取已过期");
     if (!page || page.threadId !== threadId || page.view !== view || page.source !== "provider-usage"
       || !Array.isArray(page.turns) || !count(page.turnCount) || (page.nextCursor !== null && typeof page.nextCursor !== "string")) {
       throw new Error("内核返回的用量不属于当前会话或格式无法识别");
+    }
+    if (view === "branch") {
+      // 「全部记录」不随位置变化，不读取；旧内核不返回 branch 时保持原有行为。
+      const leaf = branchPageLeafOf(page.branch, threadId);
+      if (leaf === "invalid") throw new Error("内核返回的用量位置信息不属于当前会话或无法识别");
+      if (leaf !== "missing") leaves.push(leaf.leafTurnId);
     }
     lastTurnCount = page.turnCount;
     head ??= page;
@@ -56,6 +67,8 @@ async function readAll(threadId: string, view: UsageView, valid: () => boolean):
     }
     return { items: turns, nextCursor: page.nextCursor ?? null };
   }, MAX_PAGES);
+  // 回合数相同的两条分支拼在一起既不重复、总数也对得上；先按位置判断，再做条目校验。
+  if (!sameLeafAcrossPages(leaves)) throw new Error(USAGE_LEAF_DRIFT);
   // 截断时无法知道后面还有多少条目，只校验已读部分不重复；完整读完时以最后一页的总数为准。
   verifyUsageTurns(reads.items, reads.truncated ? undefined : lastTurnCount);
   return { threadId, view, turnCount: lastTurnCount ?? head!.turnCount, turns: reads.items, truncated: reads.truncated,
