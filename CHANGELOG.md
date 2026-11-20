@@ -1,3 +1,10 @@
+## 0.2.0-rc.375 - 2026-11-20
+
+rc.375 源码候选固定新建会话与首条消息的四种结果。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_session_start.py`，固定四种状态、`createdSession` 的「失败之外都有会话」、发送结果的 `true` / `"uncertain"` / `false` 映射，以及主界面与快速提问提示的分支；反向断言 `unconfirmed` 不得按失败处理、「未能创建会话」只出现在快速提问的失败分支。修复 Issue [#2875](https://github.com/can4hou6joeng4/boss-harness/issues/2875)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 98 个。版本推进到 npm `0.2.0-rc.375` / Python `0.2.0rc375`。不改变运行时行为，只固定既有结果契约。
+
 ## 0.2.0-rc.374 - 2026-11-20
 
 rc.374 源码候选固定会话列表回执的逐项校验与去重。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
