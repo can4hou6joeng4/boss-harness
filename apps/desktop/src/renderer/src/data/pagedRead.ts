@@ -8,6 +8,8 @@ import { trackCursor } from "./cursorChain";
 
 export interface PagedItems<T> {
   items: T[];
+  /** 实际请求的页数；多于 1 页说明结果由多次读取拼成，不是同一时刻的快照。 */
+  pages: number;
   /** 达到页数上限时内核仍有后续页。 */
   truncated: boolean;
 }
@@ -30,8 +32,8 @@ export async function readPagedItems<T>(
     }
     if (next !== null) trackCursor(seen, next, label);
     items.push(...page.items);
-    if (next === null) return { items, truncated: false };
+    if (next === null) return { items, truncated: false, pages: pages + 1 };
     cursor = next;
   }
-  return { items, truncated: true };
+  return { items, truncated: true, pages: maxPages };
 }
