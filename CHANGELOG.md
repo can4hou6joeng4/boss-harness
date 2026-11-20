@@ -1,3 +1,10 @@
+## 0.2.0-rc.374 - 2026-11-20
+
+rc.374 源码候选固定会话列表回执的逐项校验与去重。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_thread_list.py`，固定标识与标题时间上限、`archived` 与 `toolPolicy` 枚举、`optionalText` 的缺省 / 非法区分、`lastTurn` 的恢复目标与状态白名单，以及 `uniqueThreadIds` 的集合大小比较；反向断言非法可选字段不得当作缺省、重复 id 不得放行、三项可选文本必须同时校验。修复 Issue [#2873](https://github.com/can4hou6joeng4/boss-harness/issues/2873)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 97 个。版本推进到 npm `0.2.0-rc.374` / Python `0.2.0rc374`。不改变运行时行为，只固定既有回执契约。
+
 ## 0.2.0-rc.373 - 2026-11-20
 
 rc.373 源码候选固定界面偏好的旧命名空间迁移。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
