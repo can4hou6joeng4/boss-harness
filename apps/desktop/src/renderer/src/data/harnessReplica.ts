@@ -78,6 +78,8 @@ export class HarnessReplica {
   private readonly itemVersions = new Map<string, number>();
   /** 每个会话最近一次恢复失败的具体原因；调用方用它替代通用文案。 */
   private readonly failures = new Map<string, string>();
+  /** 当前连接内已确认删除的会话：阻止旧回执、缓冲事件与刷新重新恢复它。 */
+  private readonly deleted = new Set<string>();
   private nextItemVersion = 0;
   private readonly api: Api;
   private readonly onEvent: (event: HarnessEvent) => void;
@@ -169,16 +171,33 @@ export class HarnessReplica {
     this.generations.clear();
     this.itemVersions.clear();
     this.failures.clear();
+    this.deleted.clear();
   }
 
   ingest(event: HarnessEvent): void {
+    if (event.method === "thread/deleted") {
+      const deletedId = (event.params as { deletedThreadId?: unknown } | undefined)?.deletedThreadId;
+      if (typeof deletedId === "string" && deletedId) {
+        this.deleted.add(deletedId);
+        // 删除 generation 让在途读取的 current() 失效；移除 loading 后不再沿用旧请求。
+        this.generations.delete(deletedId);
+        this.loading.delete(deletedId);
+        this.cursors.delete(deletedId);
+        this.failures.delete(deletedId);
+        for (const key of this.itemVersions.keys()) if (key.startsWith(`${deletedId}\0`)) this.itemVersions.delete(key);
+      }
+      this.onEvent(event);
+      return;
+    }
     const id = event.params?.threadId;
+    if (id && this.deleted.has(id)) return;
     if (id && this.loading.has(id)) { this.loading.get(id)!.buffered.push(event); return; }
     this.apply(event);
   }
 
   private apply(event: HarnessEvent): void {
     const id = event.params?.threadId, value = cursor(event);
+    if (id && this.deleted.has(id)) return;
     if (id && value !== null) {
       if (value <= (this.cursors.get(id) ?? -1n)) return;
       this.cursors.set(id, value);
@@ -192,7 +211,7 @@ export class HarnessReplica {
     this.onEvent(event);
     if (event.method === "item/completed" && (event.params?.textRef || event.params?.thinkingRef)) {
       const current = () => {
-        if (epoch !== this.epoch || (id && this.generations.get(id) !== generation) ||
+        if (epoch !== this.epoch || (id && (this.deleted.has(id) || this.generations.get(id) !== generation)) ||
             (key && this.itemVersions.get(key) !== version)) throw new Error("内容加载已过期");
       };
       void this.resolveEventContent(event, current).then(content => {
@@ -205,6 +224,7 @@ export class HarnessReplica {
   }
 
   resume(threadId: string): Promise<ThreadReadResponse | null> {
+    if (this.deleted.has(threadId)) return Promise.resolve(null);
     const existing = this.loading.get(threadId);
     if (existing) return existing.flight;
     const epoch = this.epoch, buffered: HarnessEvent[] = [];
