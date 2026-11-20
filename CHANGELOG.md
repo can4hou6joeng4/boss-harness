@@ -1,3 +1,10 @@
+## 0.2.0-rc.360 - 2026-11-20
+
+rc.360 源码候选固定搜索结果的顺序与命中定位意图。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_search_options.py`，固定消息命中在前、会话结果在后，`message:` / `session:` 键与去重，缺行跳过，角色标签三分支，以及只有工具命中展开工具块、关键词 `trim()`。修复 Issue [#2845](https://github.com/can4hou6joeng4/boss-harness/issues/2845)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 83 个。版本推进到 npm `0.2.0-rc.360` / Python `0.2.0rc360`。不改变运行时行为，只固定既有结果顺序与定位契约。
+
 ## 0.2.0-rc.359 - 2026-11-20
 
 rc.359 源码候选让搜索空态的最短字符数提示引用常量，并固定状态行与空态的分支。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
