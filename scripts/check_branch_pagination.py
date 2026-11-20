@@ -9,6 +9,9 @@
 逐页比较依赖内核响应自身一致：分支视图回合页的 `turns` 与 `branch` 必须出自同一次
 加锁读取的同一份条目，处理器不得在释放锁后另行读取位置。`thread/read` 的非快照
 分支视图同理：条目、末回合、回合页与位置都从处理器读到的同一份条目快照算出。
+
+「会话用量」的当前分支视图同样逐页比较位置：合计取自第一页、回合逐页拼接，两条分支
+有用量的回合数相同时，重复与总数校验都发现不了混用。「全部记录」不随位置变化，不读取。
 """
 
 from __future__ import annotations
@@ -22,6 +25,24 @@ BRANCHES = "apps/desktop/src/renderer/src/data/useSessionBranches.ts"
 PAGES = "apps/desktop/src/renderer/src/data/branchPages.ts"
 SESSION = "harness/src/boss_harness/session.py"
 APPLICATION = "harness/src/boss_harness/application.py"
+USAGE = "apps/desktop/src/renderer/src/data/useThreadUsage.ts"
+
+USAGE_FRAGMENTS = (
+    'import { branchPageLeafOf, sameLeafAcrossPages } from "./branchPages";',
+    'const USAGE_LEAF_DRIFT = "当前分支在读取用量期间发生变化（切换了分支或开始了新回合），'
+    '本次结果可能混用两个位置的用量，已放弃；请刷新后重试。";',
+    "const leaves: (string | null)[] = [];",
+    'if (view === "branch") {',
+    "const leaf = branchPageLeafOf(page.branch, threadId);",
+    'if (leaf === "invalid") throw new Error("内核返回的用量位置信息不属于当前会话或无法识别");',
+    'if (leaf !== "missing") leaves.push(leaf.leafTurnId);',
+    "if (!sameLeafAcrossPages(leaves)) throw new Error(USAGE_LEAF_DRIFT);",
+)
+
+USAGE_KERNEL = (
+    "leaf = self._leaf_state(thread_id, entries) if branch else None",
+    'out["branch"] = leaf',
+)
 
 KERNEL_SESSION = (
     "active_turns = self._turns(self._active_entries(entries), thread_id)",
@@ -213,6 +234,44 @@ def check_branch_pagination() -> int:
                 or not pinned_index < part.find("self.read_entries(thread_id)"):
             raise ValueError(f"{name} 带快照时不得重新读取条目")
         checked += 1
+
+    # 会话用量：分支视图逐页记录位置，读完先比较位置再做条目校验；全部记录视图不读取位置。
+    usage = _read(USAGE)
+    checked += _expect(USAGE_FRAGMENTS, usage, USAGE)
+    checked += _expect(USAGE_KERNEL, session, SESSION)
+    read_start = usage.find("async function readAll(")
+    read_end = usage.find("export function useThreadUsage(", read_start)
+    if read_start < 0 or read_end < 0:
+        raise ValueError(f"{USAGE} 缺少逐页读取函数或其收尾标记")
+    read_all = usage[read_start:read_end]
+    position = -1
+    for marker in ('if (!valid()) throw new Error("回合用量读取已过期");', 'if (view === "branch") {',
+                   "head ??= page;", "}, MAX_PAGES);", "if (!sameLeafAcrossPages(leaves)) throw new Error(USAGE_LEAF_DRIFT);",
+                   "verifyUsageTurns(reads.items, reads.truncated ? undefined : lastTurnCount);"):
+        index = read_all.find(marker)
+        if index < 0 or index <= position:
+            raise ValueError(f"用量逐页读取步骤缺少或顺序变化：{marker}")
+        position = index
+        checked += 1
+    # 位置只在分支视图读取：全部记录不随位置变化，不能因为响应里的 branch 放弃结果。
+    guard = read_all.find('if (view === "branch") {')
+    if read_all.count("branchPageLeafOf(") != 1 or not guard < read_all.find("branchPageLeafOf(") < read_all.find("lastTurnCount = page.turnCount;"):
+        raise ValueError("用量位置只应在分支视图分支内读取一次")
+    checked += 1
+    # 用量读取不为核对位置增加请求：只有分页回调里的一次读取。
+    if read_all.count("readThreadUsage(") != 1:
+        raise ValueError("用量逐页读取不得为核对位置增加请求")
+    checked += 1
+    # 内核：用量页的位置与其回合出自同一份条目，且在同一次持锁读取内算出。
+    usage_start = session.find("def usage_page(")
+    usage_end = session.find("result = summarize_usage(", usage_start)
+    if usage_start < 0 or usage_end < 0:
+        raise ValueError(f"{SESSION} 缺少用量分页或其收尾标记")
+    usage_body = session[usage_start:usage_end]
+    if not usage_body.find("with self._lock:") < usage_body.find("scope_entries = self._active_entries(entries) if branch else entries") \
+            < usage_body.find(USAGE_KERNEL[0]) or usage_body.find("with self._lock:") < 0:
+        raise ValueError("用量页的位置必须与回合在同一次持锁读取内由同一份条目算出")
+    checked += 1
     return checked
 
 
@@ -222,7 +281,7 @@ def main() -> int:
     except ValueError as error:
         print(f"分支分页一致性核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"分支分页一致：{checked} 项页数统计、逐页位置核对与内核同源读取（回合页与会话读取）")
+    print(f"分支分页一致：{checked} 项页数统计、逐页位置核对与内核同源读取（回合页、会话读取与用量）")
     return 0
 
 
