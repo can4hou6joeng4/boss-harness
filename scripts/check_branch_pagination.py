@@ -9,6 +9,9 @@
 位置变化多是一次性的：发现不一致后只重读一遍，一致就照常展示；仍不一致才提示并放弃，
 不得循环重读。读取失败时弹窗继续显示上次成功读取的列表，必须同时说明它是旧结果。
 
+位置变化之后要有重读：内核在回合开始时先写入运行中的回合、再发出 `turn/started`，此时当前
+位置已是新回合。分支读取必须把它列入触发重读的通知，否则弹窗在整个回合运行期间停在旧位置。
+
 逐页比较依赖内核响应自身一致：分支视图回合页的 `turns` 与 `branch` 必须出自同一次
 加锁读取的同一份条目，处理器不得在释放锁后另行读取位置。`thread/read` 的非快照
 分支视图同理：条目、末回合、回合页与位置都从处理器读到的同一份条目快照算出。
@@ -30,6 +33,12 @@ SESSION = "harness/src/boss_harness/session.py"
 APPLICATION = "harness/src/boss_harness/application.py"
 USAGE = "apps/desktop/src/renderer/src/data/useThreadUsage.ts"
 DIALOG = "apps/desktop/src/renderer/src/components/BranchDialog.tsx"
+
+REFRESH_EVENTS = (
+    'const BRANCH_REFRESH_EVENTS: readonly string[] = ["thread/leafChanged", "turn/started", "turn/completed", '
+    '"thread/updated", "context/compacted"];',
+    "if (BRANCH_REFRESH_EVENTS.includes(event.method) && id === current.current.threadId) {\n        void refresh(id);",
+)
 
 STALE_NOTICE = (
     '{state.error && state.loaded && <p className="branch-block" role="status" data-branch-stale>'
@@ -140,6 +149,14 @@ def _expect(fragments: tuple[str, ...], text: str, path: str) -> int:
     return len(fragments)
 
 
+def _positions(text: str, fragment: str) -> list[int]:
+    found, index = [], text.find(fragment)
+    while index >= 0:
+        found.append(index)
+        index = text.find(fragment, index + 1)
+    return found
+
+
 def check_branch_pagination() -> int:
     paged = _read(PAGED)
     branches = _read(BRANCHES)
@@ -220,9 +237,25 @@ def check_branch_pagination() -> int:
         raise ValueError("旧列表提示只应出现一次")
     checked += 1
 
+    # 重读触发：目标会话的位置变化通知（含回合开始）都要重读；其他会话不触发。
+    checked += _expect(REFRESH_EVENTS, branches, BRANCHES)
+    if branches.count("BRANCH_REFRESH_EVENTS") != 2:
+        raise ValueError("分支重读的通知清单只应定义一次、使用一次")
+    if '["thread/leafChanged", "turn/completed", "thread/updated", "context/compacted"].includes(event.method)' in branches:
+        raise ValueError("分支重读仍使用缺少回合开始的旧通知清单")
+    checked += 2
+
     # 内核：回合集合与位置同源。位置必须在持锁读取条目之后、释放锁之前由同一份回合算出。
     session = _read(SESSION)
     application = _read(APPLICATION)
+    # 回合开始通知必须晚于运行中回合的写入：界面收到通知后重读，读到的才是新位置。
+    recorded = _positions(application, 'self.sessions.record_turn(thread_id, job["turnId"], "running"')
+    started = _positions(application, 'self.events.emit("turn/started"')
+    if len(recorded) != 2 or len(started) != 2 or application.count('"turn/started"') != 2:
+        raise ValueError(f"{APPLICATION} 的回合开始通知与运行中回合写入不再一一对应")
+    if not recorded[0] < started[0] < recorded[1] < started[1]:
+        raise ValueError("回合开始通知必须晚于运行中回合的写入")
+    checked += 2
     checked += _expect(KERNEL_SESSION, session, SESSION)
     checked += _expect(KERNEL_HANDLER, application, APPLICATION)
     start = session.find("def list_branch_turns(")
@@ -330,7 +363,7 @@ def main() -> int:
     except ValueError as error:
         print(f"分支分页一致性核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"分支分页一致：{checked} 项页数统计、逐页位置核对、单次重读、旧列表提示与内核同源读取（回合页、会话读取与用量）")
+    print(f"分支分页一致：{checked} 项页数统计、逐页位置核对、单次重读、重读触发、旧列表提示与内核同源读取（回合页、会话读取与用量）")
     return 0
 
 
