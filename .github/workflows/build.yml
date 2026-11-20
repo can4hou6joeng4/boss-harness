@@ -136,6 +136,8 @@ jobs:
         run: python scripts/check_attempt_token.py
       - name: Verify delete thread error
         run: python scripts/check_delete_thread_error.py
+      - name: Verify session error notice
+        run: python scripts/check_session_error_notice.py
       - name: Verify private state boundaries
         run: python scripts/check_private_files.py
       - name: Verify credential redaction
