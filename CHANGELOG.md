@@ -1,3 +1,10 @@
+## 0.2.0-rc.395 - 2026-11-20
+
+rc.395 源码候选为两处桌面修复补上构建前静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `check_harness_events.py`（33 项）：固定 `toolCall/completed` 的终态清理——错误码与恢复建议只接受字符串、缺失时删除旧值，结果摘要回退顺序与内联 / 引用 / 省略三路投影互斥，运行中文案映射与自动批准的高风险门槛。此前 rc.390 的修复只由一次性离线探针验证。关联 Issue [#2915](https://github.com/can4hou6joeng4/boss-harness/issues/2915)。
+- 新增 `check_harness_replica.py`（26 项）：固定删除通知的记号登记与按会话清理顺序，`ingest` / `apply` / `current` / `resume` 四处守卫，以及连接重置依次清空世代、条目版本与删除记号。两个脚本接入 CI 工作流与技术参考，静态检查增至 115 个；只新增检查，不改变运行时行为。版本推进到 npm `0.2.0-rc.395` / Python `0.2.0rc395`。
+
 ## 0.2.0-rc.394 - 2026-11-20
 
 rc.394 源码候选补齐删除会话后的在途读取与审批状态清理。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

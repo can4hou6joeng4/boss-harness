@@ -60,7 +60,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
 | 共享工具 | [`check_shared_utils.py`](#check_shared_utilspy)、[`check_duration_parity.py`](#check_duration_paritypy) |
-| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_window_state.py`](#check_window_statepy)、[`check_renderer_recovery.py`](#check_renderer_recoverypy)、[`check_deleted_thread_state.py`](#check_deleted_thread_statepy)、[`check_lifecycle.py`](#check_lifecyclepy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
+| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_window_state.py`](#check_window_statepy)、[`check_renderer_recovery.py`](#check_renderer_recoverypy)、[`check_deleted_thread_state.py`](#check_deleted_thread_statepy)、[`check_harness_events.py`](#check_harness_eventspy)、[`check_harness_replica.py`](#check_harness_replicapy)、[`check_lifecycle.py`](#check_lifecyclepy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_approval_remember.py`](#check_approval_rememberpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy)、[`check_turn_stream.py`](#check_turn_streampy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
@@ -409,6 +409,14 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_deleted_thread_state.py`
 
 `scripts/check_deleted_thread_state.py` 核对删除会话通知的连接内状态清理：`deletedThreadState.ts` 的 `forgetDeletedThread` 接受可按键删除的状态，空 id 直接返回 `false`，逐项删除并返回是否确实删除过内容；`approvalSubmission.ts` 的 `forgetApprovalSubmission` 同样拒绝空 id 并丢弃模块表中的会话条目。主界面的 `thread/deleted` 分支先让该会话的在途队列读取失效，再按消息缓存、队列投影、失败提示、条目版本、回合标识与记住的审批依次遗忘，随后丢弃审批提交状态、清后台完成标记、释放停止状态、退出被删除的当前会话、移除列表项并刷新；`handleDeleteSession` 复用同一组调用并直接退出视图。反向断言两条路径不得退回只删缓存的旧写法，删除回执不得依赖通知回调。检查是源码字面量与首次出现顺序扫描，不渲染界面。
+
+### `check_harness_events.py`
+
+`scripts/check_harness_events.py` 核对 `harnessEvents.ts` 的实时事件映射：`toolCall/completed` 的错误码、恢复建议、执行状态、状态与耗时都先读取字段，再在缺失时删除旧值，错误码与恢复建议只接受字符串；结果摘要按「结果摘要 → 错误正文 → 状态 → 已结束」回退；大结果按内联、引用、省略三路投影，互斥且各自清理另一个字段；运行中文案区分等待审批、排队、未获批准与正在执行。自动批准要求同一审批通知、已记住该工具、内核明确标为非高风险且标识都是非空字符串。反向断言恢复建议不得跳过字符串校验直接透传，错误码与恢复建议必须在缺失时清除旧值，自动批准不得省略高风险判定。检查是源码字面量与首次出现顺序扫描，不渲染 React 节点。
+
+### `check_harness_replica.py`
+
+`scripts/check_harness_replica.py` 核对 `harnessReplica.ts` 删除会话后的在途恢复抑制：删除通知只接受非空字符串标识，先登记删除记号，再按会话清理世代、在途读取、游标、失败记录与前缀匹配的条目版本；删除分支不得整表清空条目版本。`ingest` 与 `apply` 丢弃已删除会话的事件，`current` 校验把删除记号与世代一起比较，`resume` 对已删除会话直接返回空结果。连接重置依次清空世代、条目版本与删除记号，其他会话不受影响。检查是源码字面量与首次出现顺序扫描，不建立连接。
 
 ### `check_session_error_notice.py`
 

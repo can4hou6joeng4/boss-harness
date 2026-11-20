@@ -138,6 +138,10 @@ jobs:
         run: python scripts/check_delete_thread_error.py
       - name: Verify deleted thread state
         run: python scripts/check_deleted_thread_state.py
+      - name: Verify harness events
+        run: python scripts/check_harness_events.py
+      - name: Verify harness replica
+        run: python scripts/check_harness_replica.py
       - name: Verify session error notice
         run: python scripts/check_session_error_notice.py
       - name: Verify alias migration
