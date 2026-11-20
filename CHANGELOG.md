@@ -1,3 +1,10 @@
+## 0.2.0-rc.382 - 2026-11-20
+
+rc.382 源码候选固定删除会话失败的原因码与未确认措辞。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_delete_thread_error.py`，固定原因码只在 `rpcError === true` 且 `data.code` 为字符串时读取、`THREAD_BUSY` → `failed`、`THREAD_DELETE_INCOMPLETE` / `THREAD_NOT_FOUND` → `incomplete`、其他原因 → `unknown` 并带原始错误文本；反向断言原因码只允许三种、不得说成已删除、未知原因必须带原始错误文本。修复 Issue [#2887](https://github.com/can4hou6joeng4/boss-harness/issues/2887)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 105 个。版本推进到 npm `0.2.0-rc.382` / Python `0.2.0rc382`。不改变运行时行为，只固定既有删除失败契约。
+
 ## 0.2.0-rc.381 - 2026-11-20
 
 rc.381 源码候选固定在途请求标记的推进与作废。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
