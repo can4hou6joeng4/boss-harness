@@ -1,3 +1,10 @@
+## 0.2.0-rc.376 - 2026-11-20
+
+rc.376 源码候选固定界面时间格式与会话排序键的严格解析。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_time_format.py`，固定两位补零、`formatLocalDateTime` / `formatLocalClock` 的非法时间空串回退、ISO 包装的严格解析，以及 `sessionUpdatedAt` 的 `?? 0` 排序键；反向断言不得跟随系统区域、排序键不得使用宽松 `Date.parse`、两个格式化函数都必须判 `NaN`。修复 Issue [#2877](https://github.com/can4hou6joeng4/boss-harness/issues/2877)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 99 个。版本推进到 npm `0.2.0-rc.376` / Python `0.2.0rc376`。不改变运行时行为，只固定既有格式与排序契约。
+
 ## 0.2.0-rc.375 - 2026-11-20
 
 rc.375 源码候选固定新建会话与首条消息的四种结果。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

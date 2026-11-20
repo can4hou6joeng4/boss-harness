@@ -122,6 +122,8 @@ jobs:
         run: python scripts/check_thread_list.py
       - name: Verify session start outcomes
         run: python scripts/check_session_start.py
+      - name: Verify time formatting
+        run: python scripts/check_time_format.py
       - name: Verify private state boundaries
         run: python scripts/check_private_files.py
       - name: Verify credential redaction
