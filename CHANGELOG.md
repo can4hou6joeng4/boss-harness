@@ -1,3 +1,10 @@
+## 0.2.0-rc.355 - 2026-11-20
+
+rc.355 源码候选固定会话标题的项目前缀剥离与码点截断。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_session_title.py`，固定「招聘项目：」前缀剥离、折叠空白与 `trim()` 顺序、按 Unicode 码点判定与截断、空标题回退「新会话」，以及 `compactTitle` 的非正上限回退与省略号；反向断言不得用 `slice` / `substring` 直接截断，并核对默认上限不超过内核的 `MAX_THREAD_TITLE_CHARS`。修复 Issue [#2835](https://github.com/can4hou6joeng4/boss-harness/issues/2835)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 78 个。版本推进到 npm `0.2.0-rc.355` / Python `0.2.0rc355`。不改变运行时行为，只固定既有标题契约。
+
 ## 0.2.0-rc.354 - 2026-11-20
 
 rc.354 源码候选收敛最近搜索的阈值来源并固定本地存储回退。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
