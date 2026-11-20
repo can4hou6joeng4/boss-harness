@@ -1,3 +1,10 @@
+## 0.2.0-rc.388 - 2026-11-20
+
+rc.388 源码候选固定侧栏队列徽标的分类优先级与增量校正。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_queue_badge.py`，固定三类状态逐项累计、待处理总数回退、「内核持久计数 → 完整投影 → 本地增量 → 只保留总数」的取用顺序、增量只在已知计数与旧总数一致时应用且结果非负并与新总数一致，以及补丁只改目标会话、数值未变返回 `null`；反向断言完整投影必须排除截断、未变化不得返回新数组、分类必须与新的待处理总数核对。修复 Issue [#2900](https://github.com/can4hou6joeng4/boss-harness/issues/2900)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 111 个。版本推进到 npm `0.2.0-rc.388` / Python `0.2.0rc388`。不改变运行时行为，只固定既有徽标契约。
+
 ## 0.2.0-rc.387 - 2026-11-20
 
 rc.387 源码候选固定首页草稿的填充意图与技能并入。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
