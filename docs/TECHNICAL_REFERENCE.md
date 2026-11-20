@@ -272,7 +272,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_export_json.py`
 
-`scripts/check_export_json.py` 核对会话导出 JSON 的分组结构与严格编码：回合前的条目必须进入 `beforeFirstTurn`，后续条目追加到最近回合的 `entries`，不得平铺或重排；文档必须展开 `meta` 并带 `redaction.marks` 的四项脱敏标记、`redaction.counts`、三类 `origins`、`beforeFirstTurn` / `turns` / `queue`、`truncated` / `exportedEntries` / `totalEntries` / `maxBytes`。编码固定为 `ensure_ascii=False`、`indent=2`、`default=str`、`allow_nan=False`，`RecursionError` 与非有限数值分别降级为可读的 `ValueError`。反向断言不得允许 NaN / Infinity、不得改用 ASCII 转义或绕过参数直接编码。检查是源码字面量扫描，不生成或解析导出文件。
+`scripts/check_export_json.py` 核对会话导出 JSON 的分组结构与严格编码：回合前的条目必须进入 `beforeFirstTurn`，后续条目追加到最近回合的 `entries`，不得平铺或重排；文档必须展开 `meta` 并带 `redaction.marks` 的四项脱敏标记、`redaction.counts`、三类 `origins`、`beforeFirstTurn` / `turns` / `queue`、`truncated` / `exportedEntries` / `totalEntries` / `maxBytes`。编码固定为 `ensure_ascii=False`、`indent=2`、`default=str`、`allow_nan=False`，`RecursionError` 与非有限数值分别降级为可读的 `ValueError`。`EXPORT_SCHEMA` 必须固定为 `boss-harness-session-export/1`，采用「名称/整数版本」形式，`meta` 只引用该常量，不得另写 schema 字面量。反向断言不得允许 NaN / Infinity、不得改用 ASCII 转义或绕过参数直接编码。检查是源码字面量扫描，不生成或解析导出文件。
 
 ### `check_skills.py`
 
