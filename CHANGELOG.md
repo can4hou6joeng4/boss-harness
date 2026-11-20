@@ -1,3 +1,10 @@
+## 0.2.0-rc.383 - 2026-11-20
+
+rc.383 源码候选固定 `session/error` 通知的形状校验与单行摘要。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_session_error_notice.py`，固定会话标识上限、正文空白折叠与 600 码点 `safeSlice` 截断、缺省正文回退通用文案、非字符串正文整条丢弃，以及结果只含两个字段；反向断言不得按 UTF-16 码元切正文、空白正文必须回退、多余字段不得进入结果。修复 Issue [#2888](https://github.com/can4hou6joeng4/boss-harness/issues/2888)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 106 个。版本推进到 npm `0.2.0-rc.383` / Python `0.2.0rc383`。不改变运行时行为，只固定既有通知契约。
+
 ## 0.2.0-rc.382 - 2026-11-20
 
 rc.382 源码候选固定删除会话失败的原因码与未确认措辞。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
