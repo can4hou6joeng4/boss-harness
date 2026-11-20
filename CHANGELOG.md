@@ -1,3 +1,10 @@
+## 0.2.0-rc.372 - 2026-11-20
+
+rc.372 源码候选固定最近打开会话的存储解析与回退。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_last_session.py`，固定严格解析（空白、超长与 `id !== raw`）、命名空间键、读写异常回退与 `null` 删除键；反向断言损坏记录不得恢复、读写都要捕获异常、清空不得写入空字符串。修复 Issue [#2869](https://github.com/can4hou6joeng4/boss-harness/issues/2869)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 95 个。版本推进到 npm `0.2.0-rc.372` / Python `0.2.0rc372`。不改变运行时行为，只固定既有存储契约。
+
 ## 0.2.0-rc.371 - 2026-11-20
 
 rc.371 源码候选固定发送失败与结果未确认的措辞边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
