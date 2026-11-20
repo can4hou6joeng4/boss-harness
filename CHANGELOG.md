@@ -1,3 +1,10 @@
+## 0.2.0-rc.368 - 2026-11-20
+
+rc.368 源码候选固定通知分组标题的拼接与截断。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_notification_labels.py`，固定空白折叠、8 位回退、项目与标题去重、归档后缀、120 上限的长度判断与 `safeSlice` 截断；反向断言不得按 UTF-16 码元截断、长度判断不得忽略后缀。修复 Issue [#2860](https://github.com/can4hou6joeng4/boss-harness/issues/2860)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 91 个。版本推进到 npm `0.2.0-rc.368` / Python `0.2.0rc368`。不改变运行时行为，只固定既有标题契约。
+
 ## 0.2.0-rc.367 - 2026-11-20
 
 rc.367 源码候选固定任务队列状态与暂停原因的文案分支。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
