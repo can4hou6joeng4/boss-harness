@@ -1,3 +1,10 @@
+## 0.2.0-rc.349 - 2026-11-20
+
+rc.349 源码候选为会话导出 JSON 的分组结构与严格编码补上静态检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_export_json.py`：固定回合前条目进入 `beforeFirstTurn`、后续条目追加到最近回合 `entries` 的分组顺序；核对 `meta`、四项脱敏标记与计数、三类来源、截断与字节预算字段；固定 `ensure_ascii=False`、`indent=2`、`default=str`、`allow_nan=False` 以及过深嵌套 / 非有限数值的可读降级。反向断言不得允许 NaN / Infinity、不得改用 ASCII 转义或绕过参数直接编码。修复 Issue [#2823](https://github.com/can4hou6joeng4/boss-harness/issues/2823)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 73 个。版本推进到 npm `0.2.0-rc.349` / Python `0.2.0rc349`。不改变运行时行为，不生成或解析导出文件。
+
 ## 0.2.0-rc.348 - 2026-11-20
 
 rc.348 源码候选修复 Markdown 导出单行元数据的行内定界符转义。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
