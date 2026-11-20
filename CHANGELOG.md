@@ -1,3 +1,10 @@
+## 0.2.0-rc.377 - 2026-11-20
+
+rc.377 源码候选固定界面偏好导出文件的导入校验。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_preferences_file.py`，固定 64 KiB 字节上限、版本与两种作用域、旧作用域按旧前缀读取、五个偏好键的字符串枚举与「任一已知键非法就整体拒绝」，以及导出只写白名单键；反向断言不得导出别名或项目名、旧作用域不得按新前缀读取、不得跳过非法已知键、不得展开偏好对象。修复 Issue [#2879](https://github.com/can4hou6joeng4/boss-harness/issues/2879)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 100 个。版本推进到 npm `0.2.0-rc.377` / Python `0.2.0rc377`。不改变运行时行为，只固定既有导入导出契约。
+
 ## 0.2.0-rc.376 - 2026-11-20
 
 rc.376 源码候选固定界面时间格式与会话排序键的严格解析。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
