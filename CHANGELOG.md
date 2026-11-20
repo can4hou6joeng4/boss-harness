@@ -1,3 +1,10 @@
+## 0.2.0-rc.385 - 2026-11-20
+
+rc.385 源码候选固定暂停队列项的重试条件与原因文案。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_queue_retry.py`，固定 `followUp` + `paused` + 未去重的重试条件、`TURN_START_FAILED` 的 `inputPersisted === false`、三类暂停原因的三档文案顺序、转向消息早退与未知原因的保守出口；反向断言去重与输入已写入最先拦截、`TURN_START_FAILED` 只出现两次。修复 Issue [#2892](https://github.com/can4hou6joeng4/boss-harness/issues/2892)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 108 个。版本推进到 npm `0.2.0-rc.385` / Python `0.2.0rc385`。不改变运行时行为，只固定既有重试与文案契约。
+
 ## 0.2.0-rc.384 - 2026-11-20
 
 rc.384 源码候选固定旧显示名称迁移的筛选与上限。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
