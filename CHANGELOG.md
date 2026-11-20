@@ -1,3 +1,10 @@
+## 0.2.0-rc.361 - 2026-11-20
+
+rc.361 源码候选固定会话内查找的游标位点与循环跳转。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_find_step.py`，固定每条匹配消息至少一处位点、游标夹取、段内前进、跨消息循环（含反向进入末尾）与全局序号累加，并反向断言向下取整、非负取模与逐条累加。修复 Issue [#2847](https://github.com/can4hou6joeng4/boss-harness/issues/2847)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 84 个。版本推进到 npm `0.2.0-rc.361` / Python `0.2.0rc361`。不改变运行时行为，只固定既有查找游标契约。
+
 ## 0.2.0-rc.360 - 2026-11-20
 
 rc.360 源码候选固定搜索结果的顺序与命中定位意图。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
