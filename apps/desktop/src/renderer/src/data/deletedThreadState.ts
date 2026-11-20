@@ -22,3 +22,16 @@ export function forgetDeletedThread(targets: readonly ForgettableByThread[], thr
   for (const target of targets) if (target.delete(threadId)) forgotten = true;
   return forgotten;
 }
+
+/**
+ * 从按会话保存的界面状态中移除一个会话，未命中时返回同一个对象。
+ *
+ * 上下文面板与分支弹窗各自按会话保存读取状态：会话被删除后这些状态既没有读取
+ * 对象，也会让定时轮询继续下去。调用方据返回值判断是否需要更新界面。
+ */
+export function withoutThread<T>(record: Record<string, T>, threadId: string): Record<string, T> {
+  if (!threadId || !Object.prototype.hasOwnProperty.call(record, threadId)) return record;
+  const next = { ...record };
+  delete next[threadId];
+  return next;
+}

@@ -5,6 +5,7 @@ import { readPagedItems } from "./pagedRead";
 import { branchJobOf, compactionReferenceOf } from "./contextJob";
 import { branchSummariesOf } from "./branchSummaries";
 import { branchEndpointOf, branchTurnOf, uniqueTurnIds } from "./branchPages";
+import { withoutThread } from "./deletedThreadState";
 
 /**
  * 会话内分支（只在内核同时声明 sessionLeaf / sessionBranchTree / sessionBranchViews 时启用）。
@@ -109,10 +110,12 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
   useEffect(() => { if (!connected || !support) target.current = null; }, [connected, support]);
   const versions = useRef(new Map<string, number>());
   const pollFailures = useRef(new Map<string, number>());
+  // 当前连接内已删除的会话：迟到的读取、切换与摘要回执都不能重建它的状态或轮询。
+  const forgotten = useRef(new Set<string>());
   const epoch = useRef(0);
   const alive = useRef(true);
   const update = useCallback((id: string, change: Partial<SessionBranchState> | ((state: SessionBranchState) => SessionBranchState)) => {
-    if (!alive.current) return;
+    if (!alive.current || forgotten.current.has(id)) return;
     const previous = stateRef.current[id] ?? initial();
     const next = typeof change === "function" ? change(previous) : { ...previous, ...change };
     stateRef.current = { ...stateRef.current, [id]: next };
@@ -145,9 +148,25 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
           summaryPollError: "摘要任务已结束，但状态回执无法识别；已停止轮询并恢复分支切换与新建回合。可重新读取分支或生成新摘要。" }
       : state);
   }, [update]);
+  /**
+   * 会话被删除：作废在途读取并清掉该会话的分支与摘要状态，轮询条件随之消失。
+   * 迟到的切换、取消与摘要回执由 `update` 按 `forgotten` 丢弃；若删除的正是
+   * 分支弹窗固定的目标，一并解除固定。重连时随连接内记录一起重置。
+   */
+  const forget = useCallback((id: string) => {
+    if (!id || !alive.current || forgotten.current.has(id)) return;
+    forgotten.current.add(id);
+    versions.current.set(id, (versions.current.get(id) ?? 0) + 1);
+    pollFailures.current.delete(id);
+    if (target.current?.threadId === id) target.current = null;
+    const next = withoutThread(stateRef.current, id);
+    if (next === stateRef.current) return;
+    stateRef.current = next;
+    setStates(next);
+  }, []);
 
   const refresh = useCallback(async (id: string): Promise<void> => {
-    if (!current.current.connected || !current.current.support) return;
+    if (!current.current.connected || !current.current.support || forgotten.current.has(id)) return;
     const version = (versions.current.get(id) ?? 0) + 1;
     versions.current.set(id, version);
     const connectionEpoch = epoch.current;
@@ -258,9 +277,15 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       if (event.method === "harness/disconnected" || (event.method === "harness/connectionStatus" && params.state !== "ready")) {
         epoch.current += 1;
         pollFailures.current.clear();
+        forgotten.current.clear();
         for (const id of Object.keys(stateRef.current)) update(id, state => ({ ...state, loading: false, cancelInFlight: false, summaryPollError: "",
           switching: false, switchError: state.switching
             ? "内核连接已变化；请在恢复连接后重新核对分支位置，再决定是否切换。不会自动重试。" : state.switchError }));
+        return;
+      }
+      if (event.method === "thread/deleted") {
+        // 删除通知先于删除回执；分支弹窗不再对已删除会话读取、轮询或提交切换。
+        if (typeof params.threadId === "string") forget(params.threadId);
         return;
       }
       const id = typeof params.threadId === "string" ? params.threadId : null;
@@ -318,7 +343,7 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       }
     }, 2000);
     return () => { alive.current = false; unsubscribe?.(); clearInterval(timer); };
-  }, [applyJob, dropMissingJob, refresh, settleUnreadableJob, update]);
+  }, [applyJob, dropMissingJob, forget, refresh, settleUnreadableJob, update]);
   useEffect(() => { if (threadId && connected && support) void refresh(threadId); }, [threadId, connected, support, refresh]);
 
   const switchTo = useCallback(async (turnId: string | null, summarize: boolean): Promise<boolean> => {
