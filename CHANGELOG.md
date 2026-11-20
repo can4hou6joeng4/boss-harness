@@ -1,3 +1,10 @@
+## 0.2.0-rc.380 - 2026-11-20
+
+rc.380 源码候选固定队列读取的代数票据与失效语义。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_queue_read_guard.py`，固定按会话维护代数、领票先推进再快照、`commit` 只在仍为最新一代时写入、`invalidate` 只推进代数、缺失会话从 0 起算；反向断言写入必须经过当前代检查、失效不得删除代数记录、缺失会话不得使用负值起点。修复 Issue [#2884](https://github.com/can4hou6joeng4/boss-harness/issues/2884)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 103 个。版本推进到 npm `0.2.0-rc.380` / Python `0.2.0rc380`。不改变运行时行为，只固定既有并发读取契约。
+
 ## 0.2.0-rc.379 - 2026-11-20
 
 rc.379 源码候选固定单飞读取的尾随补跑与取消。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
