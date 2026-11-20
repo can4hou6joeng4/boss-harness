@@ -1,3 +1,10 @@
+## 0.2.0-rc.393 - 2026-11-20
+
+rc.393 源码候选修正删除会话后仍停留在已删除视图的问题。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 内核在 `thread/delete` 回执之前广播 `thread/deleted`。回执丢失、超时或形状不符时，桌面按约定保留列表并提示核对，但通知已移除侧栏条目；此前当前视图不会离开该会话，消息仍可阅读、输入区仍可发送。现在删除通知到达时，若被删除的正是当前会话就立即回到首页，与确认删除后的表现一致。修复 Issue [#2911](https://github.com/can4hou6joeng4/boss-harness/issues/2911)。
+- 删除通知与删除回执共用 `forgetDeletedThread`：按会话遗忘消息缓存、队列投影、失败提示、条目版本、回合标识与记住的审批，并清后台完成标记；其他会话不受影响，重复通知幂等。新增 `check_deleted_thread_state.py` 固定两条路径，静态检查增至 113 个。对真实 rc.392 源码与修改版执行同一探针：旧版 7 项源码断言、新版 7 项源码断言与 18 项模块行为断言通过。同步桌面指南、上游阅读记录与技术参考；不新增 RPC 或平台调用。版本推进到 npm `0.2.0-rc.393` / Python `0.2.0rc393`。
+
 ## 0.2.0-rc.392 - 2026-11-20
 
 rc.392 源码候选更新项目状态页的发布记录。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

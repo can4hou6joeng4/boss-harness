@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 删除通知到达时退出已删除会话（Issue #2911）
+
+固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md` 与 `packages/coding-agent/src/core/session-manager.ts`：删除由会话选择器发起，管理器在本地重建条目索引；所读入口没有「删除已提交但调用方未收到回执」时从通知侧收敛当前视图的约定。本项目内核在 `thread/delete` 的回执之前广播 `thread/deleted`，桌面此前只按通知移除列表项与消息缓存，当前视图与其余连接内状态要等回执确认后才清理。本轮沿用既有删除通知，把两条删除路径收敛到同一组遗忘目标，并在通知到达时直接退出被删除的会话；不新增 RPC、不改删除语义。不复制源码、不引入依赖。
+
+离线对照：用 `git archive` 导出 rc.392 的真实源码与修改版，同一探针执行 32 项断言。旧版 7 项源码断言确认通知分支只删消息缓存、不清回合标识 / 记住的审批 / 后台完成标记，也不退出当前视图；新版 7 项断言确认通知分支与删除回执调用同一组遗忘目标并直接退出视图；`deletedThreadState.ts` 的 18 项行为断言覆盖六类状态逐项遗忘、其他会话保留、重复通知幂等、空 id 与不存在会话不改动条目。没有启动渲染进程，也没有调用真实模型、平台或真实会话。
+
 ## 删除会话使在途恢复失效（Issue #2907）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md` 与 `packages/coding-agent/src/core/session-manager.ts`：文档说明会话选择器可删除会话；管理器通过 `setSessionFile` / `newSession` 重建本地条目索引，所读入口没有本项目异步 JSON-RPC 快照恢复与删除通知的取消约定。本轮沿用本仓库既有 epoch / generation 机制，在删除通知到达时使目标会话的在途读取失效并丢弃缓冲事件；当前连接内阻止重新恢复已删除会话，连接重置清除该记录。其他会话不受影响。不复制源码、不引入依赖。
