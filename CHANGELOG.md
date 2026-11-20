@@ -1,3 +1,10 @@
+## 0.2.0-rc.369 - 2026-11-20
+
+rc.369 源码候选固定侧栏提示的序号重播与清空语义。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_sidebar_notice.py`，固定每次回执自增 `seq`、清空只清文案且空态返回原对象、2600ms 停留，以及侧栏组件按 `notice.seq` 作 key 并保留 `role="status"`；反向断言相同文案不得复用对象、清空不得重置序号、组件不得改用文案作 key。修复 Issue [#2862](https://github.com/can4hou6joeng4/boss-harness/issues/2862)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 92 个。版本推进到 npm `0.2.0-rc.369` / Python `0.2.0rc369`。不改变运行时行为，只固定既有回执契约。
+
 ## 0.2.0-rc.368 - 2026-11-20
 
 rc.368 源码候选固定通知分组标题的拼接与截断。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
