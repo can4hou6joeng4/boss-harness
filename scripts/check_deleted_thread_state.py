@@ -15,6 +15,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "apps/desktop/src/renderer/src/data/deletedThreadState.ts"
 APPROVAL = "apps/desktop/src/renderer/src/data/approvalSubmission.ts"
+DIALOGS = "apps/desktop/src/renderer/src/data/deletedDialogTarget.ts"
 APP = "apps/desktop/src/renderer/src/App.tsx"
 
 MODULE_FRAGMENTS = (
@@ -34,13 +35,28 @@ APPROVAL_FRAGMENTS = (
     "return submissions.get(threadId) === submission;",
 )
 
+DIALOG_FRAGMENTS = (
+    "export type DialogThreadTarget = { threadId: string } | null;",
+    "export function detachedTarget<T extends DialogThreadTarget>(target: T, deleted: string): T | null {",
+    "if (!target || !deleted) return target;",
+    "return target.threadId === deleted ? null : target;",
+)
+
 APP_FRAGMENTS = (
     'import { forgetDeletedThread } from "./data/deletedThreadState";',
+    'import { detachedTarget } from "./data/deletedDialogTarget";',
     'import { approvalSubmissionFor, approvalSubmissionIsCurrent, forgetApprovalSubmission } from "./data/approvalSubmission";',
     'const clearDeletedConversationRef = useRef<((id: string) => void) | null>(null);',
+    'const dismissDeletedTargetsRef = useRef<((id: string) => void) | null>(null);',
     "const clearDeletedConversation = useCallback((id: string) => {",
     "if (activeRef.current?.id === id) clearActiveConversation();",
     "clearDeletedConversationRef.current = clearDeletedConversation;",
+    "dismissDeletedTargetsRef.current = (id: string) => {",
+    "if (context !== contextTarget) { contextPanel.close(); setContextTarget(context); }",
+    "if (usage !== usageTarget) { threadUsage.close(); setUsageTarget(usage); }",
+    "if (exported !== exportTarget) setExportTarget(exported);",
+    "if (branch !== branchTarget) { setIsBranchesOpen(false); setBranchTarget(branch); }",
+    "if (rewind !== rewindTarget) setRewindTarget(rewind);",
     "applyQueuePage, clearCompletedUnread, clearModelRetry",
 )
 
@@ -73,6 +89,7 @@ def check_deleted_thread_state() -> int:
     app = _read(APP)
     checked = _expect(MODULE_FRAGMENTS, module, MODULE)
     checked += _expect(APPROVAL_FRAGMENTS, _read(APPROVAL), APPROVAL)
+    checked += _expect(DIALOG_FRAGMENTS, _read(DIALOGS), DIALOGS)
     checked += _expect(APP_FRAGMENTS, app, APP)
 
     branch = _slice(app, 'if (event.method === "thread/deleted")', "if (!id) return;", APP)
@@ -85,6 +102,7 @@ def check_deleted_thread_state() -> int:
         "clearCompletedUnread(deleted);",
         "releaseInterrupt(deleted);",
         "clearDeletedConversationRef.current?.(deleted);",
+        "dismissDeletedTargetsRef.current?.(deleted);",
         "setFolders(previous => previous.map(folder => ({ ...folder, sessions: folder.sessions.filter(item => item.id !== deleted) })));",
         "void refresh();",
     ):
@@ -101,6 +119,7 @@ def check_deleted_thread_state() -> int:
         "forgetApprovalSubmission(session.id);",
         "clearCompletedUnread(session.id);",
         "if (activeRef.current?.id === session.id) clearActiveConversation();",
+        "dismissDeletedTargetsRef.current?.(session.id);",
     ):
         if fragment not in delete_session:
             raise ValueError(f"{APP} 的删除回执缺少：{fragment}")
@@ -114,6 +133,14 @@ def check_deleted_thread_state() -> int:
         raise ValueError(f"{APP} 的删除回执仍单独删除消息缓存")
     if "clearDeletedConversationRef.current?.(deleted);" in delete_session:
         raise ValueError(f"{APP} 的删除回执应直接退出视图，不依赖通知回调")
+    # 弹窗目标只在目标会话被删除时收起：五个固定目标逐一判定，不得无条件清空。
+    dismiss = _slice(app, "dismissDeletedTargetsRef.current = (id: string) => {", "\n  };", APP)
+    if dismiss.count("detachedTarget(") != 5:
+        raise ValueError(f"{APP} 的删除弹窗清理必须逐一判定五个固定目标")
+    for stale in ("setContextTarget(null);", "setUsageTarget(null);", "setExportTarget(null);",
+                  "setBranchTarget(null);", "setRewindTarget(null);"):
+        if stale in dismiss:
+            raise ValueError(f"{APP} 的删除弹窗清理不得无条件清空目标：{stale}")
     # 在途审批只可结算发起时的实例；检查必须先于消息回退、重读与提示写入。
     for start, end, fragments in (
         ("if (autoApproval) {", 'if (event.method === "model/retryStarted"', (
