@@ -1,3 +1,10 @@
+## 0.2.0-rc.359 - 2026-11-20
+
+rc.359 源码候选让搜索空态的最短字符数提示引用常量，并固定状态行与空态的分支。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 搜索空态提示「输入至少 N 个字符可同时搜索消息内容」改为引用 `MESSAGE_SEARCH_MIN_LENGTH`，不再写死 2；运行时输出不变。修复 Issue [#2843](https://github.com/can4hou6joeng4/boss-harness/issues/2843)。
+- 新增 `scripts/check_search_status.py`（38 项），固定状态行与空态的分支顺序、截断说法、完整结论只在最后分支出现、失败与过长不宣称没有命中，以及最短 / 最长字符数引用常量。接入 CI 并在技术参考补同名小节；检查脚本增至 82 个。版本推进到 npm `0.2.0-rc.359` / Python `0.2.0rc359`。
+
 ## 0.2.0-rc.358 - 2026-11-20
 
 rc.358 源码候选固定会话内查找的高亮区间与折叠块语义。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
