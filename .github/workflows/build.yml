@@ -84,6 +84,8 @@ jobs:
         run: python scripts/check_session_title.py
       - name: Verify session search rows
         run: python scripts/check_search_rows.py
+      - name: Verify message search batches
+        run: python scripts/check_message_search.py
       - name: Verify private state boundaries
         run: python scripts/check_private_files.py
       - name: Verify credential redaction
