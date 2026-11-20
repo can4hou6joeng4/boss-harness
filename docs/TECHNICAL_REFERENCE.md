@@ -60,7 +60,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
 | 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
 | 共享工具 | [`check_shared_utils.py`](#check_shared_utilspy)、[`check_duration_parity.py`](#check_duration_paritypy) |
-| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_window_state.py`](#check_window_statepy)、[`check_renderer_recovery.py`](#check_renderer_recoverypy)、[`check_deleted_thread_state.py`](#check_deleted_thread_statepy)、[`check_compaction_override.py`](#check_compaction_overridepy)、[`check_harness_events.py`](#check_harness_eventspy)、[`check_harness_replica.py`](#check_harness_replicapy)、[`check_lifecycle.py`](#check_lifecyclepy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
+| 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_window_state.py`](#check_window_statepy)、[`check_renderer_recovery.py`](#check_renderer_recoverypy)、[`check_deleted_thread_state.py`](#check_deleted_thread_statepy)、[`check_compaction_override.py`](#check_compaction_overridepy)、[`check_branch_switch.py`](#check_branch_switchpy)、[`check_harness_events.py`](#check_harness_eventspy)、[`check_harness_replica.py`](#check_harness_replicapy)、[`check_lifecycle.py`](#check_lifecyclepy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_arguments.py`](#check_tool_argumentspy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_approval_remember.py`](#check_approval_rememberpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
 | 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy)、[`check_turn_stream.py`](#check_turn_streampy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
@@ -417,6 +417,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_compaction_override.py`
 
 `scripts/check_compaction_override.py` 核对自动压缩覆盖从取出到恢复的语义：`take` 先登记本次消耗（覆盖对象与当时的标记）再移除覆盖，成功或回执未知都保持已消耗；`restore` 只对取出时的同一份覆盖、同一标记生效，期间重新应用、清除或再次取用都不恢复，且只写回覆盖与表单，不重建草稿或改动标记、不重新取用、不改写失败提示。主界面直接发送按「取出 → 发送 → 判定拒绝 → 恢复」处理，恢复只在明确拒绝分支出现一次；排队发送只在明确拒绝时恢复一次，并继续抛出原错误。检查是源码字面量与首次出现顺序扫描，不执行 React hook。
+
+### `check_branch_switch.py`
+
+`scripts/check_branch_switch.py` 核对会话内分支切换的步骤与失败文案分界：切换先读取目标会话自己的队列，再置提交标记并调用 `thread/leaf/set`，回执必须与所选会话和位置一致，最后才重新读取会话。内核确认切换后重读失败，必须在就近的 `catch` 内提示「分支已切换，但重新读取会话失败」，不得使用「切换结果尚未确认」；未提交（队列核对失败）、已提交但明确拒绝、已提交但回执未知三类失败各有固定文案，未确认文案不得出现在尚未提交的路径。检查是源码字面量与首次出现顺序扫描，不执行 RPC。
 
 ### `check_harness_events.py`
 
