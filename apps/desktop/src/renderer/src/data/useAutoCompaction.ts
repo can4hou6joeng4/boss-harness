@@ -62,6 +62,33 @@ export function useAutoCompaction(threadId: string | null, open: boolean, connec
   const [reading, setReading] = useState(false);
   const [error, setError] = useState("");
 
+  // 删除通知先于删除回执：移除该会话的未应用草稿、已应用覆盖与改动标记，
+  // 避免删除未被确认时重新打开会话看到删除前的覆盖；同时作废在途默认值读取。
+  useEffect(() => {
+    const unsubscribe = window.boss?.onNotification(event => {
+      const params = event.params && typeof event.params === "object" ? event.params as Record<string, unknown> : {};
+      if (event.method !== "thread/deleted" || typeof params.threadId !== "string") return;
+      const id = params.threadId;
+      if (!id) return;
+      sessionDrafts.current.delete(id);
+      dirtyThreads.current.delete(id);
+      editVersion.current += 1;
+      if (lastThread.current === id) {
+        const reset = resetAutoCompactionDraft(undefined);
+        draftRef.current = reset;
+        setDraft(reset);
+        setError("");
+      }
+      setOverrides(previous => {
+        if (!Object.prototype.hasOwnProperty.call(previous, id)) return previous;
+        const next = { ...previous };
+        delete next[id];
+        return next;
+      });
+    });
+    return () => unsubscribe?.();
+  }, []);
+
   // 会话切换时显示该会话自己的未应用草稿、已应用覆盖或内核默认值。
   useEffect(() => {
     if (lastThread.current === threadId) return;
