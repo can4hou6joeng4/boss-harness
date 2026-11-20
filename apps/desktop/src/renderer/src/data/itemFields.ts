@@ -56,6 +56,18 @@ export function approvalDecision(value: unknown): NonNullable<ApprovalState["dec
     ? value as NonNullable<ApprovalState["decision"]> : undefined;
 }
 
+/**
+ * 审批是否必须逐次确认。
+ *
+ * 「本次会话记住选择」与自动批准都按这个标记放行：只有内核明确给出布尔 `false`
+ * 才算可记住；缺省、`null`、数字或字符串等畸形值一律按必须逐次确认处理。
+ * 实时卡片、恢复后的卡片、记住写入与自动批准共用这一判定：字段缺失不能把
+ * 对外操作显示成可记住，也不能让自动批准代替用户确认。
+ */
+export function approvalConsequential(value: unknown): boolean {
+  return value !== false;
+}
+
 /** 来源标记三字段都必须是字符串；缺一项就整体丢弃，不显示半截来源。 */
 export function itemSource(value: unknown): ThreadItem["source"] {
   const source = plainRecord(value);

@@ -4,7 +4,8 @@ import { toApproval, toMessage, type ApprovalDelivery } from "./harnessBridge";
 import { approvalDeadlineMs } from "./pendingApprovals";
 import { toolDurationMs } from "./toolTiming";
 import {
-  itemResultRef, itemSource, itemText, itemToolName, plainRecord, toolExecutionState, toolStatus, turnIdOf,
+  approvalConsequential, itemResultRef, itemSource, itemText, itemToolName, plainRecord, toolExecutionState,
+  toolStatus, turnIdOf,
 } from "./itemFields";
 
 export interface HarnessEvent {
@@ -137,13 +138,31 @@ export function reduceHarnessEvent(previous: MessageItem[], event: HarnessEvent,
       const deadline = approvalDeadlineMs(params.deadline);
       item = { ...item, approval: { approvalId, toolName: itemToolName(params.toolName),
         description: itemText(params.summary) ?? "该操作需要你的批准", params: plainRecord(params.params) ?? {},
-        consequential: typeof params.consequential === "boolean" ? params.consequential : true,
+        consequential: approvalConsequential(params.consequential),
         ...(deadline !== undefined ? { deadline } : {}) } };
       break;
     }
     default: return previous;
   }
   return index >= 0 ? previous.map((message, slot) => slot === index ? item : message) : [...previous, item];
+}
+
+/**
+ * 「本次会话记住选择」能否代替用户批准这次审批请求；不能时返回 null。
+ *
+ * 与审批卡共用同一个高风险判定：只有内核明确标为非高风险、审批标识与工具名都是
+ * 非空字符串、且该工具已在本会话被记住时才自动批准。标记缺省或畸形时审批卡按
+ * 「对外操作需要逐次确认」展示，自动路径不能反过来替用户确认。
+ */
+export function autoApprovalTarget(
+  event: HarnessEvent, remembered: ReadonlySet<string> | undefined,
+): { approvalId: string; toolName: string } | null {
+  if (event.method !== "approval/requested" || !remembered) return null;
+  const params = event.params ?? {};
+  if (approvalConsequential(params.consequential)) return null;
+  const approvalId = typeof params.approvalId === "string" && params.approvalId ? params.approvalId : undefined;
+  const toolName = typeof params.toolName === "string" && params.toolName ? params.toolName : undefined;
+  return approvalId && toolName && remembered.has(toolName) ? { approvalId, toolName } : null;
 }
 
 /** 自动批准回执未确认受理时恢复卡片，但不能用旧请求覆盖已收到的同一审批结论。 */

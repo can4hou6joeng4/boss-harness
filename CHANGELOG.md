@@ -1,3 +1,10 @@
+## 0.2.0-rc.389 - 2026-11-20
+
+rc.389 源码候选让审批高风险标记在缺省或畸形时统一按必须逐次确认处理。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 桌面端此前有三处各自约定 `consequential` 的默认值：实时 `approval/requested` 归并按 `true`；会话快照、裁决与完成通知恢复审批卡的 `toApproval` 丢弃非布尔值，卡片显示「本次会话记住选择」且复选框可勾选；自动批准的内联条件用 `!params.consequential`，缺省、`null`、`0` 与空字符串都拦不住已记住工具的自动批准。现在新增共享判定 `approvalConsequential`，只有明确的布尔 `false` 才算可记住；事件归并、`toApproval`、受理后写入记住集合与新抽出的 `autoApprovalTarget` 都使用它，自动批准同时要求审批标识与工具名是非空字符串。内核对每次审批都发出 `true`，正常使用下行为不变；本项只收敛持久记录被改动或内核不符合协议时的默认值。修复 Issue [#2903](https://github.com/can4hou6joeng4/boss-harness/issues/2903)。
+- 新增 `scripts/check_approval_remember.py`（61 项），固定共享判定与四处接入、自动批准的放行顺序、记住集合只在受理后写入，并按标记名出现次数做绊线。接入 CI 并在技术参考补同名小节，使用指南补一句默认值说明；检查脚本增至 112 个。版本推进到 npm `0.2.0-rc.389` / Python `0.2.0rc389`。
+
 ## 0.2.0-rc.388 - 2026-11-20
 
 rc.388 源码候选固定侧栏队列徽标的分类优先级与增量校正。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

@@ -84,7 +84,7 @@ import { toolDescriptorOf, uniqueToolNames } from "./toolCatalog";
 import { connectionReportOf } from "./connectionReport";
 import { toolDurationMs } from "./toolTiming";
 import {
-  approvalDecision, itemContextEdit, itemResultRef, itemSource, itemText, itemToolName,
+  approvalConsequential, approvalDecision, itemContextEdit, itemResultRef, itemSource, itemText, itemToolName,
   plainRecord, toolExecutionState, toolStatus,
 } from "./itemFields";
 import type { MessageItem, SessionItem } from "./mockData";
@@ -675,7 +675,12 @@ export async function forkThread(threadId: string, turnId: string): Promise<Sess
     model: thread.model, reasoningEffort: thread.reasoningEffort };
 }
 
-/** 把内核的审批状态转成渲染层消息：协议里 `deadline` 是 Unix 秒，这里统一换算为毫秒。 */
+/**
+ * 把内核的审批状态转成渲染层消息：协议里 `deadline` 是 Unix 秒，这里统一换算为毫秒。
+ *
+ * 高风险标记与实时审批卡共用同一判定：快照、裁决或完成通知里的标记缺省或畸形时，
+ * 恢复出来的卡片仍按必须逐次确认展示，不会变成可记住。
+ */
 export function toApproval(state: ApprovalState): NonNullable<MessageItem["approval"]> {
   const value = plainRecord(state) ?? {};
   const deadline = approvalDeadlineMs(value.deadline);
@@ -685,7 +690,7 @@ export function toApproval(state: ApprovalState): NonNullable<MessageItem["appro
     toolName: itemToolName(value.toolName),
     description: itemText(value.description) ?? "",
     params: plainRecord(value.params) ?? {},
-    ...(typeof value.consequential === "boolean" ? { consequential: value.consequential } : {}),
+    consequential: approvalConsequential(value.consequential),
     ...(decision !== undefined ? { decision } : {}),
     ...(deadline !== undefined ? { deadline } : {}),
   };

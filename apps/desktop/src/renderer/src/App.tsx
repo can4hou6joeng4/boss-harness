@@ -29,8 +29,8 @@ import { sessionTitleFromPrompt } from "./data/sessionTitle";
 import { matchesContinuation, resumedSession } from "./data/sessionState";
 import { continuationReadOf } from "./data/continuation";
 import { isCommandChord } from "./data/shortcuts";
-import { reduceHarnessEvent, autoApprovalFallback, hasApprovalDecision, type HarnessEvent } from "./data/harnessEvents";
-import { turnIdOf } from "./data/itemFields";
+import { reduceHarnessEvent, autoApprovalFallback, autoApprovalTarget, hasApprovalDecision, type HarnessEvent } from "./data/harnessEvents";
+import { approvalConsequential, turnIdOf } from "./data/itemFields";
 import { unconfirmedFailure } from "./data/confirmationFailure";
 import { sendFailureNotice, sendFailureRecheckNotice } from "./data/sendFailure";
 import { stopFailureNotice, stopFailureRecheckNotice, stopMissingNotice, stopMissingRecheckNotice } from "./data/stopFailure";
@@ -424,12 +424,14 @@ export function App(): JSX.Element {
       // 正常完成的回合若发生在其他会话，先在侧栏留一个未读标记；中断 / 异常已有各自的状态提示。
       if (event.method === "turn/completed" && params.status === "completed" && activeRef.current?.id !== id) markCompletedUnread(id);
       if (params.kind !== "userMessage" && params.turnId && turnIds.current.has(id) && turnIds.current.get(id) !== params.turnId) return;
-      if (event.method === "approval/requested" && params.approvalId && !params.consequential && params.toolName && rememberedApprovals.current.get(id)?.has(params.toolName)) {
-        void respondApproval(params.approvalId, true).then(outcome => {
+      // 自动批准与审批卡共用同一个高风险判定：标记缺省或畸形时不替用户确认。
+      const autoApproval = autoApprovalTarget(event, rememberedApprovals.current.get(id));
+      if (autoApproval) {
+        void respondApproval(autoApproval.approvalId, true).then(outcome => {
           if (outcome.delivery === "accepted") return;
           // 自动批准没有确认受理：把审批卡放回界面供核对，不能把未知结果说成确定未送达。
           // 回退与提示都以回执到达时的缓存为准：结论可能先于回执写入。
-          const decided = hasApprovalDecision(cache.current.get(id) ?? [], params.approvalId);
+          const decided = hasApprovalDecision(cache.current.get(id) ?? [], autoApproval.approvalId);
           updateThread(id, previous => autoApprovalFallback(previous, event, outcome.delivery));
           // 明确拒绝时按拒绝码收敛，与手动路径一致：不再接受裁决的审批重读一次会话；
           // APPROVAL_BUSY 表示回合仍在运行，全量快照会覆盖正在流式输出的增量，只提示等待。
@@ -1230,7 +1232,8 @@ export function App(): JSX.Element {
       submission.settle(messageId, "");
     }
     const approval = cache.current.get(targetThreadId)?.find(message => message.approval?.approvalId === approvalId)?.approval;
-    if (remember && approved && approval && !approval.consequential) {
+    // 只有明确标为非高风险的审批才写入记住集合；缓存里找不到或标记缺省都不记住。
+    if (remember && approved && approval && !approvalConsequential(approval.consequential)) {
       const tools = rememberedApprovals.current.get(targetThreadId) ?? new Set<string>(); tools.add(toolName); rememberedApprovals.current.set(targetThreadId, tools);
     }
     return { delivery: "accepted" as const };
