@@ -1,3 +1,10 @@
+## 0.2.0-rc.366 - 2026-11-20
+
+rc.366 源码候选固定会话索引健康度的读数与文案。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_session_index_health.py`，固定安全整数校验、零计数与列出 id 的矛盾判定、id 去重与 20 条截断，以及「未报告 / N 个无法读取 / 正常」三态文案；反向断言未报告不得写成正常、去重必须先查再入列、计数不得放宽为普通整数。修复 Issue [#2856](https://github.com/can4hou6joeng4/boss-harness/issues/2856)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 89 个。版本推进到 npm `0.2.0-rc.366` / Python `0.2.0rc366`。不改变运行时行为，只固定既有读数契约。
+
 ## 0.2.0-rc.365 - 2026-11-20
 
 rc.365 源码候选固定模型线路切换的在途锁与回执令牌。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
