@@ -102,7 +102,8 @@ THREAD_READ = (
     "entries = self.sessions.read_entries_snapshot(thread_id)",
     "pinned = entries",
     "entries = self.sessions._active_entries(pinned)",
-    'thread = {**thread, "lastTurn": self.sessions.branch_last_turn(thread_id, entries=pinned)}',
+    "thread = self._branch_view_thread(",
+    "thread, self.sessions.branch_last_turn(thread_id, entries=pinned))",
     "self.sessions.list_branch_turns(thread_id, entries=pinned) if branch",
     'result["branch"] = self.sessions.read_leaf(thread_id, entries=pinned)',
 )

@@ -325,6 +325,12 @@ export interface ThreadSummary {
   createdAt: string;
   updatedAt: string;
   lastTurn?: Pick<TurnSummary, "turnId" | "status" | "taskPhase" | "taskPhaseStatus" | "taskAttempt" | "taskRestartLimit" | "taskRecoveryReason" | "taskResumePolicy" | "failureCode"> | null;
+  /**
+   * 仅切换过分支位置的会话携带：当前分支末回合，位于会话开头时为 null。
+   * `lastTurn` 仍是日志中最后写入的回合；状态展示与继续入口应优先使用本字段。
+   * 索引在会话文件变化后才重建，旧版本留下的已分支会话在下一次写入前没有该字段。
+   */
+  branchLastTurn?: ThreadSummary["lastTurn"];
   sessionId?: string;
   projectId?: string | null;
   /** 历史会话写入超长 projectId 时，投影只保留前 200 字符并置为 true；原始会话头未改写。 */

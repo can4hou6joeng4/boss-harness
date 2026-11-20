@@ -474,7 +474,8 @@ export function App(): JSX.Element {
         }
         return;
       }
-      if (event.method === "thread/leafChanged") { void replica.reload(id); return; }
+      // 位置变化后当前分支末回合随之改变：会话摘要（侧栏状态、失败标记）与继续检查都要重算。
+      if (event.method === "thread/leafChanged") { void replica.reload(id); void refresh(); return; }
       if (event.method === "session/error") {
         // 正文直接进入提示条：非字符串会被 React 当成非法子节点，让整屏落入错误边界。
         const notice = sessionErrorNoticeOf(params);

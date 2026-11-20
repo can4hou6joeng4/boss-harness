@@ -1987,6 +1987,21 @@ class SessionStore:
             metadata["projectId"] = None
         turns = self._turns(entries, thread_id)
         metadata["lastTurn"] = self._public_turn(turns[-1]) if turns else None
+        # 切换过位置的会话另报当前分支末回合。``lastTurn`` 保持日志末回合，未感知分支的
+        # 客户端语义不变；列表侧的状态与继续入口需要的是当前位置上的回合。字段只由本会话
+        # 条目推导：会话头或 thread_info 带来的同名值先清掉。取值与 ``branch_last_turn``
+        # 一致（当前分支末回合在日志回合表中的那一行）。
+        metadata.pop("branchLastTurn", None)
+        if any(entry.get("type") == LEAF_ENTRY_TYPE for entry in entries):
+            try:
+                leaf_turn_id = self._leaf_state(thread_id, entries)["leafTurnId"]
+            except ValueError:
+                # 条目编号重复时分支无法投影：分支读取会报出具体错误，列表不因此整体失败，
+                # 也不猜测位置；缺少该字段时客户端沿用 lastTurn。
+                pass
+            else:
+                metadata["branchLastTurn"] = next(
+                    (self._public_turn(turn) for turn in turns if turn["turnId"] == leaf_turn_id), None)
         queue_counts = self._queue_status_counts(entries)
         metadata["queueActiveItems"] = sum(queue_counts.values())
         # 队列派生字段只由本会话条目决定：头部可能带着来源会话或上一轮索引的旧值，
@@ -3537,7 +3552,7 @@ class SessionStore:
                 raise ValueError("分支边界会拆开工具批次")
             header = {key: value for key, value in source.items()
                       if key not in {"id", "sessionId", "createdAt", "updatedAt", "lastTurn",
-                                     "queueActiveItems", "queueCounts",
+                                     "branchLastTurn", "queueActiveItems", "queueCounts",
                                      # 读取投影的派生标记不是会话头字段，写进新会话会变成
                                      # 永久状态，重命名也无法清除。
                                      "projectIdTruncated", "titleTruncated"}}
