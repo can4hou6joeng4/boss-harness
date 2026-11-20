@@ -1,3 +1,10 @@
+## 0.2.0-rc.367 - 2026-11-20
+
+rc.367 源码候选固定任务队列状态与暂停原因的文案分支。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_queue_status.py`，固定五种通用标签、暂停原因四条分支的顺序、关联去重说明、暂停说明的前置空判定与 `retryAvailable` 的适用范围；反向断言非暂停项先返回 `null`、暂停标签不得覆盖具体来源、`retryAvailable` 不得作为独立分支。修复 Issue [#2858](https://github.com/can4hou6joeng4/boss-harness/issues/2858)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 90 个。版本推进到 npm `0.2.0-rc.367` / Python `0.2.0rc367`。不改变运行时行为，只固定既有文案契约。
+
 ## 0.2.0-rc.366 - 2026-11-20
 
 rc.366 源码候选固定会话索引健康度的读数与文案。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
