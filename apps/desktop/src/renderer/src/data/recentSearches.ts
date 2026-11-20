@@ -1,11 +1,11 @@
 import { codePointLength } from "@boss-harness/shared";
 import { UI_STORAGE_PREFIX } from "./uiStorage";
-import { MESSAGE_SEARCH_MAX_LENGTH } from "./searchStatus";
+import { MESSAGE_SEARCH_MAX_LENGTH, MESSAGE_SEARCH_MIN_LENGTH } from "./searchStatus";
 
 /** 最近搜索的本地存储键；只在渲染层使用，不参与协议。 */
 export const RECENT_SEARCH_KEY = UI_STORAGE_PREFIX + "recentSearches";
 /** 记入历史与展示的最少字符数（Unicode 码点），与弹窗触发消息搜索的阈值一致。 */
-export const RECENT_SEARCH_MIN_LENGTH = 2;
+export const RECENT_SEARCH_MIN_LENGTH = MESSAGE_SEARCH_MIN_LENGTH;
 export const RECENT_SEARCH_LIMIT = 5;
 
 const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase("zh-CN");
