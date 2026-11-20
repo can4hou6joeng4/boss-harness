@@ -19,6 +19,7 @@ DIALOGS = "apps/desktop/src/renderer/src/data/deletedDialogTarget.ts"
 PANEL = "apps/desktop/src/renderer/src/data/useContextPanel.ts"
 BRANCHES = "apps/desktop/src/renderer/src/data/useSessionBranches.ts"
 REASONING = "apps/desktop/src/renderer/src/data/useSessionReasoning.ts"
+COMPACTION = "apps/desktop/src/renderer/src/data/useAutoCompaction.ts"
 APP = "apps/desktop/src/renderer/src/App.tsx"
 
 MODULE_FRAGMENTS = (
@@ -82,6 +83,19 @@ REASONING_FRAGMENTS = (
     'if (event.method === "thread/deleted") { forget(id); return; }',
     "forgotten.current.clear();",
     "if (epoch.current !== connectionEpoch || forgotten.current.has(target.threadId)) return;",
+)
+
+COMPACTION_FRAGMENTS = (
+    'if (event.method !== "thread/deleted" || typeof params.threadId !== "string") return;',
+    "const id = params.threadId;",
+    "sessionDrafts.current.delete(id);",
+    "dirtyThreads.current.delete(id);",
+    "editVersion.current += 1;",
+    "if (lastThread.current === id) {",
+    "const reset = resetAutoCompactionDraft(undefined);",
+    "setOverrides(previous => {",
+    "if (!Object.prototype.hasOwnProperty.call(previous, id)) return previous;",
+    "delete next[id];",
 )
 
 APPROVAL_FRAGMENTS = (
@@ -152,7 +166,17 @@ def check_deleted_thread_state() -> int:
     checked += _expect(BRANCH_FRAGMENTS, _read(BRANCHES), BRANCHES)
     reasoning = _read(REASONING)
     checked += _expect(REASONING_FRAGMENTS, reasoning, REASONING)
+    compaction = _read(COMPACTION)
+    checked += _expect(COMPACTION_FRAGMENTS, compaction, COMPACTION)
     checked += _expect(APP_FRAGMENTS, app, APP)
+
+    # 自动压缩覆盖按会话保存：删除时复制后删除，不能原地改写已有的覆盖对象。
+    override_reset = _slice(compaction, "setOverrides(previous => {", "\n      });", COMPACTION)
+    if "delete previous[" in override_reset or "next[id] = undefined" in override_reset:
+        raise ValueError(f"{COMPACTION} 的删除不得原地改写已有覆盖")
+    if "const next = { ...previous };" not in override_reset:
+        raise ValueError(f"{COMPACTION} 的删除必须复制后再移除会话覆盖")
+    checked += 1
 
     # 推理档位：删除通知必须先于方法白名单处理；遗忘不得经 update，且必须从状态表移除。
     removal = reasoning.find('if (event.method === "thread/deleted") { forget(id); return; }')
