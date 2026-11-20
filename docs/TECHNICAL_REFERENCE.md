@@ -424,7 +424,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_branch_pagination.py`
 
-`scripts/check_branch_pagination.py` 核对分支列表翻页期间的位置漂移：`readPagedItems` 必须回报实际请求页数（`pages`），分支面板在端点或当前分支回合任一侧多于 1 页时，必须用端点 leaf 复核当前位置；复核与首次端点的 `leafTurnId` 不一致就放弃本次结果并提示刷新，不得继续读取摘要或写入旧 leaf 与端点。复核必须位于两段列表拼接完成之后、摘要读取之前。检查是源码字面量与首次出现顺序扫描，不执行分页读取。
+`scripts/check_branch_pagination.py` 核对分支读取期间的位置漂移：`readPagedItems` 必须回报实际请求页数（`pages`）；分支面板按请求顺序记录端点每一页的 `leafTurnId` 与回合每一页 `branch.leafTurnId`，全部一致才写入状态，不一致就放弃本次结果并提示刷新，单页读取同样生效且不增加请求。`branchPageLeafOf` 把缺失的 `branch` 归为旧内核（`missing`），归属其他会话或形状不符归为无效并按响应错误处理，不得当作空位置；`sameLeafAcrossPages` 逐页比较而不是只比较首尾。回合页缺少位置且发生翻页时才回退到端点复核，端点复核只允许出现在该分支内。步骤顺序固定为列表拼接 → 逐页比较 → 回退复核 → 摘要读取，发现变化后立即返回、不写入旧 leaf 与端点；反向断言只在翻页时复核的旧实现不再出现。检查是源码字面量与首次出现顺序扫描，不执行分页读取。
 
 ### `check_harness_events.py`
 

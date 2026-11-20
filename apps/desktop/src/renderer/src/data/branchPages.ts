@@ -72,3 +72,30 @@ export function branchTurnOf(value: unknown, threadId: string): TurnSummary | nu
 export function uniqueTurnIds(items: { turnId: string }[]): boolean {
   return new Set(items.map(item => item.turnId)).size === items.length;
 }
+
+/**
+ * 分支视图回合页携带的当前位置（`thread/turns/list` 的 `branch`）。
+ *
+ * 内核每次请求都按当下的位置计算回合集合，并在同一响应里报告该位置；逐页比较才能
+ * 发现两次请求之间的位置变化。缺失按旧内核处理（`"missing"`，由调用方回退到复核），
+ * 存在但归属其他会话或形状不符返回 `"invalid"`，不能当作「位置为空」。
+ */
+export function branchPageLeafOf(branch: unknown, threadId: string): { leafTurnId: string | null } | "missing" | "invalid" {
+  if (branch === undefined) return "missing";
+  if (!branch || typeof branch !== "object" || Array.isArray(branch)) return "invalid";
+  const raw = branch as Record<string, unknown>;
+  if (raw.threadId !== threadId) return "invalid";
+  const leaf = raw.leafTurnId;
+  if (leaf === null) return { leafTurnId: null };
+  return text(leaf, TURN_ID_LIMIT) ? { leafTurnId: leaf } : "invalid";
+}
+
+/**
+ * 一次分支读取中各页报告的位置是否一致。
+ *
+ * `leaves` 按请求顺序排列（端点各页在前，回合各页在后）。全部相同才说明每一页都按同一
+ * 位置计算；只比较首尾会漏掉切走又切回的情况。空列表视为一致。
+ */
+export function sameLeafAcrossPages(leaves: readonly (string | null)[]): boolean {
+  return leaves.every(leaf => leaf === leaves[0]);
+}
