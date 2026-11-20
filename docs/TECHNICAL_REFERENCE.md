@@ -424,7 +424,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_branch_pagination.py`
 
-`scripts/check_branch_pagination.py` 核对分支读取期间的位置漂移：`readPagedItems` 必须回报实际请求页数（`pages`）；分支面板按请求顺序记录端点每一页的 `leafTurnId` 与回合每一页 `branch.leafTurnId`，全部一致才写入状态，不一致就放弃本次结果并提示刷新，单页读取同样生效且不增加请求。`branchPageLeafOf` 把缺失的 `branch` 归为旧内核（`missing`），归属其他会话或形状不符归为无效并按响应错误处理，不得当作空位置；`sameLeafAcrossPages` 逐页比较而不是只比较首尾。回合页缺少位置且发生翻页时才回退到端点复核，端点复核只允许出现在该分支内。步骤顺序固定为列表拼接 → 逐页比较 → 回退复核 → 摘要读取，发现变化后立即返回、不写入旧 leaf 与端点；反向断言只在翻页时复核的旧实现不再出现。内核侧，`list_branch_turns` 在同一次持锁读取里用同一份条目算出回合集合与 `branch`（只读取一次条目、不调用 `read_leaf`），`thread/turns/list` 处理器按字段返回该 `branch`，不得在释放锁后另行读取位置或透传未声明的字段。检查是源码字面量与首次出现顺序扫描，不执行分页读取。
+`scripts/check_branch_pagination.py` 核对分支读取期间的位置漂移：`readPagedItems` 必须回报实际请求页数（`pages`）；分支面板按请求顺序记录端点每一页的 `leafTurnId` 与回合每一页 `branch.leafTurnId`，全部一致才写入状态，不一致就放弃本次结果并提示刷新，单页读取同样生效且不增加请求。`branchPageLeafOf` 把缺失的 `branch` 归为旧内核（`missing`），归属其他会话或形状不符归为无效并按响应错误处理，不得当作空位置；`sameLeafAcrossPages` 逐页比较而不是只比较首尾。回合页缺少位置且发生翻页时才回退到端点复核，端点复核只允许出现在该分支内。步骤顺序固定为列表拼接 → 逐页比较 → 回退复核 → 摘要读取，发现变化后立即返回、不写入旧 leaf 与端点；反向断言只在翻页时复核的旧实现不再出现。内核侧，`list_branch_turns` 在同一次持锁读取里用同一份条目算出回合集合与 `branch`（只读取一次条目、不调用 `read_leaf`），`thread/turns/list` 处理器按字段返回该 `branch`，不得在释放锁后另行读取位置或透传未声明的字段。`thread/read` / `thread/resume` 的非快照分支视图把处理器读到的条目快照传给 `branch_last_turn`、`list_branch_turns` 与 `read_leaf`，`items`、`thread.lastTurn`、`turns` 与 `branch` 同源；这三个读取带快照时不得重新读取条目，处理器内不带快照的旧调用不得再出现。检查是源码字面量与首次出现顺序扫描，不执行分页读取。
 
 ### `check_harness_events.py`
 

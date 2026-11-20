@@ -2998,12 +2998,15 @@ class SessionStore:
 
         return self._with_repaired_index(read)
 
-    def list_branch_turns(self, thread_id: str, *, cursor: str | None = None, limit: int = 50) -> dict:
+    def list_branch_turns(self, thread_id: str, *, cursor: str | None = None, limit: int = 50,
+                          entries: list[dict] | None = None) -> dict:
         """Indexed turn metadata restricted to the current branch (same order/cursor shape as list_turns).
 
         ``branch`` is the leaf state of the very entries the page was filtered by:
         callers compare it across pages to detect a leaf move between requests,
         so it must not come from a second read taken after the lock is released.
+        ``entries`` pins a snapshot the caller already read (thread/read), so the
+        page describes the same records as the caller's items and leaf state.
         """
         _limit(limit)
         self.path_for(thread_id)
@@ -3015,9 +3018,11 @@ class SessionStore:
             _identifier(key[1], "turnId")
         self._sync_thread(thread_id)
 
+        pinned = entries
+
         def read() -> dict:
             with self._lock:
-                entries = self.read_entries(thread_id)
+                entries = self.read_entries(thread_id) if pinned is None else pinned
                 active_turns = self._turns(self._active_entries(entries), thread_id)
                 active_ids = {turn["turnId"] for turn in active_turns}
                 # 回合集合与位置必须出自同一份条目：释放锁后再读一次，期间的切换或
@@ -3051,10 +3056,17 @@ class SessionStore:
 
         return self._with_repaired_index(read)
 
-    def branch_last_turn(self, thread_id: str) -> dict | None:
-        """Indexed metadata of the current branch's last turn (None before the first turn)."""
-        with self._lock:
-            leaf = self._leaf_state(thread_id, self.read_entries(thread_id))
+    def branch_last_turn(self, thread_id: str, *, entries: list[dict] | None = None) -> dict | None:
+        """Indexed metadata of the current branch's last turn (None before the first turn).
+
+        ``entries`` pins a snapshot the caller already read, so the last turn
+        belongs to the same branch as the caller's items.
+        """
+        if entries is not None:
+            leaf = self._leaf_state(thread_id, entries)
+        else:
+            with self._lock:
+                leaf = self._leaf_state(thread_id, self.read_entries(thread_id))
         if leaf["leafTurnId"] is None:
             return None
         self._sync_thread(thread_id)
@@ -3341,7 +3353,10 @@ class SessionStore:
         out["turns"] = page
         return out
 
-    def read_leaf(self, thread_id: str) -> dict:
+    def read_leaf(self, thread_id: str, *, entries: list[dict] | None = None) -> dict:
+        """Current leaf state; ``entries`` pins a snapshot the caller already read."""
+        if entries is not None:
+            return self._leaf_state(thread_id, entries)
         with self._lock:
             return self._leaf_state(thread_id, self.read_entries(thread_id))
 
