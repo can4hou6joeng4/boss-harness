@@ -22,7 +22,7 @@ import { IconClose } from "./components/Icons";
 import { MOCK_PROJECT_FOLDERS, MOCK_CONVERSATION_THREAD, type ProjectFolder, type SessionItem, type MessageItem, type ConversationMode } from "./data/mockData";
 import { HARNESS_PROJECT_ID, HARNESS_PROJECT_NAME, archiveThread, configuredModels, deleteThread, harnessErrorText, harnessStatus, isHarnessRpcRejection, forkThread, interruptTurn, listThreads, listQueue, readTurnSkillIds, queueFollowUp, readQueueItem, reconnectHarness, removeQueuedItem, renameThread, respondApproval, sendTurn, setThreadModel, startThread, steerTurn, steerQueuedItem, readTurnContinuation, continueTurn, unarchiveThread, updateQueuedItem } from "./data/harnessBridge";
 import { approvalRejectionNotice, approvalRejectionRefreshes, approvalUnconfirmedNotice, autoApprovalRejectionNotice } from "./data/approvalFailure";
-import { approvalSubmissionFor, forgetApprovalSubmission } from "./data/approvalSubmission";
+import { approvalSubmissionFor, approvalSubmissionIsCurrent, forgetApprovalSubmission } from "./data/approvalSubmission";
 import { forgetDeletedThread } from "./data/deletedThreadState";
 import { deleteThreadFailure } from "./data/deleteThreadError";
 import { resolveQuickAskRoute } from "./data/quickAsk";
@@ -435,7 +435,10 @@ export function App(): JSX.Element {
       // 自动批准与审批卡共用同一个高风险判定：标记缺省或畸形时不替用户确认。
       const autoApproval = autoApprovalTarget(event, rememberedApprovals.current.get(id));
       if (autoApproval) {
+        const submission = approvalSubmissionFor(id);
         void respondApproval(autoApproval.approvalId, true).then(outcome => {
+          // 删除后不恢复审批卡或重建提示状态；切换会话不影响原实例的结算。
+          if (!approvalSubmissionIsCurrent(id, submission)) return;
           if (outcome.delivery === "accepted") return;
           // 自动批准没有确认受理：把审批卡放回界面供核对，不能把未知结果说成确定未送达。
           // 回退与提示都以回执到达时的缓存为准：结论可能先于回执写入。
@@ -447,7 +450,7 @@ export function App(): JSX.Element {
             void replicaRef.current?.resume(id);
           }
           // 自动回执也归来源会话：切走不串到当前聊天，切回后仍能核对。
-          approvalSubmissionFor(id).reportError(outcome.delivery === "unconfirmed"
+          submission.reportError(outcome.delivery === "unconfirmed"
             ? `${approvalUnconfirmedNotice(outcome.reason, "自动批准")}已显示本次审批供核对。`
             : autoApprovalRejectionNotice(outcome.code, outcome.reason ?? "", decided));
         });
@@ -1231,6 +1234,8 @@ export function App(): JSX.Element {
     // 同步持有锁：通知切回后新挂载的卡片也不能在原回执到达前再次提交。
     if (messageId) submission.begin(messageId);
     const outcome = await respondApproval(approvalId, approved);
+    // 已删除或被替换的实例不再拥有界面状态；保留真实回执，不恢复消息、记住选择或触发读取。
+    if (!approvalSubmissionIsCurrent(targetThreadId, submission)) return outcome;
     if (outcome.delivery !== "accepted") {
       // 只有回合已结束或审批记录已变更时才重读会话：APPROVAL_BUSY 时回合仍在运行，
       // 全量快照会覆盖正在流式输出的增量，只提示用户先停止或等待。

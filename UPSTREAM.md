@@ -1,5 +1,11 @@
 # 上游吸收记录
 
+## 删除后审批回执的实例归属（Issue #2919）
+
+重新核对 Pi MIT 固定提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md`（会话选择器删除入口）与 `packages/coding-agent/src/core/session-manager.ts`（`setSessionFile`、`newSession` 重建本地条目索引）：所读入口没有本项目跨进程审批 RPC 与删除通知交错的状态实例契约。本项目在客户端独立实现实例身份比较：发送前固定审批状态，回执到达后用只读 `Map.get` 判断该实例是否仍属于来源会话。删除或替换使旧回执的界面写入失效；普通会话切换不影响结算。不复制源码、不引入依赖，不改变审批权限或内核裁决。
+
+离线对照用固定 rc.396 提交导出的真实 `App.tsx` 回调与审批状态模块，旧版、修复版各执行 24 种场景（手动 / 自动、accepted / rejected / unconfirmed、删除目标 / 替换实例 / 仅切换 / 删除其他会话）。旧版在删除或替换后有 6 次消息缓存重建、4 次恢复读取，修复版均为 0；正常来源会话的回执继续结算。探针只留本地；未启动 Electron、未调用模型或招聘平台。
+
 ## 删除通知到达时退出已删除会话（Issue #2911）
 
 固定核对 Pi MIT 提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/sessions.md` 与 `packages/coding-agent/src/core/session-manager.ts`：删除由会话选择器发起，管理器在本地重建条目索引；所读入口没有「删除已提交但调用方未收到回执」时从通知侧收敛当前视图的约定。本项目内核在 `thread/delete` 的回执之前广播 `thread/deleted`，桌面此前只按通知移除列表项与消息缓存，当前视图与其余连接内状态要等回执确认后才清理。本轮沿用既有删除通知，把两条删除路径收敛到同一组遗忘目标，并在通知到达时直接退出被删除的会话；不新增 RPC、不改删除语义。不复制源码、不引入依赖。

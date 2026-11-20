@@ -56,6 +56,11 @@ export function approvalSubmissionFor(threadId: string) {
   return created;
 }
 
+/** 只核对发起时的实例归属，不创建状态；删除或替换后旧回执失效。 */
+export function approvalSubmissionIsCurrent(threadId: string, submission: ReturnType<typeof approvalSubmissionFor>): boolean {
+  return submissions.get(threadId) === submission;
+}
+
 /**
  * 会话删除后丢弃其审批提交状态。
  *

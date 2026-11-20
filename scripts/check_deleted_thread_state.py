@@ -30,11 +30,13 @@ APPROVAL_FRAGMENTS = (
     "export function forgetApprovalSubmission(threadId: string): boolean {",
     "if (!threadId) return false;",
     "return submissions.delete(threadId);",
+    "export function approvalSubmissionIsCurrent(threadId: string, submission: ReturnType<typeof approvalSubmissionFor>): boolean {",
+    "return submissions.get(threadId) === submission;",
 )
 
 APP_FRAGMENTS = (
     'import { forgetDeletedThread } from "./data/deletedThreadState";',
-    'import { approvalSubmissionFor, forgetApprovalSubmission } from "./data/approvalSubmission";',
+    'import { approvalSubmissionFor, approvalSubmissionIsCurrent, forgetApprovalSubmission } from "./data/approvalSubmission";',
     'const clearDeletedConversationRef = useRef<((id: string) => void) | null>(null);',
     "const clearDeletedConversation = useCallback((id: string) => {",
     "if (activeRef.current?.id === id) clearActiveConversation();",
@@ -112,6 +114,34 @@ def check_deleted_thread_state() -> int:
         raise ValueError(f"{APP} 的删除回执仍单独删除消息缓存")
     if "clearDeletedConversationRef.current?.(deleted);" in delete_session:
         raise ValueError(f"{APP} 的删除回执应直接退出视图，不依赖通知回调")
+    # 在途审批只可结算发起时的实例；检查必须先于消息回退、重读与提示写入。
+    for start, end, fragments in (
+        ("if (autoApproval) {", 'if (event.method === "model/retryStarted"', (
+            "const submission = approvalSubmissionFor(id);",
+            "void respondApproval(autoApproval.approvalId, true).then(outcome => {",
+            "if (!approvalSubmissionIsCurrent(id, submission)) return;",
+            'if (outcome.delivery === "accepted") return;',
+            "updateThread(id,",
+            "submission.reportError(",
+        )),
+        ("const handleApproval = useCallback", "const openRewind", (
+            "const submission = approvalSubmissionFor(targetThreadId);",
+            "const outcome = await respondApproval(approvalId, approved);",
+            "if (!approvalSubmissionIsCurrent(targetThreadId, submission)) return outcome;",
+            'if (outcome.delivery !== "accepted") {',
+            "updateThread(targetThreadId,",
+        )),
+    ):
+        callback = _slice(app, start, end, APP)
+        position = -1
+        for fragment in fragments:
+            index = callback.find(fragment)
+            if index < 0 or index <= position:
+                raise ValueError(f"{APP} 的审批回执实例检查缺失或顺序变化：{fragment}")
+            position = index
+            checked += 1
+        if ").reportError(" in callback:
+            raise ValueError(f"{APP} 的审批回执不得重新取得实例写入错误")
     return checked
 
 
