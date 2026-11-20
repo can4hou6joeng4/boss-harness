@@ -74,6 +74,10 @@ function rpcDetail(error: unknown): { rpc: boolean; code: number | null; text: s
 
 /** 内核没有这个摘要任务：可能随进程重启丢失，或被任务记录保留窗口淘汰。 */
 const JOB_NOT_FOUND = -32011;
+// 这些通知之后，内核的当前位置、端点或回合状态可能已变化，目标会话需要重读分支。
+// 回合开始时内核先写入运行中的回合、再发出 turn/started：当前位置已是新回合、端点也已更换；
+// 漏掉它会让弹窗在整个回合运行期间（含等待审批）仍把上一个回合标成当前位置。
+const BRANCH_REFRESH_EVENTS: readonly string[] = ["thread/leafChanged", "turn/started", "turn/completed", "thread/updated", "context/compacted"];
 
 /**
  * `context/read` 明确报告同一任务已不再活动（`active: false`），但任务详情回执无法
@@ -333,7 +337,7 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
         if (branchJob.status !== "running") void refresh(id);
         return;
       }
-      if (["thread/leafChanged", "turn/completed", "thread/updated", "context/compacted"].includes(event.method) && id === current.current.threadId) {
+      if (BRANCH_REFRESH_EVENTS.includes(event.method) && id === current.current.threadId) {
         void refresh(id);
       }
     });
