@@ -374,7 +374,13 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
       if (result.threadId !== id || result.leafTurnId !== turnId) throw new Error("切换回执与所选位置不一致");
       const summaryJob = result.summaryJob ? branchJobOf(result.summaryJob, id) : null;
       if (summaryJob) applyJob(id, summaryJob);
-      await current.current.onSwitched(id);
+      try {
+        await current.current.onSwitched(id);
+      } catch (error) {
+        // 内核已确认切换，重读会话失败不属于「结果未确认」：分支位置以内核为准。
+        if (valid()) update(id, { switchError: `分支已切换，但重新读取会话失败：${harnessErrorText(error)}。分支位置以内核为准，请刷新核对；不会自动重试。` });
+        return false;
+      }
       // 会话重读也可能跨越重连；旧调用不能把新打开的分支窗口作为成功收起。
       return valid();
     } catch (error) {

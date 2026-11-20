@@ -140,6 +140,8 @@ jobs:
         run: python scripts/check_deleted_thread_state.py
       - name: Verify compaction override restore
         run: python scripts/check_compaction_override.py
+      - name: Verify branch switch notices
+        run: python scripts/check_branch_switch.py
       - name: Verify harness events
         run: python scripts/check_harness_events.py
       - name: Verify harness replica
