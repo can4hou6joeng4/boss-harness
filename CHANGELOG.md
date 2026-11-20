@@ -1,3 +1,10 @@
+## 0.2.0-rc.354 - 2026-11-20
+
+rc.354 源码候选收敛最近搜索的阈值来源并固定本地存储回退。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `RECENT_SEARCH_MIN_LENGTH` 改为引用 `MESSAGE_SEARCH_MIN_LENGTH`，不再与搜索弹窗的消息搜索阈值各写一份；运行时取值保持 2，历史记录行为不变。修复 Issue [#2833](https://github.com/can4hou6joeng4/boss-harness/issues/2833)。
+- 新增 `scripts/check_recent_search.py`，固定最短 / 最长字符数来自 `searchStatus`、去重按 NFKC 小写、上限 5、损坏 JSON 与非数组回退为空、写入失败仍返回当前列表，并反向断言不得重新写死阈值。接入 CI 并在技术参考补同名小节；检查脚本增至 77 个。版本推进到 npm `0.2.0-rc.354` / Python `0.2.0rc354`。
+
 ## 0.2.0-rc.353 - 2026-11-20
 
 rc.353 源码候选固定用量 CSV 导出的公式防护与转义契约。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
