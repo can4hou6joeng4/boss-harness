@@ -1,3 +1,10 @@
+## 0.2.0-rc.362 - 2026-11-20
+
+rc.362 源码候选固定会话内查找状态行的计数单位与分支。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_find_status.py`，固定空查询回退、位次夹取与 1 起始显示、只有 `capped === true` 追加高亮上限说明、零命中时的详情提示与最终结论，并反向断言向下取整、详情提示只出现一次、上限引用常量。修复 Issue [#2849](https://github.com/can4hou6joeng4/boss-harness/issues/2849)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 85 个。版本推进到 npm `0.2.0-rc.362` / Python `0.2.0rc362`。不改变运行时行为，只固定既有状态行契约。
+
 ## 0.2.0-rc.361 - 2026-11-20
 
 rc.361 源码候选固定会话内查找的游标位点与循环跳转。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
