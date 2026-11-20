@@ -21,11 +21,16 @@ AGENT = "harness/src/boss_harness/agent.py"
 
 SCHEMA_FRAGMENTS = (
     '_UNPASSABLE_STRING_CHARS = ("\\x00",)',
+    '_UNPASSABLE_TEXT_ERROR = "工具参数包含无法作为命令行参数传递的字符（如空字符或孤立代理项），请去掉后重试"',
+    "class _UnpassableTextError(ValueError):",
     "def _reject_unpassable_text(text: str) -> None:",
     "if any(char in text for char in _UNPASSABLE_STRING_CHARS) or any(",
     "0xD800 <= ord(char) <= 0xDFFF for char in text",
+    "raise _UnpassableTextError",
     "account(len(item) + 2)\n            _reject_unpassable_text(item)",
     "if type(key) is not str:\n                            raise ValueError\n                        _reject_unpassable_text(key)",
+    "except _UnpassableTextError:",
+    "raise ValueError(_UNPASSABLE_TEXT_ERROR) from None",
 )
 CLI_FRAGMENTS = (
     "except OSError:",
@@ -56,13 +61,13 @@ def _load_harness():
     source = str(ROOT / "harness" / "src")
     if source not in sys.path:
         sys.path.insert(0, source)
-    from boss_harness import agent, session, tool_bundle, toolkit
+    from boss_harness import agent, session, tool_bundle, tool_schema, toolkit
 
-    return agent, session, tool_bundle, toolkit
+    return agent, session, tool_bundle, tool_schema, toolkit
 
 
 def _behaviour(checked: list[str]) -> None:
-    agent, session, tool_bundle, toolkit = _load_harness()
+    agent, session, tool_bundle, tool_schema, toolkit = _load_harness()
     definition = tool_bundle.ToolDefinition(
         name="probe_tool", description="核对用工具", input_schema={
             "type": "object", "properties": {"message": {"type": "string"}},
@@ -73,10 +78,20 @@ def _behaviour(checked: list[str]) -> None:
 
     try:
         registry.validate("probe_tool", {"message": "a\x00b"})
-    except ValueError:
-        checked.append("空字符参数在注册表被拒绝")
+    except ValueError as error:
+        if str(error) != tool_schema._UNPASSABLE_TEXT_ERROR:
+            raise ValueError("空字符参数没有返回点名字符类别的错误文案") from None
+        checked.append("空字符参数在注册表被拒绝并点名原因")
     else:
         raise ValueError("注册表仍接受含空字符的字符串参数")
+    try:
+        registry.validate("probe_tool", {"message": 1})
+    except ValueError as error:
+        if str(error) == tool_schema._UNPASSABLE_TEXT_ERROR:
+            raise ValueError("普通 schema 不符被误报为不可传递字符") from None
+        checked.append("普通 schema 不符保持通用文案")
+    else:
+        raise ValueError("注册表接受了错误类型的字符串参数")
     registry.validate("probe_tool", {"message": "正常文本"})
     checked.append("正常字符串参数通过注册表")
 
