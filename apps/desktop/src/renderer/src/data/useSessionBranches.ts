@@ -200,6 +200,24 @@ export function useSessionBranches(threadId: string | null, connected: boolean, 
         return { items: turns as TurnSummary[], nextCursor: page.nextCursor ?? null };
       }, MAX_PAGES);
       if (!uniqueTurnIds(turnPage.items)) throw new Error("当前分支回合包含重复条目");
+      // 分页结果由多次读取拼成，内核每次请求都按当下的 leaf 计算「当前分支回合」：
+      // 翻页期间若位置被切换，两页会分属两条分支，且不会出现重复条目可供查重。
+      // 只要有一侧翻了页，就用端点的 leaf 复核一次，不把两条分支混成一条展示。
+      if (endpointPage.pages > 1 || turnPage.pages > 1) {
+        // head 在分页回调里赋值；经函数读取，避免控制流分析把它收窄成初始的 null。
+        const leafOfHead = (): string | null => head?.leafTurnId ?? null;
+        const firstLeaf = leafOfHead();
+        const check = await listThreadBranches(id);
+        if (!valid()) return;
+        if (check.threadId !== id || !Array.isArray(check.endpoints)) {
+          throw new Error("分支列表不属于当前会话或格式无法识别");
+        }
+        if ((check.leafTurnId ?? null) !== firstLeaf) {
+          update(id, { loading: false,
+            error: "分支在读取期间发生变化：当前位置已被切换，本次列表可能混用两条分支，已放弃；请刷新后重试。" });
+          return;
+        }
+      }
       let summaries: ContextBranchSummary[] = [];
       let summaryIssues: ContextBranchSummaryIssue[] = [];
       let summaryIssueCount = 0;
