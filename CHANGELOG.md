@@ -1,3 +1,10 @@
+## 0.2.0-rc.353 - 2026-11-20
+
+rc.353 源码候选固定用量 CSV 导出的公式防护与转义契约。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_usage_report.py`，固定「复制 CSV」的公式前缀单引号、RFC 4180 引号与双引号翻倍、16 列表头与行序、CRLF 行尾、未上报不写成 0、原因键原型链防护与 `usageJobSource` 分支，并反向断言不得直接返回原文、不得绕过自有属性检查或增加费用列。修复 Issue [#2831](https://github.com/can4hou6joeng4/boss-harness/issues/2831)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 76 个。版本推进到 npm `0.2.0-rc.353` / Python `0.2.0rc353`。不改变运行时行为，只固定既有导出契约。
+
 ## 0.2.0-rc.352 - 2026-11-20
 
 rc.352 源码候选说明导出弹窗的桥接缺失并固定关键行为。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
