@@ -1,3 +1,10 @@
+## 0.2.0-rc.378 - 2026-11-20
+
+rc.378 源码候选固定主题偏好的解析、合成与写回。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 新增 `scripts/check_theme_preference.py`，固定 `system` / `light` / `dark` 三态联合类型、非字符串与空白大小写折叠、无法识别时回退 `system`、`resolveDarkTheme` 的真假分支与跟随系统、`serializeThemePreference` 只保留黑白两态；反向断言不得跳过空白折叠、不得原样写回未知值、回退不得落到固定外观。修复 Issue [#2881](https://github.com/can4hou6joeng4/boss-harness/issues/2881)。
+- 接入 CI 并在技术参考补同名小节；检查脚本增至 101 个。版本推进到 npm `0.2.0-rc.378` / Python `0.2.0rc378`。不改变运行时行为，只固定既有主题契约。
+
 ## 0.2.0-rc.377 - 2026-11-20
 
 rc.377 源码候选固定界面偏好导出文件的导入校验。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
