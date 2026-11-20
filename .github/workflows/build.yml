@@ -76,6 +76,8 @@ jobs:
         run: python scripts/check_local_export.py
       - name: Verify export dialog
         run: python scripts/check_export_dialog.py
+      - name: Verify usage CSV export
+        run: python scripts/check_usage_report.py
       - name: Verify private state boundaries
         run: python scripts/check_private_files.py
       - name: Verify credential redaction
