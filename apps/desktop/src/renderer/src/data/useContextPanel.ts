@@ -223,7 +223,8 @@ export function useContextPanel(threadId: string | null, connected: boolean, run
       }
       if (event.method === "thread/deleted") {
         // 删除通知先于删除回执；面板不再对已删除会话读取或保留进度。
-        if (typeof params.threadId === "string") forget(params.threadId);
+        // 内核与协议用 deletedThreadId 标识被删除会话，普通通知才用 threadId。
+        if (typeof params.deletedThreadId === "string") forget(params.deletedThreadId);
         return;
       }
       const id = typeof params.threadId === "string" ? params.threadId : null;

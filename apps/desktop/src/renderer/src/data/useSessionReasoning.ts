@@ -95,10 +95,15 @@ export function useSessionReasoning(threadId: string | null, connected: boolean)
 
   useEffect(() => {
     const unsubscribe = window.boss?.onNotification(raw => {
-      const event = raw as { method?: string; params?: { threadId?: string } };
+      const event = raw as { method?: string; params?: { threadId?: string; deletedThreadId?: string } };
+      if (event.method === "thread/deleted") {
+        // 删除通知用 deletedThreadId；先于通用 id 提取，否则遗忘永远不可达。
+        const deleted = event.params?.deletedThreadId;
+        if (typeof deleted === "string" && current.current.connected) forget(deleted);
+        return;
+      }
       const id = event.params?.threadId;
       if (!id || !current.current.connected) return;
-      if (event.method === "thread/deleted") { forget(id); return; }
       if (!["thread/reasoning/updated", "thread/model/updated", "turn/started", "turn/completed", "context/compactionStarted", "context/compactionCompleted", "context/compactionFailed"].includes(event.method ?? "")) return;
       // 当前会话与仍在保存的会话都需要刷新；其他会话切回时会自行读取。
       if (id !== current.current.threadId && !saving.current.has(id)) return;
