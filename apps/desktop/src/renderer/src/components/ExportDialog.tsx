@@ -103,6 +103,7 @@ export function ExportDialog({ target, onClose, branchViews, connected }: {
         <label className="branch-summary-option"><input type="checkbox" data-export-ack disabled={saving} checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} /><span>我了解风险，仍要包含明文</span></label>
       </div>}
       {!connected && <p className="context-panel-warning" role="status">本地内核未连接，暂不能导出。</p>}
+      {connected && !window.boss?.exportSession && <p className="context-panel-warning" role="status">当前桌面外壳不支持会话导出，请更新桌面端后重试。</p>}
       {saving && <p className="context-panel-note" role="status">正在导出，完成前选项与关闭入口保持锁定。</p>}
       {status.kind === "saved" && <p className="context-panel-note" role="status" data-export-status="saved">
         已保存为「{status.result.fileName}」（{number(status.result.bytes)} 字节，{number(status.result.exportedTurnCount)} / {number(status.result.turnCount)} 个回合）。

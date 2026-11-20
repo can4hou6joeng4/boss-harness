@@ -1,3 +1,10 @@
+## 0.2.0-rc.352 - 2026-11-20
+
+rc.352 源码候选说明导出弹窗的桥接缺失并固定关键行为。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 导出弹窗在内核已连接但当前桌面外壳没有 `exportSession` 时显示「当前桌面外壳不支持会话导出，请更新桌面端后重试。」，不再只把保存按钮灰掉而不说明原因。修复 Issue [#2829](https://github.com/can4hou6joeng4/boss-harness/issues/2829)。
+- 新增 `scripts/check_export_dialog.py`，固定目标会话在打开时固定、切换目标使旧回执失效、保存期间锁定选项与关闭、明文导出需二次确认、请求字段与保存 / 取消 / 失败 / 截断 / 权限回执，并反向断言不得发送未确认明文或绕过 `requestClose`。接入 CI 并在技术参考补同名小节；检查脚本增至 75 个。版本推进到 npm `0.2.0-rc.352` / Python `0.2.0rc352`。
+
 ## 0.2.0-rc.351 - 2026-11-20
 
 rc.351 源码候选收敛旧内核回退路径的本地 Markdown 导出标题。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
