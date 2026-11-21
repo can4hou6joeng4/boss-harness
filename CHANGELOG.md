@@ -1,3 +1,10 @@
+## 0.2.0-rc.495 - 2026-11-22
+
+rc.495 源码候选为 JSON 导出分组与严格编码补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session_export.py` 的 `_render_json` 决定回合前 / 回合内条目分组、文档字段与严格编码。原有 `scripts/check_export_json.py` 只做源码片段、顺序与反向断言扫描（45 项），本轮加入行为对照（68 项）：直接调用 `_render_json` 并解析结果，覆盖 schema、四项脱敏标记、计数写入、三类来源、回合前 / 回合内 / 无回合分组、截断与条目计数、queue、额外 `meta` 字段、中文不转义、两空格缩进与尾部换行、非 JSON 值转字符串，以及 NaN / Infinity / 深层嵌套的可读错误。CI 无需改动，技术参考同步说明。修复 Issue [#3115](https://github.com/can4hou6joeng4/boss-harness/issues/3115)。
+- 变异验证：结构侧 schema 常量与引用、渲染签名、回合 / 前置列表、回合判定与追加、脱敏 / 计数 / 来源 / 分组字段、严格编码、两类降级与四类反向断言共二十四种，行为侧脱敏标记、来源、截断、条目计数、缩进、中文转义、尾部换行、schema、非 JSON 值、额外字段、分组顺序、降级错误、队列与前置字段共十四种，均被检查发现（38/38）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.495` / Python `0.2.0rc495`。
+
 ## 0.2.0-rc.494 - 2026-11-22
 
 rc.494 源码候选为 HTML 导出转义与页面补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
