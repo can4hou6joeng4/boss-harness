@@ -1,3 +1,10 @@
+## 0.2.0-rc.458 - 2026-11-22
+
+rc.458 源码候选固定搜索的跨码点聚类与归一化对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session._search_clusters` 把基字符与组合记号、谚文 jamo、半角假名浊音符号、`GRAPHEME_V_EXTRA` 相邻码点并入同一簇，再按 `NFKC + casefold`（或补表的 `search_normalize`）产出片段，调用方依赖返回的原文区间建立映射；现有 `check_search_unicode.py` 只对照单码点归一化。新增 `scripts/check_search_clusters.py`（50 项）：空串、ASCII 大小写、组合记号、兼容字母、`ß`、谚文 jamo / 兼容 jamo / 预组合音节、半角假名与浊音符号、独立浊音符号、尾音后接 leading jamo 十六组行为对照；返回区间首尾相接、覆盖全文、`normalize` 回调逐簇接收原文片段、归一化结果再聚类保持幂等、普通路径与 `NFKC + casefold` 逐簇一致；源码扫描固定四类合并条件、默认与补表归一化分支以及两处调用点。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3041](https://github.com/can4hou6joeng4/boss-harness/issues/3041)。
+- 变异验证：每簇起点提前、循环前移错误、不并入组合记号、不并入谚文 jamo、半角浊音集合改名、不并入扩展 V 码点、默认归一化缺少 NFKC、补表分支变化、调用点减少、聚类签名变化，以及空串产出空簇、ASCII 不折叠、组合记号不合并、谚文不合并、半角浊音不合并、忽略补表归一化、区间起点偏移、簇片段为空、幂等破坏、片段未折叠二十种改动均被检查发现（20/20）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.458` / Python `0.2.0rc458`。
+
 ## 0.2.0-rc.457 - 2026-11-22
 
 rc.457 源码候选固定技能 frontmatter 解析与列表投影的截断口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
