@@ -1,3 +1,10 @@
+## 0.2.0-rc.457 - 2026-11-22
+
+rc.457 源码候选固定技能 frontmatter 解析与列表投影的截断口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SkillCatalog._fields` / `_descriptor` 决定技能名称与描述如何进入菜单投影。新增 `scripts/check_skill_descriptor.py`（44 项）：BOM 去除、起始与结束 `---` 整行判定、只解析两者之间、字段白名单、包裹引号去除；名称回退技能 id、描述缺省空串、投影五字段、200 / 500 字符截断与两个标记、先截断再标记、未超限不写标记。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3039](https://github.com/can4hou6joeng4/boss-harness/issues/3039)。
+- 变异验证：不去 BOM、起始或结束行判定放宽、结束行查找范围变化、字段白名单或锚定放宽、引号去除缺失或方式变化、名称不回退、描述缺省移除、投影缺字段、名称上限或截断长度变化、两个标记缺失、先标记后截断、多出标记、结束行改前缀匹配二十种改动均被检查发现（20/20）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.457` / Python `0.2.0rc457`。
+
 ## 0.2.0-rc.456 - 2026-11-22
 
 rc.456 源码候选固定技能创建、替换与删除的独占、原子与摘要口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
