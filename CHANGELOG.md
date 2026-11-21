@@ -1,3 +1,10 @@
+## 0.2.0-rc.430 - 2026-11-21
+
+rc.430 源码候选固定分支列表的端点推导与分页规则。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `list_branches` 是界面「分支」弹窗的数据来源，`check_branch_pagination.py` 只固定桌面逐页位置一致与重读，没有固定内核端点推导：同一把锁内读取、首个用户消息预览与截断、无子回合端点、`(位置, turnId)` 游标过滤、下一页游标条件、深度与最近分叉点、`containsLeaf` / `isLeaf` 独立判定与仅终态可选。新增 `scripts/check_branch_list.py`（47 项）逐条固定，并反向要求翻页不得用切片截断、预览上限比较与切片各出现一次。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#2985](https://github.com/can4hou6joeng4/boss-harness/issues/2985)。
+- 变异验证：预览改成最后一条、预览不再截断、翻页过滤改成切片、下一页游标无条件生成、分叉点改用正向扫描、`containsLeaf` 改用 `isLeaf`、可选性放宽到运行中、读取移出锁、游标 scope 变化、游标类型不校验、子回合映射反向、路径不再反转十二种改动均被检查发现（12/12）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.430` / Python `0.2.0rc430`。
+
 ## 0.2.0-rc.429 - 2026-11-21
 
 rc.429 源码候选固定条目归属与回合树投影的推导规则。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
