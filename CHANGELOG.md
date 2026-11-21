@@ -1,3 +1,10 @@
+## 0.2.0-rc.429 - 2026-11-21
+
+rc.429 源码候选固定条目归属与回合树投影的推导规则。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `_item_owners` 与 `_turn_tree` 是分支与历史判定的共同输入，但 rc.427 / rc.428 只固定了 fork 复制与 `_active_entries` 投影本身，没有固定这两个推导函数：修订目标优先、非 `running` 工具调用回退、显式 `turnId` 优先级、重复编号保留首个归属、挂起条目收割、活动回合清空，以及父回合链、自父回合、首次出现顺序与条目尾部。新增 `scripts/check_item_ownership.py`（52 项）逐条固定，并反向要求归属区域只允许回退读取一次 `parentId`、回合树恰好校验一次投影且不读 `parentId`。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#2983](https://github.com/can4hou6joeng4/boss-harness/issues/2983)。
+- 变异验证：修订目标不再优先、`running` 工具调用也回退、显式 `turnId` 不再优先、重复编号覆盖首个归属、重复回合号也收割挂起、`running` 不设活动归属、终态无条件清空、回合树跳过投影校验、回合树读取 `parentId`、自父回合不置空、非回合条目不推进尾部、叶记录不映射尾部、回退改从 `payload` 读 `parentId` 十三种改动均被检查发现（13/13）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.429` / Python `0.2.0rc429`。
+
 ## 0.2.0-rc.428 - 2026-11-21
 
 rc.428 源码候选固定分支投影 `_active_entries` 的条目归属规则。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
