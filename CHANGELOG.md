@@ -1,3 +1,10 @@
+## 0.2.0-rc.428 - 2026-11-21
+
+rc.428 源码候选固定分支投影 `_active_entries` 的条目归属规则。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `_active_entries` 决定所有分支读取、续接预检、fork 与模型回合看到的条目集合，但 rc.427 只固定了 fork 对它的调用次数，投影自身规则没有静态检查：无叶记录原样返回、路径按追加时尾部推导（不信任写入方 `parentId`）、损坏叶指针按缺失处理、重复编号拒绝、迟到修订跟随所属回合、`attachment` / `thread_info` / `queue` 跨分支保留，以及回合 / 阶段 / 工具批次 / 上下文编辑 / 摘要检查点的归属筛选。新增 `scripts/check_branch_projection.py`（26 项）逐条固定这些规则，并反向禁止投影区域读取 `parentId`、要求损坏叶指针走 `continue` 而非 `raise`。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#2981](https://github.com/can4hou6joeng4/boss-harness/issues/2981)。
+- 变异验证：无叶投影改为复制重排、损坏叶指针改为整段失败、重复编号改为容忍、路径推导改为信任 `parentId`、分支无关集合丢失 `attachment`、摘要检查点不再按归属筛选、迟到修订不再跟随所属回合、阶段归属规则丢失 `task_phase` 八种改动均被检查发现（8/8）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.428` / Python `0.2.0rc428`。
+
 ## 0.2.0-rc.427 - 2026-11-21
 
 rc.427 源码候选为会话分叉的复制规则补上固定检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
