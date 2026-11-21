@@ -268,7 +268,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_usage.py`
 
-`scripts/check_usage.py` 核对 provider 用量汇总的校验、来源与缓存估算边界：`usage.py` 的单次请求上限 50 000 000、四个 token 字段与两个线路的 `_REPORTED` 能力表（OpenAI 缓存 input 是子集、Anthropic 缓存读写独立计数）、七类未验证原因（`unknownProvider` / `missing` / `invalidType` / `negative` / `outOfRange` / `inconsistent` / `zero`）与 `unreportedRequests` 只来自 `missing`；来源列表 8 条、provider 64 字符、model 200 字符上限与 `wire_text` 降级；摘要任务窗口 50 条、`summaryJobCount` 与 `summaryJobsTruncated`；缓存未命中只按日志视图、`CACHE_MISS_FLOOR = 1024` 与 `min(previousPrompt, prompt) - cacheRead` 估算，checkpoint 与分支摘要重置基线，分支视图不报告 `cacheWaste`。费用没有可信价目来源，`costUsd` 必须保持 `None`。脚本同时核对技术参考与使用指南的用量说明。检查是常量与顺序扫描，实际计数仍需按用户指南核对。
+`scripts/check_usage.py` 核对 provider 用量汇总的校验、来源与缓存估算边界：`usage.py` 的单次请求上限 50 000 000、四个 token 字段与两个线路的 `_REPORTED` 能力表（OpenAI 缓存 input 是子集、Anthropic 缓存读写独立计数）、七类未验证原因（`unknownProvider` / `missing` / `invalidType` / `negative` / `outOfRange` / `inconsistent` / `zero`）与 `unreportedRequests` 只来自 `missing`；来源列表 8 条、provider 64 字符、model 200 字符上限与 `wire_text` 降级；摘要任务窗口 50 条、`summaryJobCount` 与 `summaryJobsTruncated`；缓存未命中只按日志视图、`CACHE_MISS_FLOOR = 1024` 与 `min(previousPrompt, prompt) - cacheRead` 估算，checkpoint 与分支摘要重置基线，分支视图不报告 `cacheWaste`。费用没有可信价目来源，`costUsd` 必须保持 `None`。脚本同时核对技术参考与使用指南的用量说明。除静态扫描外，脚本直接构造用量记录，对照 `verify_usage` 的 provider 归一化与七类原因、`bounded_identifier` 的长度与代理项降级，以及 `summarize_usage` 的回合桶、摘要任务、来源去重与上限、压缩策略、任务元数据与截断、活动任务标记与缓存估算（噪声下限、前缀缩短、无效记录、checkpoint / 分支摘要重置、分支视图不估算），共 139 项。实际计数仍需按用户指南核对。
 
 ### `check_startup_diagnostics.py`
 
