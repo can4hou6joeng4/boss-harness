@@ -1,3 +1,10 @@
+## 0.2.0-rc.470 - 2026-11-22
+
+rc.470 源码候选固定删除会话时修复备份的清理与清单重写口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SessionStore._purge_repair_backups` 在删除会话时清理索引修复留下的备份：`repairs/` 目录与递归发现的 `state.sqlite3`、`-wal` / `-shm` sidecar 都必须是当前用户拥有的私有普通文件；数据库版本不得高于 `SCHEMA_VERSION`，在事务内只删除该会话的 events / turns / threads 行，`VACUUM` 后截断 WAL；存在 `manifest.json` 时过滤两个 sidecar 条目、按实际文件更新数据库条目的 bytes 与 sha256，以独占临时文件加 `os.replace` 发布并刷新目录。新增 `scripts/check_repair_backup.py`（126 项）：在临时目录构造 `SessionStore` 与备份目录做行为对照，覆盖无备份目录、目录不可信、多备份目录与嵌套目录、目标会话删除与其他会话保留、空库与恰好当前版本、较新版本拒绝且不改行、数据库与 sidecar 的硬链接 / 符号链接拒绝、清单损坏与非 UTF-8 与格式无效、清单过滤与摘要更新、清单缺失不创建、数据库与清单权限收紧；sidecar 用例用 WAL 模式并保持连接，避免 SQLite 提前清理。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3065](https://github.com/can4hou6joeng4/boss-harness/issues/3065)。
+- 变异验证：结构侧目录所有者放行、目录类型放行、数据库所有者放行、数据库链接计数放行、版本守卫删除、表守卫恒真、提交改回滚、`VACUUM` 删除、WAL 结果放行、sidecar 所有者放行、sidecar 链接计数放行、清单捕获收窄、清单格式检查删除、sidecar 过滤收窄、清单大小不更新、清单摘要不更新、临时文件非独占、临时文件不清理、原子替换删除、清单删除插入、只处理第一份、版本比较改大于等于、回合删除删除、数据库权限不收紧、清单权限不收紧、WAL 原因文案改动二十六种，行为侧目录类型放行、数据库链接计数放行、版本守卫删除、版本比较改大于等于、事件删除放行、回合删除删除、sidecar 链接计数放行、sidecar 过滤收窄、清单大小不更新、清单摘要不更新、原子替换删除、数据库权限不收紧、只处理第一份十三种，均被检查发现（39/39）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.470` / Python `0.2.0rc470`。
+
 ## 0.2.0-rc.469 - 2026-11-22
 
 rc.469 源码候选固定分支摘要合法性校验的固定原因、上限与判定顺序。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
