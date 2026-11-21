@@ -1,3 +1,10 @@
+## 0.2.0-rc.438 - 2026-11-21
+
+rc.438 源码候选固定队列计数与列表元数据口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 侧边栏角标与会话列表的「待你处理」来自 `_queue_status_counts` 与 `_index_thread` 写入的 `queueActiveItems` / `queueCounts`；现有检查只固定了调用行与头部字段排除，没有固定归并规则与元数据口径。新增 `scripts/check_queue_counts.py`（20 项）：只读 `queue` 条目、经 `queue_record` 过滤、按 id 覆盖为最新状态、三个计数键、只统计活动状态并累加；元数据由三项求和、非零写入、零值清除。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3001](https://github.com/can4hou6joeng4/boss-harness/issues/3001)。
+- 变异验证：损坏记录也覆盖状态、首个状态优先、计数键遗漏 `paused`、不再过滤活动状态、计数不累加、求和改为条目数、零队列不清除、非零不写入、遍历状态键九种改动均被检查发现（9/9）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.438` / Python `0.2.0rc438`。
+
 ## 0.2.0-rc.437 - 2026-11-21
 
 rc.437 源码候选固定条目快照的前缀与重入读取边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
