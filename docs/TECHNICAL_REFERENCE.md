@@ -714,7 +714,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_compaction.py`
 
-`scripts/check_compaction.py` 核对自动压缩策略的校验、归一化与失败契约：`compaction.py` 的六个字段与 `anthropic` / `openai` / `codex` 白名单、布尔 / 1–100 / 1–1000000 的精确类型与范围、provider 归一化（codex → openai）、model 的非空 / 200 字符 / 无空白校验与 effort 档位校验；`verified_policy` 拒绝未知字段与空对象并按字段顺序过滤；`override` 只接受三个界面字段并保留摘要线路；`from_environment` 先去空白、再按 4096 字节与重复键钩子解析、拒绝未知字段，并以固定说明报错。反向断言禁止无钩子解析与错误回显原文；同时核对技术参考与使用指南的自动压缩口径。脚本只扫描源码，不运行配置解析。
+`scripts/check_compaction.py` 核对自动压缩策略的校验、归一化与失败契约：`compaction.py` 的六个字段与 `anthropic` / `openai` / `codex` 白名单、布尔 / 1–100 / 1–1000000 的精确类型与范围、provider 归一化（codex → openai）、model 的非空 / 200 字符 / 无空白校验与 effort 档位校验；`verified_policy` 拒绝未知字段与空对象并按字段顺序过滤；`override` 只接受三个界面字段并保留摘要线路；`from_environment` 先去空白、再按 4096 字节与重复键钩子解析、拒绝未知字段，并以固定说明报错。反向断言禁止无钩子解析与错误回显原文；同时核对技术参考与使用指南的自动压缩口径。除静态扫描外，脚本直接调用 `verified_policy` 覆盖字段边界与顺序过滤，构造 `CompactionPolicy` 覆盖默认值、拒绝、provider 归一化与 `describe`，核对 `override` 合并与白名单，并在保存与恢复 `BOSS_HARNESS_COMPACTION` 的前提下覆盖持久默认值、空值 / 空白、JSON 合并、全字段、重复键、未知字段、非对象、非法 JSON、超长与越界值，共 166 项。
 
 ### `check_ownership.py`
 
