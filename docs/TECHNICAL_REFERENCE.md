@@ -694,7 +694,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_branch_summary.py`
 
-`scripts/check_branch_summary.py` 核对被放弃分支的推导与摘要写入：`abandoned_branch` 先读条目与回合树，目标回合必须存在（`None` 除外），以目标祖先链为界从旧叶回溯到共同祖先（不含）并反转成时间顺序，返回 `fromTurnId` / `targetTurnId` / `commonTurnId` / `abandonedTurnIds`；`append_branch_summary` 校验摘要为 1–32000 字符且非纯空白，在锁与索引事务内从最后一条叶记录反向扫描并核对请求的 `leafEntryId`，其后不得已有回合或摘要，摘要只追加一次并绑定 `leafEntryId`，先执行提交回调再重建索引。反向断言：叶记录只能反向扫描；摘要只追加一次；长度上限只出现一次。检查是源码字面量与顺序扫描，不执行摘要写入。
+`scripts/check_branch_summary.py` 核对被放弃分支的推导与摘要写入：`abandoned_branch` 先读条目与回合树，目标回合必须存在（`None` 除外），以目标祖先链为界从旧叶回溯到共同祖先（不含）并反转成时间顺序，返回 `fromTurnId` / `targetTurnId` / `commonTurnId` / `abandonedTurnIds`；`append_branch_summary` 校验摘要为 1–32000 字符且非纯空白，在锁与索引事务内从最后一条叶记录反向扫描并核对请求的 `leafEntryId`，其后不得已有回合或摘要，摘要只追加一次并绑定 `leafEntryId`，先执行提交回调再重建索引。反向断言：叶记录只能反向扫描；摘要只追加一次；长度上限只出现一次。脚本并构造轻量替身直接调用 `abandoned_branch`（52 项），覆盖线性链回退一级 / 两级 / 四级、原地目标、目标为空、分叉共同祖先、无叶记录、空树、目标不存在与固定结果字段。检查不执行摘要写入。
 
 ### `check_item_projection.py`
 

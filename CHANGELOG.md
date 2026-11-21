@@ -1,3 +1,10 @@
+## 0.2.0-rc.503 - 2026-11-22
+
+rc.503 源码候选为被放弃分支推导补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session.py` 的 `abandoned_branch` 决定切换分支后展示的被放弃回合。原有 `scripts/check_branch_summary.py` 只做源码片段、顺序与反向断言扫描（42 项），本轮加入行为对照（52 项）：用轻量替身提供 `read_entries` / `_turn_tree` / `_leaf_state`，直接调用 `SessionStore.abandoned_branch`，覆盖线性链回退一级 / 两级 / 四级、原地目标、目标为空、分叉共同祖先、无叶记录、空树、目标不存在与固定结果字段。CI 无需改动，技术参考同步说明。修复 Issue [#3131](https://github.com/can4hou6joeng4/boss-harness/issues/3131)。
+- 变异验证：结构侧祖先集合与回溯、时间顺序、共同祖先边界与字段、放弃字段、目标校验、叶状态、错误文案与回溯起点共十种，行为侧空放弃列表、顺序反转、共同祖先、起点字段、目标不校验与忽略祖先共六种，均被检查发现（16/16）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.503` / Python `0.2.0rc503`。
+
 ## 0.2.0-rc.502 - 2026-11-22
 
 rc.502 源码候选为浏览器来源解析补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
