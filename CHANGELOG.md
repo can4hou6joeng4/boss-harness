@@ -1,3 +1,10 @@
+## 0.2.0-rc.447 - 2026-11-22
+
+rc.447 源码候选固定工具结果修订的恢复口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SessionStore.append_tool_revision` 是工具结果从不确定失败恢复的唯一入口，现有检查只覆盖分页与引用边界。新增 `scripts/check_tool_revision.py`（55 项）：条目格式、首次事务与写前 / 写后索引刷新、`inspect_and_sync` 的 conflict / invalid / durable / present_uncertain / absent 五种结果、`range(2)` 至多一轮重试、durable 与唯一重试的索引刷新、异常路径二次核对与不确定标记、最终异常附带最后一次错误；反向断言恢复路径不引用 handler 或审批、追加机会恰为两次、持久化错误重新抛出、异常类型保持 `OSError`。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3019](https://github.com/can4hou6joeng4/boss-harness/issues/3019)。
+- 变异验证：条目校验放宽、内容不同当作一致、冲突报告 absent、损坏异常弱化、durable 不 fsync、不确定当作 durable、缺失不返回 absent、重试轮数放宽、首次写前不刷新、首次报告为恢复、durable 与唯一重试不刷新、两条路径不拒绝不确定结果、不确定继续重试、耗尽不抛错、持久化错误被吞、两处异常不捕获、二次核对不打标、二次核对不返回、恢复不按 id 或只比类型、首次不返回 False、异常基类改变、恢复引用 handler 二十六种改动均被检查发现（26/26）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.447` / Python `0.2.0rc447`。
+
 ## 0.2.0-rc.446 - 2026-11-22
 
 rc.446 源码候选固定会话批量追加、新建发布与附件引用顺序。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
