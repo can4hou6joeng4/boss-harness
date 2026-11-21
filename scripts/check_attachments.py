@@ -10,6 +10,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 RESOURCES = "harness/src/boss_harness/resources.py"
 APPLICATION = "harness/src/boss_harness/application.py"
+SESSION = "harness/src/boss_harness/session.py"
 EXPECTED_CONSTANTS = {
     "DEFAULT_ATTACHMENT_STORAGE_BYTES": 512 * 1024 * 1024,
     "DEFAULT_ATTACHMENT_STORAGE_OBJECTS": 4096,
@@ -30,6 +31,29 @@ APPLICATION_FRAGMENTS = (
     '"code": "RESPONSE_TOO_LARGE"',
     '"recoveryMethod": "attachment/read"',
     '"suggestedLimit": AttachmentStore.DEFAULT_READ_CHARS',
+)
+# 删除会话后的附件清理：共享内容寻址附件必须先扫描全部会话引用，再 fail closed 清理。
+SESSION_FRAGMENTS = (
+    'candidates = set(digests)',
+    'for session_path in self.root.glob("*.jsonl"):',
+    'if session_path.stem in self._pending_deletion_ids():',
+    'referenced.add(digest)',
+    'for digest in candidates - referenced:',
+    'raise ValueError("附件目录不可信，清理已暂停")',
+    'raise ValueError("会话文件不可信，无法确认共享附件引用")',
+    'raise ValueError("附件文件不可信，清理已暂停")',
+    'restrict_private_file(session_path)',
+    'restrict_private_file(path)',
+)
+FINISH_ORDER = (
+    "def _finish_deletion(",
+    "self._remove_thread_files(thread_id)",
+    'self._purge_unreferenced_attachments(intent["attachmentDigests"])',
+)
+PURGE_ORDER = (
+    "def _purge_unreferenced_attachments(",
+    'self.root.glob("*.jsonl")',
+    "for digest in candidates - referenced:",
 )
 
 
@@ -76,6 +100,22 @@ def _int_expression(node: ast.expr, values: dict[str, ast.expr],
     raise ValueError("附件常量必须是正整数表达式")
 
 
+def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
+    position = -1
+    for fragment in fragments:
+        index = text.find(fragment, position + 1)
+        if index < 0:
+            raise ValueError(f"{label} 缺少或顺序变化：{fragment}")
+        position = index
+    return len(fragments)
+
+
+def _section(text: str, start_marker: str) -> str:
+    start = text.index(start_marker)
+    end = text.find("\n    def ", start + 1)
+    return text[start:] if end < 0 else text[start:end]
+
+
 def check_attachments() -> tuple[int, int]:
     try:
         values = _assigned(ast.parse(_read(RESOURCES)))
@@ -104,7 +144,25 @@ def check_attachments() -> tuple[int, int]:
     missing = [fragment for fragment in APPLICATION_FRAGMENTS if fragment not in application]
     if missing:
         raise ValueError("application.py 的附件边界缺少：" + "、".join(missing))
-    return len(EXPECTED_CONSTANTS), len(RESOURCE_FRAGMENTS) + len(APPLICATION_FRAGMENTS)
+    session = _read(SESSION)
+    missing = [fragment for fragment in SESSION_FRAGMENTS if fragment not in session]
+    if missing:
+        raise ValueError("session.py 的附件清理边界缺少：" + "、".join(missing))
+    finish = _section(session, "def _finish_deletion(")
+    purge = _section(session, "def _purge_unreferenced_attachments(")
+    guards = (len(RESOURCE_FRAGMENTS) + len(APPLICATION_FRAGMENTS)
+              + len(SESSION_FRAGMENTS) + _ordered(FINISH_ORDER, finish, SESSION)
+              + _ordered(PURGE_ORDER, purge, SESSION))
+    # 删除集合只能是「候选减引用」：整份 candidates 删除会破坏共享附件的其他会话。
+    if "for digest in candidates:" in purge:
+        raise ValueError("session.py 的附件清理不得删除全部候选")
+    if "if not candidates:" not in purge or "return" not in purge.split("if not candidates:", 1)[1][:80]:
+        raise ValueError("session.py 的附件清理必须在候选为空时提前返回")
+    # 会话文件与附件文件都必须拒绝硬链接：清理函数内两处单链接检查各出现一次。
+    if purge.count("original.st_nlink != 1") != 2:
+        raise ValueError("session.py 的附件清理必须在会话文件与附件文件上各做一次单链接检查")
+    guards += 3
+    return len(EXPECTED_CONSTANTS), guards
 
 
 def main() -> int:
@@ -113,7 +171,7 @@ def main() -> int:
     except ValueError as error:
         print(f"附件边界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"附件边界一致：{constants} 个常量、{guards} 项读取 / 存储防护")
+    print(f"附件边界一致：{constants} 个常量、{guards} 项读取 / 存储 / 删除防护")
     return 0
 
 

@@ -472,7 +472,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_attachments.py`
 
-`scripts/check_attachments.py` 核对附件边界：`resources.py` 的默认存储 512 MiB / 4096 对象、上限 `2**63 - 1`、`DEFAULT_READ_CHARS = 16,384` 与 `MAX_READ_CHARS = 32,768` 必须保持不变；`attachment/read` 的请求字段白名单、默认分段、`wire_size(result) > MAX_PAGE_BYTES` 单页守卫，以及 `RESPONSE_TOO_LARGE` / `attachment/read` / `suggestedLimit` 恢复信息必须保留；两个存储配额环境变量名也不得改名。检查是常量与文本扫描，实际配额与分页行为仍需按用户指南核对。
+`scripts/check_attachments.py` 核对附件边界：`resources.py` 的默认存储 512 MiB / 4096 对象、上限 `2**63 - 1`、`DEFAULT_READ_CHARS = 16,384` 与 `MAX_READ_CHARS = 32,768` 必须保持不变；`attachment/read` 的请求字段白名单、默认分段、`wire_size(result) > MAX_PAGE_BYTES` 单页守卫，以及 `RESPONSE_TOO_LARGE` / `attachment/read` / `suggestedLimit` 恢复信息必须保留；两个存储配额环境变量名也不得改名。脚本还固定删除会话后的共享附件清理：`_purge_unreferenced_attachments` 必须扫描全部会话的 `attachment` 引用、跳过待删除会话、只删除「候选减引用」、空候选提前返回，并在附件目录、会话文件与附件文件三处按属主 / 单链接 / 私有权限 fail closed（两处单链接检查各出现一次）；`_finish_deletion` 必须先移除会话文件再清理附件，顺序颠倒会让被删会话把自己算作引用而留下残留。检查是常量与文本扫描，实际配额与分页行为仍需按用户指南核对。
 
 ### `check_hooks.py`
 
