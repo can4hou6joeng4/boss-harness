@@ -1,3 +1,10 @@
+## 0.2.0-rc.488 - 2026-11-22
+
+rc.488 源码候选为回合请求上限补充环境解析行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `turn_limits.py` 只接受精确整数，环境变量先去空白再按两位十进制文本判定。原有 `scripts/check_turn_limits.py` 只做静态扫描（24 项），本轮加入行为对照（59 项）：直接调用 `model_request_limit` 覆盖 1 / 64 边界、自定义 ceiling 与布尔 / 浮点 / 字符串 / None 的拒绝及错误文案；保存并恢复 `BOSS_HARNESS_MAX_MODEL_REQUESTS`，覆盖未设置、空值 / 空白、首尾空白、前导零、超长、符号 / 小数 / 字母、越界值与错误不回显原值。CI 无需改动，技术参考同步说明。修复 Issue [#3101](https://github.com/can4hou6joeng4/boss-harness/issues/3101)。
+- 变异验证：结构侧常量、精确整数判定、文本长度与形态、去空白、链式异常、复用上限校验、错误文案、空值分支、默认值、异常捕获、比较方向与文档片段十五种，行为侧布尔接受、忽略 ceiling、越界接受、字符串接受、错误文案、环境去空白、前导零、错误默认值、越界接受、回显原值与零值接受十一种，均被检查发现（26/26）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.488` / Python `0.2.0rc488`。
+
 ## 0.2.0-rc.487 - 2026-11-22
 
 rc.487 源码候选为用量汇总补充校验与缓存估算行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
