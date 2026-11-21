@@ -1,3 +1,10 @@
+## 0.2.0-rc.462 - 2026-11-22
+
+rc.462 源码候选固定内核事件回放的游标分页、筛选与索引重建。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SessionStore.events_after` / `_event_rows` / `_event_page_entries` 是事件回放的分页入口：查询取 `limit + 1` 行判定 `hasMore`，按 `params_json` 原始字节预算逐行读取且首行超预算也返回，索引行必须与自身游标、`method` 列一致，损坏时从 `events.jsonl` 重建并重试一次；`append_event` 负责保护字段、方法名与参数校验、落盘与索引同步。新增 `scripts/check_event_page.py`（111 项）：在临时目录构造 `SessionStore` 做行为对照，覆盖追加帧、游标分页与续页、空页、`threadId` / `methods` 筛选、无效入参、删除标记过滤、索引损坏重建、`latest_event_cursor` 与重启后剔除已删除会话并追加 `thread/deleted`；源码扫描固定 `limit + 1`、预算与四类索引损坏与落盘顺序；反向断言只在条数与字节两处截断。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3049](https://github.com/can4hou6joeng4/boss-harness/issues/3049)。
+- 变异验证：limit 上限、多取一行、重建、待删除过滤、首行预算、条数截断、游标一致性、页内截断、方法名校验、可序列化校验、单行上限、事件编号、帧游标、时间戳、落盘、索引参数更新，以及忽略分页、`hasMore` 恒假、`nextCursor` 恒零、不过滤删除、忽略方法筛选、忽略会话筛选、帧缺编号、帧游标恒定、删除事件缺字段、不重建二十六种改动均被检查发现（26/26）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.462` / Python `0.2.0rc462`。
+
 ## 0.2.0-rc.461 - 2026-11-22
 
 rc.461 源码候选固定会话删除标记的校验、原子发布与重启恢复。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

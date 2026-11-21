@@ -198,6 +198,8 @@ jobs:
         run: python scripts/check_session_log.py
       - name: Verify delete intent
         run: python scripts/check_delete_intent.py
+      - name: Verify event page
+        run: python scripts/check_event_page.py
       - name: Verify session write ordering
         run: python scripts/check_session_batch.py
       - name: Verify checkpoint publication
@@ -415,5 +417,7 @@ jobs:
         run: python scripts/check_search_scan.py
       - name: Verify delete intent
         run: python scripts/check_delete_intent.py
+      - name: Verify event page
+        run: python scripts/check_event_page.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
