@@ -1,3 +1,10 @@
+## 0.2.0-rc.451 - 2026-11-22
+
+rc.451 源码候选固定附件添加的发布与配额口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `AttachmentStore.add` / `_publish_object` / `_read_object` / `_storage_usage` 决定附件从工作区读入、配额判定与原子落盘，现有 `check_attachments.py` 只覆盖配额常量、读取分页与清理片段。新增 `scripts/check_attachment_add.py`（103 项）：允许根与保留目录、扩展名集合、`O_NOFOLLOW` 非阻塞打开、普通文件与 2 MiB + 1 上限、UTF-8 与 SHA-256、附件名降级、发布查重与两项配额（严格大于）、`tmp-` 临时名、独占创建、fsync、`os.replace`、先记账后回调、finally 清理、失败清理未引用对象并仅在清理成功时回退计数、重新抛出原异常；反向断言读取的三层损坏判定、未移交描述符关闭、`_storage_usage` 不重扫目录、`mark_published` 只置一次、清理失败不影响原异常。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3027](https://github.com/can4hou6joeng4/boss-harness/issues/3027)。
+- 变异验证：路径不再限定允许根、后缀不受限、允许环境文件、添加或读取时跟随符号链接、上限 + 1 丢失、不校验 UTF-8、附件名不降级、发布标记可重复置位、失败不清理、清理失败也回退、字节回退缺失、失败不重抛、发布不查重、两项配额改为允许等值、临时名缺前缀、不独占创建、不 fsync、非原子发布、不记账、回调先于记账、临时文件不清理、最终摘要不判损坏、未移交描述符不关闭、读取不复核摘要、配额快照重扫目录、缺少配额异常类型二十八种改动均被检查发现（28/28）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.451` / Python `0.2.0rc451`。
+
 ## 0.2.0-rc.450 - 2026-11-22
 
 rc.450 源码候选固定会话读取缓存与增量解析口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
