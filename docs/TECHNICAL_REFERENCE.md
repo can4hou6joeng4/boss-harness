@@ -62,7 +62,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 共享工具 | [`check_shared_utils.py`](#check_shared_utilspy)、[`check_duration_parity.py`](#check_duration_paritypy) |
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_window_state.py`](#check_window_statepy)、[`check_renderer_recovery.py`](#check_renderer_recoverypy)、[`check_deleted_thread_state.py`](#check_deleted_thread_statepy)、[`check_compaction_override.py`](#check_compaction_overridepy)、[`check_branch_switch.py`](#check_branch_switchpy)、[`check_branch_pagination.py`](#check_branch_paginationpy)、[`check_harness_events.py`](#check_harness_eventspy)、[`check_harness_replica.py`](#check_harness_replicapy)、[`check_lifecycle.py`](#check_lifecyclepy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_arguments.py`](#check_tool_argumentspy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_approval_remember.py`](#check_approval_rememberpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
-| 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy)、[`check_turn_stream.py`](#check_turn_streampy) |
+| 执行循环与队列 | [`check_queue_steer.py`](#check_queue_steerpy)、[`check_catchup_boundary.py`](#check_catchup_boundarypy)、[`check_request_identity.py`](#check_request_identitypy)、[`check_queue_view.py`](#check_queue_viewpy)、[`check_task_ownership.py`](#check_task_ownershippy)、[`check_turn_stream.py`](#check_turn_streampy)、[`check_turn_continuation.py`](#check_turn_continuationpy) |
 | 模型线路 | [`check_model_disable.py`](#check_model_disablepy)、[`check_request_policy.py`](#check_request_policypy)、[`check_usage.py`](#check_usagepy)、[`check_turn_limits.py`](#check_turn_limitspy)、[`check_output_budget.py`](#check_output_budgetpy)、[`check_stream_pump.py`](#check_stream_pumppy)、[`check_errors.py`](#check_errorspy)、[`check_continuation.py`](#check_continuationpy)、[`check_capabilities.py`](#check_capabilitiespy)、[`check_codex_config.py`](#check_codex_configpy)、[`check_retry.py`](#check_retrypy)、[`check_openai_responses.py`](#check_openai_responsespy)、[`check_anthropic_provider.py`](#check_anthropic_providerpy) |
 | 启动自检 | [`check_startup_diagnostics.py`](#check_startup_diagnosticspy) |
 | 上下文保留与编辑 | [`check_context_keep.py`](#check_context_keeppy)、[`check_context_edits.py`](#check_context_editspy)、[`check_summary.py`](#check_summarypy)、[`check_compaction.py`](#check_compactionpy) |
@@ -516,6 +516,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 `scripts/check_continuation.py` 核对 Anthropic 私有续接元数据的预算、构造与恢复校验：`continuation.py` 的四个预算常量与 `_anthropicContinuation` 字段名；前缀 digest 必须固定排序并紧凑编码后取 SHA-256；构造只保存文本 / 思考的长度与 SHA-256、签名或 redacted 数据引用与工具调用 ID，单项签名、签名合计、块数与载荷各自有界，redacted 块不得同时带签名或正文；恢复必须精确匹配六个字段与版本 / provider、64 位十六进制前缀与内容 digest、调用 ID 的连续前缀、助手引用与回合归属，拒绝被上下文编辑的助手消息与不可持久调用之后的内容，并逐块校验内容 digest；编码失败降级为普通工具批次，其余字段错配按固定说明拒绝。反向断言禁止 ASCII 转义、MD5/SHA-1 摘要与宽松字段比较。同时核对技术参考的续接元数据口径。检查是常量与文本扫描，真实签名校验仍需按 provider 行为核对。
 
+### `check_turn_continuation.py`
+
+`scripts/check_turn_continuation.py` 核对中断回合续接的预检边界与文档一致性：`_turn_continuation_plan` 的原因码集合必须与「中断回合续接」一节的表格双向一致（当前 28 个，其中 6 个是与其它操作共用的 `THREAD_*` / `KERNEL_*` / `QUEUE_*` / `TURN_*` 门禁码）；运行状态门禁的先后顺序、最新回合与已有续接回合必须按当前分支（`_active_entries`）判定；`turn/continue` 的 `continuationId` 去重必须读取整份日志，并对来源不一致返回 `CONTINUATION_ID_CONFLICT`；预检回执的固定字段与可选字段、只读参数校验、`CONTINUATION_WARNING` 文案、桌面入口条件（当前分支中断回合、`explicitTurnContinuation`、未归档）、回执形状整体校验，以及按钮禁用条件（提交中、回执未知、运行中、内核未连接）也必须保留。反向断言禁止去重读取改用分支投影、禁止 `eligible` 使用真假值判断。检查是源码文本与首次出现顺序扫描，不执行续接，也不调用模型。
+
 ### `check_capabilities.py`
 
 `scripts/check_capabilities.py` 核对模型容量配置的预算、校验与错误收敛：`capabilities.py` 的 64 KiB / 128 项上限、三种 provider、两个必需字段与一个可选字段、七档推理集合与固定错误说明；`ModelCapabilities` 必须要求窗口大于 4096、输出为正且不超过窗口、来源非空、估算标记为精确布尔、推理档位为非重复的已声明子集；`ModelCatalog` 覆盖表必须只读、键必须为 `(provider, model)` 且模型名非空无空白，解析必须拒绝重复键与非有限常量、逐项要求 `provider/model` 分隔、必需字段齐全且无未知字段，任何解析错误都收敛为固定说明且不回显原配置。反向断言禁止无钩子解析、错误回显原配置与可变覆盖表。同时核对技术参考的容量口径。检查是常量与文本扫描，实际解析结果仍需按技术参考核对。
@@ -675,6 +679,47 @@ Anthropic 的私有续接元数据只保存签名块描述：请求前缀 digest
 回合终态提交与取消接受使用同一运行锁边界。终态提交前已接受的取消以 `interrupted` 收尾，并暂停结算时已排入的后续队列；即使模型已经给出完成结果，也不会继续自动派发。已产生的文本、工具结果、审批及外部动作事实仍保留，取消不表示撤销。终态已提交并释放执行槽位后，若没有活动回合则返回未中断；旧 `turnId` 不能中断新回合。桌面停止请求携带界面正在展示的回合 id，该回合已被后续回合替代时以 `-32004` 拒绝且不取消新回合，与 `turn/steer` 的 `expectedTurnId` 同一约定；不带 `turnId` 时仍取消该会话当前活动回合（旧客户端行为）。显式 `turnId` 必须是非空、非纯空白、最多 128 字符的字符串；null、空字符串、数字、布尔值、数组或对象在设置取消信号前返回 `-32602`，闲置回合同样校验，不能退回取消当前回合。用户之后仍可显式发起新任务，已暂停的队列不会因此自动恢复。
 
 回合最终 `finish` 阶段 checkpoint 无法确认持久化时，当前执行以 `error` 收尾，尽力追加 `phasePersistenceFailure` 修正记录，并在释放容量前暂停当前会话全部待处理队列。暂停写入也失败时，内核保留暂停责任；后续准入或领取必须先完成暂停，存储恢复不会自动执行旧 follow-up。其他会话仍可按既有 FIFO 等待顺序取得空出的容量。
+
+## 中断回合续接
+
+`turn/continuation/read`（能力 `explicitTurnContinuation`）是只读预检，`turn/continue` 在通过同一预检后启动一个 `continuedFromTurnId` 指向来源回合的新回合。预检只接受当前分支的最新回合，且其状态必须是 `interrupted`；未决审批、结果未知或未完成的工具调用、批次清单不完整的旧工具调用都会拒绝续接。历史边界取最后一个可验证的持久请求（`completed_tool_batch`）或唯一用户输入（`user_input`），续接只沿用到该边界为止的条目；边界之后发生模型线路切换、上下文摘要、对已包含条目的编辑或修订时预检失败。续接沿用来源回合的 provider / model / thinking / effort、maxTokens、工具策略、技能与附件、自动压缩策略与模型请求偏移，并在启动前用请求指纹复核；不重新执行已完成的工具，新写操作仍逐次审批。预检与 `turn/continue` 不改变 `0.2.0` 协议。
+
+「最新回合」与「是否已有续接回合」按当前分支判定：放弃续接回合所在分支、切回来源回合后，来源重新成为当前分支的最新 `interrupted` 回合，可以再次续接并产生新的模型请求。`continuationId` 的去重则按整份会话日志判定：相同编号与相同来源重复提交按幂等返回已有回合（即使它在被放弃的分支上），编号重复但来源不同返回 `CONTINUATION_ID_CONFLICT`。切回后再次续接与幂等重放是两件事，客户端不应靠重试同一编号来重新执行。
+
+预检失败以 `eligible: false` 与下列固定原因码返回；`turn/continue` 在启动前再次预检，失败时以同一原因码作为 RPC 错误数据。原因码集合由 `check_turn_continuation.py` 与技术参考的表格双向核对。
+
+| 原因码 | 含义与处理 |
+| --- | --- |
+| `CONTINUATION_HISTORY_LIMIT` | 会话历史超过续接读取上限；超大日志不能续接，先在桌面核对会话状态。 |
+| `CONTINUATION_STATE_UNAVAILABLE` | 读取会话或运行状态失败；先刷新核对，不自动重试。 |
+| `CONTINUATION_NOT_LATEST` | 来源不是当前分支的最新回合；切回该回合后重新预检。 |
+| `CONTINUATION_NOT_INTERRUPTED` | 来源回合不是 `interrupted`；已结束或失败的回合不能续接。 |
+| `CONTINUATION_ALREADY_EXISTS` | 当前分支上已有指向来源的续接回合；直接打开该回合。 |
+| `CONTINUATION_APPROVAL_PENDING` | 来源回合仍有未决审批；先处理审批。 |
+| `CONTINUATION_TOOL_OUTCOME_UNKNOWN` | 来源回合含结果未知的工具操作；先核对平台状态，不续接。 |
+| `CONTINUATION_TOOL_STATE_UNRESOLVED` | 工具调用仍处于运行、已批准或待审批等未完成状态。 |
+| `CONTINUATION_TOOL_BATCH_INVALID` | 工具批次清单格式、前后记录或模型响应指纹不一致。 |
+| `CONTINUATION_TOOL_BATCH_MISSING` | 旧工具调用缺少可核验的批次清单。 |
+| `CONTINUATION_TOOL_BATCH_INCOMPLETE` | 工具批次未被证明完整持久化或缺少已确认结果。 |
+| `CONTINUATION_APPROVAL_INVALID` | 来源回合的审批记录无法核验。 |
+| `CONTINUATION_BOUNDARY_INVALID` | 没有可验证的请求或工具结果边界，或边界摘要无效。 |
+| `CONTINUATION_STEERING_OUTSIDE_BOUNDARY` | 已投递的转向消息不在可验证边界内；新建回合继续。 |
+| `CONTINUATION_HISTORY_CHANGED` | 已确认历史前缀、输入或上下文摘要发生变化。 |
+| `CONTINUATION_CONTEXT_CHANGED` | 模型线路、配置、工具策略、技能或附件与来源回合不一致。 |
+| `CONTINUATION_CONTEXT_UNAVAILABLE` | 技能、附件或模型配置无法安全复核。 |
+| `CONTINUATION_ALREADY_COMPLETED` | 来源回合已持久化完整助手回复，无需续接。 |
+| `CONTINUATION_SOURCE_UNVERIFIABLE` | 来源回合缺少续接配置摘要或配置不可用。 |
+| `CONTINUATION_PROVIDER_UNAVAILABLE` | 当前内核没有可复用的模型供应商，或进程显式禁用模型调用。 |
+| `CONTINUATION_REQUEST_LIMIT` | 来源回合已用完持久化的模型请求上限。 |
+| `CONTINUATION_HISTORY_INVALID` | 已确认历史无法按当前协议重建。 |
+| `THREAD_ARCHIVED` | 会话已归档；先恢复会话。 |
+| `KERNEL_SHUTTING_DOWN` | 内核正在关闭；重启后再预检。 |
+| `THREAD_BUSY` | 会话仍有运行、收尾、后续任务或回执收尾。 |
+| `THREAD_REQUIRES_REVIEW` | 工具结果持久化状态需要人工核对。 |
+| `QUEUE_REQUIRES_REVIEW` | 队列仍有投递状态未核对。 |
+| `TURN_ADMISSION_WAITING` | 已有更早排队的任务等待并发槽位。 |
+
+预检回执固定包含 `threadId`、`sourceTurnId`、`eligible` 与 `warning`；通过时另含 `boundary`（`user_input` / `completed_tool_batch`）与 `completedToolCalls`，失败时含 `reasonCode` 与 `reason`。桌面在渲染前整体校验回执形状，未知边界值或非法计数按不可识别处理，不显示续接按钮；提交 `turn/continue` 时生成一次性 `continuationId`，回执必须同时回带该编号与来源回合，否则按回执不一致处理。续接请求回执未知时不自动重发，先刷新核对。
 
 ## 自动压缩与溢出恢复
 
