@@ -626,7 +626,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_output_budget.py`
 
-`scripts/check_output_budget.py` 核对模型输出的字节预算、有界错误与 UTF-8 分块：`output_budget.py` 的工具参数、响应工具参数与文本 / 思考三项上限均为 1 MiB；`utf8_size_at_most` 必须先按码点数预检、再编码并核对字节上限，孤立代理项抛固定异常；快照必须按紧凑 JSON（`ensure_ascii=False`、`allow_nan=False`）逐字符计费，拒绝非文本键与超过 64 层 / 32768 节点的结构，整数按位长预判；`bounded_error` 不得拆开 UTF-8 字符，截断处以 `…` 收尾；`utf8_chunks` 要求最小 4 字节上限并按字符累计分块。反向断言禁止 `allow_nan=True`、`ensure_ascii=True` 与无选项的 `json.dumps(value)`；同时核对技术参考的 1 MiB 与 32 KiB 口径。检查是常量与文本扫描，实际分配与截断行为仍需按技术参考核对。
+`scripts/check_output_budget.py` 核对模型输出的字节预算、有界错误与 UTF-8 分块：`output_budget.py` 的工具参数、响应工具参数与文本 / 思考三项上限均为 1 MiB；`utf8_size_at_most` 必须先按码点数预检、再编码并核对字节上限，孤立代理项抛固定异常；快照必须按紧凑 JSON（`ensure_ascii=False`、`allow_nan=False`）逐字符计费，拒绝非文本键与超过 64 层 / 32768 节点的结构，整数按位长预判；`bounded_error` 不得拆开 UTF-8 字符，截断处以 `…` 收尾；`utf8_chunks` 要求最小 4 字节上限并按字符累计分块。反向断言禁止 `allow_nan=True`、`ensure_ascii=True` 与无选项的 `json.dumps(value)`；同时核对技术参考的 1 MiB 与 32 KiB 口径。行为侧直接构造预算对象：覆盖尺寸预检与非法 Unicode、逐次计费与本地 / 总量上限、快照的紧凑编码与转义、代理项 / 非文本键 / 非 JSON 值 / 深度 / 节点 / 整数位长拒绝、`reconcile` 高水位、响应文本的分隔符拼接与完整响应取最大、诊断截断不拆字符、分块对齐与重组（124 项）。实际分配与截断行为仍需按技术参考核对。
 
 ### `check_stream_pump.py`
 
