@@ -688,6 +688,8 @@ Anthropic 的私有续接元数据只保存签名块描述：请求前缀 digest
 
 续接边界摘要与条目逐字节绑定。分叉（`SessionStore.fork_thread`）复制当前分支前缀时丢弃内核专用记录并改写审批编号，继承的 `continuationBoundaryDigest` 因此按复制后的前缀重算；边界条目未被复制时清掉摘要，预检按「持久边界不存在」拒绝（`CONTINUATION_BOUNDARY_INVALID`），而不是误报历史变化。串行复用主 runner 的场景（嵌入方未提供 provider factory）下，普通回合启动前复位 runner 的历史提供者，避免上一个续接回合钉住的历史边界泄漏到下一个回合。
 
+rc.422 之前创建的分叉会话没有这层重算：副本里的摘要仍是源会话原始条目链的值，对其中继承的续接回合再次续接会以 `CONTINUATION_HISTORY_CHANGED` 拒绝。日志 append-only，旧记录不就地迁移，预检也无法把「旧版复制未重算」与「历史真的变化」可靠区分；处理方式是重新从源会话分叉（新分叉按复制前缀重算）或在分叉会话里新建回合。
+
 预检失败以 `eligible: false` 与下列固定原因码返回；`turn/continue` 在启动前再次预检，失败时以同一原因码作为 RPC 错误数据。原因码集合由 `check_turn_continuation.py` 与技术参考的表格双向核对。
 
 | 原因码 | 含义与处理 |

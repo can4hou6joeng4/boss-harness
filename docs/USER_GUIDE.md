@@ -33,7 +33,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.422` / Python `0.2.0rc422` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.423` / Python `0.2.0rc423` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -303,6 +303,8 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 续接判定按当前分支进行：续接回合所在分支被放弃、又切回来源回合后，来源重新成为当前分支的最新中断回合，可以再次续接，这会再发起一次模型请求。同一个续接编号在整份会话记录里不能重复使用：相同来源与编号重复提交按幂等返回已有回合，编号重复但来源不同会得到 `CONTINUATION_ID_CONFLICT`。切回旧回合再次续接与幂等重放是两件事，不要靠重试同一编号来重新执行。
 
 预检不通过时，界面显示内核给出的原因与原因码，不会自动重试；完整原因码表见[技术参考](TECHNICAL_REFERENCE.md#中断回合续接)。按提示处理后重新打开入口，例如等待运行结束、清空投递中的队列、先处理未决审批或恢复归档会话。续接请求发出后没有拿到回执时，界面显示「等待核对续接结果」并禁用按钮，不会自动重发；先刷新会话状态，核对该回合是否已经启动，再决定下一步。
+
+分叉会话遇到 `CONTINUATION_HISTORY_CHANGED` 时先核对来源：rc.422 之前创建的分叉会话，其继承的续接边界摘要按源会话的原始记录计算，与分叉复制后的记录不一致，预检会把这种情况报成历史变化；rc.422 起新建的分叉会按复制后的记录重算。若确认没有改过已确认历史，从源会话重新分叉后再续接，或在分叉会话里直接新建回合；不要靠重试同一续接编号绕过该检查。
 
 ## 项目分组
 

@@ -1,3 +1,11 @@
+## 0.2.0-rc.423 - 2026-11-21
+
+rc.423 源码候选记录旧分叉会话的续接兼容边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- rc.422 只在新建分叉时重算继承的续接边界摘要；之前创建的分叉会话里，摘要仍是源会话原始条目链的值。对这类会话中继承的续接回合再次续接时，预检会以 `CONTINUATION_HISTORY_CHANGED` 拒绝，原因码指向「历史已变化」，用户会误以为会话被篡改。日志 append-only，旧记录不就地迁移，预检也无法把「旧版复制未重算」与「历史真的变化」可靠区分。现在技术参考说明这一口径与处理方式（重新从源会话分叉或新建回合），用户指南的「继续中断回合」补充核对步骤，STATUS「待完成与待验收」记录迁移缺口。修复 Issue [#2971](https://github.com/can4hou6joeng4/boss-harness/issues/2971)。
+- 对照探针（离线，不入库）：用 rc.421 源码（`92963cbf` 的 `harness/src`）创建带回合阶段记录与继承边界的会话并 fork，确认旧版保留摘要、分叉前缀重算后不一致；再用 rc.422 源码启动真实内核（`provider=none`）读取预检——源会话停在 `CONTINUATION_SOURCE_UNVERIFIABLE`，旧分叉会话返回 `CONTINUATION_HISTORY_CHANGED`，与文档描述一致。
+- `scripts/check_turn_continuation.py` 从 111 项扩展到 114 项，固定技术参考、用户指南与 STATUS 的新片段；32 项逐个还原的变异全部被发现（含此前 29 项回归）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.423` / Python `0.2.0rc423`。
+
 ## 0.2.0-rc.422 - 2026-11-21
 
 rc.422 源码候选修复中断回合续接的两处边界缺陷。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

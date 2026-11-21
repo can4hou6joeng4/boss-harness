@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 APPLICATION = "harness/src/boss_harness/application.py"
 SESSION = "harness/src/boss_harness/session.py"
 REFERENCE = "docs/TECHNICAL_REFERENCE.md"
+STATUS = "docs/STATUS.md"
 USER_GUIDE = "docs/USER_GUIDE.md"
 DESKTOP_GUIDE = "docs/DESKTOP_GUIDE.md"
 APP = "apps/desktop/src/renderer/src/App.tsx"
@@ -113,6 +114,7 @@ REFERENCE_MARK = (
     "继承的 `continuationBoundaryDigest` 因此按复制后的前缀重算",
     "普通回合启动前复位 runner 的历史提供者",
     "`fork_thread` 在 `_write_new` 之前按复制前缀重算继承边界",
+    "rc.422 之前创建的分叉会话没有这层重算",
     "预检回执固定包含 `threadId`、`sourceTurnId`、`eligible` 与 `warning`",
     "### `check_turn_continuation.py`",
     "[`check_turn_continuation.py`](#check_turn_continuationpy)",
@@ -147,8 +149,13 @@ USER_MARK = (
     "按当前分支的末回合判断",
     "explicitTurnContinuation",
     "CONTINUATION_ID_CONFLICT",
+    "分叉会话遇到 `CONTINUATION_HISTORY_CHANGED` 时先核对来源",
     "[技术参考](TECHNICAL_REFERENCE.md#中断回合续接)",
     "不会自动重发",
+)
+# 旧分叉的摘要缺口必须留在「待完成」里，不能被当成已修复。
+STATUS_MARK = (
+    "旧分叉会话的续接摘要迁移：rc.422 之前创建的分叉没有重算继承的边界摘要",
 )
 DESKTOP_MARK = (
     "- **继续中断回合**：",
@@ -250,6 +257,7 @@ def check_turn_continuation() -> int:
             f"{REFERENCE} 的续接原因码表与源码不一致：缺少 {missing or '无'}，多出 {extra or '无'}")
     checked += 1
     checked += _expect(USER_MARK, _read(USER_GUIDE), USER_GUIDE)
+    checked += _expect(STATUS_MARK, _read(STATUS), STATUS)
     checked += _expect(DESKTOP_MARK, _read(DESKTOP_GUIDE), DESKTOP_GUIDE)
     app = _read(APP)
     checked += _expect(APP_MARK, app, APP)
