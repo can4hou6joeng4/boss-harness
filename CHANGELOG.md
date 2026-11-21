@@ -1,3 +1,10 @@
+## 0.2.0-rc.431 - 2026-11-21
+
+rc.431 源码候选固定回合记录 `_turns` 的阶段合并与终态边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `_turns` 把条目日志归并成回合表，驱动分支列表、冻结快照、fork 边界切分与列表索引；`check_session_log.py` 只覆盖日志读取，没有固定归并规则：阶段合并的前置条件与范围、恢复原因长度与恢复策略枚举、`firstOrdinal` 取上一条终态序号加一、持久载荷不得覆盖内部记账字段、首条终态记录的 `boundaryOrdinal` / `completedAt` 与「上一条终态序号」推进。新增 `scripts/check_turn_records.py`（41 项）逐条固定，并用缩进扫描要求终态记账位于终态分支内；反向要求公开回合过滤内部字段。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#2987](https://github.com/can4hou6joeng4/boss-harness/issues/2987)。
+- 变异验证：终态边界被覆盖、完成时间被覆盖、序号推进提前到任意回合、载荷可覆盖内部字段、尝试次数允许为零、阶段归属不要求 `ownerKind`、恢复原因长度放宽、恢复策略丢弃 `closed`、首回合序号改用当前条目序号、内部字段集合丢失 `boundaryOrdinal`、公开回合不过滤、更新时间不推进、终态判定放宽到非运行中十三种改动均被检查发现（13/13）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.431` / Python `0.2.0rc431`。
+
 ## 0.2.0-rc.430 - 2026-11-21
 
 rc.430 源码候选固定分支列表的端点推导与分页规则。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
