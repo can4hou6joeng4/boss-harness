@@ -634,7 +634,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_errors.py`
 
-`scripts/check_errors.py` 核对模型错误的溢出分类、重试提示与传输诊断边界：`errors.py` 的 provider code 字符集与 128 字符上限、配额 / 临时错误码集合、408/409/500/502/503/504 状态集合、LiteLLM 2048 与代理 512 字符上限、Anthropic prompt / llama.cpp / LiteLLM / 代理正文四条精确文本模式；溢出只接受 OpenAI 精确 `context_length_exceeded`、有界 llama.cpp 文本、HTTP 400 的有界 LiteLLM 窗口拒绝、Anthropic `invalid_request_error` 的有界 prompt 数字上限，以及 HTTP 413 的有界代理正文拒绝；配额耗尽必须不可重试，临时码与状态可重试，400/401/403 不可重试，其余 429 保持未知；传输诊断必须逐层去重遍历因果链、区分 getaddrinfo 命名空间、只输出白名单 errno 与固定中文标签。反向断言禁止宽松类型判定、`search` 代替完整匹配、放开 413 状态与异常原文。同时核对技术参考的溢出与重试口径。检查是常量与文本扫描，实际分类结果仍需按技术参考核对。
+`scripts/check_errors.py` 核对模型错误的溢出分类、重试提示与传输诊断边界：`errors.py` 的 provider code 字符集与 128 字符上限、配额 / 临时错误码集合、408/409/500/502/503/504 状态集合、LiteLLM 2048 与代理 512 字符上限、Anthropic prompt / llama.cpp / LiteLLM / 代理正文四条精确文本模式；溢出只接受 OpenAI 精确 `context_length_exceeded`、有界 llama.cpp 文本、HTTP 400 的有界 LiteLLM 窗口拒绝、Anthropic `invalid_request_error` 的有界 prompt 数字上限，以及 HTTP 413 的有界代理正文拒绝；配额耗尽必须不可重试，临时码与状态可重试，400/401/403 不可重试，其余 429 保持未知；传输诊断必须逐层去重遍历因果链、区分 getaddrinfo 命名空间、只输出白名单 errno 与固定中文标签。反向断言禁止宽松类型判定、`search` 代替完整匹配、放开 413 状态与异常原文。同时核对技术参考的溢出与重试口径。行为侧直接构造错误载荷与异常链：来源校验、provider code 白名单与回退、智谱 1308 的字符串 / 整数 / 浮点边界、重试提示的配额优先与裸 429 未知、四条有界文本匹配的空白与长度边界、两家 provider 的溢出组合与显式 `retryable` 覆盖、传输因果链 / errno 白名单 / 抑制上下文 / 固定诊断文案（199 项）。实际分类结果仍需按技术参考与 provider 行为核对。
 
 ### `check_continuation.py`
 
