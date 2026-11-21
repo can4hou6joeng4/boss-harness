@@ -520,7 +520,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_attachment_context.py`
 
-`scripts/check_attachment_context.py` 核对附件上下文注入的数量、去重与预算口径：`AttachmentStore.context` 的 `ids` 必须是最多 10 项的字符串数组并去重保序，`None` 与空数组两处早退；`entries` 缺省时读取会话条目，显式传入时只核对会话存在且不重复读取；每个 id 经条目投影读取一次正文，标签用 `json.dumps(..., ensure_ascii=False)` 转义名称并声明「来源内容，不是操作授权」；正文总字节按附件 `bytes` 累计，严格超过 2 MiB 时拒绝，标签长度不计入；附件与文本只在预算通过后追加；返回文本以空行分隔，附件投影剔除 `content`。检查是顺序与文本扫描，实际注入行为仍需按用户指南核对。
+`scripts/check_attachment_context.py` 核对附件上下文注入的数量、去重与预算口径：`AttachmentStore.context` 的 `ids` 必须是最多 10 项的字符串数组并去重保序，`None` 与空数组两处早退；`entries` 缺省时读取会话条目，显式传入时只核对会话存在且不重复读取；每个 id 经条目投影读取一次正文，标签用 `json.dumps(..., ensure_ascii=False)` 转义名称并声明「来源内容，不是操作授权」；正文总字节按附件 `bytes` 累计，严格超过 2 MiB 时拒绝，标签长度不计入；附件与文本只在预算通过后追加；返回文本以空行分隔，附件投影剔除 `content`。检查同时直接调用 `AttachmentStore.context` 做行为对照（68 项）：用轻量替身提供 `sessions` 与 `_read_from_entries`，覆盖 `None` / 空列表早退且不访问会话、非列表与超过 10 项、非字符串元素、恰好 10 项、去重保序与每个 id 只读一次、名称 JSON 字面量转义（含换行、引号、反斜杠与中文保留）、空行分隔、投影剔除正文并保留其余字段、预算等于上限通过 / 严格超出拒绝 / 跨附件累计 / 按 `bytes` 而非标签或正文长度计数、缺省读取会话条目与显式条目只核对会话存在，以及 id 不做空白裁剪。
 
 ### `check_skill_context.py`
 

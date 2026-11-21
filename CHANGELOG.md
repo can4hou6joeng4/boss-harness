@@ -1,3 +1,10 @@
+## 0.2.0-rc.504 - 2026-11-22
+
+rc.504 源码候选为附件上下文注入补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `resources.py` 的 `AttachmentStore.context` 把附件正文拼进当前回合。原有 `scripts/check_attachment_context.py` 只做源码片段、顺序与计数扫描（42 项），本轮加入行为对照（68 项）：用轻量替身提供 `sessions` 与 `_read_from_entries`，直接调用 `AttachmentStore.context`，覆盖 `None` / 空列表早退且不访问会话、非列表与超过 10 项、非字符串元素、恰好 10 项、去重保序与每个 id 只读一次、名称 JSON 字面量转义、空行分隔、投影剔除正文、预算等于上限通过 / 严格超出拒绝 / 跨附件累计 / 按 `bytes` 而非标签或正文长度计数，以及缺省读取会话条目与显式条目只核对会话存在。CI 无需改动，技术参考同步说明。修复 Issue [#3133](https://github.com/can4hou6joeng4/boss-harness/issues/3133)。
+- 变异验证：结构侧数量上限、去重保序、空结果早退、条目来源、名称转义、来源声明、预算累计、预算严格、空行分隔、投影剔除与两处错误文案共十二种，行为侧不去重、上限放宽、元素不校验、预算含等号、预算按标签、预算按正文、无预算、预算不累计、投影保留正文、单换行拼接、名称不转义、显式也读会话、不核对会话、`None` 报错、空列表碰会话、id 裁剪与顺序反转共十七种，均被检查发现（29/29）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.504` / Python `0.2.0rc504`。
+
 ## 0.2.0-rc.503 - 2026-11-22
 
 rc.503 源码候选为被放弃分支推导补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
