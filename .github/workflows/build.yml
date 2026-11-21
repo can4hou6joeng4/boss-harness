@@ -196,6 +196,8 @@ jobs:
         run: python scripts/check_persistence.py
       - name: Verify session log boundaries
         run: python scripts/check_session_log.py
+      - name: Verify exact read
+        run: python scripts/check_exact_read.py
       - name: Verify delete intent
         run: python scripts/check_delete_intent.py
       - name: Verify delete cleanup
@@ -431,6 +433,8 @@ jobs:
         run: python scripts/check_search_index.py
       - name: Verify search scan
         run: python scripts/check_search_scan.py
+      - name: Verify exact read
+        run: python scripts/check_exact_read.py
       - name: Verify delete intent
         run: python scripts/check_delete_intent.py
       - name: Verify delete cleanup
