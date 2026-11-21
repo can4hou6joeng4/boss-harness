@@ -1,3 +1,10 @@
+## 0.2.0-rc.443 - 2026-11-21
+
+rc.443 源码候选固定内核扫码登录的凭证校验、命令引用与保存回读边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 内核登录流程此前只有桌面侧检查：`begin_login` / `cancel_login` / `complete_login` / `_save_login` / `_local_auth` 的凭证格式、`shlex.quote` 引用、64 KiB 上限、保存后回读与取消归属没有专门守卫。新增 `scripts/check_login_flow.py`（131 项）：官方 Cookie 与 User-Agent 校验、`wt2` 必需、两处逐项引用、请求编号核对、`--curl-file -` 与固定超时、三档保存结果、槽位按取消标记比较、风控锁优先；反向断言凭证不写入状态、不经过 shell。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3011](https://github.com/can4hou6joeng4/boss-harness/issues/3011)。
+- 变异验证：Cookie 与 User-Agent 上限放宽、控制字符与键格式不校验、不要求 `wt2`、64 KiB 上限取消、两处不引用、请求编号与等待状态不核对、保存前不查取消、命令文本不清空、回读改用原始结果、不要求已登录、错误码改写、槽位不比较、风控锁与未登录放行、凭证写入状态、平台忙与可用性不检查、取消不比对尝试 id 二十二种改动均被检查发现（22/22）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.443` / Python `0.2.0rc443`。
+
 ## 0.2.0-rc.442 - 2026-11-21
 
 rc.442 源码候选固定运行时容量准入、回合归属与关闭中断口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
