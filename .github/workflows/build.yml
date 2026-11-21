@@ -242,6 +242,8 @@ jobs:
         run: python scripts/check_errors.py
       - name: Verify Anthropic continuation metadata
         run: python scripts/check_continuation.py
+      - name: Verify turn continuation precheck
+        run: python scripts/check_turn_continuation.py
       - name: Verify model capability catalog
         run: python scripts/check_capabilities.py
       - name: Verify Codex profile loading
