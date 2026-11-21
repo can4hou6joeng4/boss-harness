@@ -162,6 +162,8 @@ jobs:
         run: python scripts/check_item_projection.py
       - name: Verify single item reads
         run: python scripts/check_read_item.py
+      - name: Verify page cursor codec
+        run: python scripts/check_page_cursor.py
       - name: Verify harness events
         run: python scripts/check_harness_events.py
       - name: Verify harness replica

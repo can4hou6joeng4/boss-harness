@@ -1,3 +1,10 @@
+## 0.2.0-rc.436 - 2026-11-21
+
+rc.436 源码候选固定分页游标的编码与范围校验边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `_page_cursor` / `_read_page_cursor` 是所有分页读取共用的游标编解码，现有检查只固定了各列表「调用这个函数」，没有固定编解码本身。新增 `scripts/check_page_cursor.py`（26 项）：编码只写 `kind` / `scope` / `key`、`p1_` 前缀与去掉补齐符的 urlsafe base64；解码校验空游标、前缀与 4096 上限、严格 base64、四类异常统一报「游标无效」、字段集合 / `kind` / `scope` / `key` 类型与范围不符报错。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#2997](https://github.com/can4hou6joeng4/boss-harness/issues/2997)。
+- 变异验证：前缀不再校验、长度上限去掉、base64 改为宽松解码、不捕获递归错误、载荷允许额外字段、`kind` 不校验、`scope` 不校验、`key` 不要求列表、无效游标错误信息拆分、编码丢失 `scope` 十种改动均被检查发现（10/10）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.436` / Python `0.2.0rc436`。
+
 ## 0.2.0-rc.435 - 2026-11-21
 
 rc.435 源码候选固定单条目读取的别名与身份冲突边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
