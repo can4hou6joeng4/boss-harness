@@ -1,3 +1,10 @@
+## 0.2.0-rc.421 - 2026-11-21
+
+rc.421 源码候选让 README 英文概览与中文文档的已具备能力口径一致。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- README 的 English overview 在 Execution 条目里只写了 branch-aware session state，没有写 rc.419 新增文档的中断回合续接；Safety boundary 也没有写业务 CLI 的浏览器来源可按进程覆盖（`BOSS_HARNESS_BROWSER_SOURCE`，STATUS 已具备里已有）。现在 Execution 补充 explicit turn continuation behind a read-only precheck（已完成的工具不重跑、新写操作仍需逐次审批），Safety boundary 补充浏览器来源覆盖与「模型和工作台渲染进程都拿不到平台 Cookie」的同一句边界。修复 Issue [#2967](https://github.com/can4hou6joeng4/boss-harness/issues/2967)。
+- 不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.421` / Python `0.2.0rc421`。
+
 ## 0.2.0-rc.420 - 2026-11-21
 
 rc.420 源码候选把会话内分支与中断回合续接补进 README 能力地图。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
