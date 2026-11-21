@@ -1,3 +1,10 @@
+## 0.2.0-rc.445 - 2026-11-22
+
+rc.445 源码候选固定队列新增、编辑、状态转移与暂停结算口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `TurnQueue` 的 `add` / `update_input` / `transition` / `claim` / `pause` / `settle_pauses` 是持久队列状态机，现有检查只覆盖 `promote_to_steering` 与桌面动作。新增 `scripts/check_queue_state.py`（128 项）：新增校验与客户端幂等、技能去重与转向限制、条目 `>=` / 字节 `>` 上限与 `QUEUE_LIMIT`、编辑按替换字节重算、转移表、steering 回合归属、暂停来源优先级与一次写回；反向断言投递中不回退、`pausedReason` 条件与作用域清理。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3015](https://github.com/can4hou6joeng4/boss-harness/issues/3015)。
+- 变异验证：kind 放宽、客户端 id 正则放宽、技能不去重与数量放宽、转向允许技能、幂等不比对技能 / 覆盖、条目与字节上限放宽、新增状态改已投递、编辑不查状态与不重算字节、投递中回退、暂停继续投递、领取不校验回合、暂停覆盖原因、结算不按 kind 优先、`pausedReason` 总是写入、不写回、作用域不清理、返回空列表、统计漏掉投递中二十二种改动均被检查发现（22/22）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.445` / Python `0.2.0rc445`。
+
 ## 0.2.0-rc.444 - 2026-11-22
 
 rc.444 源码候选固定上下文规模估算、请求指纹与成功用量校准口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
