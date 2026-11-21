@@ -1,3 +1,10 @@
+## 0.2.0-rc.432 - 2026-11-21
+
+rc.432 源码候选固定分支指针写入的目标校验与幂等规则。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `set_leaf` 是唯一写持久 leaf 记录的入口，之后的分支读取、`fork_thread` 与续接预检都以它选择分支；`check_branch_pagination.py` 与 `check_branch_switch.py` 覆盖桌面读取与提示，没有固定写入路径。新增 `scripts/check_set_leaf.py`（38 项）：回合号标识符校验、锁与索引事务、已在目标位置时幂等返回 `changed: false`、目标取最后一条已结束回合记录、会话无未结束回合 / 未收尾条目 / 未决审批、候选模拟一致性、叶记录 `targetId` / `turnId` / `fromTurnId`、只追加一次并重建索引。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#2989](https://github.com/can4hou6joeng4/boss-harness/issues/2989)。
+- 变异验证：目标放宽到运行中、未结束回合不再拦截、未收尾条目不再拦截、删除幂等、删除候选一致性、缺 `fromTurnId`、`parentId` 改为回合号、追加两次、目标取首条记录、追加后不重建索引、幂等谎报已变更、去掉标识符校验、缺 `targetId` 十三种改动均被检查发现（13/13）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.432` / Python `0.2.0rc432`。
+
 ## 0.2.0-rc.431 - 2026-11-21
 
 rc.431 源码候选固定回合记录 `_turns` 的阶段合并与终态边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
