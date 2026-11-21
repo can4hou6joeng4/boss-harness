@@ -246,6 +246,8 @@ jobs:
         run: python scripts/check_approval_item.py
       - name: Verify approval parameter digests
         run: python scripts/check_approval_digest.py
+      - name: Verify pending approval pages
+        run: python scripts/check_pending_approvals.py
       - name: Verify approval remember gating
         run: python scripts/check_approval_remember.py
       - name: Verify model disable boundaries
