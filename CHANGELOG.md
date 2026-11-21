@@ -1,3 +1,10 @@
+## 0.2.0-rc.437 - 2026-11-21
+
+rc.437 源码候选固定条目快照的前缀与重入读取边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `open_entries_snapshot` 与 `SessionEntriesSnapshot` 是冻结快照、单条目读取与导出的读取基础：前缀必须裁到最后一条完整记录、出错关闭文件、已关闭快照拒绝进入与迭代、每次迭代回到开头并按前缀字节上限读取；`check_session_log.py` 只覆盖 `_complete_record_limit`，没有固定快照生命周期。新增 `scripts/check_entries_snapshot.py`（43 项）逐条固定，并用反向断言要求前缀来自 `_complete_record_limit`、关闭错误出现两次、`stamp` 携带三项身份。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#2999](https://github.com/can4hou6joeng4/boss-harness/issues/2999)。
+- 变异验证：文本模式打开、不裁剪完整记录、出错不关闭、`stamp` 顺序变化、`close` 不关闭、迭代不回到开头、行号不复位、字节上限丢失、迭代 / 进入不检查关闭、不跳过空行、`stamp` 丢失 inode 十二种改动均被检查发现（12/12）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.437` / Python `0.2.0rc437`。
+
 ## 0.2.0-rc.436 - 2026-11-21
 
 rc.436 源码候选固定分页游标的编码与范围校验边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
