@@ -706,7 +706,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_page_cursor.py`
 
-`scripts/check_page_cursor.py` 核对分页游标编解码：`_page_cursor` 只写 `kind` / `scope` / `key` 三个字段，编码为 `p1_` 前缀加去掉补齐符的 urlsafe base64；`_read_page_cursor` 对空游标返回 `None`，否则校验字符串、`p1_` 前缀与 4096 字符上限，严格解码并把 `ValueError` / `UnicodeDecodeError` / `binascii.Error` / `RecursionError` 统一收敛为「游标无效」，载荷必须恰好包含三个字段、`kind` 与 `scope` 完全匹配、`key` 为列表，否则报「游标与查询范围不匹配」。反向断言：严格解码参数必须保留；四类异常都必须被捕获；两类错误各出现固定次数。检查是源码字面量与顺序扫描，不执行编解码。
+`scripts/check_page_cursor.py` 核对分页游标编解码：`_page_cursor` 只写 `kind` / `scope` / `key` 三个字段，编码为 `p1_` 前缀加去掉补齐符的 urlsafe base64；`_read_page_cursor` 对空游标返回 `None`，否则校验字符串、`p1_` 前缀与 4096 字符上限，严格解码并把 `ValueError` / `UnicodeDecodeError` / `binascii.Error` / `RecursionError` 统一收敛为「游标无效」，载荷必须恰好包含三个字段、`kind` 与 `scope` 完全匹配、`key` 为列表，否则报「游标与查询范围不匹配」。反向断言：严格解码参数必须保留；四类异常都必须被捕获；两类错误各出现固定次数。脚本并直接调用 `_page_cursor` / `_read_page_cursor`（45 项），覆盖 `p1_` 前缀与无补齐符、键列表往返、scope 键序无关、`None` 透传、空字符串 / 非字符串 / 错误前缀 / 非法 base64 / 坏 JSON / 顶层非对象 / 缺字段 / 额外字段 / key 非列表 / kind 与 scope 不符 / kind 大小写 / 深层嵌套非对象 / 超长游标。检查不执行 SQL 或分页读取。
 
 ### `check_entries_snapshot.py`
 
