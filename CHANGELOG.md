@@ -1,3 +1,10 @@
+## 0.2.0-rc.474 - 2026-11-22
+
+rc.474 源码候选固定任务归属投影与关系判定的行为口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `task_ownership.py` 是 `task/read` 的只读投影层：`turn_snapshot` 按查询集合与队列关联过滤、标记重复回合与队列身份变化，`queue_snapshot` 投影队列身份并标记冲突，`user_message_refs` 只投影用户消息身份事实，`resolve_queue_relation` / `resolve_compaction_relation` 用多重证据判定归属，`recovery_policy` 给出恢复策略。新增 `scripts/check_task_relation.py`（104 项）：行为侧直接调用六个纯函数，覆盖回合过滤与上限、终态后 running 重复、queueId 身份变化、阶段归并与策略枚举、队列三条选中来源与身份冲突、用户消息每队列与修订上限、推断回合、followUp 与 steering 的五类归属及冲突优先级、压缩任务的会话 / 检查点 / 唯一回合判据、恢复策略的未知优先与各状态分支；结构侧按顺序固定三个关系函数的判定优先级。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3073](https://github.com/can4hou6joeng4/boss-harness/issues/3073)。
+- 变异验证：结构侧冲突条件删除、重复回合检查删除、followUp 分支删除、steering 分支删除、转向目标改动、回合关联收窄、检查点冲突删除、重复回合放行、唯一匹配删除、未知状态优先删除、进程持有删除、人工中断策略删除、关闭策略删除、队列分支删除、排队分支删除十五种，行为侧终态后运行判据删除、队列身份判据删除、回合上限删除、策略判据放行、身份字段收窄、队列上限删除、回执编号校验删除、每队列上限删除、修订上限放宽、身份冲突删除、唯一匹配放宽、未知状态优先删除十二种，均被检查发现（27/27）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.474` / Python `0.2.0rc474`。
+
 ## 0.2.0-rc.473 - 2026-11-22
 
 rc.473 源码候选固定启动恢复的阶段收尾、条目结算与回合中断口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
