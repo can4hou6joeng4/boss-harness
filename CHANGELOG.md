@@ -1,3 +1,10 @@
+## 0.2.0-rc.427 - 2026-11-21
+
+rc.427 源码候选为会话分叉的复制规则补上固定检查。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `fork_thread` 是会话正确性的核心路径：只复制当前分支、排除内核专用记录（`thread_info` / `queue` / `task_phase`）、按 owner 归属迟到修订、拒绝拆开工具批次、改写 parentId / threadId / approvalId / `continuationRequestOffset`、重算继承的续接边界摘要，并且只写新会话、不改源日志。rc.422 只固定了边界摘要重算一项，其余规则没有静态检查。新增 `scripts/check_session_fork.py`（35 项）：固定分支选择与前缀裁剪、新会话头的字段排除、复制循环的排除与改写及其顺序，并反向禁止分叉区域调用源日志写入接口、要求两条选择路径各经过一次 `_active_entries`。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#2979](https://github.com/can4hou6joeng4/boss-harness/issues/2979)。
+- 变异验证：漏排除 task_phase、不重写 approvalId、不重写 parentId、去掉批次拆分检查、分叉内改写源日志、删除边界重算、合成 leaf 路径不走投影七种改动均被检查发现（7/7）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.427` / Python `0.2.0rc427`。
+
 ## 0.2.0-rc.426 - 2026-11-21
 
 rc.426 源码候选固定删除会话时共享附件清理的安全边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
