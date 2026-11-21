@@ -308,7 +308,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_export_html.py`
 
-`scripts/check_export_html.py` 核对会话导出 HTML 的转义与页面约束：`session_export.py` 必须以 `html.escape(str(value), quote=True)` 提供 `_h`，会话元数据、回合标题 / 用时 / 用量、用户与模型正文、附件元数据、工具名 / 执行状态 / 审批 / 错误码 / 恢复建议 / 来源 / 参数、结果明文与事实、摘要与队列 id / 类型 / 事实 / 完整输入都必须经 `_h` 进入页面；结果明文只在 `included` 分支以 `<pre class="plaintext">` 写入；文档头保留 charset、viewport、`default-src 'none'; style-src 'unsafe-inline'` 与 `no-referrer`。反向断言页面不含脚本、事件属性、帧、`javascript:`、`src=` 或 `href=`。检查是源码字面量扫描，不生成或打开导出文件。
+`scripts/check_export_html.py` 核对会话导出 HTML 的转义与页面约束：`session_export.py` 必须以 `html.escape(str(value), quote=True)` 提供 `_h`，会话元数据、回合标题 / 用时 / 用量、用户与模型正文、附件元数据、工具名 / 执行状态 / 审批 / 错误码 / 恢复建议 / 来源 / 参数、结果明文与事实、摘要与队列 id / 类型 / 事实 / 完整输入都必须经 `_h` 进入页面；结果明文只在 `included` 分支以 `<pre class="plaintext">` 写入；文档头保留 charset、viewport、`default-src 'none'; style-src 'unsafe-inline'` 与 `no-referrer`。反向断言页面不含脚本、事件属性、帧、`javascript:`、`src=` 或 `href=`。在此之上直接调用 `_h` 与 `_render_html`：核对 `& < > " '` 与非字符串输入，最小 `meta` / `units` / `counts` / `queue` 下的 doctype、CSP、referrer、页脚闭合与主体结构，恶意会话 id 与标题转义，两种工具结果提示，日志与当前分支视图，脱敏统计，截断与孤立条目提示，以及空标题回退。总项数 81。
 
 ### `check_export_markdown.py`
 
