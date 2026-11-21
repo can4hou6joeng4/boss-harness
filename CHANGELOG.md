@@ -1,3 +1,10 @@
+## 0.2.0-rc.450 - 2026-11-22
+
+rc.450 源码候选固定会话读取缓存与增量解析口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SessionStore.read_entries` / `read_entries_snapshot` 与缓存辅助函数决定每次读取是否复用已解析条目，现有检查只覆盖快照生命周期与分支投影。新增 `scripts/check_entries_cache.py`（108 项）：三元组缓存命中、副本返回、同一 inode 与严格更短的增量条件、旧前缀末尾换行、全量与增量的读取范围与行号、`_line_boundary` 的空文件与换行判定、快照锁外解码后的 stamp 复核、先移除再插入与最久未用淘汰；反向断言读取路径不直接操作缓存、两处副本、快照缺失或损坏不缓存。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3025](https://github.com/can4hou6joeng4/boss-harness/issues/3025)。
+- 变异验证：缓存命中与结果返回内部列表、读取直接清空缓存、半条记录或空文件也缓存、边界不检查大小、快照不复核或异常按当前 stamp 缓存、快照不查缓存、命中不比较 stamp 或不移到末尾、增量不要求同一 inode 或允许同长、不核对末尾换行、返回空前缀、全量从末尾读取或不设限、全量行号偏移、增量从头或读全文件、行号不接续、缓存不淘汰或淘汰最近使用、不登记行数、先插入后移除二十五种改动均被检查发现（25/25）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.450` / Python `0.2.0rc450`。
+
 ## 0.2.0-rc.449 - 2026-11-22
 
 rc.449 源码候选固定摘要 checkpoint 的原子发布口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

@@ -200,6 +200,8 @@ jobs:
         run: python scripts/check_session_batch.py
       - name: Verify checkpoint publication
         run: python scripts/check_checkpoint_publish.py
+      - name: Verify entries cache boundaries
+        run: python scripts/check_entries_cache.py
       - name: Verify settings persistence boundaries
         run: python scripts/check_settings.py
       - name: Verify shutdown wait boundaries
