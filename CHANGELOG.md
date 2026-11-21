@@ -1,3 +1,10 @@
+## 0.2.0-rc.499 - 2026-11-22
+
+rc.499 源码候选为分页游标编解码补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session.py` 的 `_page_cursor` / `_read_page_cursor` 是会话列表、分支列表等分页读取共用的游标编解码。原有 `scripts/check_page_cursor.py` 只做源码片段、顺序与反向断言扫描（26 项），本轮加入行为对照（45 项）：直接调用两个函数，覆盖 `p1_` 前缀与无补齐符、键列表往返、scope 键序无关、`None` 透传、空字符串 / 非字符串 / 错误前缀 / 非法 base64 / 坏 JSON / 顶层非对象 / 缺字段 / 额外字段 / key 非列表 / kind 与 scope 不符 / kind 大小写 / 深层嵌套非对象 / 超长游标。CI 无需改动，技术参考同步说明。修复 Issue [#3123](https://github.com/can4hou6joeng4/boss-harness/issues/3123)。
+- 变异验证：结构侧编码前缀、补齐符、三字段、空游标短路、长度上限、解码前缀、严格 base64 与字母表、递归错误捕获、字段集合、kind / scope / key 类型、返回、两类文案与编码字段共十七种，行为侧编码补齐 / 前缀、解码前缀、长度、额外字段、kind / scope / key 类型、大小写、错误收敛与空游标共十一种，均被检查发现（28/28）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.499` / Python `0.2.0rc499`。
+
 ## 0.2.0-rc.498 - 2026-11-22
 
 rc.498 源码候选为时长文案补充内核侧行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

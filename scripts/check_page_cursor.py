@@ -5,16 +5,22 @@
 游标编解码：游标必须带 `p1_` 前缀、长度受限、urlsafe base64 严格解码，载荷必须
 恰好包含 `kind` / `scope` / `key` 且与本次查询完全一致，`key` 必须是列表；解码
 失败（含深层嵌套触发的递归错误）统一报「游标无效」，范围不符单独报错。这里固定
-这些规则，避免重构后游标跨查询复用、接受额外字段或被篡改输入打崩。
+这些规则，避免重构后游标跨查询复用、接受额外字段或被篡改输入打崩，并直接调用
+编码与解码函数核对往返与错误收敛。
 """
 
 from __future__ import annotations
 
+import base64
+import json
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.session import _page_cursor, _read_page_cursor  # noqa: E402
 
 # 编码：固定三个字段 → p1_ 前缀 → urlsafe base64 去掉补齐符。
 ENCODE_ORDER = (
@@ -66,6 +72,98 @@ def _function(source: str, marker: str) -> str:
     return source[start:] if end < 0 else source[start:end]
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"分页游标行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != message:
+            raise ValueError(
+                f"分页游标行为变化 {label}：期望 {message!r}，实际 {str(error)!r}"
+            ) from None
+        return 1
+    raise ValueError(f"分页游标行为变化 {label}：期望 ValueError")
+
+
+def _raw_cursor(text: str) -> str:
+    return "p1_" + base64.urlsafe_b64encode(text.encode()).decode().rstrip("=")
+
+
+def _payload_cursor(payload: object) -> str:
+    return _raw_cursor(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+
+
+def _behavior_checks() -> int:
+    invalid = "分页游标无效"
+    mismatch = "分页游标与查询范围不匹配"
+    scope = {"session": "abc", "b": 2}
+    key = ["k", 2, {"n": "值"}]
+    cursor = _page_cursor("sessions", scope, key)
+    checked = _expect_value(cursor.startswith("p1_"), True, "前缀")
+    checked += _expect_value("=" in cursor, False, "无补齐符")
+    checked += _expect_value(
+        _read_page_cursor(cursor, "sessions", scope), key, "往返")
+    checked += _expect_value(
+        _read_page_cursor(cursor, "sessions", {"b": 2, "session": "abc"}), key,
+        "范围键序无关")
+    checked += _expect_value(
+        _read_page_cursor(None, "sessions", scope), None, "空游标")
+    checked += _expect_error(
+        lambda: _read_page_cursor("", "sessions", scope), invalid, "空字符串")
+    checked += _expect_error(
+        lambda: _read_page_cursor(123, "sessions", scope), invalid, "非字符串")
+    checked += _expect_error(
+        lambda: _read_page_cursor("p0_" + cursor[3:], "sessions", scope), invalid,
+        "错误前缀")
+    checked += _expect_error(
+        lambda: _read_page_cursor(cursor, "branches", scope), mismatch, "kind 不符")
+    checked += _expect_error(
+        lambda: _read_page_cursor(cursor, "SESSIONS", scope), mismatch, "kind 大小写")
+    checked += _expect_error(
+        lambda: _read_page_cursor(cursor, "sessions", {"session": "other"}),
+        mismatch, "scope 不符")
+    checked += _expect_error(
+        lambda: _read_page_cursor("p1_!!!!", "sessions", scope), invalid,
+        "非法 base64")
+    checked += _expect_error(
+        lambda: _read_page_cursor(_raw_cursor("{not json"), "sessions", scope),
+        invalid, "坏 JSON")
+    checked += _expect_error(
+        lambda: _read_page_cursor(_payload_cursor([1]), "sessions", scope), mismatch,
+        "顶层非对象")
+    checked += _expect_error(
+        lambda: _read_page_cursor(
+            _payload_cursor({"kind": "sessions", "scope": scope}), "sessions", scope),
+        mismatch, "缺 key")
+    checked += _expect_error(
+        lambda: _read_page_cursor(
+            _payload_cursor({"kind": "sessions", "scope": scope, "key": [],
+                             "extra": 1}), "sessions", scope),
+        mismatch, "额外字段")
+    checked += _expect_error(
+        lambda: _read_page_cursor(
+            _payload_cursor({"kind": "sessions", "scope": scope, "key": {}}),
+            "sessions", scope),
+        mismatch, "key 非列表")
+    deep = "[" * 600 + "]" * 600
+    checked += _expect_error(
+        lambda: _read_page_cursor(_raw_cursor(deep), "sessions", scope), mismatch,
+        "深层嵌套非对象")
+    long_payload = json.dumps(
+        {"kind": "sessions", "scope": scope, "key": [1]},
+        ensure_ascii=False, separators=(",", ":")) + " " * 5000
+    checked += _expect_error(
+        lambda: _read_page_cursor(_raw_cursor(long_payload), "sessions", scope),
+        invalid, "超长游标")
+    return checked
+
+
 def check_page_cursor() -> int:
     source = _read(SESSION)
     encode = _function(source, "def _page_cursor(")
@@ -92,7 +190,7 @@ def check_page_cursor() -> int:
     if encode.count('{"kind": kind, "scope": scope, "key": key}') != 1:
         raise ValueError(f"{SESSION} 的游标编码必须恰好包含 kind / scope / key")
     checked += 1
-    return checked
+    return checked + _behavior_checks()
 
 
 def main() -> int:
@@ -101,7 +199,7 @@ def main() -> int:
     except ValueError as error:
         print(f"分页游标核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"分页游标一致：{checked} 项编码、严格解码与范围校验")
+    print(f"分页游标一致：{checked} 项编码、严格解码、范围校验与行为对照")
     return 0
 
 
