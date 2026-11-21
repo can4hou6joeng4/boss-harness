@@ -260,7 +260,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_request_policy.py`
 
-`scripts/check_request_policy.py` 核对模型请求策略的拒绝投影与脱敏边界：拒绝载荷必须只保留 purpose / provider / model / requestIndex / threadId / turnId / jobId，并把 `errorInfo.source` 记为 `request_policy`，同时带 `requestRejected: true`、`outputObserved: false` 与 `contextRecoveryEligible: false`；历史单元预览必须把用户文本截到 1 000 字符并脱敏、工具名最多 64 个；转换必须按整单元丢弃、取消优先；`check_model_request` 必须先把任务身份写入最终请求，并在 hook 允许后才放行；两条拒绝路径都必须先经 `redact_secrets` 再抛出；`model_error` 记录必须按 `recorded` 只写一次。脚本同时核对技术参考中的策略拒绝与取消优先级说明。检查是常量与文本扫描，实际 hook 行为仍需按技术参考核对。
+`scripts/check_request_policy.py` 核对模型请求策略的拒绝投影与脱敏边界：拒绝载荷必须只保留 purpose / provider / model / requestIndex / threadId / turnId / jobId，并把 `errorInfo.source` 记为 `request_policy`，同时带 `requestRejected: true`、`outputObserved: false` 与 `contextRecoveryEligible: false`；历史单元预览必须把用户文本截到 1 000 字符并脱敏、工具名最多 64 个；转换必须按整单元丢弃、取消优先；`check_model_request` 必须先把任务身份写入最终请求，并在 hook 允许后才放行；两条拒绝路径都必须先经 `redact_secrets` 再抛出；`model_error` 记录必须按 `recorded` 只写一次。脚本同时核对技术参考中的策略拒绝与取消优先级说明。行为侧直接调用策略函数：覆盖 `history_units` 的空输入、无用户消息与中途用户消息切分，`_unit_view` 的截断、脱敏与工具名上限，`transform_request_context` 的单元不足、无结果、空丢弃、取消优先、丢弃单元与拒绝脱敏，`check_model_request` 的归属重写、取消短路、回合专属变换、拒绝上下文与省略规则，`ModelRequestRejected` 的载荷白名单，以及 `record_model_rejection` 的单次记录与幂等。实际 hook 行为仍需按技术参考核对。
 
 ### `check_usage.py`
 
