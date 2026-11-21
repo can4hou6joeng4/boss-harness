@@ -650,7 +650,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_codex_config.py`
 
-`scripts/check_codex_config.py` 核对 Codex 配置的路径优先级、严格错误与 profile 解析：`codex_config.py` 只读 `~/.codex/config.toml`，路径按显式入参、`BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 与默认路径依次选择；`strict` 只让实际需要的文件错误明确失败，非普通文件、不可读与 TOML 语法错误分别使用固定码且不回显配置原文，Python 3.10 缺 `tomllib` 时以 `MODEL_CODEX_TOML_UNAVAILABLE` 报错；profile 必须同时具备模型、provider 与端点，`wire_api` 先去空白转小写、缺省或空值使用 `responses`，其他值以 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝；凭据必须用 `Secret` 包装，`env_key` 只记录变量名。反向断言禁止文本模式读取、任何写入与配置原文回显。同时核对使用指南与技术参考的路径、协议与只读口径。检查是常量与文本扫描，真实 TOML 解析仍需按平台核对。
+`scripts/check_codex_config.py` 核对 Codex 配置的路径优先级、严格错误与 profile 解析：`codex_config.py` 只读 `~/.codex/config.toml`，路径按显式入参、`BOSS_HARNESS_CODEX_CONFIG`、`CODEX_HOME/config.toml` 与默认路径依次选择；`strict` 只让实际需要的文件错误明确失败，非普通文件、不可读与 TOML 语法错误分别使用固定码且不回显配置原文，Python 3.10 缺 `tomllib` 时以 `MODEL_CODEX_TOML_UNAVAILABLE` 报错；profile 必须同时具备模型、provider 与端点，`wire_api` 先去空白转小写、缺省或空值使用 `responses`，其他值以 `MODEL_CODEX_WIRE_API_UNSUPPORTED` 拒绝；凭据必须用 `Secret` 包装，`env_key` 只记录变量名。反向断言禁止文本模式读取、任何写入与配置原文回显。同时核对使用指南与技术参考的路径、协议与只读口径。除常量与文本扫描外，脚本直接调用 `config_path`、`profile_from_mapping` 与 `load_profile`，对照路径优先级与去空白、映射归一化与协议拒绝、凭据包装与不可序列化，以及临时目录下缺失 / 目录 / 非法 TOML / 不完整配置的 strict 结果、错误码与不回显原文，共 114 项。真实 TOML 解析仍需按平台核对。
 
 ### `check_retry.py`
 
