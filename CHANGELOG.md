@@ -1,3 +1,10 @@
+## 0.2.0-rc.507 - 2026-11-22
+
+rc.507 源码候选为工具参数校验补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `tool_schema.py` 是模型工具调用进入上游 CLI 前的唯一参数守卫。原有 `scripts/check_tool_schema.py` 只做源码片段、AST 与计数扫描（25 项），本轮加入行为对照（87 项）：直接调用 `canonical_schema` 与 `validated_arguments`，覆盖根必须是 Mapping 且规范化为对象、未知关键字与非法规则整体拒绝、规范化输出的键序与非 ASCII 保留、Mapping 子类、类型精确匹配（布尔不是整数 / 数值）、required 与 additionalProperties、字符串长度与 `re.search` 正则语义、anyOf、数组长度与 `uniqueItems` 的数值等价、结构化字符串仅按 schema 选中的对象 / 数组解码且失败保留原文、不可传递字符单独点名，以及非对象 / 循环 / 超深 / NaN / 元组 / 字节 / 非字符串键 / 非法 schema JSON 的拒绝与返回独立副本。CI 无需改动，技术参考同步说明。修复 Issue [#3139](https://github.com/can4hou6joeng4/boss-harness/issues/3139)。
+- 变异验证：结构侧 schema / 参数字节上限、JSON / schema 深度上限、未知关键字、根对象、正则注册、节点上限、解码前缀、解码校验、最终比对与关键字集合共十二种，行为侧 schema 不校验、根数组放行、参数恒放行、布尔转整数、不解码结构化字符串、不复制参数与合并不可传递错误共七种，均被检查发现（19/19）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.507` / Python `0.2.0rc507`。
+
 ## 0.2.0-rc.506 - 2026-11-22
 
 rc.506 源码候选为上下文编辑纯函数补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

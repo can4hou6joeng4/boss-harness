@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
-"""核对工具参数 schema 校验与注册表投影边界，成功时输出核对项数量。"""
+"""核对工具参数 schema 校验与注册表投影边界，成功时输出核对项数量。
+
+静态部分固定常量、关键字集合与源码顺序；行为部分直接调用 `canonical_schema`
+与 `validated_arguments`，覆盖受限方言注册、类型精确匹配、结构化字符串解码、
+不可传递字符的错误文案与参数快照边界。
+"""
 
 from __future__ import annotations
 
 import ast
 from pathlib import Path
 import sys
+import types
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "harness/src/boss_harness/tool_schema.py"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.tool_schema import canonical_schema, validated_arguments  # noqa: E402
 BUNDLE = "harness/src/boss_harness/tool_bundle.py"
 TYPES = "harness/src/boss_harness/models/types.py"
 EXPECTED_CONSTANTS = {
@@ -61,6 +70,225 @@ def _read(relative: str) -> str:
         return (ROOT / relative).read_text(encoding="utf-8")
     except OSError:
         raise ValueError(f"无法读取 {relative}") from None
+
+
+SCHEMA_ERROR = "工具参数 schema 无效或包含不支持的规则"
+ARGUMENT_ERROR = "工具参数不符合已注册的 schema"
+UNPASSABLE_ERROR = "工具参数包含无法作为命令行参数传递的字符（如空字符或孤立代理项），请去掉后重试"
+
+
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"工具参数行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != message:
+            raise ValueError(
+                f"工具参数行为变化 {label}：期望 {message!r}，实际 {str(error)!r}"
+            ) from None
+        return 1
+    raise ValueError(f"工具参数行为变化 {label}：期望 ValueError")
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    # 注册：根必须是 Mapping 且规范化为对象；未知关键字与非法规则整体拒绝。
+    checked += _expect_error(
+        lambda: canonical_schema({"type": "array"}), SCHEMA_ERROR, "根必须是对象")
+    checked += _expect_error(
+        lambda: canonical_schema([("type", "object")]), SCHEMA_ERROR, "非 Mapping 根")
+    checked += _expect_error(
+        lambda: canonical_schema({"type": "object", "$ref": "x"}), SCHEMA_ERROR, "未知关键字")
+    checked += _expect_value(
+        canonical_schema({"type": "object", "properties": {"名": {"type": "string"}}}),
+        '{"properties":{"名":{"type":"string"}},"type":"object"}', "规范化输出")
+    checked += _expect_value(
+        canonical_schema(types.MappingProxyType({"type": "object"})),
+        '{"type":"object"}', "Mapping 根")
+    invalid = (
+        ("properties 非对象", {"type": "object", "properties": []}),
+        ("required 重复", {"type": "object", "required": ["a", "a"]}),
+        ("required 非字符串", {"type": "object", "required": [1]}),
+        ("additionalProperties 非布尔", {"type": "object", "additionalProperties": 1}),
+        ("enum 为空", {"type": "object", "properties": {"a": {"enum": []}}}),
+        ("enum 重复", {"type": "object", "properties": {"a": {"enum": [1, 1.0]}}}),
+        ("anyOf 为空", {"type": "object", "properties": {"a": {"anyOf": []}}}),
+        ("长度下界为负", {"type": "object", "properties": {"a": {
+            "type": "string", "minLength": -1}}}),
+        ("长度上下界倒置", {"type": "object", "properties": {"a": {
+            "type": "string", "minLength": 2, "maxLength": 1}}}),
+        ("非法正则", {"type": "object", "properties": {"a": {
+            "type": "string", "pattern": "("}}}),
+        ("items 非对象", {"type": "object", "properties": {"a": {
+            "type": "array", "items": 1}}}),
+        ("边界非数字", {"type": "object", "properties": {"a": {
+            "type": "number", "minimum": "0"}}}),
+    )
+    for label, schema in invalid:
+        checked += _expect_error(lambda schema=schema: canonical_schema(schema), SCHEMA_ERROR, label)
+    deep = {"type": "string"}
+    for _ in range(34):
+        deep = {"type": "object", "properties": {"a": deep}}
+    checked += _expect_error(lambda: canonical_schema(deep), SCHEMA_ERROR, "schema 超深")
+    # 参数校验：类型精确匹配、必填、额外属性、长度、正则与枚举。
+    person = {"type": "object", "properties": {"name": {"type": "string"}},
+              "required": ["name"]}
+    person_json = canonical_schema(person)
+    checked += _expect_value(
+        validated_arguments(person_json, {"name": "x"}), {"name": "x"}, "基本参数")
+    checked += _expect_value(
+        validated_arguments(person_json, {"name": "x", "extra": 1}),
+        {"name": "x", "extra": 1}, "额外键默认允许")
+    checked += _expect_error(
+        lambda: validated_arguments(
+            canonical_schema({**person, "additionalProperties": False}),
+            {"name": "x", "extra": 1}),
+        ARGUMENT_ERROR, "额外键被拒绝")
+    checked += _expect_error(
+        lambda: validated_arguments(person_json, {}), ARGUMENT_ERROR, "必填缺失")
+    integer_json = canonical_schema(
+        {"type": "object", "properties": {"n": {"type": "integer"}}})
+    number_json = canonical_schema(
+        {"type": "object", "properties": {"n": {"type": "number"}}})
+    checked += _expect_value(
+        validated_arguments(integer_json, {"n": 1}), {"n": 1}, "整数接受")
+    checked += _expect_error(
+        lambda: validated_arguments(integer_json, {"n": True}), ARGUMENT_ERROR, "整数拒绝布尔")
+    checked += _expect_error(
+        lambda: validated_arguments(integer_json, {"n": 1.0}), ARGUMENT_ERROR, "整数拒绝浮点")
+    checked += _expect_value(
+        validated_arguments(number_json, {"n": 1}), {"n": 1}, "数值接受整数")
+    checked += _expect_value(
+        validated_arguments(number_json, {"n": 1.5}), {"n": 1.5}, "数值接受浮点")
+    checked += _expect_error(
+        lambda: validated_arguments(number_json, {"n": True}), ARGUMENT_ERROR, "数值拒绝布尔")
+    text_json = canonical_schema(
+        {"type": "object", "properties": {"s": {
+            "type": "string", "minLength": 2, "maxLength": 3}}})
+    checked += _expect_value(
+        validated_arguments(text_json, {"s": "ab"}), {"s": "ab"}, "长度下界通过")
+    checked += _expect_error(
+        lambda: validated_arguments(text_json, {"s": "a"}), ARGUMENT_ERROR, "长度下界拒绝")
+    checked += _expect_error(
+        lambda: validated_arguments(text_json, {"s": "abcd"}), ARGUMENT_ERROR, "长度上界拒绝")
+    search_json = canonical_schema(
+        {"type": "object", "properties": {"s": {"type": "string", "pattern": "b"}}})
+    checked += _expect_value(
+        validated_arguments(search_json, {"s": "abc"}), {"s": "abc"}, "正则子串匹配")
+    checked += _expect_error(
+        lambda: validated_arguments(
+            canonical_schema({"type": "object", "properties": {
+                "s": {"type": "string", "pattern": "^b"}}}), {"s": "abc"}),
+        ARGUMENT_ERROR, "正则锚点拒绝")
+    enum_json = canonical_schema(
+        {"type": "object", "properties": {"v": {"type": "number", "enum": [1, 2]}}})
+    checked += _expect_value(
+        validated_arguments(enum_json, {"v": 1.0}), {"v": 1.0}, "枚举数值等价")
+    checked += _expect_error(
+        lambda: validated_arguments(enum_json, {"v": True}), ARGUMENT_ERROR, "枚举拒绝布尔")
+    any_json = canonical_schema(
+        {"type": "object", "properties": {"v": {
+            "anyOf": [{"type": "string"}, {"type": "integer"}]}}})
+    checked += _expect_value(
+        validated_arguments(any_json, {"v": "x"}), {"v": "x"}, "anyOf 字符串")
+    checked += _expect_value(
+        validated_arguments(any_json, {"v": 3}), {"v": 3}, "anyOf 整数")
+    checked += _expect_error(
+        lambda: validated_arguments(any_json, {"v": 1.5}), ARGUMENT_ERROR, "anyOf 拒绝")
+    array_json = canonical_schema(
+        {"type": "object", "properties": {"xs": {
+            "type": "array", "items": {"type": "integer"},
+            "minItems": 1, "maxItems": 2, "uniqueItems": True}}})
+    checked += _expect_value(
+        validated_arguments(array_json, {"xs": [1, 2]}), {"xs": [1, 2]}, "数组通过")
+    checked += _expect_error(
+        lambda: validated_arguments(array_json, {"xs": []}), ARGUMENT_ERROR, "数组下界拒绝")
+    checked += _expect_error(
+        lambda: validated_arguments(array_json, {"xs": [1, 2, 3]}), ARGUMENT_ERROR, "数组上界拒绝")
+    checked += _expect_error(
+        lambda: validated_arguments(array_json, {"xs": [1, 1]}), ARGUMENT_ERROR, "数组重复拒绝")
+    unique_json = canonical_schema(
+        {"type": "object", "properties": {"xs": {
+            "type": "array", "uniqueItems": True}}})
+    checked += _expect_error(
+        lambda: validated_arguments(unique_json, {"xs": [1, 1.0]}), ARGUMENT_ERROR, "数组数值等价重复")
+    checked += _expect_value(
+        validated_arguments(unique_json, {"xs": [1, True]}), {"xs": [1, True]}, "数组布尔不重复")
+    # 结构化字符串：只按 schema 选中的对象 / 数组解码，失败保留原文。
+    nested = {"type": "object", "properties": {"a": {
+        "type": "object", "properties": {"b": {"type": "integer"}},
+        "required": ["b"]}}}
+    nested_json = canonical_schema(nested)
+    checked += _expect_value(
+        validated_arguments(nested_json, {"a": '{"b": 2}'}),
+        {"a": {"b": 2}}, "对象结构化解码")
+    checked += _expect_value(
+        validated_arguments(
+            canonical_schema({"type": "object", "properties": {
+                "xs": {"type": "array", "items": {"type": "integer"}}}}),
+            {"xs": "[1,2]"}), {"xs": [1, 2]}, "数组结构化解码")
+    checked += _expect_value(
+        validated_arguments(
+            canonical_schema({"type": "object", "properties": {
+                "s": {"type": "string"}}}),
+            {"s": '{"b": 1}'}), {"s": '{"b": 1}'}, "字符串字段不解码")
+    checked += _expect_error(
+        lambda: validated_arguments(nested_json, {"a": '{"c": 2}'}),
+        ARGUMENT_ERROR, "解码不符子 schema 拒绝")
+    checked += _expect_error(
+        lambda: validated_arguments(nested_json, {"a": "[1]"}),
+        ARGUMENT_ERROR, "前缀类型不符拒绝")
+    # 参数快照：不可传递字符单独点名；非 JSON、循环、超深与非字符串键统一拒绝。
+    checked += _expect_error(
+        lambda: validated_arguments(person_json, {"name": "x\x00y"}),
+        UNPASSABLE_ERROR, "空字符不可传递")
+    checked += _expect_error(
+        lambda: validated_arguments(person_json, {"name": "x\ud800y"}),
+        UNPASSABLE_ERROR, "孤立代理项不可传递")
+    checked += _expect_error(
+        lambda: validated_arguments(person_json, []), ARGUMENT_ERROR, "非对象参数")
+    checked += _expect_error(
+        lambda: validated_arguments(person_json, {"name": "x", "bad": float("nan")}),
+        ARGUMENT_ERROR, "NaN 参数")
+    checked += _expect_error(
+        lambda: validated_arguments(person_json, {"name": "x", "bad": (1, 2)}),
+        ARGUMENT_ERROR, "元组参数")
+    checked += _expect_error(
+        lambda: validated_arguments(person_json, {"name": "x", "bad": b"x"}),
+        ARGUMENT_ERROR, "字节参数")
+    cycle: dict = {}
+    cycle["self"] = cycle
+    checked += _expect_error(
+        lambda: validated_arguments(person_json, {"name": "x", "bad": cycle}),
+        ARGUMENT_ERROR, "循环参数")
+    deep_args: list = []
+    for _ in range(70):
+        deep_args = [deep_args]
+    checked += _expect_error(
+        lambda: validated_arguments(person_json, {"name": "x", "bad": deep_args}),
+        ARGUMENT_ERROR, "超深参数")
+    checked += _expect_error(
+        lambda: validated_arguments(person_json, {"name": "x", 1: "y"}),
+        ARGUMENT_ERROR, "非字符串键")
+    checked += _expect_error(
+        lambda: validated_arguments("{", {"name": "x"}), ARGUMENT_ERROR, "非法 schema JSON")
+    # 返回独立副本：顶层与嵌套对象都不共享，输入不被修改。
+    arguments = {"name": "x", "meta": {"k": 1}}
+    result = validated_arguments(
+        canonical_schema({"type": "object", "properties": {
+            "name": {"type": "string"}, "meta": {"type": "object"}}}), arguments)
+    checked += _expect_value(result is arguments, False, "返回独立副本")
+    checked += _expect_value(result["meta"] is arguments["meta"], False, "嵌套副本独立")
+    structured = {"a": '{"b": 2}'}
+    validated_arguments(nested_json, structured)
+    checked += _expect_value(structured, {"a": '{"b": 2}'}, "输入不被修改")
+    return checked
 
 
 def _assigned(tree: ast.Module) -> dict[str, ast.expr]:
@@ -151,7 +379,8 @@ def check_tool_schema() -> tuple[int, int]:
         raise ValueError("canonical_schema 必须拒绝非 Mapping 根")
     if "except Exception:" not in schema_source or "raise ValueError(_ARGUMENT_ERROR)" not in schema_source:
         raise ValueError("参数校验失败必须统一转为受限参数错误")
-    return len(EXPECTED_CONSTANTS) + 2, len(SCHEMA_FRAGMENTS) + len(BUNDLE_FRAGMENTS) + 2
+    return (len(EXPECTED_CONSTANTS) + 2,
+            len(SCHEMA_FRAGMENTS) + len(BUNDLE_FRAGMENTS) + 2 + _behavior_checks())
 
 
 def main() -> int:

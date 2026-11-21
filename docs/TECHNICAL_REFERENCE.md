@@ -170,7 +170,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_tool_schema.py`
 
-`scripts/check_tool_schema.py` 核对工具参数边界：`tool_schema.py` 的关键字与类型集合、schema / 参数字节上限、JSON 节点 / 深度上限与规范化访问上限保持不变；根 schema 必须为对象，结构化字符串仅在按对应对象 / 数组 schema 解码且校验通过后才替换原值，参数校验失败统一转为受限错误。`tool_bundle.py` 必须保留工具名格式、描述非空、执行模式与审批互斥、结果预算范围、schema 冻结、注册表名校验与只读投影。检查是常量与文本扫描，运行时 schema 行为仍需按用户指南核对。
+`scripts/check_tool_schema.py` 核对工具参数边界：`tool_schema.py` 的关键字与类型集合、schema / 参数字节上限、JSON 节点 / 深度上限与规范化访问上限保持不变；根 schema 必须为对象，结构化字符串仅在按对应对象 / 数组 schema 解码且校验通过后才替换原值，参数校验失败统一转为受限错误。`tool_bundle.py` 必须保留工具名格式、描述非空、执行模式与审批互斥、结果预算范围、schema 冻结、注册表名校验与只读投影。检查同时直接调用 `canonical_schema` 与 `validated_arguments` 做行为对照（87 项）：根必须是 Mapping 且规范化为对象、未知关键字与非法规则整体拒绝、规范化输出的键序与非 ASCII 保留、Mapping 子类、类型精确匹配（布尔不是整数 / 数值）、required 与 additionalProperties、字符串长度与 `re.search` 正则语义、anyOf、数组长度与 `uniqueItems` 的数值等价、结构化字符串仅按 schema 选中的对象 / 数组解码且失败保留原文、不可传递字符单独点名，以及非对象 / 循环 / 超深 / NaN / 元组 / 字节 / 非字符串键 / 非法 schema JSON 的拒绝与返回独立副本。
 
 ### `check_tool_arguments.py`
 
