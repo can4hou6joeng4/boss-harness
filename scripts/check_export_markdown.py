@@ -4,8 +4,8 @@
 导出的 Markdown 会被用户放进工单、聊天或代码托管页面渲染。用户与模型正文可能包含
 反引号、换行或整行围栏，元数据还可能包含平台返回的任意文本：正文只能走按最长反引号
 动态加长的代码围栏，单行元数据必须经 `_inline_text` 转义链接、原生 HTML、强调与表格
-定界符，标识符再包成行内代码。这里固定这些入口与围栏算法，避免新增字段把可执行的
-Markdown 拼进导出。
+定界符，标识符再包成行内代码。这里固定这些入口与围栏算法，并直接调用四个纯函数核对
+替换结果，避免新增字段把可执行的 Markdown 拼进导出。
 """
 
 from __future__ import annotations
@@ -15,6 +15,14 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPORT = "harness/src/boss_harness/session_export.py"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.session_export import (  # noqa: E402
+    _code_text,
+    _fence,
+    _inline_code,
+    _inline_text,
+)
 
 EXPORT_FRAGMENTS = (
     "def _code_text(value: Any) -> str:",
@@ -106,6 +114,48 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"导出 Markdown 行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _behavior_checks() -> int:
+    checked = 0
+
+    checked += _expect_value(_code_text("a`b"), "a'b", "反引号归一")
+    checked += _expect_value(_code_text("a\rb\nc"), "a b c", "换行归一")
+    checked += _expect_value(_code_text("plain text"), "plain text", "安全文本")
+    checked += _expect_value(_code_text(None), "None", "空值转文本")
+    checked += _expect_value(_code_text(5), "5", "数值转文本")
+
+    checked += _expect_value(_inline_text("a`b\nc"), "a'b c", "行内先归一")
+    checked += _expect_value(_inline_text("\\"), "\\\\", "反斜杠转义")
+    checked += _expect_value(
+        _inline_text("[]<>*_~|"), "\\[\\]\\<\\>\\*\\_\\~\\|", "行内定界符")
+    checked += _expect_value(
+        _inline_text("a`b\r\nc[*]_~|<>"),
+        "a'b  c\\[\\*\\]\\_\\~\\|\\<\\>", "行内组合")
+    checked += _expect_value(_inline_text(None), "None", "行内空值")
+    checked += _expect_value(_inline_text("plain"), "plain", "行内安全文本")
+
+    checked += _expect_value(_inline_code("a`b\nc"), "`a'b c`", "行内代码归一")
+    checked += _expect_value(_inline_code("a*b"), "`a*b`", "行内代码不转义")
+    checked += _expect_value(_inline_code(None), "`None`", "行内代码空值")
+
+    checked += _expect_value(_fence("abc"), "```text\nabc\n```", "默认围栏")
+    checked += _expect_value(_fence("{}", "json"), "```json\n{}\n```", "语言围栏")
+    checked += _expect_value(_fence("```"), "````text\n```\n````", "反引号围栏加长")
+    checked += _expect_value(
+        _fence("~~~~~"), "``````text\n~~~~~\n``````", "波浪线围栏加长")
+    checked += _expect_value(
+        _fence("````\n~~~~"), "`````text\n````\n~~~~\n`````", "混合围栏取最长")
+    checked += _expect_value(_fence(""), "```text\n\n```", "空正文围栏")
+    checked += _expect_value(_fence("a\nb"), "```text\na\nb\n```", "围栏保留换行")
+    return checked
+
+
 def check_export_markdown() -> int:
     export = _read(EXPORT)
     checked = 0
@@ -182,7 +232,7 @@ def check_export_markdown() -> int:
                       '_inline_text(unit["text"]', 'return "`" + _inline_text(value) + "`"'):
         if forbidden in export:
             raise ValueError(f"{EXPORT} 的 Markdown 渲染不得包含 {forbidden}")
-    return checked + 1
+    return checked + 1 + _behavior_checks()
 
 
 def main() -> int:
@@ -191,7 +241,7 @@ def main() -> int:
     except ValueError as error:
         print(f"导出 Markdown 定界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"导出 Markdown 定界一致：{checked} 项中和入口、围栏算法与队列事实")
+    print(f"导出 Markdown 定界一致：{checked} 项中和入口、围栏算法、队列事实与纯函数行为")
     return 0
 
 
