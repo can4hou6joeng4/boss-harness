@@ -200,6 +200,8 @@ jobs:
         run: python scripts/check_delete_intent.py
       - name: Verify event page
         run: python scripts/check_event_page.py
+      - name: Verify event rewrite
+        run: python scripts/check_event_rewrite.py
       - name: Verify thread meta
         run: python scripts/check_thread_meta.py
       - name: Verify thread page
@@ -427,6 +429,8 @@ jobs:
         run: python scripts/check_delete_intent.py
       - name: Verify event page
         run: python scripts/check_event_page.py
+      - name: Verify event rewrite
+        run: python scripts/check_event_rewrite.py
       - name: Verify thread meta
         run: python scripts/check_thread_meta.py
       - name: Verify thread page
