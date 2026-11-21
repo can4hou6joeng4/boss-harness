@@ -5,7 +5,8 @@
 链为界，从旧叶回溯到共同祖先（不含），再反转成时间顺序；`append_branch_summary`
 只允许在请求摘要的叶记录仍是最后一条叶记录、且其后没有新回合或摘要时写入，长度
 为 1 到 32000 字符，并在追加后执行提交回调与重建索引。这里固定这些规则，避免
-重构后把摘要写到已经切换走的分支，或让放弃列表与共同祖先错位。
+重构后把摘要写到已经切换走的分支，或让放弃列表与共同祖先错位，并直接调用
+`abandoned_branch` 核对祖先链、共同祖先与时间顺序。
 """
 
 from __future__ import annotations
@@ -15,6 +16,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.session import SessionStore  # noqa: E402
 
 # 放弃列表：读取条目与回合树 → 目标必须存在 → 目标祖先链 → 旧叶回溯到共同祖先 →
 # 反转成时间顺序 → 固定结果字段。
@@ -87,6 +91,90 @@ def _region(source: str, marker: str) -> str:
     return source[start:] if end < 0 else source[start:end]
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"被放弃分支行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != message:
+            raise ValueError(
+                f"被放弃分支行为变化 {label}：期望 {message!r}，实际 {str(error)!r}"
+            ) from None
+        return 1
+    raise ValueError(f"被放弃分支行为变化 {label}：期望 ValueError")
+
+
+class _Store:
+    def __init__(self, parent: dict[str, str | None], leaf: str | None) -> None:
+        self._parent = parent
+        self._leaf = leaf
+
+    def read_entries(self, thread_id: str) -> list[dict]:
+        return []
+
+    def _turn_tree(self, entries: list[dict]):
+        return dict(self._parent), list(self._parent)
+
+    def _leaf_state(self, thread_id: str, entries: list[dict]):
+        return {"leafTurnId": self._leaf}
+
+
+def _abandoned(parent: dict[str, str | None], leaf: str | None,
+               target: str | None) -> dict:
+    return SessionStore.abandoned_branch(_Store(parent, leaf), "thread", target, entries=[])
+
+
+def _behavior_checks() -> int:
+    linear = {"t1": None, "t2": "t1", "t3": "t2"}
+    checked = _expect_value(
+        _abandoned(linear, "t3", "t2"),
+        {"fromTurnId": "t3", "targetTurnId": "t2", "commonTurnId": "t2",
+         "abandonedTurnIds": ["t3"]}, "线性回退一级")
+    checked += _expect_value(
+        _abandoned(linear, "t3", "t1"),
+        {"fromTurnId": "t3", "targetTurnId": "t1", "commonTurnId": "t1",
+         "abandonedTurnIds": ["t2", "t3"]}, "线性回退两级")
+    checked += _expect_value(
+        _abandoned(linear, "t3", None),
+        {"fromTurnId": "t3", "targetTurnId": None, "commonTurnId": None,
+         "abandonedTurnIds": ["t1", "t2", "t3"]}, "目标为空")
+    checked += _expect_value(
+        _abandoned(linear, "t3", "t3"),
+        {"fromTurnId": "t3", "targetTurnId": "t3", "commonTurnId": "t3",
+         "abandonedTurnIds": []}, "原地目标")
+    branch = {"t1": None, "t2": "t1", "t3": "t1"}
+    checked += _expect_value(
+        _abandoned(branch, "t3", "t2"),
+        {"fromTurnId": "t3", "targetTurnId": "t2", "commonTurnId": "t1",
+         "abandonedTurnIds": ["t3"]}, "分叉共同祖先")
+    checked += _expect_error(
+        lambda: _abandoned(linear, "t3", "ghost"), "目标回合不存在", "目标不存在")
+    checked += _expect_value(
+        _abandoned(linear, None, None),
+        {"fromTurnId": None, "targetTurnId": None, "commonTurnId": None,
+         "abandonedTurnIds": []}, "无叶记录")
+    checked += _expect_value(
+        set(_abandoned(linear, "t3", "t1")),
+        {"fromTurnId", "targetTurnId", "commonTurnId", "abandonedTurnIds"},
+        "结果字段")
+    checked += _expect_value(
+        _abandoned({}, None, None),
+        {"fromTurnId": None, "targetTurnId": None, "commonTurnId": None,
+         "abandonedTurnIds": []}, "空树")
+    deep = {"t1": None, "t2": "t1", "t3": "t2", "t4": "t3"}
+    checked += _expect_value(
+        _abandoned(deep, "t4", "t1"),
+        {"fromTurnId": "t4", "targetTurnId": "t1", "commonTurnId": "t1",
+         "abandonedTurnIds": ["t2", "t3", "t4"]}, "四级链")
+    return checked
+
+
 def check_branch_summary() -> int:
     source = _read(SESSION)
     abandoned = _region(source, "def abandoned_branch(")
@@ -109,7 +197,7 @@ def check_branch_summary() -> int:
     if summary.count("MAX_BRANCH_SUMMARY_CHARS") != 1:
         raise ValueError(f"{SESSION} 的摘要长度上限必须唯一")
     checked += 1
-    return checked
+    return checked + _behavior_checks()
 
 
 def main() -> int:
@@ -118,7 +206,7 @@ def main() -> int:
     except ValueError as error:
         print(f"被放弃分支核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"被放弃分支一致：{checked} 项祖先、目标与摘要绑定校验")
+    print(f"被放弃分支一致：{checked} 项祖先、目标、摘要绑定与行为校验")
     return 0
 
 
