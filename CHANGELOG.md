@@ -1,3 +1,10 @@
+## 0.2.0-rc.491 - 2026-11-22
+
+rc.491 源码候选为 Codex 配置路径、严格错误与 profile 补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `codex_config.py` 只读本地配置并按显式入参、环境覆盖与 `CODEX_HOME` 选择文件。原有 `scripts/check_codex_config.py` 只做静态扫描（70 项），本轮加入行为对照（114 项）：直接调用 `config_path` 覆盖优先级与去空白并确认不读取进程环境；调用 `profile_from_mapping` 覆盖缺失模型 / 端点、provider 查找、`wire_api` 缺省与大小写归一、非 `responses` 拒绝、effort / env_key 去空白与 `Secret` 包装（含不可 JSON 序列化）；用临时目录构造有效 / 缺失 / 目录 / 非法 TOML，覆盖 strict 开与关、固定错误码、错误不回显配置原文/凭据，以及 `tomllib` 不可用时的错误码。CI 无需改动，技术参考同步说明。修复 Issue [#3107](https://github.com/can4hou6joeng4/boss-harness/issues/3107)。
+- 变异验证：结构侧默认路径、显式与环境判定、去空白、文件判定、错误码、解析器可用、二进制读取、解码捕获、profile 返回与归一化、协议白名单、凭据来源与包装、四类反向断言三十种，行为侧显式优先、环境去空白、忽略进程环境、覆盖空值、协议白名单与归一结果、凭据与环境变量结果、严格开关、缺失边界与凭据脱敏十二种，均被检查发现（42/42）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.491` / Python `0.2.0rc491`。
+
 ## 0.2.0-rc.490 - 2026-11-22
 
 rc.490 源码候选为上下文估算、请求指纹与用量校准补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
