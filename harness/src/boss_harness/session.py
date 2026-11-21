@@ -154,6 +154,32 @@ def _log_mentions_leaf(path: Path) -> bool:
                 return True
             tail = window[-overlap:]
     return False
+
+
+def continuation_entries_digest(entries: list[dict]) -> str:
+    """续接边界摘要：与条目逐字节绑定，分叉复制后按复制前缀重算。"""
+    encoded = json.dumps(entries, ensure_ascii=False, sort_keys=True,
+                         separators=(",", ":"), allow_nan=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _rehash_continuation_boundaries(copied: list[dict]) -> None:
+    """分叉丢弃内核专用记录并改写审批编号：继承的续接边界按复制后的前缀重算。"""
+    positions = {entry.get("id"): index for index, entry in enumerate(copied)}
+    for entry in copied:
+        payload = entry.get("payload")
+        if entry.get("type") != "turn" or not isinstance(payload, dict):
+            continue
+        boundary_id = payload.get("continuationBoundaryEntryId")
+        if not isinstance(boundary_id, str):
+            continue
+        index = positions.get(boundary_id)
+        if index is None:
+            # 边界条目未复制：删掉摘要，让预检按「持久边界不存在」拒绝，而不是误报历史变化。
+            payload.pop("continuationBoundaryDigest", None)
+            continue
+        payload["continuationBoundaryDigest"] = continuation_entries_digest(copied[:index + 1])
+
 # Pi branchWithSummary(): a model summary of the abandoned branch, appended
 # right after the leaf record it belongs to, so it projects only on that branch.
 BRANCH_SUMMARY_ENTRY_TYPE = "branch_summary"
@@ -3677,6 +3703,7 @@ class SessionStore:
                     approval["approvalId"] = approval_ids[approval_id]
                 copied.append(entry)
                 copied_ids.add(entry["id"])
+            _rehash_continuation_boundaries(copied)
             return self._write_new(header, copied)
 
     def recover(self) -> None:

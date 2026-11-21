@@ -47,7 +47,7 @@ from boss_harness.runtime import (MAX_QUEUE_INPUT_CHARS, PAUSE_REASON_COMPACTION
 from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, CheckpointCommittedError, CheckpointCommitUncertain, Entry,
                                   ApprovalDecisionError, ItemLookupError, SessionEntriesSnapshot,
                                   SessionSizeLimitExceeded, SessionStore, ThreadNotFound,
-                                  ToolRevisionPersistenceError,
+                                  ToolRevisionPersistenceError, continuation_entries_digest,
                                   MAX_TOOL_BATCH_CALLS)
 from boss_harness.snapshot_store import MAX_SNAPSHOT_BYTES, SnapshotStore, read_projection_entries
 from boss_harness.tool_results import MAX_PAGE_BYTES, project_item, read_result_chunk, wire_size
@@ -3155,6 +3155,10 @@ class ApplicationService:
             self.bridge_lifecycle.close(bridge)
             raise
 
+    def _reset_runner_history(self, runner: TurnRunner) -> None:
+        """串行复用主 runner 时，续接钉住的历史边界不能留给下一个普通回合。"""
+        runner.history_provider = self.context.history
+
     @staticmethod
     def _continuation_context_fingerprint(config: ModelConfig, system_prompt: str,
                                          tools: tuple, skills: list[dict], attachments: list[dict],
@@ -3186,9 +3190,8 @@ class ApplicationService:
 
     @staticmethod
     def _continuation_entries_digest(entries: list[dict]) -> str:
-        encoded = json.dumps(entries, ensure_ascii=False, sort_keys=True,
-                             separators=(",", ":"), allow_nan=False).encode("utf-8")
-        return hashlib.sha256(encoded).hexdigest()
+        # 与 SessionStore.fork_thread 的重算共用同一口径，避免两处摘要分叉。
+        return continuation_entries_digest(entries)
 
     @staticmethod
     def _continuation_policy(value: Any) -> CompactionPolicy | None:
@@ -3788,6 +3791,7 @@ class ApplicationService:
                 attachment_text, attachments = self.attachments.context(thread_id, params.get("attachmentIds"))
                 self.runtimes.check_admission(thread_id)
                 runner = self._runner_for(config)
+                self._reset_runner_history(runner)
                 runner.max_model_requests = max_model_requests
                 if any(compaction["status"] == "running" and compaction.get("provider") is runner.provider
                        for compaction in self._compaction_jobs.values()):

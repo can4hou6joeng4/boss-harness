@@ -1890,6 +1890,8 @@ Pi Durable 开放 [Issue #11332](https://github.com/earendil-works/pi/issues/113
 
 本轮使用真实 `ApplicationService`、临时 `SessionStore`、合成 provider/bridge 与虚构 handler 验证完整工具批次后中断、显式续接、相同续接编号的并发幂等，以及 handler 调用次数不增加；额外回归探针确认续接后的普通新回合从 request index 0 开始。Python 编译、TypeScript 检查、Electron 构建、wheel/sdist、npm audit 和 `git diff --check` 均通过。真实模型、招聘 CLI、招聘平台和默认 Electron profile 均未调用；桌面交互仍需单独人工验收。
 
+后续修复（[Issue #2969](https://github.com/can4hou6joeng4/boss-harness/issues/2969)）核对 Pi 固定 commit `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/durable/src/session/forks.ts`：Pi 创建分支时只复制带对应 fork 策略（`asOf` / `current`）的对话文档，文档携带自身内容，复制后不存在跨文档的条目链摘要需要重算。本项目的续接边界摘要 `continuationBoundaryDigest` 不是独立文档，而是对条目链前缀的 sha256，因此分叉丢弃内核专用记录、改写审批编号后必须按复制后的前缀重算，边界条目未复制时清除摘要。该差异属本项目自有持久化结构，不复制 Pi 源码、不引入依赖；同时修复串行复用主 runner 时续接回合钉住的历史边界泄漏到下一个普通回合。离线探针与真实内核 `provider=none` 探针覆盖摘要一致性与预检阶段；未调用真实模型、招聘平台或桌面 UI。
+
 ## 模型自动重试的可观测通知
 
 参考 Pi 固定 commit `a14cdf90f0a76532f3e20bc3c01872837cef24ba` 的 `packages/coding-agent/src/core/agent-session.ts`：`_prepareRetry` 在退避前发出 `auto_retry_start`（attempt、maxAttempts、delayMs、errorMessage），重试成功、最终失败或在等待中被取消时发出 `auto_retry_end`；交互模式据此显示重试提示。本项目 #242 后两条内置 provider 已共用首个输出前的自动重试，但重试过程只写 stderr，桌面与其他客户端只能看到长时间无输出。本轮独立实现、不复制 Pi 源码或新增依赖。

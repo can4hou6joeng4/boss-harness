@@ -1,3 +1,13 @@
+## 0.2.0-rc.422 - 2026-11-21
+
+rc.422 源码候选修复中断回合续接的两处边界缺陷。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 分叉会话的续接预检误报历史变化：`fork_thread` 复制当前分支前缀时会丢弃 `thread_info` / `queue` / `task_phase` 并改写审批编号，但继承的 `continuationBoundaryDigest` 原样保留。来源会话的边界摘要绑定原始条目链，分叉前缀的条目集合与编号已不同，预检因此以 `CONTINUATION_HISTORY_CHANGED` 拒绝一个实际未变的历史（离线探针：源摘要 `2e2bcdce32a91ff5` 与分叉前缀 `ad6a9dbae3523c3f` 不一致；真实内核 `provider=none` 探针：来源会话停在 `CONTINUATION_SOURCE_UNVERIFIABLE`，分叉会话却报 `CONTINUATION_HISTORY_CHANGED`）。现在摘要收敛到 `session.continuation_entries_digest` 单点计算，`fork_thread` 在写出新会话前按复制后的前缀重算继承边界；边界条目未被复制时清除摘要，让预检按「持久边界不存在」拒绝而不是误报历史变化。修复 Issue [#2969](https://github.com/can4hou6joeng4/boss-harness/issues/2969)。
+- 串行复用主 runner 时历史边界泄漏：嵌入方未提供 provider factory 时 `_runner_for` 复用 `self.runner`，续接回合给 runner 设置的 `history_provider` 会留给下一个普通回合。现在 `_on_turn_start` 在取用 runner 后、设置模型请求上限前调用 `_reset_runner_history`，把历史提供者复位为会话历史。同一 Issue。
+- 技术参考补充两段机制说明：幂等回执（`deduplicated: true`）只说明编号已被使用、不携带既有回合状态（既有回合若以 `TURN_START_FAILED` 之类的错误状态落盘，重放仍得到成功形状的回执，应以回合列表中的实际状态为准）；分叉重算与串行复位的边界。UPSTREAM 记录核对 Pi 固定 commit 的分叉文档复制语义与本项目条目链摘要的差异。
+- `scripts/check_turn_continuation.py` 从 86 项扩展到 111 项：摘要单点计算与委托、`fork_thread` 在复制循环之后且 `_write_new` 之前重算一次继承边界、边界缺失清除摘要、复位方法与会话历史的绑定、`_on_turn_start` 的调用位置与次数，以及文档新段落；29 项逐个还原的变异全部被发现（含 rc.419 的 18 项回归）。
+- 对照探针（离线，不入库）：分叉摘要探针在修复前后分别得到上述不一致 / 一致结论；真实内核 `provider=none` 探针确认修复后分叉与来源会话停在同一个预检阶段；独立构造 `ApplicationService` 与 fake runner 验证复位方法与调用位置。未在真实窗口中验证界面，未调用真实模型、招聘平台或招聘 CLI。版本推进到 npm `0.2.0-rc.422` / Python `0.2.0rc422`。
+
 ## 0.2.0-rc.421 - 2026-11-21
 
 rc.421 源码候选让 README 英文概览与中文文档的已具备能力口径一致。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

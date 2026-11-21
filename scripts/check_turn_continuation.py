@@ -17,6 +17,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 APPLICATION = "harness/src/boss_harness/application.py"
+SESSION = "harness/src/boss_harness/session.py"
 REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 USER_GUIDE = "docs/USER_GUIDE.md"
 DESKTOP_GUIDE = "docs/DESKTOP_GUIDE.md"
@@ -108,10 +109,36 @@ REFERENCE_MARK = (
     "最新回合」与「是否已有续接回合」按当前分支判定",
     "`continuationId` 的去重则按整份会话日志判定",
     "返回 `CONTINUATION_ID_CONFLICT`",
+    "幂等回执（`deduplicated: true`）只说明编号已被使用",
+    "继承的 `continuationBoundaryDigest` 因此按复制后的前缀重算",
+    "普通回合启动前复位 runner 的历史提供者",
+    "`fork_thread` 在 `_write_new` 之前按复制前缀重算继承边界",
     "预检回执固定包含 `threadId`、`sourceTurnId`、`eligible` 与 `warning`",
     "### `check_turn_continuation.py`",
     "[`check_turn_continuation.py`](#check_turn_continuationpy)",
     "原因码集合由 `check_turn_continuation.py` 与技术参考的表格双向核对",
+)
+# 边界摘要单点计算：会话存储与分叉重算共用同一实现。
+SESSION_MARK = (
+    "def continuation_entries_digest(entries: list[dict]) -> str:",
+    'encoded = json.dumps(entries, ensure_ascii=False, sort_keys=True,',
+    "return hashlib.sha256(encoded).hexdigest()",
+    "def _rehash_continuation_boundaries(copied: list[dict]) -> None:",
+    'boundary_id = payload.get("continuationBoundaryEntryId")',
+    'payload.pop("continuationBoundaryDigest", None)',
+    'payload["continuationBoundaryDigest"] = continuation_entries_digest(copied[:index + 1])',
+)
+FORK_ORDERED = (
+    "def fork_thread(",
+    'copied_ids.add(entry["id"])',
+    "_rehash_continuation_boundaries(copied)",
+    "return self._write_new(header, copied)",
+)
+# 串行复用主 runner 时，续接钉住的历史边界不能留给下一个普通回合。
+RESET_MARK = (
+    "def _reset_runner_history(self, runner: TurnRunner) -> None:",
+    "runner.history_provider = self.context.history\n",
+    "self._reset_runner_history(runner)",
 )
 USER_MARK = (
     "- [继续中断回合](#继续中断回合)",
@@ -182,6 +209,37 @@ def check_turn_continuation() -> int:
         raise ValueError(f"{APPLICATION} 的 continuationId 去重不得改用分支投影")
     checked += 1
     checked += _expect(READ_MARK, application, APPLICATION)
+    # 摘要口径单点计算：应用层只做委托，分叉在写出前按复制前缀重算。
+    session = _read(SESSION)
+    checked += _expect(SESSION_MARK, session, SESSION)
+    start = session.index("def fork_thread(")
+    end = session.find("\n    def ", start + 1)
+    fork = session[start:] if end < 0 else session[start:end]
+    checked += _ordered(FORK_ORDERED, fork, SESSION)
+    if fork.count("_rehash_continuation_boundaries(copied)") != 1 or "json.dumps(" in fork:
+        raise ValueError(f"{SESSION} 的分叉必须在写出前调用一次共用的边界重算")
+    checked += 1
+    if "def _continuation_entries_digest(entries: list[dict]) -> str:" not in application or \
+            "return continuation_entries_digest(entries)" not in application:
+        raise ValueError(f"{APPLICATION} 的续接摘要必须委托 session.continuation_entries_digest")
+    start = application.index("def _continuation_entries_digest(")
+    end = application.find("\n    def ", start + 1)
+    delegation = application[start:] if end < 0 else application[start:end]
+    if "hashlib" in delegation or "json.dumps(" in delegation:
+        raise ValueError(f"{APPLICATION} 的续接摘要不得内联实现")
+    checked += 2
+    # 复位必须紧跟取用后的 runner，且只调用一次：续接的历史边界只属于该回合。
+    checked += _expect(RESET_MARK, application, APPLICATION)
+    start = application.index("def _on_turn_start(")
+    end = application.find("\n    def ", start + 1)
+    turn_start = application[start:] if end < 0 else application[start:end]
+    checked += _ordered(
+        ("runner = self._runner_for(config)", "self._reset_runner_history(runner)",
+         "runner.max_model_requests = max_model_requests"),
+        turn_start, APPLICATION)
+    if turn_start.count("self._reset_runner_history(runner)") != 1:
+        raise ValueError(f"{APPLICATION} 的普通回合启动必须复位一次 runner 历史")
+    checked += 1
     reference = _read(REFERENCE)
     checked += _expect(REFERENCE_MARK, reference, REFERENCE)
     documented = set(TABLE_ROW.findall(_section(reference, "## 中断回合续接")))
@@ -218,7 +276,7 @@ def main() -> int:
     except ValueError as error:
         print(f"续接预检核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"续接预检一致：{checked} 项分支判定、原因码表与桌面入口校验")
+    print(f"续接预检一致：{checked} 项分支判定、原因码表、分叉重算与桌面入口校验")
     return 0
 
 
