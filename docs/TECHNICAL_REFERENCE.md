@@ -710,7 +710,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_entries_snapshot.py`
 
-`scripts/check_entries_snapshot.py` 核对会话条目快照：`open_entries_snapshot` 在写锁内确认会话存在、以二进制打开日志、`fstat` 后把可读前缀裁到最后一条完整记录（`_complete_record_limit`），任何异常都先关闭文件；`SessionEntriesSnapshot` 保存 source / size / mtime / inode 与行号，`stamp` 按 size / mtime / inode 顺序返回前缀身份；进入与迭代都拒绝已关闭快照；每次迭代回到开头、行号复位、按 `MAX_SESSION_LINE_BYTES` 与钉住的前缀字节上限逐行读取、跳过空行并解码。反向断言：前缀必须来自 `_complete_record_limit`；关闭错误出现两次；`stamp` 必须携带三项。检查是源码字面量与顺序扫描，不执行快照读取。
+`scripts/check_entries_snapshot.py` 核对会话条目快照：`open_entries_snapshot` 在写锁内确认会话存在、以二进制打开日志、`fstat` 后把可读前缀裁到最后一条完整记录（`_complete_record_limit`），任何异常都先关闭文件；`SessionEntriesSnapshot` 保存 source / size / mtime / inode 与行号，`stamp` 按 size / mtime / inode 顺序返回前缀身份；进入与迭代都拒绝已关闭快照；每次迭代回到开头、行号复位、按 `MAX_SESSION_LINE_BYTES` 与钉住的前缀字节上限逐行读取、跳过空行并解码。反向断言：前缀必须来自 `_complete_record_limit`；关闭错误出现两次；`stamp` 必须携带三项。检查同时做行为对照（75 项）：用 `io.BytesIO` 直接实例化 `SessionEntriesSnapshot`，覆盖空前缀、仅会话头、空行跳过计入行号、CRLF、前缀字节上限、重入迭代、`stamp`、关闭后进入 / 迭代拒绝、上下文管理器退出即关闭、格式无效 / 重复会话头 / 坏 JSON / 非 UTF-8 错误；并用真实临时日志与轻量替身直接调用 `SessionStore.open_entries_snapshot`，覆盖完整记录、末尾残段裁剪、空文件、纯残段、超长无边界拒绝、取长度失败时关闭文件、打开失败直接报错，以及写锁内先核对会话再打开的顺序。
 
 ### `check_compaction.py`
 

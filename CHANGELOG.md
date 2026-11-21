@@ -1,3 +1,10 @@
+## 0.2.0-rc.505 - 2026-11-22
+
+rc.505 源码候选为条目快照补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session.py` 的 `open_entries_snapshot` 与 `SessionEntriesSnapshot` 决定恢复与会话读取能看到哪些持久记录。原有 `scripts/check_entries_snapshot.py` 只做源码片段、顺序与计数扫描（43 项），本轮加入行为对照（75 项）：用 `io.BytesIO` 直接实例化快照，覆盖空前缀、仅会话头、空行跳过计入行号、CRLF、前缀字节上限、重入迭代、`stamp`、关闭后进入 / 迭代拒绝、上下文管理器退出即关闭、格式无效 / 重复会话头 / 坏 JSON / 非 UTF-8 错误；并用真实临时日志与轻量替身直接调用 `SessionStore.open_entries_snapshot`，覆盖完整记录、末尾残段裁剪、空文件、纯残段、超长无边界拒绝、取长度失败时关闭文件、打开失败直接报错，以及写锁内先核对会话再打开的顺序。CI 无需改动，技术参考同步说明。修复 Issue [#3135](https://github.com/can4hou6joeng4/boss-harness/issues/3135)。
+- 变异验证：结构侧打开路径、完整记录上限、兜底捕获、错误关闭、快照构造、身份透传、关闭错误文案、前缀字节上限、跳过空行、重入回零、`stamp` 内容与签名共十二种，行为侧 `stamp` 错误、不跳过空行、不钉前缀、关闭仍可读、退出不关闭、范围用文件大小、失败不关闭、不持锁与先打开后核对共九种，均被检查发现（21/21）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.505` / Python `0.2.0rc505`。
+
 ## 0.2.0-rc.504 - 2026-11-22
 
 rc.504 源码候选为附件上下文注入补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
