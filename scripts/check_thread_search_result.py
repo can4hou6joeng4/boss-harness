@@ -5,6 +5,10 @@
 关键词高亮，角色决定显示成你、助手还是工具。这里固定对象与数组判定、
 标识与文本上限、角色白名单、回执级上限与「任一命中非法即整体拒绝」，
 避免把内核异常传成渲染期抛错或把损坏响应当成完整结果。
+
+会话区按当前分支视图展示，搜索却覆盖完整日志：命中可能位于被放弃的分支上。
+这里同时固定内核的分支标记、弹窗标签与会话区的定位说明，避免再次出现
+「点击搜索结果后什么都没发生」。
 """
 
 from __future__ import annotations
@@ -14,6 +18,12 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULT = "apps/desktop/src/renderer/src/data/threadSearchResult.ts"
+SESSION = "harness/src/boss_harness/session.py"
+DIALOG = "apps/desktop/src/renderer/src/components/SearchDialog.tsx"
+SHELL = "apps/desktop/src/renderer/src/shell/AppShell.tsx"
+CONVERSATION = "apps/desktop/src/renderer/src/shell/ConversationArea.tsx"
+PROTOCOL = "packages/protocol/src/index.ts"
+CSS = "apps/desktop/src/renderer/src/styles/replica.css"
 
 FRAGMENTS = (
     "const ID_LIMIT = 200;",
@@ -30,7 +40,9 @@ FRAGMENTS = (
     "if (!boundedText(raw.itemId, ID_LIMIT)) return null;",
     'if (typeof raw.role !== "string" || !ROLES.has(raw.role)) return null;',
     'if (typeof raw.snippet !== "string" || raw.snippet.length > SNIPPET_LIMIT) return null;',
+    'if (raw.onBranch !== undefined && typeof raw.onBranch !== "boolean") return null;',
     'role: raw.role as ThreadSearchMatch["role"],',
+    '...(typeof raw.onBranch === "boolean" ? { onBranch: raw.onBranch } : {}),',
     "if (!Array.isArray(raw.matches) || raw.matches.length > SEARCH_MATCH_LIMIT) return null;",
     'if (raw.truncated !== undefined && typeof raw.truncated !== "boolean") return null;',
     "const matches: ThreadSearchMatch[] = [];",
@@ -50,7 +62,9 @@ ORDERED = (
         "if (!boundedText(raw.itemId, ID_LIMIT)) return null;",
         'if (typeof raw.role !== "string" || !ROLES.has(raw.role)) return null;',
         'if (typeof raw.snippet !== "string" || raw.snippet.length > SNIPPET_LIMIT) return null;',
+        'if (raw.onBranch !== undefined && typeof raw.onBranch !== "boolean") return null;',
         'role: raw.role as ThreadSearchMatch["role"],',
+        '...(typeof raw.onBranch === "boolean" ? { onBranch: raw.onBranch } : {}),',
     ),
     # 整体回执：对象判定 → 上限 → 截断标记类型 → 逐条校验 → 拒绝整包。
     (
@@ -63,6 +77,42 @@ ORDERED = (
         "matches.push(match);",
         "return { matches, truncated: raw.truncated === true };",
     ),
+)
+
+
+# 内核：会话有位置记录时按当前分支投影出条目集合，命中逐条标明是否在它上面；
+# 投影失败时省略字段，搜索结果照常返回。
+KERNEL_MARK = (
+    "entries = self.read_entries(thread[\"id\"])",
+    "items = self._project_items(thread[\"id\"], entries)",
+    "branch_item_ids: set[str] | None = None",
+    'if any(entry.get("type") == LEAF_ENTRY_TYPE for entry in entries):',
+    "branch_item_ids = {str(item.get(\"id\") or \"\")",
+    "self._active_entries(entries))}",
+    "except ValueError:",
+    "branch_item_ids = None",
+    "if branch_item_ids is not None:",
+    'match["onBranch"] = item_id in branch_item_ids',
+    "matches.append(match)",
+)
+# 弹窗：只在确认不在当前分支时显示标签，并把该事实随打开动作传给会话区。
+DIALOG_MARK = (
+    "onOpenMessage?: (session: SessionItem, itemId: string, revealToolBlock: boolean, query: string, offBranch?: boolean) => void;",
+    "onOpenMessage(option.row.session, focus.itemId, focus.revealToolBlock, focus.query, option.hit.onBranch === false);",
+    "hit.onBranch === false && <b className=\"search-branch-badge\"",
+)
+# 会话区：历史未读尽时继续等待；列表就绪仍找不到时说明原因并可关闭，不静默放弃。
+CONVERSATION_MARK = (
+    "focusOffBranch?: boolean;",
+    "focusMessageId, focusRevealTool = false, focusOffBranch = false, onFocusMessage,",
+    "const [focusMiss, setFocusMiss] = useState(false);",
+    "if (messages.length && !loadingHistory) setFocusMiss(true);",
+    "setFocusMiss(false);",
+    "[focusMessageId, focusRevealTool, focusOffBranch, messages, loadingHistory, onFocusMessage]",
+    "data-focus-miss",
+    "要定位的消息位于被放弃的分支上",
+    "没有找到要定位的消息：它可能位于被放弃的分支上，或历史尚未载入。",
+    "setFocusMiss(false); onFocusMessage?.();",
 )
 
 
@@ -100,7 +150,45 @@ def check_thread_search_result() -> int:
         raise ValueError(f"{RESULT} 的截断标记只能取显式 true")
     if "if (!match) continue;" in source:
         raise ValueError(f"{RESULT} 的单条命中非法时必须拒绝整包回执")
-    return checked + 3
+    # 分支标记只能取显式布尔：真假值判断会把缺失字段当成「其他分支」。
+    if source.count('raw.onBranch === "boolean"') != 1 or "raw.onBranch === false" in source:
+        raise ValueError(f"{RESULT} 的 onBranch 只能按显式布尔传递")
+    checked += 4
+    session = _read(SESSION)
+    start = session.find(KERNEL_MARK[0])
+    end = session.find("def record_turn(", start)
+    if start < 0 or end < 0:
+        raise ValueError(f"{SESSION} 缺少搜索的分支标记或其收尾标记")
+    checked += _ordered(KERNEL_MARK, session[start:end], SESSION)
+    if session.count('match["onBranch"] =') != 1:
+        raise ValueError(f"{SESSION} 的搜索命中只能在一处写入 onBranch")
+    # 分支投影失败必须省略字段：整段 raise 会让搜索因一条损坏日志整体失败。
+    if "except ValueError:\n                        branch_item_ids = None" not in session:
+        raise ValueError(f"{SESSION} 的分支标记必须容忍投影失败")
+    checked += 2
+    checked += _expect(DIALOG_MARK, _read(DIALOG), DIALOG)
+    shell = _read(SHELL)
+    for fragment in ("revealToolBlock?: boolean; offBranch?: boolean }", "offBranch = false) => {",
+                     "setMessageFocus({ threadId: session.id, itemId, revealToolBlock, offBranch });",
+                     "focusOffBranch={messageFocus !== null && messageFocus.threadId === props.activeSession?.id && messageFocus.offBranch === true}"):
+        if shell.count(fragment) != 1:
+            raise ValueError(f"{SHELL} 缺少跨分支定位的传递：{fragment}")
+    checked += 4
+    conversation = _read(CONVERSATION)
+    checked += _expect(CONVERSATION_MARK, conversation, CONVERSATION)
+    # 旧形态：列表就绪后静默清除定位意图。
+    if "if (messages.length) onFocusMessage?.();" in conversation:
+        raise ValueError(f"{CONVERSATION} 定位失败不能静默放弃")
+    if conversation.count("setFocusMiss(false)") != 2:
+        raise ValueError(f"{CONVERSATION} 的定位说明只在命中或关闭时清除")
+    checked += 2
+    if 'onBranch?: boolean;' not in _read(PROTOCOL):
+        raise ValueError(f"{PROTOCOL} 的搜索命中缺少可选 onBranch")
+    for fragment in (".focus-miss-notice {", ".search-branch-badge {"):
+        if _read(CSS).count(fragment) != 1:
+            raise ValueError(f"{CSS} 缺少提示行或标签样式：{fragment}")
+    checked += 3
+    return checked
 
 
 def main() -> int:
@@ -109,7 +197,7 @@ def main() -> int:
     except ValueError as error:
         print(f"搜索回执核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"搜索回执一致：{checked} 项形状校验与上限")
+    print(f"搜索回执一致：{checked} 项形状校验、上限与跨分支命中标记")
     return 0
 
 

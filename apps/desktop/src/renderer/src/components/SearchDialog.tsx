@@ -37,8 +37,9 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
   searchMessages?: boolean;
   /** 内核声明 threadSearchArchived 能力时为真；为假时不发送 includeArchived。 */
   searchArchived?: boolean;
-  /** 打开会话并定位到命中的消息；缺省时退回只打开会话。工具命中传入展开工具块的意图，查询词用于目标消息内的关键词高亮。 */
-  onOpenMessage?: (session: SessionItem, itemId: string, revealToolBlock: boolean, query: string) => void;
+  /** 打开会话并定位到命中的消息；缺省时退回只打开会话。工具命中传入展开工具块的意图，查询词用于目标消息内的关键词高亮；
+   * `offBranch` 表示该命中已确认在被放弃的分支上，会话区定位失败时据此说明原因。 */
+  onOpenMessage?: (session: SessionItem, itemId: string, revealToolBlock: boolean, query: string, offBranch?: boolean) => void;
 }) {
   const now = useLocalNow();
   // 与聊天内查找一致：打开时沿用适合作为关键词的选中文本，单行、非空白且不超过 120 个字符。
@@ -113,7 +114,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
     if (option.kind === "session") { onSelect(option.row.session); onClose(); return; }
     if (onOpenMessage) {
       const focus = searchHitFocus(option.hit, query);
-      onOpenMessage(option.row.session, focus.itemId, focus.revealToolBlock, focus.query);
+      onOpenMessage(option.row.session, focus.itemId, focus.revealToolBlock, focus.query, option.hit.onBranch === false);
       onClose();
     } else { onSelect(option.row.session); onClose(); }
   };
@@ -154,7 +155,7 @@ export function SearchDialog({ folders, onSelect, onClose, searchMessages = fals
           {messageOptions.map(option => {
             const { hit, row } = option;
             return <button type="button" key={option.key} title={hit.snippet} {...optionProps(option)}>
-              <IconChat size={17} /><span><strong><Highlighted text={row.session.title} query={query} /></strong><small>{row.session.archived === true ? "已归档 · " : ""}<Highlighted text={row.project} query={query} /> · {searchRoleLabel(hit.role)} · <Highlighted text={hit.snippet} query={query} kernel /></small></span><IconChevronRight size={13} />
+              <IconChat size={17} /><span><strong><Highlighted text={row.session.title} query={query} /></strong><small>{row.session.archived === true ? "已归档 · " : ""}<Highlighted text={row.project} query={query} /> · {searchRoleLabel(hit.role)}{hit.onBranch === false && <b className="search-branch-badge" title="该消息位于被放弃的分支上：跨会话搜索覆盖完整日志，当前分支的会话视图不显示它；打开后切换到该分支才能定位。">其他分支</b>} · <Highlighted text={hit.snippet} query={query} kernel /></small></span><IconChevronRight size={13} />
             </button>;
           })}
         </>}

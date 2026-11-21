@@ -203,6 +203,11 @@ kbd { font: 10px var(--font-sans); color: var(--text-faint); }
 .composer-notice-actions button:hover { color: var(--accent-cyan); }
 .composer-notice-actions button:disabled { color: var(--text-faint); text-decoration: none; cursor: default; }
 .composer-notice-actions button:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
+.focus-miss-notice { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 8px 16px 0; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: color-mix(in srgb, var(--accent-warning) 6%, transparent); color: var(--text-muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.focus-miss-notice p { margin: 0; }
+.focus-miss-notice button { padding: 0; border: 0; background: transparent; color: var(--text-main); font: inherit; text-decoration: underline; cursor: pointer; }
+.focus-miss-notice button:hover { color: var(--accent-cyan); }
+.search-branch-badge { margin-left: 6px; padding: 0 5px; border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-faint); font-size: 10px; font-weight: 500; }
 .turn-continuation-notice { flex: none; display: grid; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--border-color); background: color-mix(in srgb, var(--accent-warning) 6%, transparent); color: var(--text-muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .turn-continuation-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; color: var(--text-main); }
 .turn-continuation-heading strong { font-size: 12px; font-weight: 600; }

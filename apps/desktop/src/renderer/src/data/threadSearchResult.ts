@@ -34,12 +34,14 @@ export function threadSearchMatchOf(value: unknown): ThreadSearchMatch | null {
   if (!boundedText(raw.itemId, ID_LIMIT)) return null;
   if (typeof raw.role !== "string" || !ROLES.has(raw.role)) return null;
   if (typeof raw.snippet !== "string" || raw.snippet.length > SNIPPET_LIMIT) return null;
+  if (raw.onBranch !== undefined && typeof raw.onBranch !== "boolean") return null;
   return {
     threadId: raw.threadId,
     threadTitle: raw.threadTitle,
     itemId: raw.itemId,
     role: raw.role as ThreadSearchMatch["role"],
     snippet: raw.snippet,
+    ...(typeof raw.onBranch === "boolean" ? { onBranch: raw.onBranch } : {}),
   };
 }
 

@@ -820,6 +820,11 @@ export interface ThreadSearchMatch {
   role: "user" | "agent" | "tool";
   /** 命中位置前后约 40 字符的片段，已折叠空白并截断。 */
   snippet: string;
+  /**
+   * 仅切换过分支位置的会话携带：命中是否位于当前分支。会话区按当前分支视图展示，
+   * 为 false 时打开会话无法定位到该消息。缺省表示会话未切换过位置或分支无法投影。
+   */
+  onBranch?: boolean;
 }
 export interface ThreadSearchParams {
   query: string;

@@ -65,6 +65,8 @@ export interface ConversationAreaProps {
   focusMessageId?: string | null;
   /** 工具命中：定位后展开目标消息的工具块，让参数、来源编号与结果摘要直接可见。 */
   focusRevealTool?: boolean;
+  /** 目标消息已确认在被放弃的分支上（搜索命中带 onBranch: false）：定位失败时据此说明原因。 */
+  focusOffBranch?: boolean;
   onFocusMessage?: () => void;
   /** 跨会话搜索落地时目标消息内的关键词高亮；查询为空或缺失时不显示。 */
   searchHighlight?: { itemId: string; query: string } | null;
@@ -111,7 +113,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   skills = [], skillCatalogState = "unavailable", skillCatalogError, onRefreshSkills, skillProblems = [],
   skillSkillsTruncated = false,
   turnSkillIds = {}, onInspectSkill,
-  focusMessageId, focusRevealTool = false, onFocusMessage,
+  focusMessageId, focusRevealTool = false, focusOffBranch = false, onFocusMessage,
   searchHighlight, onDismissSearchHighlight,
   threadId, continuationCheck, onContinueInterruptedTurn, modelRetry, onDismissModelRetry, sessionBranches,
   scrollMemory, loadingHistory = false, expansionMemory, unseenMemory, findMemory,
@@ -191,6 +193,8 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
   // 每按一次 ⌘F 递增：查找栏已经打开时 setFindOpen(true) 不产生新渲染，靠这个计数重新触发聚焦。
   const [findFocusRequest, setFindFocusRequest] = useState(0);
   const [focusFlash, setFocusFlash] = useState<string | null>(null);
+  // 定位目标不在当前载入的消息里：说明原因，而不是静默放弃。
+  const [focusMiss, setFocusMiss] = useState(false);
   const findMatches = useMemo(
     () => findMessageMatches(messages, findQuery, { includeDetails: findDetails }),
     [messages, findQuery, findDetails],
@@ -300,10 +304,12 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
     if (!focusMessageId) return;
     const target = document.getElementById("message-" + focusMessageId);
     if (!target) {
-      // 消息可能还在载入；等下一次 messages 变化再试，列表已就绪仍找不到则放弃定位。
-      if (messages.length) onFocusMessage?.();
+      // 消息可能还在载入：历史未读尽时继续等待（依赖里的 loadingHistory 会在读完后重试）；
+      // 列表已就绪仍找不到则说明原因，不静默放弃，也不清除定位意图（后续载入仍可能命中）。
+      if (messages.length && !loadingHistory) setFocusMiss(true);
       return;
     }
+    setFocusMiss(false);
     // 工具命中的文字位于默认收起的工具块内；先展开再滚动，避免展开后位置偏移。
     // 只改本次目标块，已展开的块与用户手动展开的块保持原状。
     if (focusRevealTool) {
@@ -313,7 +319,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
     target.scrollIntoView({ block: "center", behavior: currentScrollBehavior() });
     setFocusFlash(focusMessageId);
     onFocusMessage?.();
-  }, [focusMessageId, focusRevealTool, messages, onFocusMessage]);
+  }, [focusMessageId, focusRevealTool, focusOffBranch, messages, loadingHistory, onFocusMessage]);
   useEffect(() => {
     if (!focusFlash) return;
     const timer = window.setTimeout(() => setFocusFlash(null), 1800);
@@ -1086,6 +1092,12 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({
             onCancel={sessionBranches.onCancelSummary} onDismiss={sessionBranches.onDismissSummary} />}
           {currentModelRetry && <ModelRetryNotice status={currentModelRetry} onDismiss={onDismissModelRetry} />}
           {running && <div className="agent-running-indicator" role="status"><span /><span /><span /><p>{currentModelRetry?.phase === "waiting" ? "等待模型重试…" : "正在处理任务…"}</p></div>}
+          {focusMiss && <div className="focus-miss-notice" role="status" data-focus-miss>
+            {focusOffBranch
+              ? <p>要定位的消息位于被放弃的分支上：跨会话搜索覆盖完整日志，当前分支的会话视图不显示它。可在「会话分支」切回该分支后再定位。</p>
+              : <p>没有找到要定位的消息：它可能位于被放弃的分支上，或历史尚未载入。</p>}
+            <button type="button" onClick={() => { setFocusMiss(false); onFocusMessage?.(); }}>知道了</button>
+          </div>}
           {!messages.length && !running && (loadingHistory
             ? <div className="conversation-empty conversation-loading"><IconSparkles size={25} /><p>正在加载会话历史</p><span>读取完成前不会把会话显示为空。</span></div>
             : <div className="conversation-empty"><IconSparkles size={25} /><p>开始这个聊天</p><span>在下方输入你的招聘任务。</span></div>)}
