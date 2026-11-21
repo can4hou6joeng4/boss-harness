@@ -198,7 +198,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_item_content.py`
 
-`scripts/check_item_content.py` 核对条目正文的传输降级与分页边界：`item_content.py` 必须保留 64 KiB 内联阈值、默认 16 384 / 最大 32 768 码点、64 层投影深度与占位文本；孤立代理项必须替换为 U+FFFD、非有限浮点降级为 `None`，内联正文必须先经 `wire_text`；内容摘要必须按 `wire_text` 后的文本分块计算，超过内联阈值时写入 `textOmitted` / `thinkingOmitted` 与内容引用；读取必须校验 `limit`、64 位摘要、32 位 `snapshotId`、`ic1_` 前缀与 2048 字符上限、线程 / 条目 / 字段 / 摘要 / 快照的归属与 offset 范围，过期引用返回带 `currentRef` 的 `STALE_CONTENT`。脚本同时核对桌面指南的大正文恢复说明。检查是常量与文本扫描，实际降级、分页与渲染行为仍需按桌面指南核对。
+`scripts/check_item_content.py` 核对条目正文的传输降级与分页边界：`item_content.py` 必须保留 64 KiB 内联阈值、默认 16 384 / 最大 32 768 码点、64 层投影深度与占位文本；孤立代理项必须替换为 U+FFFD、非有限浮点降级为 `None`，内联正文必须先经 `wire_text`；内容摘要必须按 `wire_text` 后的文本分块计算，超过内联阈值时写入 `textOmitted` / `thinkingOmitted` 与内容引用；读取必须校验 `limit`、64 位摘要、32 位 `snapshotId`、`ic1_` 前缀与 2048 字符上限、线程 / 条目 / 字段 / 摘要 / 快照的归属与 offset 范围，过期引用返回带 `currentRef` 的 `STALE_CONTENT`。脚本同时核对桌面指南的大正文恢复说明。行为侧直接调用内核函数：覆盖代理项替换与长度不变、递归清理与键替换、深度与 `inf` / `nan` 占位、引用字段与分块摘要一致、内联清理与旧引用清除、超长省略、分页往返与末页、`limit` 边界、摘要 / 快照格式、过期引用错误码、游标跨线程 / 条目 / 字段 / 摘要与格式拒绝（77 项）。实际降级、分页与渲染行为仍需按桌面指南核对。
 
 ### `check_approval.py`
 
