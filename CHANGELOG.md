@@ -1,3 +1,10 @@
+## 0.2.0-rc.489 - 2026-11-22
+
+rc.489 源码候选为自动压缩策略补充校验与归一化行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `compaction.py` 决定界面策略与环境配置如何校验、归一化与合并。原有 `scripts/check_compaction.py` 只做静态扫描（61 项），本轮加入行为对照（166 项）：直接调用 `verified_policy` 覆盖未知字段 / 空对象 / 六类字段边界与字段顺序过滤，构造 `CompactionPolicy` 覆盖默认值、范围与类型拒绝、provider 去空白 / 大小写 / codex 归一、model 与 effort 边界、`describe` 字段，核对 `override` 的合并、字段白名单与错误传播；保存并恢复 `BOSS_HARNESS_COMPACTION`，覆盖持久默认值、空值 / 空白、JSON 合并、全字段构造、重复键、未知字段、非对象、非法 JSON、超长与越界值，确认错误不回显原配置。CI 无需改动，技术参考同步说明。修复 Issue [#3103](https://github.com/can4hou6joeng4/boss-harness/issues/3103)。
+- 变异验证：结构侧字段与线路集合、快照与类型判定、范围与长度、顺序与归一化、覆盖白名单、大小与重复键、异常集合、错误文案与文档片段二十四种，行为侧宽松校验、字段逆序、失败码、策略构造、描述字段、覆盖白名单、持久设置、环境默认值、线路保留与错误回显十种，均被检查发现（34/34）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.489` / Python `0.2.0rc489`。
+
 ## 0.2.0-rc.488 - 2026-11-22
 
 rc.488 源码候选为回合请求上限补充环境解析行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
