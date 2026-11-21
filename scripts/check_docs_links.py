@@ -17,6 +17,7 @@ SOURCES = (
     "harness/README.md", ".github/PULL_REQUEST_TEMPLATE.md",
 )
 INDEX = "docs/README.md"
+ROOT_DOCUMENTS = ("SETUP.md",)
 REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 SCRIPT_HEADING = re.compile(r"^### `(check_[A-Za-z0-9_]+\.py)`[ \t]*$", re.MULTILINE)
 MARKDOWN_DIRS = ("", "docs", "harness", ".github")
@@ -60,16 +61,28 @@ def _strip_fences(text: str, name: str) -> str:
     return "".join(kept)
 
 
+def _links_from(text: str, name: str) -> list[str]:
+    # 示例代码与行内代码里的方括号不是文档链接。
+    text = _strip_fences(text, name)
+    text = COMMENT.sub("", text)
+    text = re.sub(r"`[^`\n]*`", "", text)
+    return LINK.findall(text) + DEFINITION.findall(text)
+
+
 def _links(path: Path) -> list[str]:
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
         raise ValueError(f"无法读取 {path.relative_to(ROOT).as_posix()}") from None
-    # 示例代码与行内代码里的方括号不是文档链接。
-    text = _strip_fences(text, path.relative_to(ROOT).as_posix())
-    text = COMMENT.sub("", text)
-    text = re.sub(r"`[^`\n]*`", "", text)
-    return LINK.findall(text) + DEFINITION.findall(text)
+    return _links_from(text, path.relative_to(ROOT).as_posix())
+
+
+def _section(text: str, heading: str, name: str) -> str:
+    if heading not in text:
+        raise ValueError(f"{name} 缺少章节：{heading}")
+    start = text.index(heading)
+    end = text.find("\n## ", start + len(heading))
+    return text[start:] if end < 0 else text[start:end]
 
 
 def _slug(text: str) -> str:
@@ -120,6 +133,31 @@ def _check_index() -> int:
     if missing:
         raise ValueError(f"{INDEX} 未索引：" + "、".join(missing))
     return len(documents) - 1
+
+
+def _check_root_navigation() -> int:
+    """根目录引导文档必须进入首页导航表与文档索引，索引检查只覆盖 docs/*.md。"""
+    missing = []
+    for page in ("README.md", INDEX):
+        path = ROOT / page
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            raise ValueError(f"无法读取 {page}") from None
+        scope = _section(text, "## 项目导航", page) if page == "README.md" else text
+        linked = set()
+        for raw in _links_from(scope, page):
+            if raw.startswith(EXTERNAL):
+                continue
+            target = unquote(raw.split("#", 1)[0])
+            if target:
+                linked.add((path.parent / target).resolve())
+        for name in ROOT_DOCUMENTS:
+            if (ROOT / name).resolve() not in linked:
+                missing.append(f"{page} → {name}")
+    if missing:
+        raise ValueError("根文档缺少导航入口：" + "、".join(missing))
+    return len(ROOT_DOCUMENTS) * 2
 
 
 def _check_coverage() -> int:
@@ -190,19 +228,20 @@ def check_docs_links() -> tuple[int, int, int, int, int]:
         raise ValueError("相对链接不存在：" + "；".join(sorted(broken)))
     if bad_anchors:
         raise ValueError("页内锚点不存在：" + "；".join(sorted(bad_anchors)))
-    return checked, anchors, _check_index(), _check_coverage(), _check_script_reference()
+    return (checked, anchors, _check_index(), _check_coverage(),
+            _check_script_reference(), _check_root_navigation())
 
 
 def main() -> int:
     try:
-        checked, anchors, indexed, covered, scripts = check_docs_links()
+        checked, anchors, indexed, covered, scripts, root_entries = check_docs_links()
     except ValueError as error:
         print(f"文档链接核对失败，{error}", file=sys.stderr)
         return 2
     print(
         f"文档相对链接一致：{checked} 个链接、{anchors} 个页内锚点；"
-        f"索引覆盖 {indexed} 篇文档，检查覆盖 {covered} 篇 Markdown，"
-        f"{scripts} 个检查脚本均有说明小节"
+        f"索引覆盖 {indexed} 篇文档，根文档入口 {root_entries} 处，"
+        f"检查覆盖 {covered} 篇 Markdown，{scripts} 个检查脚本均有说明小节"
     )
     return 0
 
