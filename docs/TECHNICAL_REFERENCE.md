@@ -654,7 +654,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_retry.py`
 
-`scripts/check_retry.py` 核对模型重试的退避上限、环境解析与观测事件边界：`retry.py` 的 8 秒上限、默认 3 次与 500ms、1–10 次范围；`retry_settings_from_environment` 必须先按空白回退默认值、再按整数解析，越界收敛并标记 `adjusted`，基数负数按 0；`retry_delay` 在网关给出 Retry-After 时夹到 0–8 秒，否则指数退避同样封顶；`retry_after_seconds` 优先 `retry-after-ms`（0.001）再 `retry-after`（1.0），跳过空值、解析失败继续、无值返回 None；`retry_start_event` 只带次数、毫秒与固定默认说明，`retry_aborted_before_attempt_event` 以 `aborted` 与固定中文说明收尾；`with_retry_outcome` 关闭来源流，首个非错误事件补成功、错误事件补失败并原样透传。反向断言禁止模块内睡眠、直接下标读取响应头与事件夹带内容。同时核对使用指南的重试配置口径。检查是常量与文本扫描，实际等待与取消行为仍需按回合执行器核对。
+`scripts/check_retry.py` 核对模型重试的退避上限、环境解析与观测事件边界：`retry.py` 的 8 秒上限、默认 3 次与 500ms、1–10 次范围；`retry_settings_from_environment` 必须先按空白回退默认值、再按整数解析，越界收敛并标记 `adjusted`，基数负数按 0，次数与基数两处解析失败都必须标记；`retry_delay` 在网关给出 Retry-After 时夹到 0–8 秒，否则指数退避同样封顶；`retry_after_seconds` 优先 `retry-after-ms`（0.001）再 `retry-after`（1.0），跳过空值、解析失败继续、无值返回 None；`retry_start_event` 只带次数、毫秒与固定默认说明，`retry_aborted_before_attempt_event` 以 `aborted` 与固定中文说明收尾；`with_retry_outcome` 关闭来源流，首个非错误事件补成功、错误事件补失败并原样透传，待补尝试次数在循环前、`retry_end` 与补发后共三处归零。反向断言禁止模块内睡眠、直接下标读取响应头与事件夹带内容。同时核对使用指南的重试配置口径。行为侧直接调用解析与事件函数：未设置 / 空白 / 有效 / 越界 / 非整数的次数与基数、网关值优先与两端夹取、毫秒头优先 / 空值与非法值跳过 / 头去空白、开始与取消事件字段、成功 / 失败 / 取消兜底 / 不重复补发的终态补发，以及来源流在耗尽与提前关闭时的传播（126 项）。实际等待与取消行为仍需按回合执行器核对。
 
 ### `check_openai_responses.py`
 
