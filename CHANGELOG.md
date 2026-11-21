@@ -1,3 +1,10 @@
+## 0.2.0-rc.439 - 2026-11-21
+
+rc.439 源码候选固定审批条目的展示与状态校验口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `_valid_approval_item` 决定一条 `toolCall` 记录能否进入审批索引、`approval/list` 与持久计数；现有 `check_approval.py` 只固定了两个调用点与 `pending_only` 参数，没有固定函数内部边界。新增 `scripts/check_approval_item.py`（49 项）：`kind` / `approval` 对象 / `decision` 枚举 / `approvalId` 与 `turnId` 格式 / 展示字段去空白与 200 字符上限 / `params` 与 `toolArguments` 一致 / `status` 与 `executionState` 随 `decision` 收紧 / 截止时间有限正数 / 描述 1000 字符 / `paramsDigest` 比对；反向断言要求九处拒绝分支、参数与摘要各只比对一次、精确 `dict` 类型判断与全部五处关键字调用。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3003](https://github.com/can4hou6joeng4/boss-harness/issues/3003)。
+- 变异验证：非 `toolCall` 放行、`decision` 枚举放宽、`approvalId` 不校验格式、工具名不去空白、展示上限放宽、条目 id 上限取消、工具名一致性取消、`turnId` 不校验、`params` 不一致也放行、待决状态只查 `executionState`、三类裁决终态放宽、截止时间不要求正数、描述上限取消、摘要不比对、调用点改位置参数十七种改动均被检查发现（17/17）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.439` / Python `0.2.0rc439`。
+
 ## 0.2.0-rc.438 - 2026-11-21
 
 rc.438 源码候选固定队列计数与列表元数据口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

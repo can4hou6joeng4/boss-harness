@@ -242,6 +242,8 @@ jobs:
         run: python scripts/check_connection_report.py
       - name: Verify approval decision boundaries
         run: python scripts/check_approval.py
+      - name: Verify approval item visibility
+        run: python scripts/check_approval_item.py
       - name: Verify approval remember gating
         run: python scripts/check_approval_remember.py
       - name: Verify model disable boundaries
