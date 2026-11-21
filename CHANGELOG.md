@@ -1,3 +1,10 @@
+## 0.2.0-rc.490 - 2026-11-22
+
+rc.490 源码候选为上下文估算、请求指纹与用量校准补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `context.py` 的逐条规模估算、请求指纹与成功用量校准决定上下文预算与压缩基线。原有 `scripts/check_context_estimate.py` 只做 AST 片段、顺序与计数扫描（124 项），本轮加入行为对照（192 项）：直接构造消息与 `ModelRequest`，覆盖 `_json_size` 的非 ASCII 计数、`_message_size` 的各类内容块与固定开销、`estimate_tokens` 的系统提示与向上取整、`_usage_input_tokens` 的 OpenAI / Anthropic 字段与单请求上限、`request_fingerprint` 的确定性与各字段变化、消息负载的固定角色与可选字段，以及 `_retained_usage_estimate` 的回退、锚点匹配、冲突清空、严格递增与区间校准。CI 无需改动，技术参考同步说明。修复 Issue [#3105](https://github.com/can4hou6joeng4/boss-harness/issues/3105)。
+- 变异验证：结构侧 JSON 编码、固定开销、签名与脱敏计数、参数序列化、结果标识、取整与系统提示、用量字段与上限、思考配置与 SHA-256、负载字段、冲突与递增、归属与指纹复核、四舍五入与区间记录、回退与合格标记共二十八种，行为侧 JSON 非 ASCII、消息规模、估算取整、缓存计入、布尔接受、上限放宽、指纹缺字段或恒定、负载角色与可选字段、校准区间、归属、线路、合格标记、冲突与指纹复核十七种，均被检查发现（45/45）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.490` / Python `0.2.0rc490`。
+
 ## 0.2.0-rc.489 - 2026-11-22
 
 rc.489 源码候选为自动压缩策略补充校验与归一化行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
