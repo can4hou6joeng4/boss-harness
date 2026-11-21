@@ -1,3 +1,10 @@
+## 0.2.0-rc.456 - 2026-11-22
+
+rc.456 源码候选固定技能创建、替换与删除的独占、原子与摘要口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SkillCatalog.create` / `replace` / `delete` 与 `_write_atomic` / `_ensure_directory` / `_existing_id` / `_require_directory` 决定技能文件的写入与删除，现有检查没有固定这条链路。新增 `scripts/check_skill_write.py`（151 项）：id 与正文校验、按需目录创建、`mkdir` 独占与失败回退、技能目录 / 根 / 父目录 fsync 顺序、`.SKILL-*.tmp` 临时文件、fsync 与 `chmod 0644`、`os.replace` 原子发布、失败清理、替换与删除的摘要格式与当前摘要校验、删除仅限 `["SKILL.md"]` 且先 unlink 后 rmdir、目录名单层与控制字符规则。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3037](https://github.com/can4hou6joeng4/boss-harness/issues/3037)。
+- 变异验证：id 规则或目录名限制放宽、目录可覆盖、重复消息变化、失败不回退、两处目录 fsync 缺失、新建摘要或错误类型变化、绕过原子写入、临时名前缀变化、不 fsync、权限放宽、非原子发布、目录不刷新、失败不清理、替换与删除跳过校验或放宽摘要、替换不核对摘要、删除允许其他文件、先 rmdir、回执缺摘要、目录辅助接受符号链接三十一种改动均被检查发现（31/31）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.456` / Python `0.2.0rc456`。
+
 ## 0.2.0-rc.455 - 2026-11-22
 
 rc.455 源码候选固定技能目录枚举的有界窗口与截断口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
