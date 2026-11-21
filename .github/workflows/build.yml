@@ -200,6 +200,8 @@ jobs:
         run: python scripts/check_delete_intent.py
       - name: Verify delete cleanup
         run: python scripts/check_delete_cleanup.py
+      - name: Verify repair backup
+        run: python scripts/check_repair_backup.py
       - name: Verify event page
         run: python scripts/check_event_page.py
       - name: Verify event rewrite
@@ -433,6 +435,8 @@ jobs:
         run: python scripts/check_delete_intent.py
       - name: Verify delete cleanup
         run: python scripts/check_delete_cleanup.py
+      - name: Verify repair backup
+        run: python scripts/check_repair_backup.py
       - name: Verify event page
         run: python scripts/check_event_page.py
       - name: Verify event rewrite
