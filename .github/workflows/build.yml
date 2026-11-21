@@ -226,6 +226,8 @@ jobs:
         run: python scripts/check_attachment_add.py
       - name: Verify attachment paging
         run: python scripts/check_attachment_read.py
+      - name: Verify attachment context
+        run: python scripts/check_attachment_context.py
       - name: Verify tool result boundaries
         run: python scripts/check_tool_results.py
       - name: Verify tool revision recovery
