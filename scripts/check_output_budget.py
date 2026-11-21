@@ -3,17 +3,31 @@
 
 output_budget.py 在分配前限制保留的文本、思考与工具参数：先按码点预检再编码，
 超限抛固定异常；工具参数按紧凑 JSON 逐字符计费；诊断错误不拆开 UTF-8 字符。
-任一放宽都会让超限值进入内存或持久记录，因此静态固定。
+任一放宽都会让超限值进入内存或持久记录，因此静态固定，并用行为对照核对
+计费、高水位、截断与分块。不访问网络、模型或招聘平台。
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/models/output_budget.py"
 TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.models.output_budget import (  # noqa: E402
+    MAX_RESPONSE_TEXT_BYTES,
+    MAX_TOOL_ARGUMENT_BYTES,
+    OutputBudgetExceeded,
+    ResponseTextBudget,
+    ToolArgumentBudget,
+    bounded_error,
+    utf8_chunks,
+    utf8_size_at_most,
+)
 
 CONSTANT_FRAGMENTS = (
     "MAX_TOOL_ARGUMENT_BYTES = 1024 * 1024\n",
@@ -126,6 +140,143 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"模型输出预算行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, error: type[BaseException], label: str) -> int:
+    try:
+        call()
+    except error:
+        return 1
+    raise ValueError(f"模型输出预算行为变化 {label}：未抛出 {error.__name__}")
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    # 尺寸：码点预检、编码后复检与非法 Unicode 都在分配前拒绝。
+    checked += _expect_value((utf8_size_at_most("abc", 3), utf8_size_at_most("汉", 3)), (3, 3),
+                             "尺寸计量")
+    checked += _expect_error(lambda: utf8_size_at_most("汉", 2), OutputBudgetExceeded,
+                             "编码后超限")
+    checked += _expect_error(lambda: utf8_size_at_most("ab", 1), OutputBudgetExceeded,
+                             "码点预检")
+    checked += _expect_error(lambda: utf8_size_at_most(chr(0xD800), 10), ValueError,
+                             "非法 Unicode")
+    try:
+        utf8_size_at_most("ab", 1, scope="自定义上限")
+    except OutputBudgetExceeded as error:
+        scope = error.scope
+    else:
+        scope = None
+    checked += _expect_value(scope, "自定义上限", "异常范围")
+
+    # 工具参数：逐次计费按条目累计，本地与总量上限分别拒绝。
+    budget = ToolArgumentBudget()
+    budget.account(0, "a" * 100)
+    budget.account(0, "b" * (MAX_TOOL_ARGUMENT_BYTES - 100))
+    checked += _expect_error(lambda: budget.account(0, "x"), OutputBudgetExceeded, "本地累计上限")
+    total = ToolArgumentBudget()
+    total.account(0, "a" * MAX_TOOL_ARGUMENT_BYTES)
+    checked += _expect_error(lambda: total.account(1, "b"), OutputBudgetExceeded, "总量上限")
+    checked += _expect_error(lambda: ToolArgumentBudget().account(2, chr(0xD800)), ValueError,
+                             "计费非法 Unicode")
+
+    # 快照：紧凑编码、转义与多字节计量，非法结构在编码前拒绝。
+    encoded = ToolArgumentBudget().snapshot(0, {"a": [1, True, None, 2.5, "汉"], "b": "\"\\\n"})
+    checked += _expect_value(json.loads(encoded),
+                             {"a": [1, True, None, 2.5, "汉"], "b": "\"\\\n"}, "快照往返")
+    checked += _expect_value(encoded, json.dumps({"a": [1, True, None, 2.5, "汉"], "b": "\"\\\n"},
+                                                 ensure_ascii=False, separators=(",", ":")),
+                             "紧凑编码")
+    checked += _expect_error(
+        lambda: ToolArgumentBudget().snapshot(0, {"a": chr(0xD800)}), ValueError, "快照代理项值")
+    checked += _expect_error(
+        lambda: ToolArgumentBudget().snapshot(0, {chr(0xD800): "x"}), ValueError, "快照代理项键")
+    checked += _expect_error(lambda: ToolArgumentBudget().snapshot(0, {1: "x"}), ValueError,
+                             "快照非文本键")
+    checked += _expect_error(lambda: ToolArgumentBudget().snapshot(0, {"a": {1, 2}}), ValueError,
+                             "快照非 JSON 值")
+    checked += _expect_error(lambda: ToolArgumentBudget().snapshot(0, float("nan")), ValueError,
+                             "快照非有限浮点")
+    deep: object = []
+    for _ in range(66):
+        deep = [deep]
+    checked += _expect_error(lambda: ToolArgumentBudget().snapshot(0, deep), ValueError,
+                             "快照深度上限")
+    checked += _expect_error(lambda: ToolArgumentBudget().snapshot(0, [0] * 32_769), ValueError,
+                             "快照节点上限")
+    checked += _expect_error(lambda: ToolArgumentBudget().snapshot(0, 1 << (4 * 1024 * 1024 + 8)),
+                             OutputBudgetExceeded, "快照整数位长")
+
+    # 工具参数 reconcile：只提高水位，缩短不回退，总量按增量核对。
+    reconcile = ToolArgumentBudget()
+    reconcile.snapshot(0, {"a": "b"})
+    reconcile.reconcile(0, "")
+    reconcile.reconcile(0, "x")
+    checked += _expect_value(reconcile.account(0, "x" * (MAX_TOOL_ARGUMENT_BYTES - 9)), None,
+                             "快照后计费")
+    checked += _expect_error(lambda: reconcile.account(0, "x"), OutputBudgetExceeded,
+                             "快照后本地上限")
+    sized = ToolArgumentBudget()
+    sized.snapshot(0, {"a": "b"})
+    sized.reconcile(0, "a" * MAX_TOOL_ARGUMENT_BYTES)
+    checked += _expect_error(lambda: sized.reconcile(1, "a" * MAX_TOOL_ARGUMENT_BYTES),
+                             OutputBudgetExceeded, "reconcile 总量")
+
+    # 响应文本：单条与总量上限、分隔符拼接、完整响应取最大、授权尺寸预检。
+    text = ResponseTextBudget()
+    checked += _expect_value(text.size("abc"), 3, "文本尺寸")
+    checked += _expect_error(lambda: text.size("a" * (MAX_RESPONSE_TEXT_BYTES + 1)),
+                             OutputBudgetExceeded, "文本单条上限")
+    text.account("i1", "abc")
+    text.account("i1", "de")
+    text.reconcile("i1", "abcdef")
+    checked += _expect_error(lambda: text.account("i1", "x" * MAX_RESPONSE_TEXT_BYTES),
+                             OutputBudgetExceeded, "文本累计上限")
+    parts = ResponseTextBudget()
+    checked += _expect_value(parts.reconcile_parts("i2", ["a", "b", "c"], separator=", "),
+                             "a, b, c", "分隔符拼接")
+    checked += _expect_error(
+        lambda: parts.reconcile_parts("i3", ["a" * MAX_RESPONSE_TEXT_BYTES, "b"]),
+        OutputBudgetExceeded, "拼接总量")
+    whole = ResponseTextBudget()
+    whole.reconcile_response(["a", "b"])
+    checked += _expect_value(whole.account("i4", "c"), None, "完整响应后计费")
+    whole.reconcile_response(["a" * MAX_RESPONSE_TEXT_BYTES])
+    checked += _expect_error(lambda: whole.account("i5", "d"), OutputBudgetExceeded,
+                             "完整响应占满")
+    ensure = ResponseTextBudget()
+    checked += _expect_error(lambda: ensure.ensure_size("i6", MAX_RESPONSE_TEXT_BYTES + 1),
+                             OutputBudgetExceeded, "授权尺寸预检")
+
+    # 诊断截断：短消息原样，超长按字节截断且不拆开字符，代理项替换。
+    checked += _expect_value(bounded_error("abc", "def"), "abcdef", "诊断原样")
+    long_error = bounded_error("a" * 600, "")
+    checked += _expect_value((long_error.endswith("…"), len(long_error) == 510), (True, True),
+                             "诊断截断")
+    wide = bounded_error("a" * 511, "汉")
+    checked += _expect_value((wide.endswith("…"), len(wide.encode("utf-8")) <= 512,
+                              "汉" not in wide), (True, True, True), "诊断字节边界")
+    checked += _expect_value(bounded_error(chr(0xD800), ""), "�", "诊断代理项")
+    checked += _expect_value(bounded_error("abc", "", maximum=10), "abc", "诊断自定义上限")
+
+    # 分块：按码点对齐、单字符可独占一块、上限校验与重组一致。
+    checked += _expect_value(list(utf8_chunks("")), [], "空文本分块")
+    checked += _expect_value(list(utf8_chunks("abcdef", 4)), ["abcd", "ef"], "ASCII 分块")
+    checked += _expect_value(list(utf8_chunks("汉汉汉", 4)), ["汉", "汉", "汉"], "多字节分块")
+    checked += _expect_value(list(utf8_chunks("😀😀", 4)), ["😀", "😀"], "宽字符分块")
+    checked += _expect_error(lambda: list(utf8_chunks("abc", 3)), ValueError, "分块下限")
+    value = "汉字abc😀" * 100
+    chunks = list(utf8_chunks(value, 16))
+    checked += _expect_value(("".join(chunks) == value,
+                              all(len(chunk.encode("utf-8")) <= 16 for chunk in chunks)),
+                             (True, True), "分块重组")
+    return checked
+
+
 def check_output_budget() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
@@ -178,16 +329,16 @@ def check_output_budget() -> int:
         raise ValueError(f"{MODULE} 的紧凑编码必须显式给出选项")
     for relative, fragment in DOC_FRAGMENTS:
         checked += _expect((fragment,), _read(relative), relative)
-    return checked + 1
+    return checked + 1 + _behavior_checks()
 
 
 def main() -> int:
     try:
         checked = check_output_budget()
-    except ValueError as error:
+    except (ValueError, OSError) as error:
         print(f"模型输出预算核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"模型输出预算一致：{checked} 项字节、错误与分块防护")
+    print(f"模型输出预算一致：{checked} 项字节、错误与分块校验")
     return 0
 
 
