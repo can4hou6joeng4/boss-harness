@@ -58,7 +58,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 | 领域 | 脚本 |
 | --- | --- |
 | 版本与发布元数据 | [`check_versions.py`](#check_versionspy)、[`check_release_assets.py`](#check_release_assetspy) |
-| 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_item_content.py`](#check_item_contentpy) |
+| 协议与传输 | [`check_protocol.py`](#check_protocolpy)、[`check_rpc.py`](#check_rpcpy)、[`check_rpc_pending.py`](#check_rpc_pendingpy)、[`check_item_content.py`](#check_item_contentpy) |
 | 共享工具 | [`check_shared_utils.py`](#check_shared_utilspy)、[`check_duration_parity.py`](#check_duration_paritypy) |
 | 桌面与 IPC 安全 | [`check_desktop_security.py`](#check_desktop_securitypy)、[`check_login_security.py`](#check_login_securitypy)、[`check_notifications.py`](#check_notificationspy)、[`check_window_state.py`](#check_window_statepy)、[`check_renderer_recovery.py`](#check_renderer_recoverypy)、[`check_deleted_thread_state.py`](#check_deleted_thread_statepy)、[`check_compaction_override.py`](#check_compaction_overridepy)、[`check_branch_switch.py`](#check_branch_switchpy)、[`check_branch_pagination.py`](#check_branch_paginationpy)、[`check_harness_events.py`](#check_harness_eventspy)、[`check_harness_replica.py`](#check_harness_replicapy)、[`check_lifecycle.py`](#check_lifecyclepy)、[`check_client_transport.py`](#check_client_transportpy)、[`check_host_connection.py`](#check_host_connectionpy) |
 | 内核工具与审批 | [`check_harness_tools.py`](#check_harness_toolspy)、[`check_tool_schema.py`](#check_tool_schemapy)、[`check_tool_arguments.py`](#check_tool_argumentspy)、[`check_model_tools.py`](#check_model_toolspy)、[`check_domain_tools.py`](#check_domain_toolspy)、[`check_tool_results.py`](#check_tool_resultspy)、[`check_tool_revision.py`](#check_tool_revisionpy)、[`check_toolkit.py`](#check_toolkitpy)、[`check_approval.py`](#check_approvalpy)、[`check_approval_item.py`](#check_approval_itempy)、[`check_approval_digest.py`](#check_approval_digestpy)、[`check_pending_approvals.py`](#check_pending_approvalspy)、[`check_approval_remember.py`](#check_approval_rememberpy)、[`check_loop_guard.py`](#check_loop_guardpy) |
@@ -109,6 +109,10 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 ### `check_rpc.py`
 
 `scripts/check_rpc.py` 核对 JSON-RPC 帧解析、错误脱敏与响应降级边界：`rpc.py` 的 `MAX_FRAME_BYTES` 8 MiB 与 `MAX_JSON_DEPTH` 64；带文件名的 `OSError` 必须按九种 errno 改写为固定中文原因并附 errno 名称、去掉本机路径，无文件名时保留原消息；JSON 解码必须拒绝重复键、非有限常量与非有限浮点、超过 64 层的嵌套与孤立代理项，并把解码失败统一收敛为 `无效的 JSON 帧`；stdin 必须以 `surrogateescape` 重配置并逐帧 `readline(MAX_FRAME_BYTES + 1)` 有界读取；服务端请求的计时器必须设 `daemon`，启动失败时以 `cancel_request` fail closed；响应写出必须先紧凑编码（`ensure_ascii=False`、`allow_nan=False`）、按 UTF-8 字节数检查帧上限再写出；响应超限与编码失败分别降级为 `-32010` / `RESPONSE_TOO_LARGE` 与 `-32603` / `RESPONSE_INVALID`（请求 ID 本身不安全编码时省略 ID），且不得重跑 handler；未捕获异常必须经 `redact_secrets(describe_failure(exc))` 后返回；所有诊断输出必须写到 stderr。反向断言禁止无钩子解析、`allow_nan=True` 与 stdout 诊断。检查是常量与文本扫描，真实管道读写与并发关闭仍需按平台核对。
+
+### `check_rpc_pending.py`
+
+`scripts/check_rpc_pending.py` 核对服务端发起请求的锁边界与响应降级：`JsonRpcServer.request` 在 `_pending_lock` 内只做关闭检查与 `(future, timer)` 登记，写出在锁外；写出失败必须 `cancel_request` 并重抛，计时器启动失败必须按「客户端请求计时器未能启动」fail closed，计时器是守护线程且先设置后启动。`cancel_request` 锁内只 `pop`，`timer.cancel()` 与 `future.set_exception`（先检查 `done()`）在锁外，未找到时返回 false。`close` 锁内设置关闭标志并复制 id 快照，锁外逐个以「客户端连接已断开」取消。`_receive_response` 只接受字符串 id 且 `result` / `error` 恰好其一，锁内 `pop` 后锁外结束计时器并完成 Future，过期或未知 id 静默忽略。`_respond_too_large` / `_respond_invalid` 在带 id 帧编码失败后回退为无 id 的有界错误，后者再失败直接丢弃；`_dispatch` 对 params 错误、处理错误与成功三类回复都只在有 id 时发出，错误帧与成功帧各自按 `FrameTooLargeError` → `RESPONSE_TOO_LARGE`、其他编码异常 → `RESPONSE_INVALID` 降级，诊断先写 stderr，handler 只运行一次。脚本反向断言锁只加一次、快照先于逐个取消、`ServerRequest` 保持冻结记录。检查是 AST 切片与顺序扫描，不启动线程或管道，运行时并发行为仍需按平台核对。
 
 ### `check_desktop_security.py`
 

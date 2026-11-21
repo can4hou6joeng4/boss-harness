@@ -1,3 +1,10 @@
+## 0.2.0-rc.448 - 2026-11-22
+
+rc.448 源码候选固定服务端请求的锁边界与响应降级。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- 内核发起的审批等客户端请求由 `JsonRpcServer.request` / `cancel_request` / `close` / `_receive_response` 管理，现有 `check_rpc.py` 只做全文片段扫描。新增 `scripts/check_rpc_pending.py`（112 项）：pending 注册先于写出、写出失败取消并重抛、计时器守护与 fail closed、取消 / 接收锁内只 `pop`、`Future` 完成与计时器取消失在锁外、关闭锁内快照后锁外取消、`RESPONSE_TOO_LARGE` / `RESPONSE_INVALID` 的两层无 id 回退、三类回复只在有 id 时发出、handler 只运行一次、诊断先于错误响应；反向断言锁只加一次与 `ServerRequest` 冻结形状。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3021](https://github.com/can4hou6joeng4/boss-harness/issues/3021)。
+- 变异验证：不登记 pending、关闭检查放宽、写出失败不取消 / 不重抛、计时器非守护或启动失败不取消、取消锁内解包或不查完成、取消不报告成功、关闭锁内逐个取消或不取消、响应不查完成或错误当结果、结果 / 错误不互斥、两层降级缺失、成功帧与错误帧不降级、handler 运行两次、诊断丢失、响应消息不先处理、`ServerRequest` 非冻结、params 错误不带 id、无 id 也回复、快照不复制二十五种改动均被检查发现（25/25）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.448` / Python `0.2.0rc448`。
+
 ## 0.2.0-rc.447 - 2026-11-22
 
 rc.447 源码候选固定工具结果修订的恢复口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
