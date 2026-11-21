@@ -1,0 +1,275 @@
+#!/usr/bin/env python3
+"""核对附件分页读取的游标绑定与解码边界。
+
+`AttachmentStore.read_chunk` 以 `contentRef` 绑定 `threadId` / `attachmentId` /
+`sha256` / 字符长度：`limit` 只接受 1 到 `MAX_READ_CHARS` 的整数；继续读取时
+`sha256` 必须匹配当前摘要，否则返回 `STALE_ATTACHMENT`（`-32011`）；游标载荷
+是四元组，偏移必须严格小于文本长度，`end` 取 `min(offset + limit, len(text))`，
+只有未读完时才生成 `at1_` 游标。记录字段与对象内容都可能被外部改写，摘要、
+名称与字节范围按损坏处理，解码错误转为产品错误而不是内部错误。这里按源码
+顺序固定这些边界。
+"""
+
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+RESOURCES = "harness/src/boss_harness/resources.py"
+
+READ_ORDER = (
+    "def read(self, thread_id: str, attachment_id: str, *, include_content: bool = True) -> dict:",
+    "return self._read_from_entries(thread_id, attachment_id, self.sessions.read_entries(thread_id),",
+    "include_content=include_content)",
+)
+CHUNK_ORDER = (
+    "def read_chunk(self, thread_id: str, attachment_id: str, *, cursor: str | None = None,",
+    "limit: int = DEFAULT_READ_CHARS, sha256: str | None = None) -> dict:",
+    "if type(limit) is not int or not 1 <= limit <= self.MAX_READ_CHARS:",
+    'raise ValueError(f"limit 必须是 1 到 {self.MAX_READ_CHARS} 的整数")',
+    "item = self._attachment_entry(thread_id, attachment_id)",
+    'data = self._read_object(item["digest"], item["bytes"])',
+    "if data is None:",
+    'raise ValueError("附件内容已损坏；请重新添加")',
+    "text = _decode_attachment_text(data)",
+    'reference = {"threadId": thread_id, "attachmentId": item["id"], "name": item["name"],',
+    '"sha256": item["digest"], "byteLength": item["bytes"],',
+    '"characterLength": len(text)}',
+    "offset = 0",
+    "if sha256 is not None:",
+    'if not isinstance(sha256, str) or re.fullmatch(r"[a-f0-9]{64}", sha256) is None:',
+    'raise ValueError("sha256 必须是附件内容引用中的 64 位小写十六进制摘要")',
+    'if sha256 != item["digest"]:',
+    "raise _stale_attachment(reference)",
+    "if cursor is not None:",
+    "offset = _attachment_cursor_offset(cursor, reference, len(text))",
+    "end = min(offset + limit, len(text))",
+    "next_cursor = None",
+    "if end < len(text):",
+    'raw = json.dumps([thread_id, item["id"], item["digest"], end],',
+    'ensure_ascii=False, separators=(",", ":")).encode("utf-8")',
+    'next_cursor = "at1_" + base64.urlsafe_b64encode(raw).decode().rstrip("=")',
+    'return {"text": wire_text(text[offset:end]), "offset": offset, "nextCursor": next_cursor,',
+    '"contentRef": reference}',
+)
+ENTRY_ORDER = (
+    "def _attachment_entry(self, thread_id: str, attachment_id: str) -> dict:",
+    "entries = self.sessions.read_entries(thread_id)",
+    "return self._attachment_from_entries(thread_id, attachment_id, entries)",
+)
+FROM_ENTRIES_ORDER = (
+    "def _attachment_from_entries(self, thread_id: str, attachment_id: str, entries: list[dict]) -> dict:",
+    'item = next((entry["payload"] for entry in entries',
+    'if entry["type"] == "attachment" and entry["payload"].get("id") == attachment_id), None)',
+    "if item is None:",
+    'raise ValueError("附件不属于该会话")',
+    'digest = item.get("digest")',
+    'if not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest):',
+    'raise ValueError("附件记录已损坏；请重新添加")',
+    'name, size = item.get("name"), item.get("bytes")',
+    "if (not isinstance(name, str) or not name or len(name) > 1024",
+    "or type(size) is not int or not 0 <= size <= self.MAX_BYTES):",
+    'raise ValueError("附件记录已损坏；请重新添加")',
+    'return {**item, "name": wire_text(name)}',
+)
+READ_FROM_ENTRIES_ORDER = (
+    "def _read_from_entries(self, thread_id: str, attachment_id: str, entries: list[dict], *,",
+    "include_content: bool = True) -> dict:",
+    "item = self._attachment_from_entries(thread_id, attachment_id, entries)",
+    "result = dict(item)",
+    "if include_content:",
+    'data = self._read_object(item["digest"], item["bytes"])',
+    "if data is None:",
+    'raise ValueError("附件内容已损坏；请重新添加")',
+    'result["content"] = _decode_attachment_text(data)',
+    "return result",
+)
+CURSOR_ORDER = (
+    "def _attachment_cursor_offset(cursor: Any, reference: dict, length: int) -> int:",
+    'if not isinstance(cursor, str) or not cursor.startswith("at1_") or len(cursor) > 2048:',
+    "encoded = cursor[4:]",
+    'value = json.loads(base64.b64decode(encoded + "=" * (-len(encoded) % 4),',
+    'altchars=b"-_", validate=True))',
+    "if (not isinstance(value, list) or len(value) != 4",
+    'or value[:3] != [reference["threadId"], reference["attachmentId"], reference["sha256"]]',
+    "or type(value[3]) is not int or not 0 <= value[3] < length):",
+    "return value[3]",
+    "except (ValueError, TypeError, UnicodeDecodeError, binascii.Error, RecursionError):",
+    'raise ValueError("附件分页游标无效、归属不匹配或内容已变化") from None',
+)
+DECODE_ORDER = (
+    "def _decode_attachment_text(data: bytes) -> str:",
+    'return data.decode("utf-8")',
+    "except UnicodeDecodeError:",
+    'raise ValueError("附件内容不是 UTF-8 文本；请重新添加") from None',
+)
+STALE_ORDER = (
+    "def _stale_attachment(reference: dict) -> Exception:",
+    "from boss_harness.rpc import RpcError",
+    'return RpcError(-32011, "附件内容已变化，请重新读取附件并确认新的内容引用",',
+    '{"code": "STALE_ATTACHMENT", "currentRef": reference})',
+)
+
+
+def _read(relative: str) -> str:
+    try:
+        return (ROOT / relative).read_text(encoding="utf-8")
+    except OSError:
+        raise ValueError(f"无法读取 {relative}") from None
+
+
+def _method(tree: ast.Module, source: str, name: str) -> str:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == "AttachmentStore":
+            for child in node.body:
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and child.name == name:
+                    segment = ast.get_source_segment(source, child)
+                    if segment is not None:
+                        return segment
+    raise ValueError(f"缺少方法 AttachmentStore.{name}")
+
+
+def _function(tree: ast.Module, source: str, name: str) -> str:
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+            segment = ast.get_source_segment(source, node)
+            if segment is not None:
+                return segment
+    raise ValueError(f"缺少函数 {name}")
+
+
+def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
+    position = -1
+    for fragment in fragments:
+        index = text.find(fragment, position + 1)
+        if index < 0:
+            raise ValueError(f"{label} 缺少或顺序变化：{fragment}")
+        position = index
+    return len(fragments)
+
+
+def check_attachment_read() -> int:
+    source = _read(RESOURCES)
+    tree = ast.parse(source)
+    read = _method(tree, source, "read")
+    chunk = _method(tree, source, "read_chunk")
+    entry = _method(tree, source, "_attachment_entry")
+    from_entries = _method(tree, source, "_attachment_from_entries")
+    read_from_entries = _method(tree, source, "_read_from_entries")
+    cursor = _function(tree, source, "_attachment_cursor_offset")
+    decode = _function(tree, source, "_decode_attachment_text")
+    stale = _function(tree, source, "_stale_attachment")
+    checked = _ordered(READ_ORDER, read, RESOURCES)
+    checked += _ordered(CHUNK_ORDER, chunk, RESOURCES)
+    checked += _ordered(ENTRY_ORDER, entry, RESOURCES)
+    checked += _ordered(FROM_ENTRIES_ORDER, from_entries, RESOURCES)
+    checked += _ordered(READ_FROM_ENTRIES_ORDER, read_from_entries, RESOURCES)
+    checked += _ordered(CURSOR_ORDER, cursor, RESOURCES)
+    checked += _ordered(DECODE_ORDER, decode, RESOURCES)
+    checked += _ordered(STALE_ORDER, stale, RESOURCES)
+    # 读取入口只复用条目投影，不直接触碰对象文件。
+    if read.count("self._read_from_entries(") != 1 or "_read_object" in read:
+        raise ValueError(f"{RESOURCES} 的附件读取必须经条目投影复用")
+    checked += 1
+    # 记录字段不可信：摘要、名称与字节范围不合法时按损坏处理。
+    if from_entries.count('raise ValueError("附件记录已损坏；请重新添加")') != 2:
+        raise ValueError(f"{RESOURCES} 的附件记录必须有两处损坏判定")
+    checked += 1
+    if 'if entry["type"] == "attachment" and entry["payload"].get("id") == attachment_id), None)' not in from_entries:
+        raise ValueError(f"{RESOURCES} 的附件查找必须按条目 id 精确匹配")
+    checked += 1
+    if 'return {**item, "name": wire_text(name)}' not in from_entries:
+        raise ValueError(f"{RESOURCES} 的附件名必须经 wire_text 降级")
+    checked += 1
+    # 完整读取复制记录，只在需要正文时读对象。
+    if "result = dict(item)" not in read_from_entries:
+        raise ValueError(f"{RESOURCES} 的附件读取必须复制记录")
+    checked += 1
+    if "if include_content:\n            data = self._read_object(" not in read_from_entries:
+        raise ValueError(f"{RESOURCES} 的附件读取必须按 include_content 决定是否读对象")
+    checked += 1
+    if 'result["content"] = _decode_attachment_text(data)' not in read_from_entries:
+        raise ValueError(f"{RESOURCES} 的附件正文必须经解码辅助函数")
+    checked += 1
+    # 分页：限制严格范围，先取记录再读对象。
+    if chunk.count("if type(limit) is not int or not 1 <= limit <= self.MAX_READ_CHARS:") != 1:
+        raise ValueError(f"{RESOURCES} 的分页 limit 必须是严格范围内的整数")
+    checked += 1
+    if chunk.count('data = self._read_object(item["digest"], item["bytes"])') != 1:
+        raise ValueError(f"{RESOURCES} 的分页必须按记录读取对象")
+    checked += 1
+    # 继续读取必须绑定同一摘要，否则返回 STALE_ATTACHMENT。
+    if chunk.count("raise _stale_attachment(reference)") != 1:
+        raise ValueError(f"{RESOURCES} 的摘要变化必须返回 STALE_ATTACHMENT")
+    checked += 1
+    if "offset = _attachment_cursor_offset(cursor, reference, len(text))" not in chunk:
+        raise ValueError(f"{RESOURCES} 的游标必须绑定当前引用与文本长度")
+    checked += 1
+    # 分页只返回已读范围，游标只在未读完时生成。
+    if chunk.count("end = min(offset + limit, len(text))") != 1:
+        raise ValueError(f"{RESOURCES} 的分页必须截断到文本长度")
+    checked += 1
+    if chunk.count("next_cursor = None") != 1:
+        raise ValueError(f"{RESOURCES} 的分页必须默认没有后续游标")
+    checked += 1
+    if "if end < len(text):\n            raw = json.dumps([thread_id, item[\"id\"], item[\"digest\"], end]," not in chunk:
+        raise ValueError(f"{RESOURCES} 的后续游标必须只在未读完时生成")
+    checked += 1
+    if 'ensure_ascii=False' not in chunk or 'separators=(",", ":")' not in chunk:
+        raise ValueError(f"{RESOURCES} 的游标载荷必须是紧凑 JSON")
+    checked += 1
+    if 'next_cursor = "at1_" + base64.urlsafe_b64encode(raw).decode().rstrip("=")' not in chunk:
+        raise ValueError(f"{RESOURCES} 的游标必须使用 at1_ 前缀与无填充编码")
+    checked += 1
+    if 'return {"text": wire_text(text[offset:end]), "offset": offset, "nextCursor": next_cursor,' not in chunk:
+        raise ValueError(f"{RESOURCES} 的分页正文必须经 wire_text 降级")
+    checked += 1
+    if '"characterLength": len(text)}' not in chunk or '"byteLength": item["bytes"],' not in chunk:
+        raise ValueError(f"{RESOURCES} 的 contentRef 必须带字节与字符长度")
+    checked += 1
+    # 游标解析：前缀、长度、四元组、严格偏移范围与异常集合。
+    if cursor.count('cursor.startswith("at1_")') != 1 or cursor.count("len(cursor) > 2048") != 1:
+        raise ValueError(f"{RESOURCES} 的游标必须校验前缀与长度")
+    checked += 1
+    if cursor.count('validate=True') != 1 or cursor.count('altchars=b"-_"') != 1:
+        raise ValueError(f"{RESOURCES} 的游标必须严格解码 base64url")
+    checked += 1
+    if cursor.count("len(value) != 4") != 1 or "0 <= value[3] < length" not in cursor:
+        raise ValueError(f"{RESOURCES} 的游标载荷必须是四元组且偏移严格小于长度")
+    checked += 1
+    if cursor.count("except (ValueError, TypeError, UnicodeDecodeError, binascii.Error, RecursionError):") != 1:
+        raise ValueError(f"{RESOURCES} 的游标必须捕获全部解析异常")
+    checked += 1
+    if 'raise ValueError("附件分页游标无效、归属不匹配或内容已变化") from None' not in cursor:
+        raise ValueError(f"{RESOURCES} 的游标错误必须是产品错误")
+    checked += 1
+    # 解码与陈旧引用：错误码与消息保持稳定。
+    if decode.count("except UnicodeDecodeError:") != 1:
+        raise ValueError(f"{RESOURCES} 的附件正文必须捕获解码错误")
+    checked += 1
+    if 'raise ValueError("附件内容不是 UTF-8 文本；请重新添加") from None' not in decode:
+        raise ValueError(f"{RESOURCES} 的解码错误必须转为产品错误")
+    checked += 1
+    if stale.count("-32011") != 1 or stale.count("STALE_ATTACHMENT") != 1:
+        raise ValueError(f"{RESOURCES} 的陈旧附件必须使用固定错误码")
+    checked += 1
+    if stale.count('"currentRef": reference') != 1:
+        raise ValueError(f"{RESOURCES} 的陈旧附件必须返回当前引用")
+    checked += 1
+    return checked
+
+
+def main() -> int:
+    try:
+        checked = check_attachment_read()
+    except (ValueError, SyntaxError) as error:
+        print(f"附件分页读取核对失败，{error}", file=sys.stderr)
+        return 2
+    print(f"附件分页读取一致：{checked} 项游标、范围与解码校验")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

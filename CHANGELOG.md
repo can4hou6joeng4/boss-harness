@@ -1,3 +1,10 @@
+## 0.2.0-rc.452 - 2026-11-22
+
+rc.452 源码候选固定附件分页读取的游标绑定与解码口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `AttachmentStore.read_chunk` / `_attachment_from_entries` / `_read_from_entries` 与 `_attachment_cursor_offset` / `_stale_attachment` / `_decode_attachment_text` 决定附件的分页读取，现有 `check_attachments.py` 只覆盖常量与请求字段。新增 `scripts/check_attachment_read.py`（103 项）：`limit` 严格范围、记录摘要 / 名称 / 字节校验、按记录读取对象、`sha256` 匹配与 `STALE_ATTACHMENT`（`-32011`、`currentRef`）、游标前缀 / 长度 / 四元组 / 严格偏移 / base64url 严格解码与五类异常、`min` 截断、仅未读完生成游标、紧凑 JSON 与无填充编码、`wire_text` 与 `contentRef` 字段；反向断言读取入口经条目投影、记录复制、`include_content` 关闭时不读对象、记录损坏两处判定、解码错误转为产品错误。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3029](https://github.com/can4hou6joeng4/boss-harness/issues/3029)。
+- 变异验证：limit 下限或类型放宽、对象字节数来源变化、摘要变化不返回陈旧引用、游标长度不绑定文本、分页不截断、默认游标非空、总是生成游标、载荷三元组、非紧凑 JSON、保留填充、前缀变化、正文不降级、contentRef 长度变化、游标前缀或长度上限放宽、base64 宽松、载荷长度放宽、偏移允许等值、异常集合缩小、游标消息变化、第二处损坏判定放宽、摘要格式不校验、名称或字节范围上限放宽、查找不按 id、名称不降级、解码不捕获、错误码变化、读取入口触碰对象、`include_content` 恒真、记录不复制三十二种改动均被检查发现（32/32）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.452` / Python `0.2.0rc452`。
+
 ## 0.2.0-rc.451 - 2026-11-22
 
 rc.451 源码候选固定附件添加的发布与配额口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
