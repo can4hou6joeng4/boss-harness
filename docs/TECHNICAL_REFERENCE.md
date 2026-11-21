@@ -284,7 +284,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_context_estimate.py`
 
-`scripts/check_context_estimate.py` 核对上下文规模估算、请求指纹与成功用量校准口径：`_message_size` 必须逐类型累加用户正文、助手文本、思考签名与脱敏数据、工具调用 id / 名称 / 参数 JSON、工具结果正文与调用 id，并为每条消息加 32 字符开销，参数先复制再序列化且不转义非 ASCII；`estimate_tokens` 必须包含系统提示并以 `(size + 1) // 2` 向上取整，不依赖厂商分词器；`_usage_input_tokens` 的字段按 provider 固定（OpenAI 仅 `input`，Anthropic 含缓存字段），只接受精确非负整数且总量受 `MAX_REQUEST_TOKENS` 约束；`request_fingerprint` 覆盖 provider、模型、系统提示、消息负载、工具 schema、输出预算、推理档位与思考配置，经规范 JSON 计算 SHA-256；`_message_fingerprint_payload` 的角色与块字段固定，包含 `signature` / `redactedData` / `prefixDigest` / `isError`。`_retained_usage_estimate` 的 fallback 逐条向上取整，只接受 `model_usage` 中 provider / 模型一致、`eligible` 为 `True`、消息数在界内、前缀逐条相等且前缀指纹复核通过的锚点；冲突锚点整体清空，用量必须严格递增，归属为空的区间跳过，按累计值四舍五入后换算为单条增量并记录已应用区间。检查是源码片段与顺序扫描，不执行估算或校准。
+`scripts/check_context_estimate.py` 核对上下文规模估算、请求指纹与成功用量校准口径：`_message_size` 必须逐类型累加用户正文、助手文本、思考签名与脱敏数据、工具调用 id / 名称 / 参数 JSON、工具结果正文与调用 id，并为每条消息加 32 字符开销，参数先复制再序列化且不转义非 ASCII；`estimate_tokens` 必须包含系统提示并以 `(size + 1) // 2` 向上取整，不依赖厂商分词器；`_usage_input_tokens` 的字段按 provider 固定（OpenAI 仅 `input`，Anthropic 含缓存字段），只接受精确非负整数且总量受 `MAX_REQUEST_TOKENS` 约束；`request_fingerprint` 覆盖 provider、模型、系统提示、消息负载、工具 schema、输出预算、推理档位与思考配置，经规范 JSON 计算 SHA-256；`_message_fingerprint_payload` 的角色与块字段固定，包含 `signature` / `redactedData` / `prefixDigest` / `isError`。`_retained_usage_estimate` 的 fallback 逐条向上取整，只接受 `model_usage` 中 provider / 模型一致、`eligible` 为 `True`、消息数在界内、前缀逐条相等且前缀指纹复核通过的锚点；冲突锚点整体清空，用量必须严格递增，归属为空的区间跳过，按累计值四舍五入后换算为单条增量并记录已应用区间。除源码片段与顺序扫描外，脚本直接构造消息与 `ModelRequest`，对照 JSON 计数、各类内容块与固定开销、系统提示与向上取整、两家 provider 的用量字段与上限、指纹的确定性与字段变化、消息负载的可选字段，以及校验失败、冲突、归属、指纹与区间校准的结果，共 192 项。
 
 ### `check_summary.py`
 

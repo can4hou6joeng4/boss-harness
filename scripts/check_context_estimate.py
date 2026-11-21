@@ -6,17 +6,42 @@
 `_usage_input_tokens` 只接受当前 provider 的非负整数字段，并受单请求上限
 约束；`request_fingerprint` 覆盖模型、系统提示、消息、工具、输出预算、
 推理档位与思考配置；`_retained_usage_estimate` 只用已验证前缀的成功用量
-校准逐条估算。这里按源码顺序固定这些边界，避免预算被低估或校准被污染。
+校准逐条估算。这里既按源码顺序固定这些边界，也直接调用上述函数核对计数、
+指纹与校准结果。不访问网络、模型或招聘平台。
 """
 
 from __future__ import annotations
 
 import ast
+from dataclasses import replace
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTEXT = "harness/src/boss_harness/context.py"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.context import (  # noqa: E402
+    _json_size,
+    _message_fingerprint_payload,
+    _message_size,
+    _retained_usage_estimate,
+    _usage_input_tokens,
+    estimate_tokens,
+    request_fingerprint,
+)
+from boss_harness.models.types import (  # noqa: E402
+    AssistantMessage,
+    ModelRequest,
+    TextBlock,
+    ThinkingBlock,
+    ToolCallBlock,
+    ToolResultItem,
+    ToolResultsMessage,
+    ToolSpec,
+    UserMessage,
+)
+from boss_harness.usage import MAX_REQUEST_TOKENS  # noqa: E402
 
 JSON_ORDER = (
     "def _json_size(value: Any) -> int:",
@@ -160,6 +185,235 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"上下文规模估算行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _request(messages, *, model: str = "m", system: str = "", tools: tuple = (),
+             max_tokens: int = 100, effort=None, thinking=None) -> ModelRequest:
+    return ModelRequest(model=model, system=system, messages=tuple(messages),
+                        tools=tuple(tools), max_tokens=max_tokens,
+                        effort=effort, thinking=thinking)
+
+
+def _anchor(provider: str, request: ModelRequest, count, usage, *, eligible=True) -> dict:
+    prefix = replace(request, messages=request.messages[:count])
+    return {"type": "model_usage", "payload": {
+        "provider": provider, "model": request.model, "eligible": eligible,
+        "messageCount": count,
+        "requestFingerprint": request_fingerprint(provider, prefix),
+        "usage": usage}}
+
+
+def _retained(request: ModelRequest, entries: list[dict], owners: list):
+    return _retained_usage_estimate(
+        "openai", request, entries, messages=list(request.messages), owners=owners)
+
+
+def _behavior_checks() -> int:
+    checked = 0
+
+    checked += _expect_value(_json_size({}), 2, "空对象规模")
+    checked += _expect_value(_json_size({"a": 1}), 8, "对象规模")
+    checked += _expect_value(_json_size({"a": "汉"}), 10, "非 ASCII 规模")
+    checked += _expect_value(_json_size({"a": 1, "b": 2}), 16, "多字段规模")
+
+    checked += _expect_value(_message_size([UserMessage("abc")]), 35, "用户消息规模")
+    checked += _expect_value(
+        _message_size((UserMessage("a"), AssistantMessage((TextBlock("bc"),)))), 67,
+        "混合消息规模")
+    checked += _expect_value(
+        _message_size([AssistantMessage((ThinkingBlock(
+            "th", signature="sig", redacted_data="red", prefix_digest="p"),))]),
+        40, "思考块规模")
+    checked += _expect_value(
+        _message_size([AssistantMessage((ToolCallBlock("id", "read", {"a": 1}),))]),
+        46, "工具调用规模")
+    checked += _expect_value(
+        _message_size([ToolResultsMessage((ToolResultItem("c1", "ok"),
+                                            ToolResultItem("c2", "no", True)))]),
+        40, "工具结果规模")
+    checked += _expect_value(
+        _message_size([UserMessage("x"), ToolResultsMessage((ToolResultItem("c", "y"),))]),
+        33 + 34, "结果与正文规模")
+
+    checked += _expect_value(estimate_tokens([], ""), 0, "空估算")
+    checked += _expect_value(estimate_tokens([], "ab"), 1, "系统提示估算")
+    checked += _expect_value(estimate_tokens([UserMessage("a")]), 17, "单消息估算")
+    checked += _expect_value(estimate_tokens([UserMessage("a")], "bc"), 18, "系统加消息估算")
+
+    checked += _expect_value(_usage_input_tokens("openai", None), None, "用量非对象")
+    checked += _expect_value(_usage_input_tokens("openai", []), None, "用量列表")
+    checked += _expect_value(_usage_input_tokens("openai", {"input": 5}), 5, "OpenAI 输入")
+    checked += _expect_value(
+        _usage_input_tokens("openai", {"input": 5, "cache_read": 1000, "cache_write": 1000}),
+        5, "OpenAI 只计输入")
+    checked += _expect_value(_usage_input_tokens("openai", {"input": True}), None, "OpenAI 布尔")
+    checked += _expect_value(_usage_input_tokens("openai", {"input": -1}), None, "OpenAI 负数")
+    checked += _expect_value(_usage_input_tokens("openai", {"input": 1.0}), None, "OpenAI 浮点")
+    checked += _expect_value(_usage_input_tokens("openai", {}), None, "OpenAI 缺字段")
+    checked += _expect_value(
+        _usage_input_tokens("anthropic", {"input": 5, "cache_read": 2, "cache_write": 3}),
+        10, "Anthropic 合计")
+    checked += _expect_value(
+        _usage_input_tokens("anthropic", {"input": 5, "cache_read": 2}), None,
+        "Anthropic 缺缓存写")
+    checked += _expect_value(
+        _usage_input_tokens("anthropic", {"input": 5, "cache_read": 2, "cache_write": 0}),
+        7, "Anthropic 缓存读")
+    checked += _expect_value(
+        _usage_input_tokens("anthropic", {"input": 5, "cache_read": True, "cache_write": 0}),
+        None, "Anthropic 布尔")
+    checked += _expect_value(_usage_input_tokens("none", {"input": 5}), None, "空线路")
+    checked += _expect_value(_usage_input_tokens("google", {"input": 5}), None, "未知线路")
+    checked += _expect_value(_usage_input_tokens("openai", {"input": 0}), None, "零用量")
+    checked += _expect_value(
+        _usage_input_tokens("openai", {"input": MAX_REQUEST_TOKENS}), MAX_REQUEST_TOKENS,
+        "用量上限边界")
+    checked += _expect_value(
+        _usage_input_tokens("openai", {"input": MAX_REQUEST_TOKENS + 1}), None, "用量超限")
+    checked += _expect_value(
+        _usage_input_tokens("anthropic", {"input": MAX_REQUEST_TOKENS,
+                                          "cache_read": 0, "cache_write": 1}), None,
+        "Anthropic 合计超限")
+
+    base = _request([UserMessage("hello")])
+    digest = request_fingerprint("openai", base)
+    checked += _expect_value(
+        (len(digest), set(digest) <= set("0123456789abcdef")), (64, True), "指纹形态")
+    checked += _expect_value(request_fingerprint("openai", base), digest, "指纹确定")
+    checked += _expect_value(
+        request_fingerprint("anthropic", base) != digest, True, "指纹线路")
+    checked += _expect_value(
+        request_fingerprint("openai", _request([UserMessage("hello")], model="m2")) != digest,
+        True, "指纹模型")
+    checked += _expect_value(
+        request_fingerprint("openai", _request([UserMessage("hello")], system="sys")) != digest,
+        True, "指纹系统提示")
+    checked += _expect_value(
+        request_fingerprint("openai", _request([UserMessage("other")])) != digest, True,
+        "指纹消息")
+    checked += _expect_value(
+        request_fingerprint("openai", _request(
+            [UserMessage("hello")],
+            tools=(ToolSpec("read", "desc", {"type": "object"}),))) != digest, True,
+        "指纹工具")
+    checked += _expect_value(
+        request_fingerprint("openai", _request([UserMessage("hello")], max_tokens=200)) != digest,
+        True, "指纹输出预算")
+    checked += _expect_value(
+        request_fingerprint("openai", _request([UserMessage("hello")], effort="low")) != digest,
+        True, "指纹推理档位")
+    checked += _expect_value(
+        request_fingerprint("openai", _request(
+            [UserMessage("hello")], thinking={"type": "enabled"})) != digest, True,
+        "指纹思考配置")
+    checked += _expect_value(
+        request_fingerprint("openai", _request(
+            [UserMessage("hello")], thinking={"a": 1, "b": 2})),
+        request_fingerprint("openai", _request(
+            [UserMessage("hello")], thinking={"b": 2, "a": 1})), "指纹思考键序")
+
+    checked += _expect_value(
+        _message_fingerprint_payload(UserMessage("hi")), {"role": "user", "text": "hi"},
+        "用户负载")
+    checked += _expect_value(
+        _message_fingerprint_payload(AssistantMessage((
+            TextBlock("t"), ThinkingBlock("th", signature="sig", redacted_data="red"),
+            ThinkingBlock("x"), ToolCallBlock("id", "read", {"a": 1})))),
+        {"role": "assistant", "blocks": [
+            {"type": "text", "text": "t"},
+            {"type": "thinking", "text": "th", "signature": "sig", "redactedData": "red"},
+            {"type": "thinking", "text": "x"},
+            {"type": "toolCall", "id": "id", "name": "read", "arguments": {"a": 1}}]},
+        "助手负载")
+    checked += _expect_value(
+        _message_fingerprint_payload(AssistantMessage((
+            ThinkingBlock("th", prefix_digest="p"),))),
+        {"role": "assistant", "blocks": [
+            {"type": "thinking", "text": "th", "prefixDigest": "p"}]}, "前缀摘要负载")
+    checked += _expect_value(
+        _message_fingerprint_payload(ToolResultsMessage((
+            ToolResultItem("c", "x", True),))),
+        {"role": "toolResults", "results": [
+            {"toolCallId": "c", "content": "x", "isError": True}]}, "结果负载")
+
+    messages = [UserMessage("a"), UserMessage("bb"), UserMessage("ccc")]
+    request = _request(messages)
+    fallback = {0: 17, 1: 17, 2: 18}
+    checked += _expect_value(_retained(request, [], ["t", "t", "t"]), (fallback, []), "无锚点回退")
+    checked += _expect_value(_retained(request, [], ["t", "t"]), (fallback, []), "归属长度不符")
+    low = _anchor("openai", request, 1, {"input": 10})
+    high = _anchor("openai", request, 3, {"input": 40})
+    checked += _expect_value(
+        _retained(request, [low, high], ["t", "t", "t"]),
+        ({0: 17, 1: 15, 2: 15}, [(1, 3)]), "区间校准")
+    start = _anchor("openai", request, 0, {"input": 5})
+    checked += _expect_value(
+        _retained(request, [start, high], ["t", "t", "t"]),
+        ({0: 11, 1: 12, 2: 12}, [(0, 3)]), "从零校准")
+    checked += _expect_value(
+        _retained(request, [low, high], ["t", None, "t"]), (fallback, []), "归属缺失跳过")
+    checked += _expect_value(
+        _retained(request, [low, high], ["t", "", "t"]), (fallback, []), "归属空串跳过")
+    flat = _anchor("openai", request, 3, {"input": 10})
+    checked += _expect_value(
+        _retained(request, [low, flat], ["t", "t", "t"]), (fallback, []), "非递增回退")
+    checked += _expect_value(_retained(request, [low], ["t", "t", "t"]), (fallback, []), "单锚点回退")
+    conflict = _anchor("openai", request, 1, {"input": 11})
+    checked += _expect_value(
+        _retained(request, [low, conflict, high], ["t", "t", "t"]), (fallback, []), "冲突清空")
+    checked += _expect_value(
+        _retained(request, [low, low, high], ["t", "t", "t"]),
+        ({0: 17, 1: 15, 2: 15}, [(1, 3)]), "重复一致锚点")
+    checked += _expect_value(
+        _retained(request, [_anchor("anthropic", request, 1, {"input": 10}),
+                            _anchor("anthropic", request, 3, {"input": 40})],
+                  ["t", "t", "t"]), (fallback, []), "线路不符跳过")
+    other = _request(messages, model="other")
+    checked += _expect_value(
+        _retained(request, [_anchor("openai", other, 1, {"input": 10}),
+                            _anchor("openai", other, 3, {"input": 40})],
+                  ["t", "t", "t"]), (fallback, []), "模型不符跳过")
+    ineligible = _anchor("openai", request, 1, {"input": 10}, eligible=False)
+    checked += _expect_value(
+        _retained(request, [ineligible, high], ["t", "t", "t"]), (fallback, []),
+        "未标记合格跳过")
+    boolean_count = _anchor("openai", request, True, {"input": 10})
+    checked += _expect_value(
+        _retained(request, [boolean_count, high], ["t", "t", "t"]), (fallback, []),
+        "布尔计入跳过")
+    over_count = _anchor("openai", request, 4, {"input": 10})
+    checked += _expect_value(
+        _retained(request, [over_count, high], ["t", "t", "t"]), (fallback, []),
+        "超长计入跳过")
+    bad_fingerprint = _anchor("openai", request, 1, {"input": 10})
+    bad_fingerprint["payload"]["requestFingerprint"] = "0" * 64
+    checked += _expect_value(
+        _retained(request, [bad_fingerprint, high], ["t", "t", "t"]), (fallback, []),
+        "指纹不符跳过")
+    foreign = _request([UserMessage("a"), UserMessage("zz"), UserMessage("ccc")])
+    checked += _expect_value(
+        _retained(request, [_anchor("openai", foreign, 2, {"input": 20}), high],
+                  ["t", "t", "t"]), (fallback, []), "前缀消息不符跳过")
+    checked += _expect_value(
+        _retained(request, [_anchor("openai", request, 1, {"input": 0}), high],
+                  ["t", "t", "t"]), (fallback, []), "零用量跳过")
+    checked += _expect_value(
+        _retained(request, [_anchor("openai", request, 1, {"input": True}), high],
+                  ["t", "t", "t"]), (fallback, []), "无效用量跳过")
+    checked += _expect_value(
+        _retained(request, [{"type": "message", "payload": {"provider": "openai"}}, high],
+                  ["t", "t", "t"]), (fallback, []), "非用量条目跳过")
+    checked += _expect_value(
+        _retained(request, [{"type": "model_usage", "payload": None}, high],
+                  ["t", "t", "t"]), (fallback, []), "空载荷跳过")
+    return checked
+
+
 def check_context_estimate() -> int:
     source = _read(CONTEXT)
     tree = ast.parse(source)
@@ -251,7 +505,7 @@ def check_context_estimate() -> int:
     if retained.count("applied_intervals.append((start, end))") != 1:
         raise ValueError(f"{CONTEXT} 的用量校准必须记录已应用区间")
     checked += 1
-    return checked
+    return checked + _behavior_checks()
 
 
 def main() -> int:
@@ -260,7 +514,7 @@ def main() -> int:
     except (ValueError, SyntaxError) as error:
         print(f"上下文规模估算核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"上下文规模估算一致：{checked} 项规模、指纹与用量校验")
+    print(f"上下文规模估算一致：{checked} 项结构、行为与校准校验")
     return 0
 
 
