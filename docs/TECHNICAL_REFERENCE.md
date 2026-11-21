@@ -252,7 +252,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_queue_counts.py`
 
-`scripts/check_queue_counts.py` 核对队列计数与列表元数据口径：`_queue_status_counts` 只读取 `queue` 条目，经 `queue_record` 过滤后按 id 覆盖为最新状态，计数键恰好是 `queued` / `delivering` / `paused`，只统计 `ACTIVE_QUEUE_STATUSES` 并按状态累加；`_index_thread` 必须由三项求和得到 `queueActiveItems`，非零时写入 `queueCounts`、为零时清除旧字段。反向断言：不得使用 `setdefault` 保留首个状态；损坏记录必须跳过；求和与清除各只出现一次。检查是源码字面量与顺序扫描，不执行计数。
+`scripts/check_queue_counts.py` 核对队列计数与列表元数据口径：`_queue_status_counts` 只读取 `queue` 条目，经 `queue_record` 过滤后按 id 覆盖为最新状态，计数键恰好是 `queued` / `delivering` / `paused`，只统计 `ACTIVE_QUEUE_STATUSES` 并按状态累加；`_index_thread` 必须由三项求和得到 `queueActiveItems`，非零时写入 `queueCounts`、为零时清除旧字段。反向断言：不得使用 `setdefault` 保留首个状态；损坏记录必须跳过；求和与清除各只出现一次。检查同时直接调用 `SessionStore._queue_status_counts` 做行为对照（42 项）：空列表与非队列条目、三个活动状态计数、终止状态不计、不同 id 累加、同 id 最新状态覆盖（活动到终止、终止到活动、三次记录）、损坏记录（payload 非对象 / 缺或未知 kind / 缺或未知 status / 非字符串、空或超长 id / input 非字符串 / NaN 字段）跳过且不覆盖有效状态、额外字段不影响、返回键恰好三个与输入不被修改。
 
 ### `check_task_ownership.py`
 
