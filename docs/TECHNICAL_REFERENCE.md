@@ -686,7 +686,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_turn_records.py`
 
-`scripts/check_turn_records.py` 核对回合记录 `_turns` 的阶段合并与终态边界：`task_phase` 只在 `ownerKind` 为回合、回合已存在、阶段与状态合法、尝试次数 1–1000、重启上限 0–32 时合并，恢复原因不超过 256 字符、恢复策略只接受 `manual` / `closed`；回合只在合法标识符下首次创建，`firstOrdinal` 取上一条终态记录序号加一，持久载荷不得覆盖 `firstOrdinal` / `lastOrdinal` / `boundaryOrdinal`，`lastOrdinal` 与 `updatedAt` 每次推进；首条终态记录以 `setdefault` 固定 `boundaryOrdinal` 与 `completedAt`，并在终态分支内推进「上一条终态序号」。反向断言：公开回合必须过滤三个内部字段；终态两条 `setdefault` 与序号推进的缩进必须位于终态分支内。检查是源码字面量、顺序与缩进扫描，不执行归并。
+`scripts/check_turn_records.py` 核对回合记录 `_turns` 的阶段合并与终态边界：`task_phase` 只在 `ownerKind` 为回合、回合已存在、阶段与状态合法、尝试次数 1–1000、重启上限 0–32 时合并，恢复原因不超过 256 字符、恢复策略只接受 `manual` / `closed`；回合只在合法标识符下首次创建，`firstOrdinal` 取上一条终态记录序号加一，持久载荷不得覆盖 `firstOrdinal` / `lastOrdinal` / `boundaryOrdinal`，`lastOrdinal` 与 `updatedAt` 每次推进；首条终态记录以 `setdefault` 固定 `boundaryOrdinal` 与 `completedAt`，并在终态分支内推进「上一条终态序号」。反向断言：公开回合必须过滤三个内部字段；终态两条 `setdefault` 与序号推进的缩进必须位于终态分支内。检查同时直接调用 `SessionStore._turns` 做行为对照（76 项）：非回合条目忽略、回合编号格式（缺失 / 非字符串 / 非法字符 / 超长）与合法复杂编号、同一回合多条记录的字段合并与 `firstOrdinal` / `startedAt` 保留、`lastOrdinal` / `updatedAt` 推进、终态首次边界与 `completedAt` 不被后续覆盖、`previous_end` 推进、内部记账字段不可覆盖、`task_phase` 的归属 / 阶段 / 状态 / 尝试次数 / 重启上限 / 恢复原因 / 恢复策略边界与回合出现前跳过、threadId 收敛与缺失时间戳。
 
 ### `check_set_leaf.py`
 
