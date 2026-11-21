@@ -152,6 +152,8 @@ jobs:
         run: python scripts/check_session_fork.py
       - name: Verify fork checkpoints
         run: python scripts/check_fork_checkpoints.py
+      - name: Verify recovery
+        run: python scripts/check_recovery.py
       - name: Verify branch projection rules
         run: python scripts/check_branch_projection.py
       - name: Verify item ownership and turn tree
@@ -459,5 +461,7 @@ jobs:
         run: python scripts/check_summary_issue.py
       - name: Verify fork checkpoints
         run: python scripts/check_fork_checkpoints.py
+      - name: Verify recovery
+        run: python scripts/check_recovery.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
