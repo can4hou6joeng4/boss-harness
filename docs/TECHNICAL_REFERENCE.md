@@ -210,7 +210,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_approval_digest.py`
 
-`scripts/check_approval_digest.py` 核对审批参数摘要的规范化、负载一致与索引往返：`approval_parameters_digest` 必须用精确 `dict` 类型判断，以 `sort_keys=True`、`ensure_ascii=False`、紧凑分隔符与 `allow_nan=False` 规范化，UTF-8 编码后取 SHA-256 十六进制摘要，序列化失败（含递归过深）统一收敛为固定错误；`agent.py` 的 `_prepare_tool` 审批负载必须恰好包含 `approvalId` / `toolName` / `description` / `params` / `paramsDigest` / `consequential` / `deadline` 七个字段，`params` 与摘要都直接引用同名 `arguments`，描述不回显参数，`start_tool_call` 把同一份参数写入条目；`session.py` 的 `_index_thread` 直接持久化必填摘要并把截止时间转为数值，`pending_approvals` 从 `params_digest` 列回读。脚本用 AST 核对负载键集合与摘要调用参数，反向断言禁止第二份摘要实现、宽松类型判断、可选摘要读取与参数拷贝。检查是源码扫描，不执行摘要计算或审批流程。
+`scripts/check_approval_digest.py` 核对审批参数摘要的规范化、负载一致与索引往返：`approval_parameters_digest` 必须用精确 `dict` 类型判断，以 `sort_keys=True`、`ensure_ascii=False`、紧凑分隔符与 `allow_nan=False` 规范化，UTF-8 编码后取 SHA-256 十六进制摘要，序列化失败（含递归过深）统一收敛为固定错误；`agent.py` 的 `_prepare_tool` 审批负载必须恰好包含 `approvalId` / `toolName` / `description` / `params` / `paramsDigest` / `consequential` / `deadline` 七个字段，`params` 与摘要都直接引用同名 `arguments`，描述不回显参数，`start_tool_call` 把同一份参数写入条目；`session.py` 的 `_index_thread` 直接持久化必填摘要并把截止时间转为数值，`pending_approvals` 从 `params_digest` 列回读。脚本用 AST 核对负载键集合与摘要调用参数，反向断言禁止第二份摘要实现、宽松类型判断、可选摘要读取与参数拷贝；并直接调用 `approval_parameters_digest`（72 项），覆盖空对象、键序稳定、嵌套键序、紧凑分隔符、非 ASCII 不转义与键排序、数字键转字符串、布尔 / 空值 / 浮点 / 大整数 / 元组转数组、不同参数不同摘要与 64 位小写十六进制，以及 list / None / 字符串 / dict 子类、NaN / Infinity / 不可序列化值 / 字节值 / 混合键 / 循环引用 / 超深嵌套 / 嵌套 NaN 的固定错误收敛。检查不启动审批流程或持久化。
 
 ### `check_pending_approvals.py`
 
