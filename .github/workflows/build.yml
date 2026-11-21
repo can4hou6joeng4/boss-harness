@@ -232,6 +232,8 @@ jobs:
         run: python scripts/check_skill_context.py
       - name: Verify skill catalog
         run: python scripts/check_skill_catalog.py
+      - name: Verify skill write
+        run: python scripts/check_skill_write.py
       - name: Verify tool result boundaries
         run: python scripts/check_tool_results.py
       - name: Verify tool revision recovery
