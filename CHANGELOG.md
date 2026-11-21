@@ -1,3 +1,10 @@
+## 0.2.0-rc.444 - 2026-11-22
+
+rc.444 源码候选固定上下文规模估算、请求指纹与成功用量校准口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `context.py` 的规模估算与用量校准直接决定压缩触发与上下文溢出恢复，现有检查只覆盖编辑路径与写工具集合。新增 `scripts/check_context_estimate.py`（124 项）：逐类型规模累加与每条 32 字符开销、向上取整的字符估算、provider 用量字段与 `MAX_REQUEST_TOKENS` 上限、请求指纹字段与 SHA-256、消息负载块字段、校准的 eligible / 前缀 / 冲突清空 / 严格递增 / 四舍五入与区间记录；反向断言不复制参数、不跳过 owners 校验。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3013](https://github.com/can4hou6joeng4/boss-harness/issues/3013)。
+- 变异验证：用户正文、思考签名、脱敏数据、工具调用 id、工具结果 id 与每条开销不计、参数转义、估算遗漏系统提示与向下取整、OpenAI 混入缓存字段、负用量与上限放行、指纹遗漏 provider / thinking 与改用 SHA-1、负载遗漏 `prefixDigest` / `isError`、fallback 向下取整、锚点不要求 eligible、冲突不清空、非递增接受、不校验归属、前缀指纹不复核、四舍五入与增量换算错误二十五种改动均被检查发现（25/25）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.444` / Python `0.2.0rc444`。
+
 ## 0.2.0-rc.443 - 2026-11-21
 
 rc.443 源码候选固定内核扫码登录的凭证校验、命令引用与保存回读边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
