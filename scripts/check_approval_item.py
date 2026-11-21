@@ -8,7 +8,8 @@ turnId 必须符合标识符格式，展示用工具名与条目 id 去空白后
 200 字符，params 必须与 toolArguments 完全一致，status / executionState
 组合随 decision 收紧，deadline 必须是有限正数，description 不超过 1000
 字符，paramsDigest 必须与参数摘要一致。这里按源码顺序固定这些边界，避免
-重构放宽后铃铛总数与通知面板对不上，或让结构不完整的审批串进列表。
+重构放宽后铃铛总数与通知面板对不上，或让结构不完整的审批串进列表，并构造
+条目直接调用校验函数核对展示、状态与摘要边界。
 """
 
 from __future__ import annotations
@@ -18,6 +19,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.session import SessionStore, approval_parameters_digest  # noqa: E402
 
 # 校验顺序：读取审批与参数 → 展示字段去空白 → 结构、格式与一致性 → 状态组合
 # 随 decision 收紧 → 截止时间 → 描述 → 参数摘要。
@@ -82,6 +86,140 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual: bool, expected: bool, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"审批条目行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _item(**overrides) -> dict:
+    arguments = overrides.pop("arguments", {"a": 1})
+    try:
+        digest = approval_parameters_digest(arguments)
+    except ValueError:
+        digest = "0" * 64
+    approval = {
+        "approvalId": "a" * 32,
+        "toolName": "boss_hr_greet",
+        "description": "需要你批准后才会执行",
+        "params": arguments,
+        "paramsDigest": digest,
+        "consequential": True,
+        "deadline": 1000.0,
+        "decision": None,
+    }
+    approval.update(overrides.pop("approval", {}))
+    item = {
+        "id": "item-1",
+        "kind": "toolCall",
+        "toolName": "boss_hr_greet",
+        "turnId": "turn-a",
+        "toolArguments": arguments,
+        "status": "running",
+        "executionState": "pending_approval",
+        "approval": approval,
+    }
+    item.update(overrides)
+    return item
+
+
+def _valid(item: dict, pending_only: bool = False) -> bool:
+    return SessionStore._valid_approval_item(item, pending_only=pending_only)
+
+
+def _behavior_checks() -> int:
+    checked = _expect_value(_valid(_item()), True, "合法待审批")
+    checked += _expect_value(_valid(_item(), pending_only=True), True, "待审批模式")
+    checked += _expect_value(_valid(_item(kind="message")), False, "kind 限制")
+    checked += _expect_value(
+        _valid(_item(approval={"decision": 1})), False, "decision 类型")
+    checked += _expect_value(
+        _valid(_item(approval={"decision": "maybe"})), False, "decision 取值")
+    checked += _expect_value(
+        _valid(_item(approval={"approvalId": 123})), False, "approvalId 类型")
+    checked += _expect_value(
+        _valid(_item(approval={"approvalId": "a" * 31})), False, "approvalId 长度")
+    checked += _expect_value(
+        _valid(_item(approval={"approvalId": "A" * 32})), False, "approvalId 小写")
+    checked += _expect_value(
+        _valid(_item(approval={"approvalId": "g" * 32})), False,
+        "approvalId 十六进制")
+    checked += _expect_value(
+        _valid(_item(approval={"toolName": "   "}, toolName="   ")), False,
+        "工具名空白")
+    checked += _expect_value(
+        _valid(_item(approval={"toolName": "n" * 201}, toolName="n" * 201)), False,
+        "工具名上限")
+    checked += _expect_value(
+        _valid(_item(approval={"toolName": "n" * 200}, toolName="n" * 200)), True,
+        "工具名边界")
+    checked += _expect_value(
+        _valid(_item(approval={"toolName": " boss "}, toolName=" boss ")), True,
+        "工具名去空白")
+    checked += _expect_value(_valid(_item(id="   ")), False, "条目 id 空白")
+    checked += _expect_value(_valid(_item(id="i" * 201)), False, "条目 id 上限")
+    checked += _expect_value(_valid(_item(id=" item ")), True, "条目 id 去空白")
+    checked += _expect_value(
+        _valid(_item(toolName="boss_hr_greet_2")), False, "工具名一致")
+    checked += _expect_value(_valid(_item(turnId="bad id!")), False, "回合号标识符")
+    checked += _expect_value(_valid(_item(arguments=[1])), False, "参数类型")
+    checked += _expect_value(
+        _valid(_item(arguments={"a": 1}, approval={"params": {"a": 2}})), False,
+        "参数一致")
+    checked += _expect_value(_valid(_item(status=1)), False, "状态类型")
+    checked += _expect_value(_valid(_item(executionState=1)), False, "执行态类型")
+    checked += _expect_value(_valid(_item(status="completed")), False, "待审批状态")
+    checked += _expect_value(
+        _valid(_item(executionState="approved")), False, "待审批执行态")
+    checked += _expect_value(
+        _valid(_item(approval={"decision": "approve"}, status="completed",
+                     executionState="completed"), pending_only=True), False,
+        "待审批模式收紧")
+    checked += _expect_value(
+        _valid(_item(approval={"decision": "approve"}, status="completed",
+                     executionState="completed")), True, "批准完成")
+    checked += _expect_value(
+        _valid(_item(approval={"decision": "approve"}, status="failed",
+                     executionState="outcome_unknown")), True, "批准结果未知")
+    checked += _expect_value(
+        _valid(_item(approval={"decision": "approve"},
+                     executionState="not_approved")), False, "批准执行态")
+    checked += _expect_value(
+        _valid(_item(approval={"decision": "deny"}, status="failed",
+                     executionState="not_approved")), True, "拒绝失败")
+    checked += _expect_value(
+        _valid(_item(approval={"decision": "deny"}, executionState="not_executed")),
+        False, "拒绝执行态")
+    checked += _expect_value(
+        _valid(_item(approval={"decision": "expired"}, executionState="not_executed")),
+        True, "过期未执行")
+    checked += _expect_value(
+        _valid(_item(approval={"decision": "expired"}, executionState="not_approved")),
+        False, "过期执行态")
+    for label, deadline in (
+        ("截止时间为零", 0),
+        ("截止时间为负", -1.0),
+        ("截止时间为 NaN", float("nan")),
+        ("截止时间为无穷", float("inf")),
+        ("截止时间为字符串", "1000"),
+        ("截止时间为布尔", True),
+    ):
+        checked += _expect_value(
+            _valid(_item(approval={"deadline": deadline})), False, label)
+    checked += _expect_value(
+        _valid(_item(approval={"description": 1})), False, "描述类型")
+    checked += _expect_value(
+        _valid(_item(approval={"description": "d" * 1001})), False, "描述上限")
+    checked += _expect_value(
+        _valid(_item(approval={"description": "d" * 1000})), True, "描述边界")
+    checked += _expect_value(
+        _valid(_item(approval={"paramsDigest": "0" * 64})), False, "摘要不匹配")
+    checked += _expect_value(
+        _valid(_item(arguments={"v": float("nan")})), False, "参数不可规范化")
+    return checked
+
+
 def check_approval_item() -> int:
     source = _read(SESSION)
     start = source.index("def _valid_approval_item(")
@@ -121,7 +259,7 @@ def check_approval_item() -> int:
     if source.count("self._valid_approval_item(") != 5:
         raise ValueError(f"{SESSION} 的审批校验存在位置参数调用")
     checked += 1
-    return checked
+    return checked + _behavior_checks()
 
 
 def main() -> int:
@@ -130,7 +268,7 @@ def main() -> int:
     except ValueError as error:
         print(f"审批条目校验失败，{error}", file=sys.stderr)
         return 2
-    print(f"审批条目一致：{checked} 项展示、状态与参数摘要校验")
+    print(f"审批条目一致：{checked} 项展示、状态、参数摘要与行为校验")
     return 0
 
 

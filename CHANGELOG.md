@@ -1,3 +1,10 @@
+## 0.2.0-rc.501 - 2026-11-22
+
+rc.501 源码候选为审批条目校验补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session.py` 的 `_valid_approval_item` 决定 toolCall 记录能否进入审批索引、审批列表与持久计数。原有 `scripts/check_approval_item.py` 只做源码片段、顺序与反向断言扫描（49 项），本轮加入行为对照（92 项）：构造合法条目直接调用校验函数，覆盖展示字段去空白与 200 字符边界、工具名一致性、`approvalId` 的 32 位小写十六进制、`turnId` 标识符、精确 `dict` 参数与 `params` 一致性、`pending_only` 强制待审批、`approve` / `deny` / `expired` 三组状态组合、`deadline` 的类型 / 有限性 / 正值、描述 1000 字符上限与参数摘要不匹配。CI 无需改动，技术参考同步说明。修复 Issue [#3127](https://github.com/can4hou6joeng4/boss-harness/issues/3127)。
+- 变异验证：结构侧 kind、工具名去空白与上限、id 非空、工具名一致、回合号、参数精确类型 / 一致、待审批模式与状态、三类状态集合、截止时间类型 / 正值 / 有限性、描述上限、摘要比对与四处计数共二十三种，行为侧恒真 / 恒假 / 取反、待审批模式、摘要、截止时间、描述、审批编号与工具名去空白共九种，均被检查发现（32/32）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.501` / Python `0.2.0rc501`。
+
 ## 0.2.0-rc.500 - 2026-11-22
 
 rc.500 源码候选为条目归属与回合树补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

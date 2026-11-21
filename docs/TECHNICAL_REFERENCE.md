@@ -206,7 +206,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_approval_item.py`
 
-`scripts/check_approval_item.py` 核对审批条目的展示、归属与状态校验口径：`_valid_approval_item` 只接受 `toolCall` 条目与对象形态的 `approval`，`decision` 只能是 `approve` / `deny` / `expired`，`approvalId` 必须是 32 位小写十六进制事件 id，`turnId` 必须符合标识符格式；展示用工具名与条目 id 去空白后非空且不超过 200 字符，两者必须与条目字段一致，`toolArguments` 必须与 `approval.params` 完全相等；`status` / `executionState` 随 `decision` 收紧（待决为 `running` + `pending_approval`，批准、拒绝与过期各有终态集合），截止时间必须是有限正数，描述不超过 1000 字符，`paramsDigest` 必须与参数摘要一致。脚本按源码顺序固定这些边界，用反向断言要求九处拒绝分支、两处 200 字符上限、参数与摘要各只比对一次、使用精确 `dict` 类型判断、截止时间严格大于零，并要求全部五处调用点以关键字传入 `pending_only`。检查是源码字面量扫描，不执行裁决或启动模型。
+`scripts/check_approval_item.py` 核对审批条目的展示、归属与状态校验口径：`_valid_approval_item` 只接受 `toolCall` 条目与对象形态的 `approval`，`decision` 只能是 `approve` / `deny` / `expired`，`approvalId` 必须是 32 位小写十六进制事件 id，`turnId` 必须符合标识符格式；展示用工具名与条目 id 去空白后非空且不超过 200 字符，两者必须与条目字段一致，`toolArguments` 必须与 `approval.params` 完全相等；`status` / `executionState` 随 `decision` 收紧（待决为 `running` + `pending_approval`，批准、拒绝与过期各有终态集合），截止时间必须是有限正数，描述不超过 1000 字符，`paramsDigest` 必须与参数摘要一致。脚本按源码顺序固定这些边界，用反向断言要求九处拒绝分支、两处 200 字符上限、参数与摘要各只比对一次、使用精确 `dict` 类型判断、截止时间严格大于零，并要求全部五处调用点以关键字传入 `pending_only`。脚本并构造条目直接调用校验函数（92 项），覆盖展示字段去空白与 200 字符边界、工具名一致性、`approvalId` 的 32 位小写十六进制、`turnId` 标识符、精确 `dict` 参数与 `params` 一致性、`pending_only` 强制、`approve` / `deny` / `expired` 三组状态组合、`deadline` 的类型 / 有限性 / 正值、描述 1000 字符上限与参数摘要不匹配。检查不执行裁决或启动模型。
 
 ### `check_approval_digest.py`
 
