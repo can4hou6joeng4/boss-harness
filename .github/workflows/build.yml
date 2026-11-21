@@ -306,6 +306,8 @@ jobs:
         run: python scripts/check_startup_diagnostics.py
       - name: Verify summary planning boundaries
         run: python scripts/check_summary.py
+      - name: Verify summary issue
+        run: python scripts/check_summary_issue.py
       - name: Verify compaction policy boundaries
         run: python scripts/check_compaction.py
       - name: Verify turn request limits
@@ -443,5 +445,7 @@ jobs:
         run: python scripts/check_turn_phase.py
       - name: Verify turn page
         run: python scripts/check_turn_page.py
+      - name: Verify summary issue
+        run: python scripts/check_summary_issue.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
