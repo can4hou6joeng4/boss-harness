@@ -38,6 +38,8 @@ jobs:
         run: python scripts/check_protocol.py
       - name: Verify JSON-RPC boundaries
         run: python scripts/check_rpc.py
+      - name: Verify server request boundaries
+        run: python scripts/check_rpc_pending.py
       - name: Verify desktop security settings
         run: python scripts/check_desktop_security.py
       - name: Verify platform login security
