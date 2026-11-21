@@ -1,3 +1,10 @@
+## 0.2.0-rc.492 - 2026-11-22
+
+rc.492 源码候选为会话导出脱敏补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session_export.py` 的 `Redactor` 决定导出正文中凭据、环境变量、本机路径与候选人信息如何打码。原有 `scripts/check_export_privacy.py` 只做静态扫描（72 项），本轮加入行为对照（149 项）：直接构造 `Redactor` 并调用 `sensitive` / `personal` / `text` / `collect_personal`，覆盖已知与短凭据、Bearer / Cookie 头、`sk-` / JWT / `__zp_*` / 长 token / URL userinfo、环境变量赋值、已知路径尾段、含空格路径延续、通用绝对路径、Windows / UNC / file URL、单段根路径与正文斜杠词、PII 键归一化与去重、数值 / 布尔 / 长度 / 深度 / 总量边界、`finalize` 排序、邮箱 / 手机号 / 身份证 / 微信号、非文本输入、文本截断与组合管线，并核对 `_known_secrets` / `_known_paths` / `_continues_path` / `_path_end` / `_short_text` / `_status_text` / `_normalize_key`。CI 无需改动，技术参考同步说明。修复 Issue [#3109](https://github.com/can4hou6joeng4/boss-harness/issues/3109)。
+- 变异验证：结构侧格式、字节上限与主进程一致性、请求白名单与默认脱敏、脱敏标记与导入、计数与长度门槛、管线顺序与组合、清理深度、安全参数与结构投影共二十五种，行为侧凭据 / 路径归一化、已知值替换与计数、文本组合与非文本输入、深度 / 布尔 / 去重 / 长度 / 总量 / 排序、环境与路径计数、路径尾段、正则与开关、环境与主目录收集、短文本 / 状态 / 归一化 / 路径边界三十九种，均被检查发现（64/64）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.492` / Python `0.2.0rc492`。
+
 ## 0.2.0-rc.491 - 2026-11-22
 
 rc.491 源码候选为 Codex 配置路径、严格错误与 profile 补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
