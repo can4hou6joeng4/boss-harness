@@ -296,7 +296,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_secret.py`
 
-`scripts/check_secret.py` 核对凭据包装与错误文本脱敏的结构性边界：`secret.py` 必须恰有三种凭据形态（Bearer 令牌、`sk-` 密钥、key/token/secret/password 赋值），占位符固定为 `<redacted>`；`Secret` 只用 `__slots__` 保存单值、不是 dataclass、`repr` 与 `str` 共用占位符、取值必须显式调用 `get()`；`redact_secrets` 必须先短路空文本、再按长度至少 6 的已知原值替换，然后依次处理 Bearer（保留 `Bearer ` 前缀）、`sk-` 与赋值形式（保留键名与分隔符）。反向断言禁止 dataclass、明文 repr、第四种形态与改变占位符。同时核对技术参考的凭据包装口径。检查是常量与文本扫描，真实替换结果仍需按技术参考核对。
+`scripts/check_secret.py` 核对凭据包装与错误文本脱敏的结构性边界：`secret.py` 必须恰有三种凭据形态（Bearer 令牌、`sk-` 密钥、key/token/secret/password 赋值），占位符固定为 `<redacted>`；`Secret` 只用 `__slots__` 保存单值、不是 dataclass、`repr` 与 `str` 共用占位符、取值必须显式调用 `get()`；`redact_secrets` 必须先短路空文本、再按长度至少 6 的已知原值替换，然后依次处理 Bearer（保留 `Bearer ` 前缀）、`sk-` 与赋值形式（保留键名与分隔符）。反向断言禁止 dataclass、明文 repr、第四种形态与改变占位符。同时核对技术参考的凭据包装口径。在此之上直接调用 `redact_secrets` 与 `Secret`：覆盖空文本 / `None` / 纯文本短路，已知原值的长度下限、空值与多次替换，Bearer 大小写与长度边界，`sk-` 前缀，赋值形式的 `:` / `=` / 引号 / 下划线 / 连字符，短值不替换与组合文本；以及 `get`、布尔值、`str` / `repr` 占位符、明文不出现、不可 JSON 序列化、仅槽位与拒绝额外属性。总项数 63。
 
 ### `check_export_privacy.py`
 
