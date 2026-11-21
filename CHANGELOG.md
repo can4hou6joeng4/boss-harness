@@ -1,3 +1,10 @@
+## 0.2.0-rc.463 - 2026-11-22
+
+rc.463 源码候选固定会话元数据更新与归档的字段、上限与幂等口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SessionStore._validate_changes` / `update_thread` / `archive_thread` / `unarchive_thread` 决定会话元数据如何进入日志：`project_id` 规范化、七字段白名单、`toolPolicy` / `reasoningEffort` 枚举、`title` / `projectId` / `provider` / `cwd` / `model` 校验，空更新不写记录，归档在锁内结算未裁决审批并幂等。新增 `scripts/check_thread_meta.py`（94 项）：在临时目录构造 `SessionStore` 做行为对照，覆盖空更新、标题与项目更新、规范化与重复拒绝、身份字段、各类上限与类型、不可序列化值、不存在会话，以及归档 / 恢复的幂等与记录数；源码扫描固定规范化、白名单、逐字段校验与写入门槛；反向断言白名单恰好七字段、规范化先于白名单、序列化校验在逐字段校验之后。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3051](https://github.com/can4hou6joeng4/boss-harness/issues/3051)。
+- 变异验证：入参复制、规范化、重复拒绝、旧键弹出、白名单字段、白名单判断、遍历方式、工具策略、推理档位、标题上限、`provider` 空白、项目编号上限、`cwd` 类型、`model` 类型、序列化校验、空更新、更新校验、更新写入、归档总写、审批结算、归档标记、归档锁、恢复总写、恢复标记、别名，以及空更新写记录、标题放行、工具策略放行、未知字段放行、归档非幂等、恢复非幂等三十一种改动均被检查发现（31/31）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.463` / Python `0.2.0rc463`。
+
 ## 0.2.0-rc.462 - 2026-11-22
 
 rc.462 源码候选固定内核事件回放的游标分页、筛选与索引重建。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
