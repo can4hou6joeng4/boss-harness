@@ -1,3 +1,10 @@
+## 0.2.0-rc.449 - 2026-11-22
+
+rc.449 源码候选固定摘要 checkpoint 的原子发布口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SessionStore.append_checkpoint` 把整份会话日志复制为候选文件、截到完整记录边界后追加 `context_checkpoint` 并以 `os.replace` 发布，现有检查只覆盖批量追加与附件引用。新增 `scripts/check_checkpoint_publish.py`（110 项）：双回调校验、九字段双重签名、条目只构造一次、`.checkpoint.tmp` 独占创建、1 MiB 分块与 `complete_end` 截断、`0600` / gid / fsync、三方签名、`os.replace` 后的四类身份判断、目录 fsync → 回调 → 索引顺序、已提交异常转换与 finally 清理；反向断言提交点唯一、不走追加路径、两类异常保持 `RuntimeError`。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3023](https://github.com/can4hou6joeng4/boss-harness/issues/3023)。
+- 变异验证：回调校验放宽、单链接放宽、打开签名不核对、条目类型放宽、条目构造两次、改走追加路径、复制块缩小、不记录边界、残段不截断、无边界也接受、候选后缀变化、不独占创建、权限放宽、不 fsync、复制后 / 候选 / 发布前三方签名不核对、原始 inode 不重抛、候选不视为已提交、成功分支不核对、目录不 fsync、不调用回调、不刷新索引、提交后异常不转换、finally 不清理、清理失败不吞、两类异常基类变化二十八种改动均被检查发现（28/28）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.449` / Python `0.2.0rc449`。
+
 ## 0.2.0-rc.448 - 2026-11-22
 
 rc.448 源码候选固定服务端请求的锁边界与响应降级。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
