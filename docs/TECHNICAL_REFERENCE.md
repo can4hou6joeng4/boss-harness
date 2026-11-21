@@ -698,7 +698,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_item_projection.py`
 
-`scripts/check_item_projection.py` 核对条目投影 `_project_items`：空编号与非法编号记录跳过；`revises` 指向已投影条目时把载荷合并进同一槽位并保留原编号与 threadId；旧记录里非 `running` 的工具调用可用 `parentId` 回退，且父项必须是已投影的工具调用；编号字段只保留字符串，非对象 `approval` 删除；同编号的新条目只保留先出现的一条，新条目是唯一追加路径。反向断言：`parentId` 只允许旧记录工具调用回退读取一次，不得从 `payload` 读取；重复编号分支必须 `continue`；修订槽位必须保留 `items[slot]["id"]`。检查是源码字面量与顺序扫描，不执行投影。
+`scripts/check_item_projection.py` 核对条目投影 `_project_items`：空编号与非法编号记录跳过；`revises` 指向已投影条目时把载荷合并进同一槽位并保留原编号与 threadId；旧记录里非 `running` 的工具调用可用 `parentId` 回退，且父项必须是已投影的工具调用；编号字段只保留字符串，非对象 `approval` 删除；同编号的新条目只保留先出现的一条，新条目是唯一追加路径。反向断言：`parentId` 只允许旧记录工具调用回退读取一次，不得从 `payload` 读取；重复编号分支必须 `continue`；修订槽位必须保留 `items[slot]["id"]`。检查同时直接调用 `SessionStore._project_items` 做行为对照（55 项）：非 item 条目忽略、缺 / 非字符串 / 空 id 跳过、基本投影与 threadId 收敛、修订合并保留原编号与未覆盖字段、修订别名链、目标不存在或非字符串时新建、同编号保留先出现、修订后同编号跳过、工具调用父条目回退（running / 子或父类型不符 / 父不存在不回退）、编号字段非字符串删除、非对象 approval 删除、payload 缺失、输入不被修改与返回独立对象。
 
 ### `check_read_item.py`
 
