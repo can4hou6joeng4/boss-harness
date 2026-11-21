@@ -1,3 +1,10 @@
+## 0.2.0-rc.425 - 2026-11-21
+
+rc.425 源码候选对齐 Python classifiers 与 CI 矩阵。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- CI 的 Python 矩阵为 3.10–3.14 并在每个版本上执行搜索归一化与源码编译，但 `harness/pyproject.toml` 的 classifiers 只声明到 3.12，PyPI / wheel 元数据会少报已实测的支持版本。现在补齐 `3.13` 与 `3.14`；`check_versions.py` 从 `.github/workflows/build.yml` 读取 Python 矩阵，要求 classifiers 的 Python 版本集合与矩阵完全一致，任一方向缺失都会失败。修复 Issue [#2975](https://github.com/can4hou6joeng4/boss-harness/issues/2975)。
+- 变异验证：删除 3.14 classifier、CI 矩阵新增 3.15、矩阵片段改名三种改动均被检查发现（3/3）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.425` / Python `0.2.0rc425`。
+
 ## 0.2.0-rc.424 - 2026-11-21
 
 rc.424 源码候选补全安装指南的导航入口。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

@@ -159,6 +159,21 @@ def _check_metadata(root: dict, manifests: list[str]) -> None:
         raise ValueError("harness/pyproject.toml 的 readme 必须是 README.md")
     if project.get("requires-python") != ">=3.10":
         raise ValueError("harness/pyproject.toml 的 requires-python 必须是 >=3.10")
+    # classifiers 是 PyPI 页面展示的支持版本，必须与 CI 实际运行的矩阵一致。
+    classifiers = project.get("classifiers")
+    if not isinstance(classifiers, list):
+        raise ValueError("harness/pyproject.toml 的 classifiers 必须是列表")
+    declared = {value.rsplit(" :: ", 1)[-1] for value in classifiers
+                if isinstance(value, str) and value.startswith("Programming Language :: Python :: 3.")}
+    workflow = _read(".github/workflows/build.yml", lambda value: value)
+    matrix = re.search(r"python-version: \[([^\]]+)\]", workflow)
+    if matrix is None:
+        raise ValueError(".github/workflows/build.yml 缺少 Python 版本矩阵")
+    expected = set(re.findall(r"'([0-9]+\.[0-9]+)'", matrix.group(1)))
+    if not expected or declared != expected:
+        raise ValueError(
+            "harness/pyproject.toml 的 Python classifiers 必须与 CI 矩阵一致："
+            f"classifiers {sorted(declared)}，矩阵 {sorted(expected)}")
     keywords = project.get("keywords")
     if (not isinstance(keywords, list) or not keywords
             or any(not isinstance(value, str) or not value.strip() for value in keywords)):
