@@ -4,7 +4,8 @@
 capabilities.py 把显式容量覆盖与供应商传输分离：解析在 64 KiB / 128 项内，
 只接受三种 provider、两个必需字段与一个可选的七档数组，容量关系必须自洽；
 任何解析错误都收敛为固定说明，不显示原配置。任一放宽都会让未知字段或
-无效数值进入上下文预算，因此静态固定。
+无效数值进入上下文预算，因此静态固定，并用行为对照核对解析与回退。
+不访问网络、模型或招聘平台。
 """
 
 from __future__ import annotations
@@ -15,6 +16,15 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/models/capabilities.py"
 TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.models.capabilities import (  # noqa: E402
+    _CONFIG_ERROR,
+    _reject_constant,
+    REASONING_EFFORTS,
+    ModelCapabilities,
+    ModelCatalog,
+)
 
 CONSTANT_FRAGMENTS = (
     '_ENV_NAME = "BOSS_HARNESS_MODEL_LIMITS"\n',
@@ -115,6 +125,138 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"模型容量配置行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, error: type[BaseException], label: str) -> int:
+    try:
+        call()
+    except error:
+        return 1
+    raise ValueError(f"模型容量配置行为变化 {label}：未抛出 {error.__name__}")
+
+
+def _expect_config_error(call, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != _CONFIG_ERROR:
+            raise ValueError(f"模型容量配置行为变化 {label}：错误消息未收敛：{error}") from None
+        return 1
+    raise ValueError(f"模型容量配置行为变化 {label}：未抛出 ValueError")
+
+
+def _assign(mapping, key, value) -> None:
+    mapping[key] = value
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    # 容量关系：窗口须大于 4096，输出须为不超过窗口的正整数，布尔不算整数。
+    caps = ModelCapabilities(8192, 4096)
+    checked += _expect_value(caps.describe(),
+                             {"contextWindow": 8192, "maxOutputTokens": 4096,
+                              "capabilitySource": "configured", "capacityIsEstimate": False,
+                              "reasoningEfforts": []}, "默认投影")
+    checked += _expect_value(ModelCapabilities(4097, 1).context_window, 4097, "窗口下限放行")
+    for window, output in ((4096, 1), (8192, 0), (8192, 8193), (True, 1), (8192, True)):
+        checked += _expect_error(lambda window=window, output=output:
+                                 ModelCapabilities(window, output), ValueError,
+                                 f"容量关系 {window!r}/{output!r}")
+    for source, estimated in (("", False), ("  ", False), (1, False), ("configured", 1)):
+        checked += _expect_error(lambda source=source, estimated=estimated:
+                                 ModelCapabilities(8192, 1024, source, estimated), ValueError,
+                                 f"来源与估算 {source!r}/{estimated!r}")
+
+    # 推理档位：七档白名单、去重、元组类型。
+    checked += _expect_value(
+        ModelCapabilities(8192, 1024, reasoning_efforts=("low", "high")).describe()
+        ["reasoningEfforts"], ["low", "high"], "推理档位投影")
+    for efforts in (("low", "low"), ("bogus",), ("low",) * 8, ["low"], (1,)):
+        checked += _expect_error(
+            lambda efforts=efforts: ModelCapabilities(8192, 1024, reasoning_efforts=efforts),
+            ValueError, f"推理档位 {efforts!r}")
+    checked += _expect_value(len(REASONING_EFFORTS), 7, "档位数量")
+
+    # 目录：覆盖命中返回同一对象，未命中回退 legacy 默认，覆盖表只读。
+    empty = ModelCatalog()
+    fallback = empty.resolve("openai", "unknown")
+    checked += _expect_value((fallback.context_window, fallback.max_output_tokens,
+                              fallback.source, fallback.estimated),
+                             (200_000, 64_000, "legacy-default", True), "默认容量")
+    checked += _expect_value(empty.resolve("x", "y") is fallback, True, "默认容量复用")
+    catalog = ModelCatalog({("openai", "gpt"): caps})
+    checked += _expect_value(catalog.resolve("openai", "gpt") is caps, True, "覆盖命中")
+    checked += _expect_value(catalog.resolve("OpenAI", "gpt") is fallback, True, "区分大小写")
+    checked += _expect_error(lambda: _assign(catalog._overrides, ("openai", "gpt"), caps),
+                             TypeError, "覆盖表只读")
+
+    # 目录构造：非映射、项数、键格式与值类型都拒绝。
+    checked += _expect_error(lambda: ModelCatalog([("openai", "m")]), ValueError, "覆盖表类型")
+    checked += _expect_error(
+        lambda: ModelCatalog({("openai", f"m{i}"): caps for i in range(129)}), ValueError,
+        "覆盖表项数")
+    for key in (("x", "m"), ("openai", ""), ("openai", "a b"), ("openai", 1), "openai/m"):
+        checked += _expect_error(lambda key=key: ModelCatalog({key: caps}), ValueError,
+                                 f"覆盖键 {key!r}")
+    checked += _expect_error(lambda: ModelCatalog({("openai", "m"): {"contextWindow": 1}}),
+                             ValueError, "覆盖值类型")
+
+    # 环境解析：未设置与空白使用默认；有效配置投影来源与推理档位。
+    checked += _expect_value(ModelCatalog.from_environment({}).resolve("a", "b") is fallback,
+                             True, "未设置")
+    checked += _expect_value(
+        ModelCatalog.from_environment({"BOSS_HARNESS_MODEL_LIMITS": "   "}).resolve("a", "b")
+        is fallback, True, "空白配置")
+    raw = ('{"openai/gpt-5": {"contextWindow": 128000, "maxOutputTokens": 32000, '
+           '"reasoningEfforts": ["low", "high"]}}')
+    parsed = ModelCatalog.from_environment({"BOSS_HARNESS_MODEL_LIMITS": raw})
+    resolved = parsed.resolve("openai", "gpt-5")
+    checked += _expect_value((resolved.context_window, resolved.max_output_tokens,
+                              resolved.reasoning_efforts, resolved.source, resolved.estimated),
+                             (128000, 32000, ("low", "high"), "configured", False),
+                             "有效配置")
+    checked += _expect_value(parsed.resolve("openai", "gpt-4") is fallback, True, "部分命中回退")
+
+    # 非法配置全部收敛为同一条固定说明，且不回显原配置。
+    invalid = {
+        "非 JSON": "not json",
+        "重复键": '{"openai/m": {"contextWindow": 8192, "maxOutputTokens": 1}, '
+                  '"openai/m": {"contextWindow": 8192, "maxOutputTokens": 1}}',
+        "NaN 常量": '{"openai/m": {"contextWindow": NaN, "maxOutputTokens": 1}}',
+        "Infinity 常量": '{"openai/m": {"contextWindow": Infinity, "maxOutputTokens": 1}}',
+        "顶层数组": "[]",
+        "非字符串": 1,
+        "字节上限": "x" * (64 * 1024 + 1),
+        "项数上限": "{" + ",".join(
+            f'"openai/m{i}": {{"contextWindow": 8192, "maxOutputTokens": 1}}'
+            for i in range(129)) + "}",
+        "缺少分隔符": '{"gpt": {"contextWindow": 8192, "maxOutputTokens": 1}}',
+        "未知 provider": '{"x/m": {"contextWindow": 8192, "maxOutputTokens": 1}}',
+        "模型名含空白": '{"openai/a b": {"contextWindow": 8192, "maxOutputTokens": 1}}',
+        "限制不是对象": '{"openai/m": 1}',
+        "缺少必填字段": '{"openai/m": {"contextWindow": 8192}}',
+        "多余字段": '{"openai/m": {"contextWindow": 8192, "maxOutputTokens": 1, "x": 1}}',
+        "档位不是数组": '{"openai/m": {"contextWindow": 8192, "maxOutputTokens": 1, '
+                        '"reasoningEfforts": "low"}}',
+        "档位含数字": '{"openai/m": {"contextWindow": 8192, "maxOutputTokens": 1, '
+                      '"reasoningEfforts": [1]}}',
+        "窗口过小": '{"openai/m": {"contextWindow": 4096, "maxOutputTokens": 1}}',
+        "输出超过窗口": '{"openai/m": {"contextWindow": 8192, "maxOutputTokens": 8193}}',
+        "布尔窗口": '{"openai/m": {"contextWindow": true, "maxOutputTokens": 1}}',
+        "secret 标记": '{"openai/secret-model": {"contextWindow": 1}}',
+    }
+    for label, value in invalid.items():
+        checked += _expect_config_error(
+            lambda value=value: ModelCatalog.from_environment({"BOSS_HARNESS_MODEL_LIMITS": value}),
+            label)
+    checked += _expect_config_error(lambda: _reject_constant("NaN"), "常量钩子")
+    return checked
+
+
 def check_capabilities() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
@@ -149,6 +291,11 @@ def check_capabilities() -> int:
         module,
         MODULE,
     )
+    # 常量钩子必须直接拒绝 NaN / Infinity，而不是依赖后续容量校验兜底。
+    if ("def _reject_constant(_value: str) -> None:\n    raise ValueError(_CONFIG_ERROR)"
+            not in module):
+        raise ValueError(f"{MODULE} 的常量钩子必须拒绝非有限数值")
+    checked += 1
     # 反向断言：禁止无钩子解析、错误回显原配置与可变覆盖表。
     if "json.loads(raw)" in module:
         raise ValueError(f"{MODULE} 的配置解析必须带重复键与常量钩子")
@@ -160,16 +307,16 @@ def check_capabilities() -> int:
         raise ValueError(f"{MODULE} 的覆盖表必须只读")
     for relative, fragment in DOC_FRAGMENTS:
         checked += _expect((fragment,), _read(relative), relative)
-    return checked + 1
+    return checked + 1 + _behavior_checks()
 
 
 def main() -> int:
     try:
         checked = check_capabilities()
-    except ValueError as error:
+    except (ValueError, TypeError) as error:
         print(f"模型容量配置核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"模型容量配置一致：{checked} 项预算、校验与错误收敛防护")
+    print(f"模型容量配置一致：{checked} 项预算、校验与错误收敛校验")
     return 0
 
 
