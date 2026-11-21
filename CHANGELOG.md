@@ -1,3 +1,10 @@
+## 0.2.0-rc.442 - 2026-11-21
+
+rc.442 源码候选固定运行时容量准入、回合归属与关闭中断口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `RuntimeManager` 的并发上限、owner 容量、槽位回收与 abort 认领只有部分关闭顺序检查，准入、预留、释放与容量通知 worker 没有专门守卫。新增 `scripts/check_runtime_capacity.py`（121 项）：`owner_capacity` 翻倍、`has_capacity` 双上限、`check_admission` 四类错误与顺序、`reserve` 锁内重复准入与双注册、`release` / `_retire_locked` 身份比较、幂等 abort 认领、锁外派发与等待、两秒停止窗口、容量通知 worker 的守护线程与关闭检查；反向断言单个 `closed` 写入、缩进敏感的锁外 `start` / `join` 与回调异常吞噬。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3009](https://github.com/can4hou6joeng4/boss-harness/issues/3009)。
+- 变异验证：owner 容量不翻倍、可用容量不排除关闭、关闭错误码改写、两处上限改为严格大于、预留不重复准入、槽位不登记、释放 / 回收不比较身份、回收不等待 abort、认领不幂等、停止派发与等待移入锁内、停止窗口放宽、关闭不置标志与不唤醒、worker 非守护、启动失败不复位、不检查关闭、不吞回调异常、回收失败也唤醒、中断准备直接派发、中断不派发、可用容量用会话上限二十四种改动均被检查发现（24/24）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.442` / Python `0.2.0rc442`。
+
 ## 0.2.0-rc.441 - 2026-11-21
 
 rc.441 源码候选固定待审批分页与计数的共享过滤口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
