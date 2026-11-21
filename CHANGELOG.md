@@ -1,3 +1,10 @@
+## 0.2.0-rc.508 - 2026-11-22
+
+rc.508 源码候选为队列计数归并补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session.py` 的 `_queue_status_counts` 决定侧边栏角标与会话列表的待处理数。原有 `scripts/check_queue_counts.py` 只做源码片段、顺序与计数扫描（20 项），本轮加入行为对照（42 项）：直接调用 `SessionStore._queue_status_counts`，覆盖空列表与非队列条目、三个活动状态计数、终止状态不计、不同 id 累加、同 id 最新状态覆盖（活动到终止、终止到活动、三次记录）、损坏记录（payload 非对象 / 缺或未知 kind / 缺或未知 status / 非字符串、空或超长 id / input 非字符串 / NaN 字段）跳过且不覆盖有效状态、额外字段不影响、返回键恰好三个与输入不被修改。CI 无需改动，技术参考同步说明。修复 Issue [#3141](https://github.com/can4hou6joeng4/boss-harness/issues/3141)。
+- 变异验证：结构侧条目类型、结构校验、损坏跳过、最新覆盖、计数键、活动过滤、元数据求和与零值清除共八种，行为侧恒为零、取首个状态、不校验记录与计入终止状态共四种，均被检查发现（12/12）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.508` / Python `0.2.0rc508`。
+
 ## 0.2.0-rc.507 - 2026-11-22
 
 rc.507 源码候选为工具参数校验补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
