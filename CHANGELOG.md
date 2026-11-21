@@ -1,3 +1,10 @@
+## 0.2.0-rc.477 - 2026-11-22
+
+rc.477 源码候选固定子进程输出捕获的溢出与收尾口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `BoundedProcessOutput` 用三个 daemon 线程读取 stdout / stderr 并向 stdin 写入：读取在共享字节上限处设置 `overflow` 并停止，任一操作抛异常设置 `failed`，线程全部结束后设置 `done`；`join` 只做有界等待，`alive` 报告是否仍有已启动且存活的线程，`close_unstarted` 只关闭尚未启动线程对应的管道。新增 `scripts/check_process_io.py`（53 项）：结构侧固定 64 KiB 分块、读取循环的双重溢出检查、累计与拼接、异常标记、剩余计数与完成标记、stdin 编码写入与冲刷、断管容忍、`join` / `alive` / `close_unstarted` 的线程状态判据；行为侧用本地 Python 子进程与自定义流覆盖 stdout / stderr 聚合、stdin 往返、跨块与单块溢出、读取异常置失败、断管容忍、超时后仍存活并在释放后收尾、未启动管道关闭。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3079](https://github.com/can4hou6joeng4/boss-harness/issues/3079)。
+- 变异验证：结构侧分块上限改动、读取循环放行、空块退出删除、锁内溢出检查删除、上限比较改动、溢出不置位、累计删除、拼接删除、失败标记放宽、剩余计数删除、完成标记删除、编码改动、冲刷删除、断管捕获改动、启动判据删除、存活判据放宽、未启动判据反转、剩余基数改动十八种，行为侧上限放行、溢出不置位、失败标记删除、完成标记删除、冲刷删除、标准输入关闭删除、断管捕获改动、存活判据恒假、未启动关闭删除九种，均被检查发现（27/27）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.477` / Python `0.2.0rc477`。
+
 ## 0.2.0-rc.476 - 2026-11-22
 
 rc.476 源码候选为请求策略补充拒绝与上下文变换的行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

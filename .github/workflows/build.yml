@@ -66,6 +66,8 @@ jobs:
         run: python scripts/check_workflows.py
       - name: Verify harness tool allowlist
         run: python scripts/check_harness_tools.py
+      - name: Verify process io
+        run: python scripts/check_process_io.py
       - name: Verify session export privacy
         run: python scripts/check_export_privacy.py
       - name: Verify session export write
@@ -467,5 +469,7 @@ jobs:
         run: python scripts/check_recovery.py
       - name: Verify task relation
         run: python scripts/check_task_relation.py
+      - name: Verify process io
+        run: python scripts/check_process_io.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
