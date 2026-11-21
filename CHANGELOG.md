@@ -1,3 +1,10 @@
+## 0.2.0-rc.440 - 2026-11-21
+
+rc.440 源码候选固定审批参数摘要的规范化与负载一致口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `approval_parameters_digest` 的规范化参数一旦变化，重启前后摘要不一致，已持久化的待审批会被 `_valid_approval_item` 判为无效而消失；现有检查没有固定摘要、负载与索引往返。新增 `scripts/check_approval_digest.py`（45 项）：精确 `dict` 判断、`sort_keys` / `ensure_ascii` / 紧凑分隔符 / `allow_nan` / SHA-256、`_prepare_tool` 七字段负载与同名参数、`start_tool_call` 参数写入、`_index_thread` 持久化与 `pending_approvals` 回读；AST 核对负载键集合与摘要调用，反向断言禁止第二份摘要实现与可选读取。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3005](https://github.com/can4hou6joeng4/boss-harness/issues/3005)。
+- 变异验证：类型放宽为 `isinstance`、转义非 ASCII、去掉稳定键序、允许非有限数、分隔符带空格、不捕获递归错误、摘要改用 SHA-1、索引可选读取摘要、索引不转截止时间、回读读错列、参数写入 / 审批参数 / 服务端请求参数改为拷贝、描述回显参数、摘要改用拷贝参数、审批编号改用短 id、`consequential` 放宽、截止时间固定、调用时拷贝参数、负载增加字段、代理自带哈希实现二十一种改动均被检查发现（21/21）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.440` / Python `0.2.0rc440`。
+
 ## 0.2.0-rc.439 - 2026-11-21
 
 rc.439 源码候选固定审批条目的展示与状态校验口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
