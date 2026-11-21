@@ -1,3 +1,10 @@
+## 0.2.0-rc.459 - 2026-11-22
+
+rc.459 源码候选固定搜索归一化入口的字符索引映射与 identity 判定。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SessionStore._search_normalized` 把文本按组合簇归一化，并在需要时返回每个归一化字符对应的原文起止索引；`search_messages` 依赖该索引把命中映射回原文片段，现有检查只对照聚类与单码点映射。新增 `scripts/check_search_index.py`（71 项）：ASCII 快速路径只小写且不保留索引，空串、单码点非 ASCII、组合记号、组合类重排、`ß` / `İ` 多字符折叠、谚文 jamo、半角假名、扩展 jamo、补表码点与代理项二十组完整三元组对照；identity 文本返回空索引；跨簇文本的 `starts` / `ends` 长度等于归一化文本、单调覆盖原文、与逐簇重建一致；折叠文本与补表逐簇拼接一致，无补表文本与默认分支一致。源码侧固定快速路径、identity 判定、两轮聚类遍历、`array('I')` 紧凑索引与两处调用点；反向断言不直接调用 `unicodedata`、不用列表保存索引。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3043](https://github.com/can4hou6joeng4/boss-harness/issues/3043)。
+- 变异验证：ASCII 不折叠或保留索引、identity 初值或置假变化、判定缺少码点数或折叠长度、不跳过空片段、第二轮回退默认归一化、索引不按折叠长度展开、索引用列表、identity 出口返回索引、补表禁用、绕过聚类归一化、调用点改变、空片段写入截断、早退失效，以及 ASCII 不折叠、ASCII 保留索引、空串产生索引、identity 恒假、identity 恒真、索引少一项、索引偏移、补表不折叠、折叠文本加尾巴、补表路径替换字符二十七种改动均被检查发现（27/27）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.459` / Python `0.2.0rc459`。
+
 ## 0.2.0-rc.458 - 2026-11-22
 
 rc.458 源码候选固定搜索的跨码点聚类与归一化对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
