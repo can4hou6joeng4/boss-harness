@@ -1,3 +1,10 @@
+## 0.2.0-rc.497 - 2026-11-22
+
+rc.497 源码候选为审批参数摘要补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session.py` 的 `approval_parameters_digest` 决定审批参数如何规范化为 SHA-256 摘要，摘要用于 `_prepare_tool` 负载与 `_index_thread` 持久化索引的往返校验。原有 `scripts/check_approval_digest.py` 只做 AST 与源码顺序扫描（45 项），本轮加入行为对照（72 项）：直接调用摘要函数，覆盖空对象、键序稳定、嵌套键序、紧凑分隔符、非 ASCII 不转义与键排序、数字键转字符串、布尔 / 空值 / 浮点 / 大整数 / 元组转数组、不同参数不同摘要与 64 位小写十六进制；非法类型（list / None / 字符串 / dict 子类）与 NaN / Infinity / 不可序列化值 / 字节值 / 混合键 / 循环引用 / 超深嵌套 / 嵌套 NaN 统一收敛为固定错误。CI 无需改动，技术参考同步说明。修复 Issue [#3119](https://github.com/can4hou6joeng4/boss-harness/issues/3119)。
+- 变异验证：结构侧精确类型、键排序、非有限数、非 ASCII、分隔符、十六进制摘要、递归错误捕获、两处错误文案、工具参数唯一、摘要就地计算、参数直接引用、负载字段集合、索引摘要与截止时间、代理第二实现共十六种，行为侧键排序、非 ASCII、分隔符、非有限数、精确类型、类型 / 递归错误捕获、拒绝非对象、摘要截断、空对象固定值、大小写、摘要算法共十二种，均被检查发现（28/28）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.497` / Python `0.2.0rc497`。
+
 ## 0.2.0-rc.496 - 2026-11-22
 
 rc.496 源码候选为凭据包装与错误文本脱敏补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

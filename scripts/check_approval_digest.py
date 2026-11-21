@@ -6,18 +6,23 @@
 `start_tool_call` 把参数写进条目的 `toolArguments`；`_index_thread` 再把摘要
 持久化，`pending_approvals` 读回。规范化参数一旦变化，重启前后的摘要不一致，
 已持久化的待审批会被 `_valid_approval_item` 判为无效而消失。这里按源码顺序
-固定规范化、负载七字段与索引往返，并要求只有一处摘要实现。
+固定规范化、负载七字段与索引往返，要求只有一处摘要实现，并直接调用摘要函数
+核对编码与错误收敛。
 """
 
 from __future__ import annotations
 
 import ast
+import hashlib
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
 AGENT = "harness/src/boss_harness/agent.py"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.session import approval_parameters_digest  # noqa: E402
 
 # 摘要规范化：精确 dict → 稳定键序、不转义非 ASCII、紧凑分隔符、拒绝非有限数 →
 # 失败收敛为固定错误 → UTF-8 SHA-256 十六进制摘要。
@@ -104,6 +109,119 @@ def _approval_literal(tree: ast.Module) -> ast.Dict:
     raise ValueError(f"{AGENT} 缺少 approval 字典字面量")
 
 
+def _expect_value(actual: object, expected: object, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"审批参数摘要行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != message:
+            raise ValueError(
+                f"审批参数摘要行为变化 {label}：期望 {message!r}，实际 {str(error)!r}"
+            ) from None
+        return 1
+    raise ValueError(f"审批参数摘要行为变化 {label}：期望 ValueError")
+
+
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _behavior_checks() -> int:
+    non_object = "审批参数必须是对象"
+    unencodable = "审批参数无法规范化"
+    checked = _expect_value(
+        approval_parameters_digest({}), _sha("{}"), "空对象")
+    checked += _expect_value(
+        approval_parameters_digest({"b": 1, "a": 2}),
+        approval_parameters_digest({"a": 2, "b": 1}), "键序稳定")
+    checked += _expect_value(
+        approval_parameters_digest({"o": {"b": 1, "a": 2}}),
+        approval_parameters_digest({"o": {"a": 2, "b": 1}}), "嵌套键序稳定")
+    checked += _expect_value(
+        approval_parameters_digest({"a": 1, "b": [1, 2]}),
+        _sha('{"a":1,"b":[1,2]}'), "紧凑分隔符")
+    checked += _expect_value(
+        approval_parameters_digest({"名": "值"}), _sha('{"名":"值"}'),
+        "非 ASCII 不转义")
+    checked += _expect_value(
+        approval_parameters_digest({"t": True, "f": False, "n": None, "i": 7}),
+        _sha('{"f":false,"i":7,"n":null,"t":true}'), "布尔与空值")
+    checked += _expect_value(
+        approval_parameters_digest({"v": 1.5}), _sha('{"v":1.5}'), "浮点表示")
+    checked += _expect_value(
+        approval_parameters_digest({"v": 9007199254740993}),
+        _sha('{"v":9007199254740993}'), "大整数")
+    checked += _expect_value(
+        approval_parameters_digest({"v": (1, 2)}),
+        approval_parameters_digest({"v": [1, 2]}), "元组转数组")
+    checked += _expect_value(
+        approval_parameters_digest({1: "a"}), _sha('{"1":"a"}'), "数字键转字符串")
+    checked += _expect_value(
+        approval_parameters_digest({"阿": 1, "a": 2}), _sha('{"a":2,"阿":1}'),
+        "非 ASCII 键排序")
+    checked += _expect_value(
+        approval_parameters_digest({"a": 1}) != approval_parameters_digest({"a": 2}),
+        True, "不同参数不同摘要")
+    checked += _expect_value(
+        approval_parameters_digest({"v": True}) != approval_parameters_digest({"v": 1}),
+        True, "布尔与整数区分")
+    first = approval_parameters_digest({"k": "v"})
+    checked += _expect_value(len(first), 64, "摘要长度")
+    checked += _expect_value(
+        all(character in "0123456789abcdef" for character in first), True,
+        "小写十六进制")
+
+    checked += _expect_error(
+        lambda: approval_parameters_digest([]), non_object, "拒绝列表")
+    checked += _expect_error(
+        lambda: approval_parameters_digest(None), non_object, "拒绝空值")
+    checked += _expect_error(
+        lambda: approval_parameters_digest("text"), non_object, "拒绝字符串")
+
+    class Mapping(dict):
+        pass
+
+    checked += _expect_error(
+        lambda: approval_parameters_digest(Mapping()), non_object, "拒绝字典子类")
+    checked += _expect_error(
+        lambda: approval_parameters_digest({"v": float("nan")}), unencodable,
+        "拒绝 NaN")
+    checked += _expect_error(
+        lambda: approval_parameters_digest({"v": float("inf")}), unencodable,
+        "拒绝 Infinity")
+    checked += _expect_error(
+        lambda: approval_parameters_digest({"v": object()}), unencodable,
+        "拒绝不可序列化值")
+    checked += _expect_error(
+        lambda: approval_parameters_digest({"v": b"bytes"}), unencodable,
+        "拒绝字节值")
+    checked += _expect_error(
+        lambda: approval_parameters_digest({1: "a", "b": 2}), unencodable,
+        "拒绝混合键")
+    cycle: dict[str, object] = {}
+    cycle["self"] = cycle
+    checked += _expect_error(
+        lambda: approval_parameters_digest(cycle), unencodable, "拒绝循环引用")
+    deep: list[object] = []
+    cursor = deep
+    for _ in range(10000):
+        nested: list[object] = []
+        cursor.append(nested)
+        cursor = nested
+    checked += _expect_error(
+        lambda: approval_parameters_digest({"v": deep}), unencodable, "拒绝超深嵌套")
+    checked += _expect_error(
+        lambda: approval_parameters_digest({"v": [float("nan")]}), unencodable,
+        "拒绝嵌套 NaN")
+    return checked
+
+
 def check_approval_digest() -> int:
     session = _read(SESSION)
     agent = _read(AGENT)
@@ -183,7 +301,7 @@ def check_approval_digest() -> int:
     if "hashlib" in agent or "sha256" in agent:
         raise ValueError(f"{AGENT} 不得维护第二份审批摘要实现")
     checked += 1
-    return checked
+    return checked + _behavior_checks()
 
 
 def main() -> int:
@@ -192,7 +310,7 @@ def main() -> int:
     except (ValueError, SyntaxError) as error:
         print(f"审批参数摘要核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"审批参数摘要一致：{checked} 项规范化、负载与索引往返校验")
+    print(f"审批参数摘要一致：{checked} 项规范化、负载、索引往返与行为对照")
     return 0
 
 
