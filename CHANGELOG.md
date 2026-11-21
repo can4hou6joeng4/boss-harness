@@ -1,3 +1,10 @@
+## 0.2.0-rc.496 - 2026-11-22
+
+rc.496 源码候选为凭据包装与错误文本脱敏补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `secret.py` 的 `Secret` 与 `redact_secrets` 是凭据进入日志、错误文本与导出的最后一道网。原有 `scripts/check_secret.py` 只做常量、片段与顺序扫描（35 项），本轮加入行为对照（63 项）：直接调用 `redact_secrets`，覆盖空文本 / `None` / 纯文本、已知原值的长度下限 / 空值 / 多次替换、Bearer 大小写与长度边界、`sk-` 前缀、key/token/secret/password 的 `:` / `=` / 引号 / 下划线 / 连字符形式、短值不替换与组合文本；直接构造 `Secret`，覆盖 `get`、布尔值、`str` / `repr` 占位符、明文不出现、不可 JSON 序列化、仅槽位与拒绝额外属性。CI 无需改动，技术参考同步说明。修复 Issue [#3117](https://github.com/can4hou6joeng4/boss-harness/issues/3117)。
+- 变异验证：结构侧两类长度、access_token 形态、分隔符、占位符、空值短路、原值替换、三类脱敏替换、槽位、repr / 布尔 / 取值 / str、四类反向断言与两处文档片段共二十三种，行为侧已知原值、原值长度、Bearer 前缀、sk / 赋值 / 键名、三类正则边界与五类 `Secret` 实现共十五种，均被检查发现（38/38）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.496` / Python `0.2.0rc496`。
+
 ## 0.2.0-rc.495 - 2026-11-22
 
 rc.495 源码候选为 JSON 导出分组与严格编码补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
