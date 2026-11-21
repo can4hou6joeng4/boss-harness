@@ -86,7 +86,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_duration_parity.py`
 
-`scripts/check_duration_parity.py` 核对会话导出与桌面界面的时长文案：内核 `session_export._duration_text` 必须按 `(ms + 500) // 1000` 取整，`packages/shared/src/index.ts` 的 `formatDurationMs` 必须按 `Math.round(ms / 1000)` 取整；两侧的「不足 1 秒」、秒、分（带剩余秒）、小时（带剩余分）阈值与分支顺序必须一致，四个中文标签必须同时存在；内核导出至少四处调用 `_duration_text`，桌面通知经 `formatDurationMs` 共用同一实现。反向断言两侧不得改用其它取整方式。检查是源码字面量与首次出现顺序扫描，不做跨语言运行比对。
+`scripts/check_duration_parity.py` 核对会话导出与桌面界面的时长文案：内核 `session_export._duration_text` 必须按 `(ms + 500) // 1000` 取整，`packages/shared/src/index.ts` 的 `formatDurationMs` 必须按 `Math.round(ms / 1000)` 取整；两侧的「不足 1 秒」、秒、分（带剩余秒）、小时（带剩余分）阈值与分支顺序必须一致，四个中文标签必须同时存在；内核导出至少四处调用 `_duration_text`，桌面通知经 `formatDurationMs` 共用同一实现。反向断言两侧不得改用其它取整方式；并直接调用 `_duration_text`（61 项），覆盖 0 / 499 / 500 / 999 / 1000 / 1499 / 1500 毫秒的取整边界、59 秒 / 60 秒 / 61 秒 / 90 秒、59 分 58 秒 / 59 分 59 秒 / 60 分 / 1 小时 / 1 小时 1 分 / 2 小时、小时分支只保留整分、负数与极大值。检查不做跨语言运行比对。
 
 ### `check_protocol.py`
 

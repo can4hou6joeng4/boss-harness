@@ -4,7 +4,7 @@
 内核 `session_export._duration_text` 与会话导出共用同一实现；桌面通知、回合耗时与
 界面共用 `packages/shared` 的 `formatDurationMs`。两处必须同样按毫秒四舍五入到秒，
 使用相同的秒 / 分 / 小时阈值、剩余秒与剩余分分支和中文标签，否则同一次回合在导出
-与界面会显示不同耗时。
+与界面会显示不同耗时。这里同时直接调用内核侧函数核对取整与分支。
 """
 
 from __future__ import annotations
@@ -16,6 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPORT = "harness/src/boss_harness/session_export.py"
 SHARED = "packages/shared/src/index.ts"
 TURN = "apps/desktop/src/main/turnNotification.ts"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.session_export import _duration_text  # noqa: E402
 
 EXPORT_FRAGMENTS = (
     "def _duration_text(ms: int) -> str:",
@@ -62,6 +65,45 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
             raise ValueError(f"{label} 缺少或首次出现顺序变化：{fragment}")
         position = index
     return len(fragments)
+
+
+def _expect_value(actual: str, expected: str, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"时长文案行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _behavior_checks() -> int:
+    checked = _expect_value(_duration_text(0), "不足 1 秒", "0 毫秒")
+    checked += _expect_value(_duration_text(499), "不足 1 秒", "499 毫秒")
+    checked += _expect_value(_duration_text(500), "1 秒", "500 毫秒进位")
+    checked += _expect_value(_duration_text(999), "1 秒", "999 毫秒")
+    checked += _expect_value(_duration_text(1000), "1 秒", "1000 毫秒")
+    checked += _expect_value(_duration_text(1499), "1 秒", "1499 毫秒")
+    checked += _expect_value(_duration_text(1500), "2 秒", "1500 毫秒进位")
+    checked += _expect_value(_duration_text(59000), "59 秒", "59 秒")
+    checked += _expect_value(_duration_text(59499), "59 秒", "59.499 秒")
+    checked += _expect_value(_duration_text(59500), "1 分", "59.5 秒进位")
+    checked += _expect_value(_duration_text(60499), "1 分", "1 分以下")
+    checked += _expect_value(_duration_text(60500), "1 分 1 秒", "1 分 1 秒")
+    checked += _expect_value(_duration_text(89999), "1 分 30 秒", "90 秒")
+    checked += _expect_value(
+        _duration_text(3598499), "59 分 58 秒", "59 分 58 秒")
+    checked += _expect_value(
+        _duration_text(3598500), "59 分 59 秒", "59 分 59 秒")
+    checked += _expect_value(
+        _duration_text(3599499), "59 分 59 秒", "59 分 59 秒上限")
+    checked += _expect_value(_duration_text(3599500), "1 小时", "60 分进位")
+    checked += _expect_value(
+        _duration_text(3604999), "1 小时", "小时分支只保留整分")
+    checked += _expect_value(_duration_text(3660000), "1 小时 1 分", "1 小时 1 分")
+    checked += _expect_value(_duration_text(7200000), "2 小时", "2 小时")
+    checked += _expect_value(_duration_text(-1), "不足 1 秒", "负 1 毫秒")
+    checked += _expect_value(_duration_text(-1000), "不足 1 秒", "负 1 秒")
+    checked += _expect_value(
+        _duration_text(10**12), "277777 小时 46 分", "极大值")
+    return checked
 
 
 def check_duration_parity() -> int:
@@ -117,7 +159,7 @@ def check_duration_parity() -> int:
         raise ValueError(f"{EXPORT} 的时长必须按 (ms + 500) // 1000 取整")
     if "const seconds = Math.floor(ms / 1000);" in shared:
         raise ValueError(f"{SHARED} 的时长必须按 Math.round(ms / 1000) 取整")
-    return checked + 1
+    return checked + 1 + _behavior_checks()
 
 
 def main() -> int:
@@ -126,7 +168,7 @@ def main() -> int:
     except ValueError as error:
         print(f"时长文案双端核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"时长文案双端一致：{checked} 项取整、阈值与标签防护")
+    print(f"时长文案双端一致：{checked} 项取整、阈值、标签与行为防护")
     return 0
 
 
