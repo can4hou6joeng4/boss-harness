@@ -1,3 +1,10 @@
+## 0.2.0-rc.455 - 2026-11-22
+
+rc.455 源码候选固定技能目录枚举的有界窗口与截断口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SkillCatalog.scan` / `_candidate_paths` / `_problem_reason` 决定技能目录如何进入 `skills` 与 `problems` 以及三个截断标记，现有 `check_skills.py` 只核对类存在。新增 `scripts/check_skill_catalog.py`（110 项）：根符号链接拒绝、缺失根与缺失目录早退、非目录与扫描失败报错、`follow_symlinks=False`、字典序窗口与 `dropped`、窗口翻倍不超过 `MAX_SKILL_SCAN_ENTRIES`、代理项 id 转 `repr`、超长 id 截断、`_read_bounded` 失败归类、`_descriptor` 投影、`exhausted` / `fulfilled` 终止条件、三种截断标记与问题清单截断；`_problem_reason` 覆盖缺失、两处不可读、两处超限、非 UTF-8 与兜底；`list()` 只投影扫描结果。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3035](https://github.com/can4hou6joeng4/boss-harness/issues/3035)。
+- 变异验证：根符号链接不拒绝、缺失根或目录不早退、非目录不拒绝、跟随符号链接、不记录丢弃、替换条件放宽、候选不排序、枚举完毕判定错误、截断条件或标记缺失、候选截断恒假、窗口不翻倍、终止条件缺少扫描上限、代理项不转 repr、超长 id 不截断、读取失败不归类、描述投影缺失、问题清单不截断、原因归类缺失或放宽、原因兜底变化、列表不经扫描、扫描签名变化二十六种改动均被检查发现（26/26）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.455` / Python `0.2.0rc455`。
+
 ## 0.2.0-rc.454 - 2026-11-22
 
 rc.454 源码候选固定技能上下文注入的数量、路径与摘要口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
