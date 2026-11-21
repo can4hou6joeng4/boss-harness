@@ -1,3 +1,10 @@
+## 0.2.0-rc.502 - 2026-11-22
+
+rc.502 源码候选为浏览器来源解析补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `tools/boss_cli.py` 的 `resolve_browser_source_override` 决定上游 CLI 的浏览器来源策略。原有 `scripts/check_browser_source.py` 只做源码片段、AST 与反向断言扫描（28 项），本轮加入行为对照（43 项）：直接调用解析函数，覆盖未设置 / 空字符串 / 纯空白回落、大小写与首尾空白归一、三个合法值、环境变量生效与显式值优先、非法显式值与非法环境变量的固定错误文案，以及解析不写回环境变量。CI 无需改动，技术参考同步说明。修复 Issue [#3129](https://github.com/can4hou6joeng4/boss-harness/issues/3129)。
+- 变异验证：结构侧环境读取、去空白、空值回落、白名单、允许值集合、错误文案、上游参数、策略回落、环境变量名与解析调用共十种，行为侧忽略环境、不去空白、不转小写、空值保留、不校验、恒为空、大写返回与错误文案共八种，均被检查发现（18/18）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.502` / Python `0.2.0rc502`。
+
 ## 0.2.0-rc.501 - 2026-11-22
 
 rc.501 源码候选为审批条目校验补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
