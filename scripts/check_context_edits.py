@@ -5,7 +5,8 @@
 整体严格校验，在展示路径逐条跳过损坏记录；摘要检查点只信任内核写入的公开字段。
 这里固定编辑目标、替换文本上限、`originalInput` 不得绕过编辑投影、编辑入口的
 摘要与来源摘要校验、写入锁内先构造响应再落盘，以及检查点的字段白名单、
-来源完整性、运行中条目与原始记录一致性。
+来源完整性、运行中条目与原始记录一致性，并直接调用编辑、检查点与来源摘要
+纯函数核对运行行为。
 """
 
 from __future__ import annotations
@@ -15,6 +16,10 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/context.py"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.context import (  # noqa: E402
+    ContextService, _context_edit, _is_one_of, _public_checkpoint)
 
 CONSTANT_FRAGMENTS = (
     '_FINISHED_TURN_STATUSES = frozenset({"completed", "interrupted", "blocked", "error"})',
@@ -132,6 +137,199 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"上下文编辑行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != message:
+            raise ValueError(
+                f"上下文编辑行为变化 {label}：期望 {message!r}，实际 {str(error)!r}"
+            ) from None
+        return 1
+    raise ValueError(f"上下文编辑行为变化 {label}：期望 ValueError")
+
+
+def _item(item_id: str, kind: str = "userMessage", text: str = "原文",
+          **extra) -> dict:
+    return {"id": item_id, "kind": kind, "text": text, **extra}
+
+
+def _item_entry(item_id: str) -> dict:
+    return {"type": "item", "id": item_id, "payload": {}}
+
+
+def _edit_entry(entry_id: str, target, replacement, **extra) -> dict:
+    return {"type": "context_edit", "id": entry_id,
+            "payload": {"targetItemId": target, "replacementText": replacement, **extra}}
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    # 检查点白名单：文本字段按上限、整数字段按类型与 2^53-1 边界保留，未知字段剔除。
+    checkpoint = {"summary": "s", "throughTurnId": "t", "sourceDigest": "d",
+                  "digestVersion": 1, "modelRequestCount": 0,
+                  "sourceCharacters": 2 ** 53 - 1, "extra": "x"}
+    checked += _expect_value(_public_checkpoint(checkpoint), {
+        "summary": "s", "throughTurnId": "t", "sourceDigest": "d",
+        "digestVersion": 1, "modelRequestCount": 0,
+        "sourceCharacters": 2 ** 53 - 1}, "检查点白名单")
+    checked += _expect_value(_public_checkpoint({}), {}, "检查点空对象")
+    checked += _expect_value(
+        _public_checkpoint({"summary": "x" * 32000}), {"summary": "x" * 32000}, "检查点文本等于上限")
+    checked += _expect_value(
+        _public_checkpoint({"summary": "x" * 32001, "throughTurnId": "x" * 129,
+                            "sourceDigest": "x" * 65}), {}, "检查点文本超限")
+    checked += _expect_value(
+        _public_checkpoint({"summary": 1, "throughTurnId": None, "sourceDigest": []}),
+        {}, "检查点文本类型")
+    checked += _expect_value(
+        _public_checkpoint({"digestVersion": -1, "modelRequestCount": 2 ** 53,
+                            "sourceCharacters": True}), {}, "检查点整数边界")
+    checked += _expect_value(
+        _public_checkpoint({"digestVersion": 1.0, "modelRequestCount": "1",
+                            "sourceCharacters": None}), {}, "检查点整数类型")
+    # 类型收窄：集合成员只接受字符串，编辑标注只接受对象。
+    checked += _expect_value(_is_one_of("a", frozenset({"a", "b"})), True, "集合成员")
+    checked += _expect_value(_is_one_of("c", frozenset({"a", "b"})), False, "集合非成员")
+    checked += _expect_value(_is_one_of(1, frozenset({"1"})), False, "集合类型收窄")
+    edit = {"entryId": "e", "excluded": False}
+    checked += _expect_value(_context_edit({"contextEdit": edit}) is edit, True, "编辑原样返回")
+    checked += _expect_value(_context_edit({"contextEdit": "x"}), {}, "编辑非对象")
+    checked += _expect_value(_context_edit({}), {}, "编辑缺失")
+    # 编辑记录：合法替换与删除都投影；严格报错、宽松跳过。
+    entries = [_item_entry("m1"), _item_entry("m2"),
+               _edit_entry("e1", "m1", "新文"), _edit_entry("e2", "m2", None)]
+    checked += _expect_value(ContextService._context_edit_entries(entries), {
+        "m1": {"entryId": "e1", "replacementText": "新文"},
+        "m2": {"entryId": "e2", "replacementText": None}}, "编辑映射")
+    checked += _expect_error(
+        lambda: ContextService._context_edit_entries(
+            [_item_entry("m1"), _edit_entry("e1", "m1", "  ")]),
+        "会话上下文编辑记录无效；已停止生成模型上下文", "严格坏记录")
+    checked += _expect_value(
+        ContextService._context_edit_entries(
+            [_item_entry("m1"), _edit_entry("bad", "m1", "  "),
+             _edit_entry("e1", "m1", "新文")], strict=False),
+        {"m1": {"entryId": "e1", "replacementText": "新文"}}, "宽松跳过")
+    checked += _expect_error(
+        lambda: ContextService._context_edit_entries(
+            [_edit_entry("e1", "late", "x"), _item_entry("late")]),
+        "会话上下文编辑记录无效；已停止生成模型上下文", "目标先出现")
+    bad_entries = (
+        ("payload 非对象", {"type": "context_edit", "id": "e", "payload": []}),
+        ("payload 多键", {"type": "context_edit", "id": "e", "payload": {
+            "targetItemId": "m1", "replacementText": "x", "x": 1}}),
+        ("payload 缺键", {"type": "context_edit", "id": "e", "payload": {
+            "targetItemId": "m1"}}),
+        ("目标为空", _edit_entry("e", "", "x")),
+        ("目标非字符串", _edit_entry("e", 1, "x")),
+        ("目标不存在", _edit_entry("e", "ghost", "x")),
+        ("替换非字符串", _edit_entry("e", "m1", 1)),
+    )
+    for label, entry in bad_entries:
+        checked += _expect_error(
+            lambda entry=entry: ContextService._context_edit_entries(
+                [_item_entry("m1"), entry]),
+            "会话上下文编辑记录无效；已停止生成模型上下文", label)
+    checked += _expect_value(
+        len(ContextService._context_edit_entries(
+            [_item_entry("m1"), _edit_entry("e", "m1", "x" * 32000)])),
+        1, "替换 32000 字符")
+    checked += _expect_error(
+        lambda: ContextService._context_edit_entries(
+            [_item_entry("m1"), _edit_entry("e", "m1", "x" * 32001)]),
+        "会话上下文编辑记录无效；已停止生成模型上下文", "替换 32001 字符")
+    checked += _expect_value(
+        ContextService._context_edit_entries(
+            [_item_entry("m1"), _edit_entry("e1", "m1", "一"),
+             _edit_entry("e2", "m1", "二")]),
+        {"m1": {"entryId": "e2", "replacementText": "二"}}, "同目标后写覆盖")
+    checked += _expect_value(
+        ContextService._context_edit_entries(
+            [{"type": "turn", "id": "t"}, _item_entry("m1"),
+             _edit_entry("e", "m1", None)]),
+        {"m1": {"entryId": "e", "replacementText": None}}, "其他类型忽略")
+    # 应用编辑：返回新副本、剔除 originalInput、删除标注 excluded、目标必须可编辑。
+    items = [_item("m1", originalInput="raw")]
+    copied = ContextService._apply_context_edits(items, [])
+    checked += _expect_value(copied, items, "无编辑副本内容")
+    checked += _expect_value(copied[0] is items[0], False, "无编辑新副本")
+    checked += _expect_value("originalInput" in items[0], True, "输入不被修改")
+    checked += _expect_value(
+        ContextService._apply_context_edits(
+            items, [_item_entry("m1"), _edit_entry("e1", "m1", "新文")]),
+        [{"id": "m1", "kind": "userMessage", "text": "新文",
+          "contextEdit": {"entryId": "e1", "excluded": False}}], "替换与剔除原始输入")
+    removed = ContextService._apply_context_edits(
+        items, [_item_entry("m1"), _edit_entry("e1", "m1", None)])
+    checked += _expect_value(
+        (removed[0]["text"], removed[0]["contextEdit"]),
+        ("", {"entryId": "e1", "excluded": True}), "删除标注")
+    checked += _expect_error(
+        lambda: ContextService._apply_context_edits(
+            [_item("m1")], [_item_entry("m2"), _edit_entry("e", "m2", "x")]),
+        "会话上下文编辑引用了不存在的条目；已停止生成模型上下文", "目标条目缺失")
+    checked += _expect_error(
+        lambda: ContextService._apply_context_edits(
+            [_item("m1", kind="toolCall")],
+            [_item_entry("m1"), _edit_entry("e", "m1", "x")]),
+        "会话上下文编辑目标无效；已停止生成模型上下文", "非消息目标")
+    checked += _expect_error(
+        lambda: ContextService._apply_context_edits(
+            [{"id": "m1", "kind": "userMessage", "text": 1}],
+            [_item_entry("m1"), _edit_entry("e", "m1", "x")]),
+        "会话上下文编辑目标无效；已停止生成模型上下文", "正文非字符串")
+    checked += _expect_value(
+        ContextService._apply_context_edits(
+            [_item("m1", kind="agentMessage")],
+            [_item_entry("m1"), _edit_entry("e", "m1", "x")])[0]["contextEdit"],
+        {"entryId": "e", "excluded": False}, "助手消息可编辑")
+    # 来源摘要：64 位小写十六进制、确定、随正文与编辑编号变化。
+    item = _item("m1", text="原文", turnId="t1", status="completed")
+    first = ContextService._context_edit_source_digest(item, "e1")
+    checked += _expect_value(
+        (len(first), first == first.lower(),
+         all(character in "0123456789abcdef" for character in first)),
+        (64, True, True), "来源摘要格式")
+    checked += _expect_value(
+        ContextService._context_edit_source_digest(dict(item), "e1"), first, "来源摘要确定")
+    checked += _expect_value(
+        ContextService._context_edit_source_digest(item, "e2") != first, True, "来源摘要敏感")
+    checked += _expect_value(
+        ContextService._context_edit_source_digest(item, None) != first, True, "来源摘要空编辑")
+    # 检查点来源：sourceItemIds 原样，非字符串拒绝；缺省按 sourceItemCount 截取。
+    checked += _expect_value(
+        ContextService._checkpoint_source_item_ids(
+            {"sourceItemIds": ["a", "b"]}, [_item("x")]), ["a", "b"], "来源 id 列表")
+    checked += _expect_error(
+        lambda: ContextService._checkpoint_source_item_ids({"sourceItemIds": ["a", 1]}, []),
+        "已有摘要的来源记录无效", "来源 id 非字符串")
+    checked += _expect_value(
+        ContextService._checkpoint_source_item_ids(
+            {"sourceItemCount": 2}, [_item("a"), _item("b"), _item("c")]),
+        ["a", "b"], "来源计数截取")
+    for label, count in (("来源计数为布尔", True), ("来源计数为负", -1), ("来源计数超长", 4)):
+        checked += _expect_error(
+            lambda count=count: ContextService._checkpoint_source_item_ids(
+                {"sourceItemCount": count},
+                [_item("a"), _item("b"), _item("c")]),
+            "已有摘要的来源记录无效", label)
+    # 展示投影：宽松读取并只保留 entryId 与 excluded。
+    checked += _expect_value(
+        ContextService.context_edit_states(
+            [_item_entry("m1"), _edit_entry("bad", "m1", "  "),
+             _edit_entry("e1", "m1", None)]),
+        {"m1": {"entryId": "e1", "excluded": True}}, "展示投影宽松")
+    return checked
+
+
 def check_context_edits() -> int:
     module = _read(MODULE)
     checked = 0
@@ -168,7 +366,7 @@ def check_context_edits() -> int:
         raise ValueError(f"{MODULE} 只有 context_edit_states 可以跳过损坏编辑")
     if module.count('item.get("contextEdit")') != 1:
         raise ValueError(f"{MODULE} 的编辑标注必须经 _context_edit 映射读取")
-    return checked + 2
+    return checked + 2 + _behavior_checks()
 
 
 def main() -> int:

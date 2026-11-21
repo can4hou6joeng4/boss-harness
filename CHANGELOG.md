@@ -1,3 +1,10 @@
+## 0.2.0-rc.506 - 2026-11-22
+
+rc.506 源码候选为上下文编辑纯函数补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `context.py` 决定编辑记录如何进入模型上下文与展示路径。原有 `scripts/check_context_edits.py` 只做源码片段、顺序与反向断言扫描（89 项），本轮加入行为对照（137 项）：直接调用 `_public_checkpoint`、`_is_one_of`、`_context_edit`、`_context_edit_entries`、`_apply_context_edits`、`_context_edit_source_digest`、`_checkpoint_source_item_ids` 与 `context_edit_states`，覆盖检查点文本 / 整数字段白名单与 2^53-1 边界、类型收窄、合法替换 / 删除、严格报错与宽松跳过、目标先出现、payload 精确键集、纯空白与 32 000 / 32 001 字符边界、同目标后写覆盖、副本语义与 `originalInput` 剔除、删除标注、目标缺失 / 非消息 / 正文非字符串报错、来源摘要格式与敏感性、`sourceItemIds` / `sourceItemCount` 两种来源及布尔 / 负数 / 超长拒绝、展示投影宽松读取。CI 无需改动，技术参考同步说明。修复 Issue [#3137](https://github.com/can4hou6joeng4/boss-harness/issues/3137)。
+- 变异验证：结构侧替换字符上限、检查点整数上限、整数类型、文本上限、严格分支、编辑映射写入、引用校验、原始输入剔除、删除空文本、编辑标注、摘要字段顺序与摘要编辑号共十二种，行为侧恒宽松、恒严格、保留原始输入、从不排除、摘要忽略编辑号、来源 id 不校验、展示用严格、白名单透传、集合转字符串与编辑恒声明共十种，均被检查发现（22/22）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.506` / Python `0.2.0rc506`。
+
 ## 0.2.0-rc.505 - 2026-11-22
 
 rc.505 源码候选为条目快照补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
