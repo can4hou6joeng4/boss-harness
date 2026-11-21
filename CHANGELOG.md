@@ -1,3 +1,10 @@
+## 0.2.0-rc.498 - 2026-11-22
+
+rc.498 源码候选为时长文案补充内核侧行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session_export.py` 的 `_duration_text` 决定会话导出中的耗时文案，必须与桌面 `formatDurationMs` 保持同一口径。原有 `scripts/check_duration_parity.py` 只做源码片段、顺序与反向断言扫描（38 项），本轮加入行为对照（61 项）：直接调用 `_duration_text`，覆盖 0 / 499 / 500 / 999 / 1000 / 1499 / 1500 毫秒的取整边界、59 秒 / 60 秒 / 61 秒 / 90 秒、59 分 58 秒 / 59 分 59 秒 / 60 分 / 1 小时 / 1 小时 1 分 / 2 小时、小时分支只保留整分、负数与极大值。CI 无需改动，技术参考同步说明。修复 Issue [#3121](https://github.com/can4hou6joeng4/boss-harness/issues/3121)。
+- 变异验证：结构侧内核取整、阈值、秒 / 分 / 小时文案与拆分、桌面取整、阈值与两类分支文案、回合包装共十二种，行为侧取整、半入偏差、秒阈值、分 / 小时剩余、小时用剩余秒、两类空格、负数与极大值共十种，均被检查发现（22/22）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.498` / Python `0.2.0rc498`。
+
 ## 0.2.0-rc.497 - 2026-11-22
 
 rc.497 源码候选为审批参数摘要补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
