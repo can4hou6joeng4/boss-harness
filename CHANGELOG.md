@@ -1,3 +1,10 @@
+## 0.2.0-rc.510 - 2026-11-22
+
+rc.510 源码候选为回合归并补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session.py` 的 `_turns` 驱动分支列表、冻结快照、fork 边界切分与列表索引。原有 `scripts/check_turn_records.py` 只做源码片段、顺序与缩进扫描（41 项），本轮加入行为对照（76 项）：直接调用 `SessionStore._turns`，覆盖非回合条目忽略、回合编号格式（缺失 / 非字符串 / 非法字符 / 超长）与合法复杂编号、同一回合多条记录的字段合并与 `firstOrdinal` / `startedAt` 保留、`lastOrdinal` / `updatedAt` 推进、终态首次边界与 `completedAt` 不被后续覆盖、`previous_end` 推进、内部记账字段不可覆盖、`task_phase` 的归属 / 阶段 / 状态 / 尝试次数 / 重启上限 / 恢复原因 / 恢复策略边界与回合出现前跳过、threadId 收敛与缺失时间戳。CI 无需改动，技术参考同步说明。修复 Issue [#3145](https://github.com/can4hou6joeng4/boss-harness/issues/3145)。
+- 变异验证：结构侧阶段分支、回合查找、归属条件、尝试 / 重启上限、回合分支、标识符、内部字段、边界首次、终态序号、首序号与恢复原因上限共十二种，行为侧跳过阶段、不记终态、覆盖边界、覆盖内部字段、终态序号偏移、不校验标识符、不校验阶段上限与 threadId 取载荷共八种，均被检查发现（20/20）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.510` / Python `0.2.0rc510`。
+
 ## 0.2.0-rc.509 - 2026-11-22
 
 rc.509 源码候选为条目投影补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
