@@ -1,3 +1,10 @@
+## 0.2.0-rc.509 - 2026-11-22
+
+rc.509 源码候选为条目投影补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session.py` 的 `_project_items` 决定编辑、压缩、分叉与快照按编号定位时命中哪条逻辑消息。原有 `scripts/check_item_projection.py` 只做源码片段、顺序与计数扫描（31 项），本轮加入行为对照（55 项）：直接调用 `SessionStore._project_items`，覆盖非 item 条目忽略、缺 / 非字符串 / 空 id 跳过、基本投影与 threadId 收敛、修订合并保留原编号与未覆盖字段、修订别名链、目标不存在或非字符串时新建、同编号保留先出现、修订后同编号跳过、工具调用父条目回退（running / 子或父类型不符 / 父不存在不回退）、编号字段非字符串删除、非对象 approval 删除、payload 缺失、输入不被修改与返回独立对象。CI 无需改动，技术参考同步说明。修复 Issue [#3143](https://github.com/can4hou6joeng4/boss-harness/issues/3143)。
+- 变异验证：结构侧条目类型、载荷副本、空编号跳过、修订目标、回退条件、父类型、编号清理、审批清理、合并编号、追加 threadId、重复跳过与修订别名共十二种，行为侧不合并修订、不回退工具调用、保留非字符串编号、保留非对象审批、不跳过空编号、不跳过重复编号、覆盖原编号与 threadId 取载荷共八种，均被检查发现（20/20）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.509` / Python `0.2.0rc509`。
+
 ## 0.2.0-rc.508 - 2026-11-22
 
 rc.508 源码候选为队列计数归并补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
