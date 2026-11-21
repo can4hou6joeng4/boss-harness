@@ -1,3 +1,10 @@
+## 0.2.0-rc.494 - 2026-11-22
+
+rc.494 源码候选为 HTML 导出转义与页面补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `session_export.py` 的 `_h` 与 `_render_html` 决定导出 HTML 的转义与页面结构。原有 `scripts/check_export_html.py` 只做源码片段、顺序与反向断言扫描（59 项），本轮加入行为对照（81 项）：直接调用 `_h` 核对 `&`、`<`、`>`、双引号与单引号转义及非字符串输入；构造最小 `meta` / `units` / `counts` / `queue` 调用 `_render_html`，覆盖 doctype、CSP、referrer、页脚闭合、主体结构、恶意会话 id 与标题转义、工具结果两种提示、日志 / 当前分支视图、脱敏统计、截断与孤立条目提示、空标题回退。CI 无需改动，技术参考同步说明。修复 Issue [#3113](https://github.com/can4hou6joeng4/boss-harness/issues/3113)。
+- 变异验证：结构侧转义导入与实现、会话 / 标题 / 正文 / 结果 / 工具 / 参数 / 审批 / 摘要 / 队列字段入口、CSP / referrer / 标题 / 页脚与三类反向断言共二十种，行为侧特殊字符 / 引号 / 空值、页面头尾、提示、视图、统计、截断、孤立条目与空标题共十四种，均被检查发现（34/34）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.494` / Python `0.2.0rc494`。
+
 ## 0.2.0-rc.493 - 2026-11-22
 
 rc.493 源码候选为 Markdown 导出中和与围栏补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
