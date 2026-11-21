@@ -1,3 +1,10 @@
+## 0.2.0-rc.424 - 2026-11-21
+
+rc.424 源码候选补全安装指南的导航入口。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SETUP.md` 是面向新用户的「让编码 Agent 协助安装」入口，但 README 的「项目导航」表与 `docs/README.md` 的根文件列表都没有它；`check_docs_links.py` 的索引检查只覆盖 `docs/*.md`，这类根文档入口缺口不会被现有检查发现。现在两个导航都加入 SETUP.md，检查脚本新增根文档导航断言：README 的「项目导航」章节与 `docs/README.md` 必须链接 SETUP.md，导航章节缺失或入口被移除都会失败。修复 Issue [#2973](https://github.com/can4hou6joeng4/boss-harness/issues/2973)。
+- 变异验证：移除 README 导航行、移除文档索引链接、改写 README 导航章节标题三种改动均被检查发现（3/3）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.424` / Python `0.2.0rc424`。
+
 ## 0.2.0-rc.423 - 2026-11-21
 
 rc.423 源码候选记录旧分叉会话的续接兼容边界。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
