@@ -4,7 +4,7 @@
 两者是分支与历史判定的共同输入：归属决定迟到修订、旧记录工具调用回退、显式
 回合号优先级、无归属条目挂起与活动回合的清空；回合树决定父回合、首次出现顺序
 与条目尾部。分支投影、fork 前缀选择、分支列表与上下文读取都依赖这些结果，这里
-固定规则，避免重构后静默改变归属或父回合链。
+固定规则，避免重构后静默改变归属或父回合链，并直接调用两个入口核对归属与父回合。
 """
 
 from __future__ import annotations
@@ -14,6 +14,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.session import SessionStore  # noqa: E402
 
 # 归属顺序：修订目标 → 非 running 工具调用的 parentId 回退 → 显式 turnId 优先 →
 # 重复编号保留首个 → 无归属挂起 → 下一个新回合收割 → running / 终态维护活动回合。
@@ -98,6 +101,100 @@ def _region(source: str, marker: str) -> str:
     return source[start:] if end < 0 else source[start:end]
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"条目归属行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _turn(turn_id: object, status: object = "running") -> dict:
+    return {
+        "type": "turn",
+        "id": f"turn:{turn_id}",
+        "payload": {"turnId": turn_id, "status": status},
+    }
+
+
+def _item(entry_id: str, **payload: object) -> dict:
+    return {"type": "item", "id": entry_id, "payload": payload}
+
+
+def _behavior_checks() -> int:
+    owners = SessionStore._item_owners
+    checked = _expect_value(
+        owners([_item("i1", kind="message", turnId="turn-a")]),
+        {"i1": "turn-a"}, "显式回合")
+    checked += _expect_value(
+        owners([_turn("turn-a"), _item("i1", kind="message")]),
+        {"i1": "turn-a"}, "活动回合")
+    checked += _expect_value(
+        owners([_item("i1", kind="message"), _turn("turn-a")]),
+        {"i1": "turn-a"}, "挂起收割")
+    checked += _expect_value(
+        owners([_turn("turn-a"), _item("i1", kind="message"),
+                _turn("turn-a", "completed"), _turn("turn-b"),
+                _item("i2", kind="message", revises="i1")]),
+        {"i1": "turn-a", "i2": "turn-a"}, "修订继承")
+    checked += _expect_value(
+        owners([_turn("turn-a"), _item("i1", kind="message"),
+                _turn("turn-a", "completed"), _turn("turn-b"),
+                {"type": "item", "id": "i2", "parentId": "i1",
+                 "payload": {"kind": "toolCall", "status": "completed"}}]),
+        {"i1": "turn-a", "i2": "turn-a"}, "工具调用回退")
+    checked += _expect_value(
+        owners([_item("i1", kind="message", turnId="turn-a"),
+                {"type": "item", "id": "i2", "parentId": "i1",
+                 "payload": {"kind": "toolCall", "status": "running"}}]),
+        {"i1": "turn-a", "i2": None}, "running 工具调用不回退")
+    checked += _expect_value(
+        owners([_item("same", kind="message", turnId="turn-a"),
+                _item("same", kind="message", turnId="turn-b")]),
+        {"same": "turn-a"}, "重复编号保留首个")
+    checked += _expect_value(
+        owners([_item("i1", kind="message")]), {"i1": None}, "无归属挂起")
+    checked += _expect_value(
+        owners([_turn("turn-a"), _item("i1", kind="message"),
+                _turn("turn-a", "completed"), _item("i2", kind="message")]),
+        {"i1": "turn-a", "i2": None}, "终态清空")
+    checked += _expect_value(
+        owners([_item("i1", kind="message"), _turn("bad id!"),
+                _item("i2", kind="message")]),
+        {"i1": None, "i2": None}, "非法回合号跳过")
+    checked += _expect_value(
+        owners([_turn("turn-a"), _turn("turn-a", "completed"),
+                _item("i2", kind="message"), _turn("turn-a")]),
+        {"i2": None}, "重复回合不重复收割")
+    checked += _expect_value(
+        owners([_turn("turn-a"), _turn("turn-b"),
+                _turn("turn-a", "completed"), _item("i1", kind="message")]),
+        {"i1": "turn-b"}, "终态不误清其它回合")
+
+    tree = SessionStore._turn_tree
+    checked += _expect_value(
+        tree([_turn("t1"), _turn("t2"), _turn("t3")]),
+        ({"t1": None, "t2": "t1", "t3": "t2"}, ["t1", "t2", "t3"]), "父回合链")
+    checked += _expect_value(
+        tree([_turn("t1"), _item("i1", kind="message", turnId="t1"), _turn("t2")]),
+        ({"t1": None, "t2": "t1"}, ["t1", "t2"]), "条目推进尾部")
+    checked += _expect_value(
+        tree([_turn("t1"),
+              {"type": "task_phase", "id": "p1", "payload": {"turnId": "t1"}},
+              {"type": "tool_batch", "id": "b1", "payload": {"taskId": "t1"}},
+              _turn("t2")]),
+        ({"t1": None, "t2": "t1"}, ["t1", "t2"]), "任务与批次归属")
+    checked += _expect_value(
+        tree([_item("i1", kind="message", turnId="ghost"), _turn("t1")]),
+        ({"t1": None}, ["t1"]), "未知归属跳过")
+    checked += _expect_value(
+        tree([_turn("t1"), _turn("t1"), _turn("t2")]),
+        ({"t1": None, "t2": "t1"}, ["t1", "t2"]), "重复回合不重复入列")
+    checked += _expect_value(
+        tree([_turn("bad id!"), _turn("t1")]),
+        ({"t1": None}, ["t1"]), "非法回合号不进入树")
+    return checked
+
+
 def check_item_ownership() -> int:
     source = _read(SESSION)
     owners = _region(source, "def _item_owners(")
@@ -116,7 +213,7 @@ def check_item_ownership() -> int:
     if owners.count('if entry["id"] not in owners:') != 1:
         raise ValueError(f"{SESSION} 的归属推导必须保留首个重复编号归属")
     checked += 1
-    return checked
+    return checked + _behavior_checks()
 
 
 def main() -> int:
@@ -125,7 +222,7 @@ def main() -> int:
     except ValueError as error:
         print(f"条目归属核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"条目归属与回合树一致：{checked} 项修订、回退、显式归属与父回合推导校验")
+    print(f"条目归属与回合树一致：{checked} 项修订、回退、显式归属、父回合与行为对照")
     return 0
 
 
