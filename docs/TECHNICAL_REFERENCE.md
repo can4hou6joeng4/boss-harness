@@ -518,7 +518,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_turn_continuation.py`
 
-`scripts/check_turn_continuation.py` 核对中断回合续接的预检边界与文档一致性：`_turn_continuation_plan` 的原因码集合必须与「中断回合续接」一节的表格双向一致（当前 28 个，其中 6 个是与其它操作共用的 `THREAD_*` / `KERNEL_*` / `QUEUE_*` / `TURN_*` 门禁码）；运行状态门禁的先后顺序、最新回合与已有续接回合必须按当前分支（`_active_entries`）判定；`turn/continue` 的 `continuationId` 去重必须读取整份日志，并对来源不一致返回 `CONTINUATION_ID_CONFLICT`；预检回执的固定字段与可选字段、只读参数校验、`CONTINUATION_WARNING` 文案、桌面入口条件（当前分支中断回合、`explicitTurnContinuation`、未归档）、回执形状整体校验，以及按钮禁用条件（提交中、回执未知、运行中、内核未连接）也必须保留。反向断言禁止去重读取改用分支投影、禁止 `eligible` 使用真假值判断。检查是源码文本与首次出现顺序扫描，不执行续接，也不调用模型。
+`scripts/check_turn_continuation.py` 核对中断回合续接的预检边界与文档一致性：`_turn_continuation_plan` 的原因码集合必须与「中断回合续接」一节的表格双向一致（当前 28 个，其中 6 个是与其它操作共用的 `THREAD_*` / `KERNEL_*` / `QUEUE_*` / `TURN_*` 门禁码）；运行状态门禁的先后顺序、最新回合与已有续接回合必须按当前分支（`_active_entries`）判定；`turn/continue` 的 `continuationId` 去重必须读取整份日志，并对来源不一致返回 `CONTINUATION_ID_CONFLICT`；预检回执的固定字段与可选字段、只读参数校验、`CONTINUATION_WARNING` 文案、桌面入口条件（当前分支中断回合、`explicitTurnContinuation`、未归档）、回执形状整体校验，以及按钮禁用条件（提交中、回执未知、运行中、内核未连接）也必须保留。反向断言禁止去重读取改用分支投影、禁止 `eligible` 使用真假值判断。续接边界摘要必须由 `session.continuation_entries_digest` 单点计算，`ApplicationService` 只做委托；`fork_thread` 在 `_write_new` 之前按复制前缀重算继承边界、边界条目未复制时清除摘要；`_on_turn_start` 在 `_runner_for` 之后、设置 `max_model_requests` 之前调用 `_reset_runner_history`。检查是源码文本与首次出现顺序扫描，不执行续接，也不调用模型。
 
 ### `check_capabilities.py`
 
@@ -684,7 +684,9 @@ Anthropic 的私有续接元数据只保存签名块描述：请求前缀 digest
 
 `turn/continuation/read`（能力 `explicitTurnContinuation`）是只读预检，`turn/continue` 在通过同一预检后启动一个 `continuedFromTurnId` 指向来源回合的新回合。预检只接受当前分支的最新回合，且其状态必须是 `interrupted`；未决审批、结果未知或未完成的工具调用、批次清单不完整的旧工具调用都会拒绝续接。历史边界取最后一个可验证的持久请求（`completed_tool_batch`）或唯一用户输入（`user_input`），续接只沿用到该边界为止的条目；边界之后发生模型线路切换、上下文摘要、对已包含条目的编辑或修订时预检失败。续接沿用来源回合的 provider / model / thinking / effort、maxTokens、工具策略、技能与附件、自动压缩策略与模型请求偏移，并在启动前用请求指纹复核；不重新执行已完成的工具，新写操作仍逐次审批。预检与 `turn/continue` 不改变 `0.2.0` 协议。
 
-「最新回合」与「是否已有续接回合」按当前分支判定：放弃续接回合所在分支、切回来源回合后，来源重新成为当前分支的最新 `interrupted` 回合，可以再次续接并产生新的模型请求。`continuationId` 的去重则按整份会话日志判定：相同编号与相同来源重复提交按幂等返回已有回合（即使它在被放弃的分支上），编号重复但来源不同返回 `CONTINUATION_ID_CONFLICT`。切回后再次续接与幂等重放是两件事，客户端不应靠重试同一编号来重新执行。
+「最新回合」与「是否已有续接回合」按当前分支判定：放弃续接回合所在分支、切回来源回合后，来源重新成为当前分支的最新 `interrupted` 回合，可以再次续接并产生新的模型请求。`continuationId` 的去重则按整份会话日志判定：相同编号与相同来源重复提交按幂等返回已有回合（即使它在被放弃的分支上），编号重复但来源不同返回 `CONTINUATION_ID_CONFLICT`。切回后再次续接与幂等重放是两件事，客户端不应靠重试同一编号来重新执行。幂等回执（`deduplicated: true`）只说明编号已被使用，不携带已有回合的状态：若该回合以 `TURN_START_FAILED` 之类的错误状态落盘，重放同一编号得到的仍是成功形状的回执，客户端应以回合列表中的实际状态为准，不能据此认为回合已开始。
+
+续接边界摘要与条目逐字节绑定。分叉（`SessionStore.fork_thread`）复制当前分支前缀时丢弃内核专用记录并改写审批编号，继承的 `continuationBoundaryDigest` 因此按复制后的前缀重算；边界条目未被复制时清掉摘要，预检按「持久边界不存在」拒绝（`CONTINUATION_BOUNDARY_INVALID`），而不是误报历史变化。串行复用主 runner 的场景（嵌入方未提供 provider factory）下，普通回合启动前复位 runner 的历史提供者，避免上一个续接回合钉住的历史边界泄漏到下一个回合。
 
 预检失败以 `eligible: false` 与下列固定原因码返回；`turn/continue` 在启动前再次预检，失败时以同一原因码作为 RPC 错误数据。原因码集合由 `check_turn_continuation.py` 与技术参考的表格双向核对。
 
