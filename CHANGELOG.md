@@ -1,3 +1,10 @@
+## 0.2.0-rc.446 - 2026-11-22
+
+rc.446 源码候选固定会话批量追加、新建发布与附件引用顺序。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `SessionStore` 的 JSONL 写入顺序决定并发可见性与崩溃恢复，现有 `check_session_log.py` 只覆盖编码 / 解码 / 快照，`check_attachments.py` 只覆盖清理片段。新增 `scripts/check_session_batch.py`（99 项）：`append_many` 的批次校验、空批早退、整批编码先于事务、缺失末尾换行的 1 字节前缀、严格大于的上限与 `SessionSizeLimitExceeded`、写前 / 写后各一次索引刷新；`append` 的单条事务顺序；`_write_new` 的整卷编码、`.tmp` 临时名、fsync 后 `os.link` 发布与临时名清理；`append_attachment` 的历史校验 → 发布内容 → fsync 附件目录 → 写引用行；清理入口的锁与事务、引用扫描与临时名匹配。反向断言调用次数、编码不得进入事务、不得覆盖发布、不得绕过引用扫描。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#3017](https://github.com/can4hou6joeng4/boss-harness/issues/3017)。
+- 变异验证：批次类型与上限类型放宽、空批不早退、编码改惰性生成器、缺失换行不计前缀、上限含等于、超限异常弱化、批量写前 / 写后不刷新、逐行改列表推导、批量与单条互相委托、单条写前不刷新、新建不 fsync、覆盖发布、临时名后缀变化、不清理发布临时名、头编码缺上限、附件先发布后校验、不 fsync 目录、摘要不校验、重复写引用、清理脱锁、不扫描引用、临时清理匹配放宽、不删除、不 fsync 二十七种改动均被检查发现（27/27）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.446` / Python `0.2.0rc446`。
+
 ## 0.2.0-rc.445 - 2026-11-22
 
 rc.445 源码候选固定队列新增、编辑、状态转移与暂停结算口径。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
