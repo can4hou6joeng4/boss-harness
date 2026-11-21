@@ -2886,7 +2886,19 @@ class SessionStore:
                 if self.path_for(thread["id"]).stat().st_size > _SEARCH_THREAD_BYTES:
                     truncated = True
                     continue
-                items = self.read_items(thread["id"])
+                entries = self.read_entries(thread["id"])
+                items = self._project_items(thread["id"], entries)
+                # 会话区按当前分支视图展示，搜索却覆盖完整日志：切换过位置的会话额外
+                # 标明命中是否在当前位置的分支上，客户端据此提示「其他分支」。
+                # 投影失败（如条目编号重复）时省略该字段，搜索结果照常返回。
+                branch_item_ids: set[str] | None = None
+                if any(entry.get("type") == LEAF_ENTRY_TYPE for entry in entries):
+                    try:
+                        branch_item_ids = {str(item.get("id") or "")
+                                           for item in self._project_items(thread["id"],
+                                                                           self._active_entries(entries))}
+                    except ValueError:
+                        branch_item_ids = None
             except (OSError, ValueError):
                 # 会话已被列出但无法读取：其中可能包含命中，结果必须标注不完整。
                 truncated = True
@@ -2928,13 +2940,17 @@ class SessionStore:
                     start = starts[index]
                     end = ends[index + len(needle) - 1]
                 title = thread.get("title")
-                matches.append({
+                item_id = str(item.get("id") or "")
+                match = {
                     "threadId": thread["id"],
                     "threadTitle": title if isinstance(title, str) else "",
-                    "itemId": str(item.get("id") or ""),
+                    "itemId": item_id,
                     "role": role,
                     "snippet": self._search_snippet(text, start, end),
-                })
+                }
+                if branch_item_ids is not None:
+                    match["onBranch"] = item_id in branch_item_ids
+                matches.append(match)
                 per_thread += 1
             if more_matches or scanned_chars >= _SEARCH_TEXT_BUDGET:
                 truncated = True
