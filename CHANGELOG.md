@@ -1,3 +1,10 @@
+## 0.2.0-rc.484 - 2026-11-22
+
+rc.484 源码候选为模型错误分类补充溢出、重试与传输诊断的行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `errors.py` 是可信 provider 错误边界：只接受精确 OpenAI code、有界 llama.cpp / LiteLLM 文本、Anthropic 带数字的 prompt 拒绝与 HTTP 413 代理正文拒绝作为上下文溢出；配额耗尽不可重试、裸 429 未知；传输诊断只输出固定标签与白名单 errno。原有 `scripts/check_errors.py` 只做静态片段与顺序扫描（101 项），本轮在脚本内加入行为对照（199 项）：覆盖来源校验、provider code 白名单与回退、智谱 1308 的字符串 / 整数 / 浮点边界、重试提示的配额优先与认证状态、四条文本匹配的空白与长度边界、两家 provider 的溢出组合与显式 `retryable` 覆盖、传输因果链 / errno 白名单 / 抑制上下文 / 固定诊断文案。CI 无需改动，技术参考同步说明。修复 Issue [#3093](https://github.com/can4hou6joeng4/boss-harness/issues/3093)。
+- 变异验证：结构侧正则与长度上限、配额 / 临时状态集合、SDK 家族、MRO 映射、errno 白名单、DNS 命名空间、因果链来源与抑制、状态范围、code 字段顺序、智谱 code、重试优先级、四组首次出现顺序、五条反向断言与技术参考片段五十种，行为侧来源恒有效、provider code 恒空、智谱配额恒否、重试提示恒未知、溢出来源恒是、四条文本匹配恒是或恒否、两家 provider 恒空、传输诊断恒未知、固定文案恒空十二种，均被检查发现（62/62）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.484` / Python `0.2.0rc484`。
+
 ## 0.2.0-rc.483 - 2026-11-22
 
 rc.483 源码候选为模型重试补充解析、退避与观测事件的行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
