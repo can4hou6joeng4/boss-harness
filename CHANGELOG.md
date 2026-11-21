@@ -1,3 +1,10 @@
+## 0.2.0-rc.434 - 2026-11-21
+
+rc.434 源码候选固定条目投影的编号收敛与修订合并。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `_project_items` 把日志里的 item 记录合并成逻辑条目，编辑、压缩、分叉、快照与条目读取都按编号定位；`check_snapshot_store.py` 只固定了快照构建里的同类规则，没有固定投影本身。新增 `scripts/check_item_projection.py`（31 项）：空编号跳过、`revises` 目标优先、非 `running` 工具调用回退且父项必须是工具调用、编号字段与非对象审批清理、修订合并保留原编号、重复编号保留先出现、新条目唯一追加路径；反向禁止从 `payload` 读 `parentId`。CI 接入该脚本，技术参考补充说明小节。修复 Issue [#2993](https://github.com/can4hou6joeng4/boss-harness/issues/2993)。
+- 变异验证：空编号不跳过、修订目标不优先、回退去掉 running 判断、回退不检查父项类型、不清理编号字段、不清理审批、修订覆盖原编号、重复编号不跳过、新条目合并顺序变化、回退改从 `payload` 读 `parentId`、修订不更新别名、修订不合并载荷十二种改动均被检查发现（12/12）。不改变内核、桌面与协议行为；五项本地门禁通过。版本推进到 npm `0.2.0-rc.434` / Python `0.2.0rc434`。
+
 ## 0.2.0-rc.433 - 2026-11-21
 
 rc.433 源码候选固定被放弃分支的推导与摘要写入绑定。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
