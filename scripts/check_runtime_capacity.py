@@ -14,9 +14,16 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 import sys
+import threading
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = "harness/src/boss_harness/runtime.py"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.rpc import RpcError  # noqa: E402
+from boss_harness.runtime import RuntimeManager  # noqa: E402
+from boss_harness.shutdown import TrackedAbort  # noqa: E402
 
 # 类内顺序：初始状态 → 容量通知 worker → 双上限 → 准入 → 预留 / 释放 / 回收 →
 # 空闲通知 → abort 认领 → 中断 → 关闭与停止。
@@ -161,6 +168,195 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"运行时容量行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_rpc(call, code: int, message: str, data, label: str) -> int:
+    try:
+        call()
+    except RpcError as error:
+        checked = _expect_value(error.code, code, f"{label}错误码")
+        checked += _expect_value(str(error), message, f"{label}文案")
+        checked += _expect_value(error.data, data, f"{label}数据")
+        return checked
+    raise ValueError(f"运行时容量行为变化 {label}：期望 RpcError，实际未抛出")
+
+
+def _wait_until(predicate, timeout: float = 2.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.01)
+    return predicate()
+
+
+class _Provider:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def request_abort(self) -> None:
+        self.calls += 1
+
+
+class _Runner:
+    def __init__(self) -> None:
+        self.provider = _Provider()
+        self.interrupted = 0
+
+    def interrupt(self) -> None:
+        self.interrupted += 1
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    runner = _Runner()
+    manager = RuntimeManager(capacity=2)
+    checked += _expect_value((manager.capacity, manager.owner_capacity), (2, 4), "容量与归属上限")
+    checked += _expect_value(manager.has_capacity(), True, "初始可用")
+    first = manager.reserve("thread-1", "一", runner)
+    manager.reserve("thread-2", "二", runner)
+    checked += _expect_value((manager.active["thread-1"] is first,
+                              manager.jobs[first["turnId"]] is first), (True, True), "预留登记")
+    checked += _expect_value(first["input"], "一", "预留输入")
+    checked += _expect_value(manager.has_capacity(), False, "满容量不可用")
+    checked += _expect_rpc(lambda: manager.check_admission("thread-3"), -32005,
+                           "已达到并发会话上限",
+                           {"code": "TURN_CONCURRENCY_LIMIT", "limit": 2}, "会话上限")
+    checked += _expect_rpc(lambda: manager.reserve("thread-1", "再次", runner), -32004,
+                           "该会话已有回合运行", {"turnId": first["turnId"]}, "会话重复")
+
+    owner = RuntimeManager(capacity=1)
+    owner.jobs.update({"fake-1": {"turnId": "fake-1"}, "fake-2": {"turnId": "fake-2"}})
+    checked += _expect_value(owner.has_capacity(), False, "归属上限不可用")
+    checked += _expect_rpc(lambda: owner.check_admission("thread-x"), -32005,
+                           "仍在执行或收尾的回合已达到内核资源上限",
+                           {"code": "TURN_OWNER_LIMIT", "limit": 2}, "归属上限")
+
+    closed = RuntimeManager(capacity=2)
+    job = closed.reserve("thread-1", "关闭", runner)
+    claim = closed._claim_abort_locked(job, interrupt=False)
+    closed.cancel_all(interrupt=False)
+    checked += _expect_value(closed.closed, True, "关闭标志")
+    checked += _expect_value(job["cancel"].is_set(), True, "关闭置位取消")
+    checked += _expect_value(closed.has_capacity(), False, "关闭后不可用")
+    checked += _expect_rpc(lambda: closed.check_admission("thread-2"), -32003,
+                           "内核正在关闭", None, "关闭拒绝")
+    closed.finish(job)
+    checked += _expect_value(job["turnId"] in closed.jobs, True, "abort 未完成保留")
+    claim._finish()
+    checked += _expect_value(job["turnId"] not in closed.jobs, True, "abort 完成后回收")
+
+    manager = RuntimeManager(capacity=2)
+    old = manager.reserve("thread", "旧", runner)
+    replacement = {"threadId": "thread", "turnId": "new"}
+    manager.active["thread"] = replacement
+    manager.release(old)
+    checked += _expect_value(manager.active["thread"] is replacement, True, "旧回合不释放新槽位")
+    manager.release(replacement)
+    checked += _expect_value("thread" in manager.active, False, "同对象释放")
+
+    manager = RuntimeManager(capacity=2)
+    idle: list[int] = []
+    manager.on_idle = lambda: idle.append(1)
+    job = manager.reserve("thread", "x", runner)
+    manager.finish(job)
+    checked += _expect_value((job["_worker_done"], job["turnId"] not in manager.jobs),
+                             (True, True), "无 abort 回收")
+    checked += _expect_value(idle, [1], "回收通知 idle")
+    job = manager.reserve("thread-2", "x", runner)
+    abort = manager._claim_abort_locked(job, interrupt=False)
+    manager.finish(job)
+    checked += _expect_value(job["turnId"] in manager.jobs, True, "abort 未完成保留")
+    abort._finish()
+    checked += _expect_value(job["turnId"] in manager.jobs, False, "abort 完成后回收")
+
+    manager = RuntimeManager(capacity=2)
+    runner = _Runner()
+    job = manager.reserve("thread", "x", runner)
+    checked += _expect_value(manager.prepare_interrupt("missing"), None, "未知会话")
+    checked += _expect_rpc(lambda: manager.prepare_interrupt("thread", "other"), -32004,
+                           "回合已变化；请刷新后再中断", None, "回合变化")
+    prepared = manager.prepare_interrupt("thread", job["turnId"])
+    checked += _expect_value(prepared is job, True, "准备返回回合")
+    checked += _expect_value(job["cancel"].is_set(), True, "准备置位取消")
+    claim = job["_shutdown_abort"]
+    checked += _expect_value(isinstance(claim, TrackedAbort), True, "认领中止")
+    checked += _expect_value(manager.prepare_interrupt("thread")["_shutdown_abort"] is claim, True,
+                             "重复认领同一中止")
+    checked += _expect_value(claim.callback, runner.interrupt, "中断回调绑定")
+    checked += _expect_value(manager.interrupt("missing"), False, "未知中断返回假")
+    checked += _expect_value(manager.interrupt("thread"), True, "中断派发")
+    checked += _expect_value(claim.done.wait(2), True, "中断完成")
+    checked += _expect_value(runner.interrupted, 1, "中断回调一次")
+    checked += _expect_value(claim.worker.name, "turn-abort", "中止线程名称")
+    checked += _expect_value(runner.provider.calls, 0, "provider 不参与")
+
+    manager = RuntimeManager(capacity=2)
+    runner = _Runner()
+    job = manager.reserve("thread", "x", runner)
+    manager.cancel_all(interrupt=False)
+    claim = job["_shutdown_abort"]
+    checked += _expect_value(claim.callback, None, "关闭不绑定中断")
+    checked += _expect_value(job["cancel"].is_set(), True, "关闭置位取消")
+    manager.request_stop_aborts()
+    manager.request_stop_aborts()
+    checked += _expect_value(claim.done.wait(2), True, "停止派发完成")
+    checked += _expect_value(runner.interrupted, 0, "关闭不执行中断")
+    checked += _expect_value(job["turnId"] in manager.jobs, True, "未完成回合保留")
+    manager.finish(job)
+    checked += _expect_value(job["turnId"] in manager.jobs, False, "完成后回收")
+
+    manager = RuntimeManager(capacity=1)
+    wakes: list[int] = []
+    checked += _expect_value(manager.capacity_notifications_stopped, True, "初始已停止")
+    manager.start_capacity_notifications(lambda: wakes.append(1))
+    checked += _expect_value(manager.capacity_notifications_stopped, False, "启动后未停止")
+    try:
+        manager.start_capacity_notifications(lambda: None)
+    except RuntimeError as error:
+        checked += _expect_value(str(error), "容量通知 worker 已启动或内核已关闭", "重复启动拒绝")
+    else:
+        raise ValueError("运行时容量行为变化 重复启动：期望 RuntimeError，实际未抛出")
+    manager._capacity_wake.set()
+    checked += _expect_value(_wait_until(lambda: bool(wakes)), True, "容量唤醒回调")
+    checked += _expect_value(wakes, [1], "容量回调一次")
+    manager.cancel_all(interrupt=False)
+    checked += _expect_value(_wait_until(lambda: manager.capacity_notifications_stopped), True,
+                             "关闭后停止")
+    manager._capacity_wake.set()
+    time.sleep(0.05)
+    checked += _expect_value(wakes, [1], "关闭后不再回调")
+
+    manager = RuntimeManager(capacity=2)
+    runner = _Runner()
+    job = manager.reserve("thread", "x", runner)
+    manager.start_capacity_notifications(lambda: None)
+    manager.stop(deadline=time.monotonic() + 1)
+    checked += _expect_value(manager.closed, True, "停止关闭内核")
+    checked += _expect_value(job["_shutdown_abort"].done.is_set(), True, "停止完成中止")
+    checked += _expect_value(manager.capacity_notifications_stopped, True, "停止回收 worker")
+
+    manager = RuntimeManager(capacity=2)
+    release = threading.Event()
+    worker = threading.Thread(target=release.wait, daemon=True, name="turn-worker")
+    worker.start()
+    job = manager.reserve("thread", "x", _Runner())
+    job["worker"] = worker
+    started = time.monotonic()
+    manager.wait_for_stop(started + 0.05)
+    elapsed = time.monotonic() - started
+    alive_at_deadline = worker.is_alive()
+    release.set()
+    worker.join(2)
+    checked += _expect_value(elapsed < 0.5, True, "等待截止上限")
+    checked += _expect_value(alive_at_deadline, True, "不等待存活 worker")
+    return checked
+
+
 def check_runtime_capacity() -> int:
     source = _read(RUNTIME)
     tree = ast.parse(source)
@@ -258,10 +454,11 @@ def check_runtime_capacity() -> int:
 def main() -> int:
     try:
         checked = check_runtime_capacity()
+        scenarios = _behavior_checks()
     except (ValueError, SyntaxError) as error:
         print(f"运行时容量核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"运行时容量一致：{checked} 项准入、归属与关闭校验")
+    print(f"运行时容量一致：{checked} 项准入、归属与关闭校验、{scenarios} 个行为场景")
     return 0
 
 
