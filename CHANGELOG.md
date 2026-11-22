@@ -1,3 +1,8 @@
+## 0.2.0-rc.530 - 2026-11-23
+
+- 会话缓存检查新增 25 个临时场景，实际执行 `read_entries` 与快照读取：完整边界写缓存、命中返回副本、追加与外部追增接续、截断 / 同尺寸 / 旧前缀非换行 / inode 替换不返回过期条目、尾残段与损坏行不推进缓存、边界判定、最近使用淘汰与快照副本。隔离变异探针合计检出 16/16。[Issue #3185](https://github.com/can4hou6joeng4/boss-harness/issues/3185)
+- 源码候选更新为 npm `0.2.0-rc.530` 和 Python `0.2.0rc530`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.529 - 2026-11-23
 
 - 请求身份检查新增 47 个临时合成场景，实际执行 `valid_client_id`、`RequestIdentity.receipt` 与 `resolve_request`：编号整串匹配、空身份短路、外部 `queue-<id>` 不能认领队列、队列 / 输入 / 回合身份冲突、转向拒绝、两轮链接收敛、重复身份歧义、持久事实冲突与失败回执字段。隔离变异探针合计检出 18/18。[Issue #3183](https://github.com/can4hou6joeng4/boss-harness/issues/3183)
