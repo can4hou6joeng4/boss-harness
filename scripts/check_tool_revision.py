@@ -6,17 +6,24 @@
 索引刷新，成功返回 `(entry, False)`。失败后重新读取日志：同 id 内容不同为
 `conflict`，已存在并 fsync 成功为 `durable`，仅存在但无法确认落盘为
 `present_uncertain`，不存在为 `absent`；至多再追加一次，绝不在恢复路径重放
-handler 或审批。这里按源码顺序固定这些分支，避免重试次数、冲突处理或返回值
-被重构放松。
+handler 或审批。检查核对源码顺序，并在临时会话中注入追加和同步故障，
+验证实际返回值、写入次数和日志内容。
 """
 
 from __future__ import annotations
 
 import ast
+from contextlib import nullcontext
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.session import Entry, SessionStore, ToolRevisionPersistenceError  # noqa: E402
+
 SESSION = "harness/src/boss_harness/session.py"
 
 REVISION_ORDER = (
@@ -82,6 +89,90 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
             raise ValueError(f"{label} 缺少或顺序变化：{fragment}")
         position = index
     return len(fragments)
+
+
+def _expect_value(actual: object, expected: object, label: str) -> None:
+    if actual != expected:
+        raise ValueError(f"工具结果修订行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+
+
+def _expect_outcome(store: SessionStore, thread_id: str, revision: Entry,
+                    expected: bool | str, label: str) -> None:
+    if isinstance(expected, bool):
+        entry, recovered = store.append_tool_revision(thread_id, revision)
+        _expect_value(entry, revision, f"{label}返回条目")
+        _expect_value((type(recovered), recovered), (bool, expected), f"{label}恢复标记")
+        return
+    try:
+        store.append_tool_revision(thread_id, revision)
+    except ToolRevisionPersistenceError as error:
+        _expect_value(error.outcome, expected, f"{label}失败分类")
+        if expected == "absent":
+            _expect_value(str(error.__cause__), "模拟追加故障 2", f"{label}最后一次错误")
+    else:
+        raise ValueError(f"{label}应报告持久化错误 {expected}")
+
+
+def _behavior_case(root: Path, label: str, steps: tuple[str, ...],
+                   outcome: bool | str, saved: str) -> None:
+    store = SessionStore(root / "sessions")
+    thread_id = store.create(label)["id"]
+    path = store.path_for(thread_id)
+    header = path.read_bytes()
+    revision = Entry("item", payload={"kind": "toolCall", "revises": "original", "result": "结果"})
+    row = revision.to_dict()
+    conflict = {**row, "payload": {**row["payload"], "result": "冲突"}}
+    damaged_line = b"{\n"
+    append = store._append_line
+    remaining = iter(enumerate(steps, start=1))
+
+    def append_step(target: Path, value: dict) -> None:
+        attempt, step = next(remaining)
+        if step in {"write", "after"}:
+            append(target, value)
+        elif step == "conflict":
+            append(target, conflict)
+        elif step == "invalid":
+            with target.open("ab") as handle:
+                handle.write(damaged_line)
+        if step != "write":
+            raise OSError(f"模拟追加故障 {attempt}")
+
+    sync = nullcontext()
+    if outcome == "present_uncertain":
+        # 先留下已写入的行，再让恢复时对该行的同步失败。
+        store.append(thread_id, revision)
+        sync = patch("boss_harness.session.os.fsync", side_effect=OSError("模拟同步故障"))
+    with patch.object(store, "_append_line", side_effect=append_step) as writer, sync as fsync:
+        _expect_outcome(store, thread_id, revision, outcome, label)
+        _expect_value(writer.call_count, len(steps), f"{label}追加次数")
+        if fsync is not None:
+            _expect_value(fsync.call_count, 1, f"{label}同步次数")
+    if saved == "invalid":
+        _expect_value(path.read_bytes(), header + damaged_line, f"{label}日志内容")
+    else:
+        records = {"empty": [], "revision": [row], "conflict": [conflict]}[saved]
+        _expect_value(store.read_entries(thread_id), records, f"{label}日志条目")
+
+
+def _behavior_checks() -> int:
+    cases = (
+        ("首次追加", ("write",), False, "revision"),
+        ("写入前失败后重试", ("before", "write"), True, "revision"),
+        ("首次写入后失败", ("after",), True, "revision"),
+        ("重试写入后失败", ("before", "after"), True, "revision"),
+        ("同编号内容冲突", ("conflict",), "conflict", "conflict"),
+        ("重试写入后产生冲突", ("before", "conflict"), "conflict", "conflict"),
+        ("首次追加后发现损坏日志", ("invalid",), "invalid", "invalid"),
+        ("重试后无法核对日志", ("before", "invalid"), "uncertain", "invalid"),
+        ("同步已有条目失败", ("before",), "present_uncertain", "revision"),
+        ("两次写入均失败", ("before", "before"), "absent", "empty"),
+    )
+    with TemporaryDirectory() as directory:
+        root = Path(directory)
+        for index, (label, steps, outcome, saved) in enumerate(cases):
+            _behavior_case(root / str(index), label, steps, outcome, saved)
+    return len(cases)
 
 
 def check_tool_revision() -> int:
@@ -169,10 +260,11 @@ def check_tool_revision() -> int:
 def main() -> int:
     try:
         checked = check_tool_revision()
-    except (ValueError, SyntaxError) as error:
+        behavior_cases = _behavior_checks()
+    except (ValueError, SyntaxError, ToolRevisionPersistenceError) as error:
         print(f"工具结果修订核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"工具结果修订一致：{checked} 项恢复、冲突与重试校验")
+    print(f"工具结果修订一致：{checked} 项结构校验、{behavior_cases} 项恢复场景")
     return 0
 
 
