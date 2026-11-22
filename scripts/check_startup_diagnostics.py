@@ -9,12 +9,20 @@ import os
 from pathlib import Path
 import re
 import sys
+import tempfile
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness/src"))
 
-from boss_harness.startup_check import _runtime_check, render_text  # noqa: E402
+from boss_harness.startup_check import (  # noqa: E402
+    _directories_overlap,
+    _free_space,
+    _insecure_base_url,
+    _is_loopback_host,
+    _runtime_check,
+    render_text,
+)
 
 STARTUP = "harness/src/boss_harness/startup_check.py"
 CONFIG_ERRORS = "harness/src/boss_harness/models/config_errors.py"
@@ -28,6 +36,31 @@ PROVIDER = "harness/src/boss_harness/models/provider.py"
 CODEX_CONFIG = "harness/src/boss_harness/models/codex_config.py"
 CAPABILITIES = "harness/src/boss_harness/models/capabilities.py"
 COMPACTION = "harness/src/boss_harness/compaction.py"
+LOOPBACK_ORDER = (
+    "def _is_loopback_host(host: str) -> bool:",
+    'normalized = host.rstrip(".").lower()',
+    'return normalized in _LOOPBACK_HOSTS or normalized.startswith("127.")',
+)
+INSECURE_ORDER = (
+    "def _insecure_base_url(base_url: str | None) -> bool:",
+    "if base_url is None:",
+    'if parsed.scheme.lower() != "http":',
+    'host = (parsed.hostname or "").rstrip(".").lower()',
+    "return not _is_loopback_host(host)",
+)
+OVERLAP_ORDER = (
+    "def _directories_overlap(left: Path, right: Path) -> bool:",
+    "left = left.resolve()",
+    "right = right.resolve()",
+    "return left == right or left in right.parents or right in left.parents",
+)
+FREE_ORDER = (
+    "def _free_space(path: Path) -> int | None:",
+    "if current.exists():",
+    "return shutil.disk_usage(current).free",
+    "parent = current.parent",
+    "if parent == current:",
+)
 TURN_LIMITS = "harness/src/boss_harness/turn_limits.py"
 RESOURCES = "harness/src/boss_harness/resources.py"
 RETRY = "harness/src/boss_harness/models/retry.py"
@@ -398,6 +431,18 @@ def _function_source(tree: ast.Module, source: str, name: str) -> str:
     if function is None:
         raise ValueError(f"缺少 {name}")
     return ast.get_source_segment(source, function) or ""
+
+
+def _endpoint_boundaries(tree: ast.Module, source: str) -> int:
+    checked = _expect(LOOPBACK_ORDER, _function_source(tree, source, "_is_loopback_host"),
+                      "_is_loopback_host")
+    checked += _expect(INSECURE_ORDER, _function_source(tree, source, "_insecure_base_url"),
+                       "_insecure_base_url")
+    checked += _expect(OVERLAP_ORDER, _function_source(tree, source, "_directories_overlap"),
+                       "_directories_overlap")
+    checked += _expect(FREE_ORDER, _function_source(tree, source, "_free_space"),
+                       "_free_space")
+    return checked
 
 
 def _runtime_scope(guide: str) -> int:
@@ -833,6 +878,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _blank_numeric_limits(_read(TURN_LIMITS), _read(RESOURCES))
     checked += _blank_runtime_limits(_read(APPLICATION), _read(RETRY))
     checked += _diagnostics(config_tree, limit)
+    checked += _endpoint_boundaries(startup_tree, startup)
     guide = _read(USER_GUIDE)
     checked += _docs_codes(startup_tree, config_tree, guide, _read(SETUP_GUIDE))
     checked += _strict_exit(_read(ENTRY), guide)
@@ -902,14 +948,70 @@ def _behavior_checks() -> int:
     return len(cases) + 1
 
 
+def _boundary_checks() -> int:
+    cases = 0
+    for host, expected in (
+        ("127.0.0.1", True),
+        ("127.1.2.3", True),
+        ("localhost", True),
+        ("LOCALHOST.", True),
+        ("::1", True),
+        ("[::1]", False),
+        ("0.0.0.0", False),
+        ("host.docker.internal", False),
+        ("", False),
+        ("localhost.evil", False),
+    ):
+        _expect_value(_is_loopback_host(host), expected, f"回环 {host!r}")
+        cases += 1
+    for url, expected in (
+        (None, False),
+        ("https://api.example.com", False),
+        ("http://localhost:1", False),
+        ("http://127.0.0.1:8000", False),
+        ("http://[::1]:8000", False),
+        ("http://api.example.com", True),
+        ("  http://example.com  ", True),
+        ("HTTP://EXAMPLE.COM", True),
+        ("example.com", False),
+        ("http://[::1", False),
+        ("ftp://example.com", False),
+        ("http://0.0.0.0:1", True),
+        ("http://LOCALHOST.:8000", False),
+    ):
+        _expect_value(_insecure_base_url(url), expected, f"明文端点 {url!r}")
+        cases += 1
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        (root / "a").mkdir()
+        (root / "b").mkdir()
+        for label, left, right, expected in (
+            ("相同", root, root, True),
+            ("子目录", root / "a", root, True),
+            ("反向", root, root / "a", True),
+            ("兄弟", root / "a", root / "b", False),
+            ("点点", root / "a" / "..", root, True),
+        ):
+            _expect_value(_directories_overlap(left, right), expected, f"目录重叠 {label}")
+            cases += 1
+        free = _free_space(root)
+        _expect_value(isinstance(free, int) and free >= 0, True, "剩余空间读数")
+        cases += 1
+        _expect_value(_free_space(root / "a" / "b" / "c"), free, "嵌套路径沿祖先读取")
+        cases += 1
+    return cases
+
+
 def main() -> int:
     try:
         paths, guards = check_startup_diagnostics()
         scenarios = _behavior_checks()
+        boundaries = _boundary_checks()
     except (ValueError, SyntaxError) as error:
         print(f"启动自检字段核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"启动自检字段一致：{paths} 条读取路径、{guards} 项结构防护、{scenarios} 个行为场景")
+    print(f"启动自检字段一致：{paths} 条读取路径、{guards} 项结构防护、"
+          f"{scenarios} 个行为场景、{boundaries} 项端点与目录边界")
     return 0
 
 
