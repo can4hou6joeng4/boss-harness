@@ -1,3 +1,8 @@
+## 0.2.0-rc.580 - 2026-11-23
+
+- 新增 `scripts/check_provider_config.py`，固化模型端点判定与服务端回退开关（51 项，含 33 项行为对照）：`_is_first_party_base_url` 对空值与纯空白返回官方默认，缺少 scheme 时按网络位置补全，主机名精确比较并剥掉尾根点，大小写 / 端口 / 路径 / 查询不影响结果，前缀伪装、userinfo 与畸形 IPv6 判为非官方；`_server_side_fallback` 未设置取默认、空白关闭、开关集合固定，未知取值在严格模式抛出 `MODEL_SERVER_FALLBACK_INVALID` 且不回显原文，非严格模式回退默认。工作流在 Source build 与 Python 矩阵注册该检查，`check_workflows.py` 的脚本覆盖同步为 174。隔离变异探针结构与行为分别检出 12/14、14/14，合计 14/14。[Issue #3285](https://github.com/can4hou6joeng4/boss-harness/issues/3285)
+- 源码候选更新为 npm `0.2.0-rc.580` 和 Python `0.2.0rc580`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.579 - 2026-11-23
 
 - 上下文估算检查从 249 项扩展到 259 项，新增 2 条函数片段与 8 项行为对照，直接调用 `_wire_assistant`：只降级 `TextBlock` 并保留签名思考块与工具调用块的对象身份和内容；干净文本的单块与多块消息返回原对象，发生降级时以 `replace` 生成新消息并保留 `stop_reason`。隔离变异探针结构与行为均检出 7/7。[Issue #3283](https://github.com/can4hou6joeng4/boss-harness/issues/3283)
