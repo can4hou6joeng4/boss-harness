@@ -204,7 +204,9 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_toolkit.py`
 
-`scripts/check_toolkit.py` 核对工具结果信封的校验、深拷贝与错误收敛边界：`toolkit.py` 的 `ToolResult` 必须保留 `ok` / `command` / `data` / `error` / `hints` / `raw` / `pagination` 七个字段及默认值；`snapshot_result` 只接受 `None`、`str`、`bool`、`int`、有限 `float`、键为字符串的 `dict` 与 `list`，嵌套最多 64 层；信封校验必须要求 `ok` 为布尔、`command` 非空、`raw` 为字符串、三个可选字段为 `dict` 或 `None`，错误信封的 `code` 非空且 `message` 为字符串；`recovery_action` 为 null 时按字段缺失规范化（下游按 `or ""` 读取，合法平台错误不会被替换为 `TOOL_ERROR`），其他非字符串值拒绝；信封必须显式构造并在 `ensure_ascii=False` 下经 JSON 往返深拷贝，任何异常统一收敛为同一个 `ValueError`。脚本反向断言不得整份展开宿主返回值、不得使用 `ensure_ascii=True`，并核对技术参考的深度与 `raw` 说明。检查是常量与顺序扫描，实际信封行为仍需按用户指南核对。
+`scripts/check_toolkit.py` 核对工具结果信封的校验、深拷贝与错误收敛边界：`toolkit.py` 的 `ToolResult` 必须保留 `ok` / `command` / `data` / `error` / `hints` / `raw` / `pagination` 七个字段及默认值；`snapshot_result` 只接受 `None`、`str`、`bool`、`int`、有限 `float`、键为字符串的 `dict` 与 `list`，嵌套最多 64 层；信封校验必须要求 `ok` 为布尔、`command` 非空、`raw` 为字符串、三个可选字段为 `dict` 或 `None`，错误信封的 `code` 非空且 `message` 为字符串；`recovery_action` 为 null 时按字段缺失规范化（下游按 `or ""` 读取，合法平台错误不会被替换为 `TOOL_ERROR`），其他非字符串值拒绝；信封必须显式构造并在 `ensure_ascii=False` 下经 JSON 往返深拷贝，任何异常统一收敛为同一个 `ValueError`。脚本反向断言不得整份展开宿主返回值、不得使用 `ensure_ascii=True`，并核对技术参考的深度与 `raw` 说明。
+
+27 项离线行为检查直接调用 `snapshot_result`。检查修改宿主的嵌套数据、错误、提示和分页字段后，确认快照保留原内容及 Unicode。另核对信封的深度 64 和 65 边界，恢复动作缺省、null 与字符串的处理，以及循环引用、非有限浮点、非字符串键和非法信封字段的异常类型与提示。
 
 ### `check_item_content.py`
 

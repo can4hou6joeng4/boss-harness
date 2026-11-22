@@ -1,3 +1,8 @@
+## 0.2.0-rc.517 - 2026-11-23
+
+- 工具结果信封新增 27 项离线行为检查，涵盖嵌套字段深拷贝、Unicode、恢复动作规范化、深度边界和非法输入的统一错误。隔离探针检出 12/12 个模拟回归。[Issue #3159](https://github.com/can4hou6joeng4/boss-harness/issues/3159)
+- 源码候选更新为 npm `0.2.0-rc.517` 和 Python `0.2.0rc517`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.516 - 2026-11-23
 
 - 工具结果修订检查新增 10 个离线恢复场景，核对正常追加、写前失败后重试、写后报错时复用已有结果、同 ID 冲突、日志损坏、同步失败及重试耗尽。隔离变异探针检出 12/12。[Issue #3157](https://github.com/can4hou6joeng4/boss-harness/issues/3157)
