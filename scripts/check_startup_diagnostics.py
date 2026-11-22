@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
-"""核对启动自检文本与桌面解析上限的一致性，成功时输出核对项数量。"""
+"""核对启动自检文本、桌面解析上限和运行参数诊断行为。"""
 
 from __future__ import annotations
 
 import ast
+import json
+import os
 from pathlib import Path
 import re
 import sys
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.startup_check import _runtime_check, render_text  # noqa: E402
+
 STARTUP = "harness/src/boss_harness/startup_check.py"
 CONFIG_ERRORS = "harness/src/boss_harness/models/config_errors.py"
 APPLICATION = "harness/src/boss_harness/application.py"
@@ -834,13 +841,75 @@ def check_startup_diagnostics() -> tuple[int, int]:
     return 9, guards + checked
 
 
+def _expect_value(actual: object, expected: object, label: str) -> None:
+    if actual != expected:
+        raise ValueError(f"启动自检行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+
+
+def _report(checks: list[dict[str, str]]) -> dict:
+    return {"version": "0.2.0", "protocolVersion": "0.2.0", "pythonVersion": "3.12.0", "checks": checks}
+
+
+def _behavior_checks() -> int:
+    invalid = "diagnostic-sample-invalid"
+    parsers = (
+        ("BOSS_HARNESS_STEERING_MODE", "STEERING_MODE_INVALID"),
+        ("BOSS_HARNESS_MAX_MODEL_REQUESTS", "MAX_MODEL_REQUESTS_INVALID"),
+        ("BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_BYTES", "ATTACHMENT_STORAGE_LIMIT_INVALID"),
+        ("BOSS_HARNESS_MODEL_LIMITS", "MODEL_LIMITS_INVALID"),
+        ("BOSS_HARNESS_COMPACTION", "COMPACTION_CONFIG_INVALID"),
+    )
+    approval = "BOSS_HARNESS_APPROVAL_TIMEOUT"
+    retries = "BOSS_HARNESS_RETRY_ATTEMPTS"
+    delay = "BOSS_HARNESS_RETRY_BASE_MS"
+    cases = [(key, {key: invalid}, "error", code) for key, code in parsers]
+    steering, steering_error = parsers[0]
+    variables = [key for key, _ in parsers[1:]] + [approval, retries, delay]
+    cases.extend((
+        ("未设置", {}, "ok", "RUNTIME_OPTIONS_VALID"),
+        ("空白回退", {steering: "", **dict.fromkeys(variables, " \t")}, "ok", "RUNTIME_OPTIONS_VALID"),
+        ("转向模式保留空白校验", {steering: " all "}, "error", steering_error),
+        ("有效配置", {"BOSS_HARNESS_STEERING_MODE": "one-at-a-time", "BOSS_HARNESS_MAX_MODEL_REQUESTS": "64",
+                    "BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_BYTES": "1024", "BOSS_HARNESS_MODEL_LIMITS": "{}",
+                    "BOSS_HARNESS_COMPACTION": '{"enabled":false}', approval: "60", retries: "1", delay: "0"},
+         "ok", "RUNTIME_OPTIONS_VALID"),
+        ("审批期限回退", {approval: invalid}, "warning", "APPROVAL_TIMEOUT_DEFAULTED"),
+        ("重试次数回退", {retries: invalid}, "warning", "RETRY_CONFIG_DEFAULTED"),
+        ("重试退避越界", {delay: "-17"}, "warning", "RETRY_CONFIG_DEFAULTED"),
+        ("审批警告优先", {approval: invalid, retries: invalid}, "warning", "APPROVAL_TIMEOUT_DEFAULTED"),
+        ("解析错误优先", {"BOSS_HARNESS_COMPACTION": invalid, approval: invalid, retries: invalid},
+         "error", "COMPACTION_CONFIG_INVALID"),
+    ))
+    for index, (key, code) in enumerate(parsers[:-1]):
+        next_key, _ = parsers[index + 1]
+        cases.append((f"{key} 先于 {next_key}", {key: invalid, next_key: invalid}, "error", code))
+
+    conclusions = {"ok": "通过", "warning": "通过，1 项警告", "error": "发现 1 个错误"}
+    checks = {}
+    for label, environment, status, code in cases:
+        with patch.dict(os.environ, environment, clear=True):
+            check = _runtime_check()
+        _expect_value((check["name"], check["status"], check["code"]), ("runtimeOptions", status, code), label)
+        report = _report([check])
+        text = render_text(report)
+        _expect_value(text.splitlines()[0], f"本地配置自检：{conclusions[status]}", f"{label}终端结论")
+        _expect_value(f"运行参数（{code}）" in text, True, f"{label}终端标题")
+        if invalid in json.dumps(report, ensure_ascii=False) or invalid in text:
+            raise ValueError(f"{label}报告包含无效配置原文")
+        checks[status] = check
+    mixed = render_text(_report([checks["warning"], checks["error"]]))
+    _expect_value(mixed.splitlines()[0], "本地配置自检：发现 1 个错误、1 项警告", "错误与警告并存")
+    return len(cases) + 1
+
+
 def main() -> int:
     try:
         paths, guards = check_startup_diagnostics()
+        scenarios = _behavior_checks()
     except (ValueError, SyntaxError) as error:
         print(f"启动自检字段核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"启动自检字段一致：{paths} 条读取路径、{guards} 项文本、桌面解析、文档与标签防护")
+    print(f"启动自检字段一致：{paths} 条读取路径、{guards} 项结构防护、{scenarios} 个行为场景")
     return 0
 
 
