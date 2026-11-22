@@ -8,12 +8,18 @@ bridge_lifecycle.py 决定桥接实例何时执行 close / dispose：同一对�
 
 from __future__ import annotations
 
+import gc
+import logging
 from pathlib import Path
 import sys
+import threading
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/bridge_lifecycle.py"
 TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.bridge_lifecycle import BridgeLifecycle  # noqa: E402
 
 FIELD_FRAGMENTS = (
     "self._lock = threading.RLock()",
@@ -71,6 +77,153 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+class _Bridge:
+    def __init__(self) -> None:
+        self.closed = 0
+
+    def close(self) -> None:
+        self.closed += 1
+
+
+class _Disposable:
+    def __init__(self) -> None:
+        self.disposed = 0
+
+    def dispose(self) -> None:
+        self.disposed += 1
+
+
+class _Both:
+    def __init__(self) -> None:
+        self.closed = 0
+        self.disposed = 0
+
+    def close(self) -> None:
+        self.closed += 1
+
+    def dispose(self) -> None:
+        self.disposed += 1
+
+
+class _Bare:
+    pass
+
+
+class _Raising:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def close(self) -> None:
+        self.calls += 1
+        raise RuntimeError("SECRET-PATH-/tmp/private")
+
+
+class _NoWeak:
+    __slots__ = ("closed",)
+
+    def __init__(self) -> None:
+        self.closed = 0
+
+    def close(self) -> None:
+        self.closed += 1
+
+
+class _Handler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"工具桥清理行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    lifecycle = BridgeLifecycle()
+    lifecycle.close(None)
+    checked += _expect_value(lifecycle._closed, [], "空桥直接返回")
+
+    bridge = _Bridge()
+    lifecycle.close(bridge)
+    lifecycle.close(bridge)
+    checked += _expect_value(bridge.closed, 1, "同一对象只清理一次")
+    checked += _expect_value(len(lifecycle._closed), 1, "清理表登记")
+
+    disposable = _Disposable()
+    lifecycle.close(disposable)
+    lifecycle.close(disposable)
+    checked += _expect_value(disposable.disposed, 1, "dispose 兜底一次")
+
+    both = _Both()
+    lifecycle.close(both)
+    checked += _expect_value((both.closed, both.disposed), (1, 0), "close 优先于 dispose")
+
+    lifecycle.close(_Bare())
+    checked += _expect_value(len(lifecycle._closed), 4, "无钩子仍登记")
+
+    logger = logging.getLogger("boss_harness.bridge_lifecycle")
+    handler = _Handler()
+    previous_propagate = logger.propagate
+    logger.addHandler(handler)
+    logger.propagate = False
+    try:
+        raising = _Raising()
+        lifecycle.close(raising)
+        lifecycle.close(raising)
+        checked += _expect_value(raising.calls, 1, "异常后仍只清理一次")
+        checked += _expect_value(len(handler.records), 1, "异常记录一次")
+        record = handler.records[0]
+        checked += _expect_value(record.levelno, logging.WARNING, "异常记录级别")
+        message = record.getMessage()
+        checked += _expect_value(message, "tool bridge cleanup failed (RuntimeError)",
+                                 "异常记录类型名")
+        checked += _expect_value("SECRET-PATH-/tmp/private" in message, False, "异常不落原文")
+        checked += _expect_value("SECRET-PATH" in str(record.args), False, "记录参数不含原文")
+    finally:
+        logger.propagate = previous_propagate
+        logger.removeHandler(handler)
+
+    done = threading.Event()
+    other = _Bridge()
+
+    class _Probe:
+        def close(self) -> None:
+            worker = threading.Thread(
+                target=lambda: (lifecycle.close(other), done.set()), daemon=True,
+                name="bridge-cleanup")
+            worker.start()
+            done.wait(2)
+
+    lifecycle.close(_Probe())
+    checked += _expect_value(done.is_set(), True, "钩子在锁外执行")
+    checked += _expect_value(other.closed, 1, "并发清理完成")
+
+    narrow = BridgeLifecycle()
+    no_weak = _NoWeak()
+    narrow.close(no_weak)
+    narrow.close(no_weak)
+    checked += _expect_value(no_weak.closed, 2, "不可弱引用不登记")
+    checked += _expect_value(narrow._closed, [], "不可弱引用清理表为空")
+
+    pruned = BridgeLifecycle()
+    temporary = [_Bridge() for _ in range(50)]
+    for item in temporary:
+        pruned.close(item)
+    del item
+    temporary.clear()
+    gc.collect()
+    survivor = _Bridge()
+    pruned.close(survivor)
+    checked += _expect_value(len(pruned._closed), 1, "死引用剔除")
+    return checked
+
+
 def check_bridge_lifecycle() -> int:
     module = _read(MODULE)
     checked = _expect(FIELD_FRAGMENTS, module, MODULE)
@@ -112,10 +265,11 @@ def check_bridge_lifecycle() -> int:
 def main() -> int:
     try:
         checked = check_bridge_lifecycle()
-    except ValueError as error:
+        scenarios = _behavior_checks()
+    except (ValueError, OSError) as error:
         print(f"工具桥清理核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"工具桥清理一致：{checked} 项幂等与异常防护")
+    print(f"工具桥清理一致：{checked} 项幂等与异常防护、{scenarios} 个行为场景")
     return 0
 
 
