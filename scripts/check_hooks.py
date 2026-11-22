@@ -2,18 +2,29 @@
 """核对生命周期 hook 的超时、上下文冻结与策略拒绝边界。
 
 hooks.py 是宿主注入策略的唯一入口：事件观察有界且脱敏，策略检查收到完整
-JSON 快照并 fail closed，超时与关闭期限不会让迟到结果改写回合。任一上限、
-脱敏或拒绝映射被删改不会触发构建失败，因此用静态检查固定。
+JSON 快照并 fail closed，超时与关闭期限不会让迟到结果改写回合。检查固定源码
+结构，并在临时合成数据上执行上下文复制、边界与拒绝码场景。
 """
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 import sys
+from types import MappingProxyType
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/hooks.py"
 TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.hooks import (  # noqa: E402
+    MAX_POLICY_CONTEXT_BYTES,
+    MAX_POLICY_CONTEXT_DEPTH,
+    MAX_POLICY_CONTEXT_NODES,
+    freeze_context,
+    freeze_policy_context,
+)
 
 CONSTANT_FRAGMENTS = (
     "MAX_HOOK_TIMEOUT_SECONDS = 30.0\n",
@@ -172,6 +183,108 @@ def _expect(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"生命周期 hook 行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_rejected(value, code: str, label: str) -> int:
+    try:
+        freeze_policy_context(value)
+    except ValueError as error:
+        actual = getattr(error, "code", None)
+        if actual != code:
+            raise ValueError(f"生命周期 hook 拒绝码变化 {label}：期望 {code!r}，实际 {actual!r}") from None
+    else:
+        raise ValueError(f"生命周期 hook 应拒绝 {label}")
+    return 1
+
+
+def _nested(levels: int) -> dict[str, object]:
+    root: dict[str, object] = {}
+    current = root
+    for _ in range(levels):
+        child: dict[str, object] = {}
+        current["next"] = child
+        current = child
+    current["leaf"] = 1
+    return root
+
+
+def _behavior_checks() -> int:
+    secret = "sk-demo-secret-123456"
+    source = {
+        "tool": "boss_hr_greet",
+        "args": {"text": secret, "count": 2, "flag": True, "none": None, "ratio": 0.5},
+        "items": [1, "二", secret],
+    }
+    frozen = freeze_policy_context(source)
+    checked = _expect_value(frozen["args"]["text"], secret, "策略副本不脱敏")
+    checked += _expect_value(type(frozen), MappingProxyType, "顶层只读")
+    checked += _expect_value(type(frozen["args"]), MappingProxyType, "嵌套映射只读")
+    checked += _expect_value(type(frozen["items"]), tuple, "数组转为元组")
+    checked += _expect_value(frozen["args"] is source["args"], False, "嵌套副本独立")
+    try:
+        frozen["tool"] = "改写"
+    except TypeError:
+        checked += 1
+    else:
+        raise ValueError("生命周期 hook 策略副本必须只读")
+
+    observed = freeze_context({"args": {"text": secret}})
+    checked += _expect_value(observed["args"]["text"], "<redacted>", "观察副本脱敏")
+    long_text = "a" * 16_385
+    checked += _expect_value(freeze_context({"text": long_text})["text"], "a" * 16_384, "观察字符串截断")
+    deep = {"leaf": 1}
+    for _ in range(6):
+        deep = {"next": deep}
+    node = freeze_context(deep)
+    for _ in range(6):
+        node = node["next"]
+    checked += _expect_value(node, "<omitted:depth>", "观察深度省略")
+    many_keys = freeze_context({f"k{index}": index for index in range(70)})
+    checked += _expect_value(len(many_keys), 65, "观察键上限")
+    checked += _expect_value(many_keys["<omitted:keys>"], "6 more", "观察键省略标注")
+    many_items = freeze_context({"items": list(range(140))})
+    checked += _expect_value(len(many_items["items"]), 129, "观察数组上限")
+    checked += _expect_value(many_items["items"][-1], "<omitted:items:12>", "观察数组省略标注")
+
+    edge = MAX_POLICY_CONTEXT_BYTES - 8
+    checked += _expect_value(len(freeze_policy_context({"k": "a" * edge})["k"]), edge, "字节上限接受")
+    checked += _expect_rejected({"k": "a" * (edge + 1)}, "HOOK_CONTEXT_TOO_LARGE", "字节上限拒绝")
+    values = MAX_POLICY_CONTEXT_NODES - 1
+    checked += _expect_value(
+        type(freeze_policy_context({f"k{index:05d}": 1 for index in range(values)})), MappingProxyType, "节点上限接受"
+    )
+    checked += _expect_rejected(
+        {f"k{index:05d}": 1 for index in range(values + 1)}, "HOOK_CONTEXT_TOO_LARGE", "节点上限拒绝"
+    )
+    checked += _expect_value(
+        type(freeze_policy_context(_nested(MAX_POLICY_CONTEXT_DEPTH - 1))), MappingProxyType, "深度上限接受"
+    )
+    checked += _expect_rejected(_nested(MAX_POLICY_CONTEXT_DEPTH), "HOOK_CONTEXT_TOO_LARGE", "深度上限拒绝")
+
+    cycle_list: list = []
+    cycle_list.append(cycle_list)
+    checked += _expect_rejected({"items": cycle_list}, "HOOK_CONTEXT_INVALID", "环引用数组")
+    cycle_dict: dict = {}
+    cycle_dict["self"] = cycle_dict
+    checked += _expect_rejected({"node": cycle_dict}, "HOOK_CONTEXT_INVALID", "环引用对象")
+    checked += _expect_rejected({"k": {1: "x"}}, "HOOK_CONTEXT_INVALID", "非字符串键")
+    checked += _expect_rejected({"k": "\ud800"}, "HOOK_CONTEXT_INVALID", "代理项")
+    checked += _expect_rejected({"k": math.nan}, "HOOK_CONTEXT_INVALID", "NaN")
+    checked += _expect_rejected({"k": math.inf}, "HOOK_CONTEXT_INVALID", "无穷")
+    checked += _expect_rejected({"k": (1, 2)}, "HOOK_CONTEXT_INVALID", "元组")
+    checked += _expect_rejected({"k": {1, 2}}, "HOOK_CONTEXT_INVALID", "集合")
+    checked += _expect_rejected({"k": b"bytes"}, "HOOK_CONTEXT_INVALID", "字节串")
+    checked += _expect_rejected({"k": object()}, "HOOK_CONTEXT_INVALID", "自定义对象")
+    checked += _expect_rejected([1], "HOOK_CONTEXT_INVALID", "数组顶层")
+    checked += _expect_rejected("text", "HOOK_CONTEXT_INVALID", "字符串顶层")
+    checked += _expect_rejected(None, "HOOK_CONTEXT_INVALID", "空值顶层")
+    return checked
+
+
 def check_hooks() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
@@ -206,10 +319,11 @@ def check_hooks() -> int:
 def main() -> int:
     try:
         checked = check_hooks()
-    except ValueError as error:
+        scenarios = _behavior_checks()
+    except (ValueError, OSError) as error:
         print(f"生命周期 hook 核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"生命周期 hook 一致：{checked} 项上限、脱敏与拒绝防护")
+    print(f"生命周期 hook 一致：{checked} 项上限、脱敏与拒绝防护、{scenarios} 个行为场景")
     return 0
 
 
