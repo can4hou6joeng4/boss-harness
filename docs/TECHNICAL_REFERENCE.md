@@ -682,7 +682,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_session_fork.py`
 
-`scripts/check_session_fork.py` 核对会话分叉的复制边界：`fork_thread` 必须从当前分支投影（`_active_entries`）选择前缀，只接受已结束回合；指定当前分支之外的已结束回合时用内存中的合成 leaf 投影该分支，不写指针。前缀截断于所选回合的边界序号，checkpoint 只保留覆盖所选回合或更早回合的记录，迟到修订按 owner 归属只收进被选前缀的条目；投影仍有运行中条目、未决审批或会拆开工具批次时拒绝。新会话头不继承派生字段（`lastTurn` / `branchLastTurn` / 队列投影 / 截断标记），来源标识被截断时不继承 `projectId`，并写入 `forkedFromId` / `forkedFromTurnId`。复制循环排除 `thread_info` / `queue` / `task_phase`，改写 `continuationRequestOffset`、parentId、threadId 与 approvalId（全局唯一），最后在写出前重算继承的续接边界。反向断言：分叉区域不得调用 `self.append` / `self.record_turn` / `self._append_line` 改写源日志，只能通过 `_write_new` 写新会话；两条选择路径各经过一次 `_active_entries`。检查是源码字面量与首次出现顺序扫描，不执行分叉。
+`scripts/check_session_fork.py` 核对会话分叉的复制边界：`fork_thread` 必须从当前分支投影（`_active_entries`）选择前缀，只接受已结束回合；指定当前分支之外的已结束回合时用内存中的合成 leaf 投影该分支，不写指针。前缀截断于所选回合的边界序号，checkpoint 只保留覆盖所选回合或更早回合的记录，迟到修订按 owner 归属只收进被选前缀的条目；投影仍有运行中条目、未决审批或会拆开工具批次时拒绝。新会话头不继承派生字段（`lastTurn` / `branchLastTurn` / 队列投影 / 截断标记），来源标识被截断时不继承 `projectId`，并写入 `forkedFromId` / `forkedFromTurnId`。复制循环排除 `thread_info` / `queue` / `task_phase`，改写 `continuationRequestOffset`、parentId、threadId 与 approvalId（全局唯一），最后在写出前重算继承的续接边界。反向断言：分叉区域不得调用 `self.append` / `self.record_turn` / `self._append_line` 改写源日志，只能通过 `_write_new` 写新会话；两条选择路径各经过一次 `_active_entries`。脚本另用临时目录与合成 JSONL 构造真实 `SessionStore` 执行 `fork_thread`，覆盖 57 个行为场景：活动分支与指定较早回合的前缀、合成叶分叉被放弃回合、运行中回合 / 未收尾条目 / 未决审批 / 非对象审批、拆开工具批次与非法续接偏移的拒绝；内核专用记录与叶记录不复制、派生字段与归档标记不继承、未截断项目标识继承、`threadId` / `approvalId` / `parentId` 改写与来源值不复用、迟到修订归属与父引用修复、续接边界摘要按复制前缀重算及边界未复制时删除、来源日志字节与时间不变。
 
 ### `check_fork_checkpoints.py`
 
