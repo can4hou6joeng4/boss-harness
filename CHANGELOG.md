@@ -1,3 +1,8 @@
+## 0.2.0-rc.577 - 2026-11-23
+
+- 上下文估算检查从 219 项扩展到 249 项，新增 9 条函数片段、2 项调用点计数与 19 项行为对照：`_budget_message` 按 `inputBudget` 精确整数、非正预算与 `system` / `tools` / `options` 固定开销超过输入预算的顺序选择「通用预算 / 容量不足 / 固定开销」三条固定文案，`ContextBudgetExceeded` 复用该文案并保留原始预算字典；`_canonical_json_text` 复用可编码字节。行为对照覆盖非整数 / 零 / 负数 / 缺字段、坏 `breakdown`、固定开销恰好用尽与超限、未列与非整数字段不计入，以及 canonical 键排序、紧凑分隔、中文不转义、代理项降级与 `NaN` 拒绝。隔离变异探针结构与行为分别检出 7/13、13/13，合计 13/13。[Issue #3279](https://github.com/can4hou6joeng4/boss-harness/issues/3279)
+- 源码候选更新为 npm `0.2.0-rc.577` 和 Python `0.2.0rc577`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.576 - 2026-11-23
 
 - 工具结果检查从 99 项行为对照扩展到 120 项，新增 8 条源码片段与 21 项错误预览 / 预算判据行为对照，直接调用 `project_error`、`_command_text` 与 `_fits`：小错误原样复制且不修改输入，`wire_size(error) <= 4096` 阈值内保留全文，超限时只保留 `code` / `message` / `recovery_action` 的 128 / 2000 / 1000 字符前缀与 `detailsOmitted`，camel 键与多余字段丢弃、非字符串按 `str` 转换、孤立代理项降级为 U+FFFD；命令文本非字符串按中文不转义 JSON 拼写，`NaN` 与不可编码对象回退空串；预算判据同时核对普通与 ASCII 转义拼写，`NaN`、不可编码对象与代理项按超限处理。隔离变异探针结构与行为分别检出 12/12、11/12，合计 12/12（4096→4097 阈值放宽在现有边界上不可观察，由结构片段拦截）。[Issue #3277](https://github.com/can4hou6joeng4/boss-harness/issues/3277)
