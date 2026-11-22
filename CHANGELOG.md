@@ -1,3 +1,8 @@
+## 0.2.0-rc.578 - 2026-11-23
+
+- 用量汇总检查从 139 项扩展到 161 项，新增 22 项行为对照，直接调用 `_provenance` 与 `_job_metadata`：来源列表只接受字符串、先按 `wire_text` 降级代理项，空串、超长、重复与数量上限都不追加；分支摘要固定 `kind=branchSummary`、只取 `targetTurnId` 且 `origin=model`，其余条目按压缩任务过滤 `reason` 的 `threshold` / `budget` / `overflow` 与 `origin` 的 `user` / `model`，标识经 `bounded_identifier` 限制 128 字符并降级代理项。隔离变异探针结构与行为分别检出 10/12、12/12，合计 12/12（两处 `wire_text` 降级不在静态片段内，由行为对照拦截）。[Issue #3281](https://github.com/can4hou6joeng4/boss-harness/issues/3281)
+- 源码候选更新为 npm `0.2.0-rc.578` 和 Python `0.2.0rc578`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.577 - 2026-11-23
 
 - 上下文估算检查从 219 项扩展到 249 项，新增 9 条函数片段、2 项调用点计数与 19 项行为对照：`_budget_message` 按 `inputBudget` 精确整数、非正预算与 `system` / `tools` / `options` 固定开销超过输入预算的顺序选择「通用预算 / 容量不足 / 固定开销」三条固定文案，`ContextBudgetExceeded` 复用该文案并保留原始预算字典；`_canonical_json_text` 复用可编码字节。行为对照覆盖非整数 / 零 / 负数 / 缺字段、坏 `breakdown`、固定开销恰好用尽与超限、未列与非整数字段不计入，以及 canonical 键排序、紧凑分隔、中文不转义、代理项降级与 `NaN` 拒绝。隔离变异探针结构与行为分别检出 7/13、13/13，合计 13/13。[Issue #3279](https://github.com/can4hou6joeng4/boss-harness/issues/3279)

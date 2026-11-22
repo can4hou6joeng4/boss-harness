@@ -21,9 +21,13 @@ USER_GUIDE = "docs/USER_GUIDE.md"
 sys.path.insert(0, str(ROOT / "harness/src"))
 from boss_harness.usage import (  # noqa: E402
     CACHE_MISS_FLOOR,
+    MAX_MODEL_CHARS,
     MAX_PROVENANCE_ITEMS,
+    MAX_PROVIDER_CHARS,
     MAX_REQUEST_TOKENS,
     MAX_SUMMARY_JOBS,
+    _job_metadata,
+    _provenance,
     bounded_identifier,
     summarize_usage,
     verify_usage,
@@ -529,6 +533,80 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _provenance_checks() -> int:
+    # 来源列表：字符串才追加，先降级代理项，受数量与单值长度上限约束。
+    checked = 0
+    values: list[str] = []
+    _provenance(values, "openai", MAX_PROVIDER_CHARS)
+    checked += _expect_value(values, ["openai"], "来源追加")
+    _provenance(values, "openai", MAX_PROVIDER_CHARS)
+    checked += _expect_value(values, ["openai"], "来源去重")
+    for value in ("", 123, None, ["openai"]):
+        probe: list[str] = []
+        _provenance(probe, value, MAX_PROVIDER_CHARS)
+        checked += _expect_value(probe, [], f"来源非法 {value!r}")
+    values = []
+    _provenance(values, "p" * MAX_PROVIDER_CHARS, MAX_PROVIDER_CHARS)
+    _provenance(values, "p" * (MAX_PROVIDER_CHARS + 1), MAX_PROVIDER_CHARS)
+    checked += _expect_value(values, ["p" * MAX_PROVIDER_CHARS], "来源长度上限")
+    values = []
+    _provenance(values, "a\ud800", MAX_PROVIDER_CHARS)
+    checked += _expect_value((values, len(values[0])), (["a�"], 2), "来源代理项降级")
+    values = []
+    _provenance(values, "m" * MAX_MODEL_CHARS, MAX_MODEL_CHARS)
+    _provenance(values, "m" * (MAX_MODEL_CHARS + 1), MAX_MODEL_CHARS)
+    checked += _expect_value(values, ["m" * MAX_MODEL_CHARS], "模型长度上限")
+    values = [f"p{index}" for index in range(MAX_PROVENANCE_ITEMS)]
+    _provenance(values, "z", MAX_PROVIDER_CHARS)
+    checked += _expect_value(len(values), MAX_PROVENANCE_ITEMS, "来源数量上限")
+    values = []
+    _provenance(values, "a", 0)
+    checked += _expect_value(values, [], "零长度上限")
+    return checked
+
+
+def _job_checks() -> int:
+    # 任务元数据：分支摘要固定只取目标回合；其余条目按压缩任务过滤枚举。
+    checked = _expect_value(
+        _job_metadata("branch_summary",
+                      {"targetTurnId": "t9", "reason": "budget", "origin": "user"}),
+        {"kind": "branchSummary", "turnId": "t9", "throughTurnId": None,
+         "reason": None, "origin": "model"}, "分支摘要元数据")
+    checked += _expect_value(
+        _job_metadata("branch_summary", {"targetTurnId": 123})["turnId"], None,
+        "分支摘要非法回合")
+    checked += _expect_value(
+        _job_metadata("context_checkpoint",
+                      {"turnId": "t3", "throughTurnId": "t2",
+                       "reason": "threshold", "origin": "user"}),
+        {"kind": "compaction", "turnId": "t3", "throughTurnId": "t2",
+         "reason": "threshold", "origin": "user"}, "压缩任务元数据")
+    for payload, expected in (
+            ({"reason": "weird", "origin": "system"}, (None, None)),
+            ({"reason": None, "origin": 1}, (None, None)),
+            ({"reason": "manual", "origin": "user"}, (None, "user"))):
+        metadata = _job_metadata("context_checkpoint", payload)
+        checked += _expect_value((metadata["reason"], metadata["origin"]), expected,
+                                 f"枚举过滤 {payload!r}")
+    metadata = _job_metadata("context_checkpoint", {"reason": "budget", "origin": None})
+    checked += _expect_value((metadata["reason"], metadata["origin"]), ("budget", None),
+                             "合法原因与缺失来源")
+    checked += _expect_value(
+        _job_metadata("model_usage", {"turnId": "t1", "reason": "budget"}),
+        {"kind": "compaction", "turnId": "t1", "throughTurnId": None,
+         "reason": "budget", "origin": None}, "其他条目按压缩元数据")
+    checked += _expect_value(
+        _job_metadata("context_checkpoint", {"turnId": "t" * 128})["turnId"],
+        "t" * 128, "回合标识 128 字符")
+    checked += _expect_value(
+        _job_metadata("context_checkpoint", {"turnId": "t" * 129})["turnId"], None,
+        "回合标识超长")
+    checked += _expect_value(
+        _job_metadata("context_checkpoint", {"turnId": "t\ud800"})["turnId"], "t�",
+        "回合标识代理项")
+    return checked
+
+
 def check_usage() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
@@ -551,7 +629,7 @@ def check_usage() -> int:
         raise ValueError(f"{MODULE} 的费用必须保持不可用")
     for relative, fragment in DOC_FRAGMENTS:
         checked += _expect((fragment,), _read(relative), relative)
-    return checked + 1 + _behavior_checks()
+    return checked + 1 + _behavior_checks() + _provenance_checks() + _job_checks()
 
 
 def main() -> int:
