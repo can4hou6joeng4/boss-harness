@@ -6,7 +6,9 @@
 其余链接计数一律暂停；删除前收紧权限，删除后刷新目录。`_remove_thread_files`
 先清理会话临时文件、删除标记临时文件与事件日志临时文件三类残留，再删除会话
 主体；主体必须是链接计数为 1 的私有普通文件，缺失则直接返回。本脚本在临时
-目录构造 `SessionStore` 做行为对照并扫描源码；不访问网络、模型或招聘平台。
+目录构造 `SessionStore` 做行为对照，覆盖空列表、目标符号链接与多链接拒绝、
+列表部分失败以及三类临时文件与目标的正常硬链接配对，并扫描源码；不访问网络、
+模型或招聘平台。
 """
 
 from __future__ import annotations
@@ -162,6 +164,8 @@ def check_delete_cleanup() -> int:
             if (target.stat().st_mode & 0o777) != 0o600:
                 raise ValueError("硬链接目标必须随临时文件一并收紧权限")
             checked += 1
+            store._remove_private_temporaries([], store.root / "absent.bin")
+            checked += 1
         finally:
             store.close()
     # 行为：临时文件的拒绝形态。
@@ -207,6 +211,30 @@ def check_delete_cleanup() -> int:
             _expect_error(lambda: store._remove_private_temporaries([directory], other),
                           "会话删除遇到非私有普通文件，清理已暂停", "目录")
             checked += 1
+            real = store.root / "real.bin"
+            real.write_bytes(b"r")
+            linked_target = store.root / "linked-target.bin"
+            linked_target.symlink_to(real)
+            symlinked = _temp(store.root, thread_id, "symlink-target")
+            os.link(real, symlinked)
+            _expect_error(lambda: store._remove_private_temporaries([symlinked], linked_target),
+                          "会话删除遇到无法确认的硬链接临时文件，清理已暂停", "目标符号链接")
+            checked += 1
+            if not symlinked.exists() or not real.exists():
+                raise ValueError("目标符号链接被拒绝时不得删除文件")
+            checked += 1
+            partial = _temp(store.root, thread_id, "partial")
+            partial.write_bytes(b"p")
+            orphan_second = _temp(store.root, thread_id, "partial-orphan")
+            partial_other = store.root / "partial-other.bin"
+            partial_other.write_bytes(b"o")
+            os.link(partial_other, orphan_second)
+            _expect_error(lambda: store._remove_private_temporaries([partial, orphan_second], other),
+                          "会话删除遇到无法确认的硬链接临时文件，清理已暂停", "列表部分失败")
+            checked += 1
+            if partial.exists() or not orphan_second.exists():
+                raise ValueError("列表部分失败必须先删的保持删除、被拒绝的保持存在")
+            checked += 1
         finally:
             store.close()
     # 行为：会话主体的清理与三类临时文件。
@@ -248,6 +276,25 @@ def check_delete_cleanup() -> int:
             link_path.symlink_to(link_target)
             _expect_error(lambda: store._remove_thread_files(link_id),
                           "会话删除遇到非私有普通文件，清理已暂停", "会话符号链接")
+            checked += 1
+            paired_id = store.create("配对")["id"]
+            paired_path = store.path_for(paired_id)
+            paired_temp = _temp(store.root, paired_id, "session-pair")
+            os.link(paired_path, paired_temp)
+            marker_target = store.root / f".delete-{paired_id}.json"
+            marker_target.write_bytes(b"{}\n")
+            marker_temp = store.root / f".delete-{paired_id}.marker-pair.tmp"
+            os.link(marker_target, marker_temp)
+            store.append_event("pair/event")
+            event_temp = store.root.parent / f".events.jsonl.delete-{paired_id}.pair.tmp"
+            os.link(store.events_path, event_temp)
+            store._remove_thread_files(paired_id)
+            if (paired_path.exists() or paired_temp.exists()
+                    or marker_temp.exists() or event_temp.exists()):
+                raise ValueError("正常硬链接配对的三类临时文件与会话主体必须全部清理")
+            checked += 1
+            if not marker_target.exists() or not store.events_path.exists():
+                raise ValueError("清理临时文件不得删除标记与事件日志主文件")
             checked += 1
         finally:
             store.close()

@@ -1,3 +1,8 @@
+## 0.2.0-rc.552 - 2026-11-23
+
+- 删除清理检查新增 7 个行为场景，用临时目录与合成硬链接实际执行 `_remove_private_temporaries` 与 `_remove_thread_files`：空列表不读取目标；目标为符号链接时以「无法确认的硬链接临时文件」拒绝且文件保留；列表中前一个普通文件删除成功、后一个悬空硬链接被拒绝时保持各自实际状态；会话主体、删除标记与事件日志三类临时文件分别与主文件组成硬链接对时全部清理且主文件保留。隔离变异探针结构与行为分别检出 9/9、7/9，合计 9/9。[Issue #3229](https://github.com/can4hou6joeng4/boss-harness/issues/3229)
+- 源码候选更新为 npm `0.2.0-rc.552` 和 Python `0.2.0rc552`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.551 - 2026-11-23
 
 - 删除标记检查新增 12 个行为场景，用临时目录与合成标记实际执行 `_read_delete_intent`、`_write_delete_intent`、`_pending_deletion_ids` 与重启恢复：阻塞列表忽略非法名称；恰好 1 MiB 的标记可读、超出一字节拒绝；乱序重复摘要读回为排序去重结果；损坏标记拒绝覆盖且字节不变；重开存储把未读取的 0644 标记收紧为 0600；两个合法标记中一个目标文件为硬链接时该标记保留、另一个完成删除且存储正常打开。隔离变异探针结构与行为分别检出 7/10、9/10，合计 10/10。[Issue #3227](https://github.com/can4hou6joeng4/boss-harness/issues/3227)
