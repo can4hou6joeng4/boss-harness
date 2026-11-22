@@ -622,7 +622,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_checkpoint_publish.py`
 
-`scripts/check_checkpoint_publish.py` 核对摘要 checkpoint 的原子发布：`SessionStore.append_checkpoint` 先校验两个回调可调用，并在写锁与索引事务内对源日志做 lstat 与已打开描述符的九字段双重签名；源必须是当前用户拥有的普通单链接文件。条目工厂在锁内只调用一次，并且必须构造 `context_checkpoint`。候选文件固定为 `.checkpoint.tmp`、`O_EXCL` 独占创建、按 1 MiB 分块复制；末尾缺换行时只截到最后一个完整记录边界，找不到边界即拒绝发布；追加编码条目后固定 `0600`、继承源 gid 并 `fsync`。复制完成后的源 fstat、候选 lstat 与发布前源 lstat 必须分别等于原始签名；`os.replace` 是唯一提交点，替换异常按可见 inode 区分「原始未变 → 重抛」「候选 → 已提交」「其他 → `CheckpointCommitUncertain`」。提交成功后固定顺序为目录 fsync → `on_committed` → 索引刷新；已提交后的任何异常转换为 `CheckpointCommittedError`，未提交原样抛出，临时文件在 finally 清理且清理失败被吞掉。脚本反向断言提交点唯一、条目工厂只调用一次、不走追加路径、`CheckpointCommitUncertain` 四处身份判断。检查是 AST 切片与顺序扫描，不执行复制或替换，运行时行为仍需按用户指南核对。
+`scripts/check_checkpoint_publish.py` 核对摘要 checkpoint 的原子发布：`SessionStore.append_checkpoint` 先校验两个回调可调用，并在写锁与索引事务内对源日志做 lstat 与已打开描述符的九字段双重签名；源必须是当前用户拥有的普通单链接文件。条目工厂在锁内只调用一次，并且必须构造 `context_checkpoint`。候选文件固定为 `.checkpoint.tmp`、`O_EXCL` 独占创建、按 1 MiB 分块复制；末尾缺换行时只截到最后一个完整记录边界，找不到边界即拒绝发布；追加编码条目后固定 `0600`、继承源 gid 并 `fsync`。复制完成后的源 fstat、候选 lstat 与发布前源 lstat 必须分别等于原始签名；`os.replace` 是唯一提交点，替换异常按可见 inode 区分「原始未变 → 重抛」「候选 → 已提交」「其他 → `CheckpointCommitUncertain`」。提交成功后固定顺序为目录 fsync → `on_committed` → 索引刷新；已提交后的任何异常转换为 `CheckpointCommittedError`，未提交原样抛出，临时文件在 finally 清理且清理失败被吞掉。脚本反向断言提交点唯一、条目工厂只调用一次、不走追加路径、`CheckpointCommitUncertain` 四处身份判断。静态核对之外，脚本用临时目录与合成 `SessionStore` 执行 48 个行为场景：入口与条目类型拒绝、成功发布的记录保留 / 回调顺序 / 权限 / 临时文件清理、尾部残段截断与无边界拒绝、符号链接 / 硬链接 / 待删除会话拒绝、构造条目与发布前的源变化、替换异常的原始 / 候选 / 其他 inode 判定，以及提交后目录同步 / 回调 / 索引刷新失败的转换。检查不访问网络、模型或招聘平台。
 
 ### `check_entries_cache.py`
 
