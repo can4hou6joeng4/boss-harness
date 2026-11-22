@@ -1,3 +1,8 @@
+## 0.2.0-rc.562 - 2026-11-23
+
+- 新增 `scripts/check_execution_status.py`（37 项）：直接调用 `tool_execution_status` 与 `_annotate_tool_execution`，覆盖六种已知状态的标签与 `executed` 三态、写工具与 `approval` 字段的外部写操作判定、写操作 `outcome_unknown` 的专用文案、非字符串 / 空串 / 超 40 字符状态降级、`executionState` 优先与空串回退、工具调用派生标注不改写输入。新脚本接入 Source build，检查脚本总数从 169 增至 170。隔离变异探针结构与行为分别检出 6/8、7/8，合计 8/8。[Issue #3249](https://github.com/can4hou6joeng4/boss-harness/issues/3249)
+- 源码候选更新为 npm `0.2.0-rc.562` 和 Python `0.2.0rc562`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.561 - 2026-11-23
 
 - 转向检查从 28 项扩展到 45 项，新增 17 个行为场景：`promote_to_steering` 提升排队中的后续回合后保留原 id 与输入、清空技能、透传客户端消息标识，结果为 `kind="steering"` / `status="queued"` 且队列列表只有该条；重复提升按类型拒绝；状态非排队、类型非 followUp、带技能、带自动压缩覆盖、`expectedTurnId` 为空或 129 字符、未知队列项分别返回固定文案，恰好 128 字符的 `expectedTurnId` 被接受。隔离变异探针结构与行为分别检出 4/8、8/8，合计 8/8。[Issue #3247](https://github.com/can4hou6joeng4/boss-harness/issues/3247)
