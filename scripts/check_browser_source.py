@@ -2,7 +2,8 @@
 """核对上游 CLI 浏览器来源覆盖边界，成功时输出核对项数量。
 
 除源码与桌面片段扫描外，脚本直接调用 `resolve_browser_source_override`，
-核对环境读取、去空白与大小写归一、空值回落、白名单校验与错误文案。
+核对环境读取、去空白与大小写归一、空值与空串回落、显式值优先于环境、
+白名单校验与错误文案，并断言允许值集合恰好三个。
 """
 
 from __future__ import annotations
@@ -168,6 +169,19 @@ def _behavior_checks() -> int:
     checked += _expect_value(
         _with_env(None, lambda: resolve_browser_source_override(" AUTO ")), "auto",
         "显式去空白")
+    checked += _expect_value(
+        resolve_browser_source_override("Stored-Cookie"), "stored-cookie",
+        "部分大小写")
+    checked += _expect_value(
+        _with_env("", resolve_browser_source_override), None, "环境空串")
+    checked += _expect_value(
+        _with_env("AUTO", resolve_browser_source_override), "auto", "环境大写归一")
+    checked += _expect_error(
+        lambda: _with_env("auto", lambda: resolve_browser_source_override("other")),
+        message, "显式非法优先于环境")
+    checked += _expect_value(
+        set(BROWSER_SOURCE_VALUES), {"auto", "existing-browser", "stored-cookie"},
+        "允许值集合")
     return checked
 
 

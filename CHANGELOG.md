@@ -1,3 +1,8 @@
+## 0.2.0-rc.560 - 2026-11-23
+
+- 浏览器来源检查从 43 项扩展到 48 项：部分大小写值 `Stored-Cookie` 归一为 `stored-cookie`；环境为空串时回落 null；环境为 `AUTO` 时归一为 `auto`；环境合法而显式值非法时仍以固定文案拒绝；允许值集合恰好 `auto` / `existing-browser` / `stored-cookie` 三个。隔离变异探针结构与行为分别检出 4/6、6/6，合计 6/6。[Issue #3245](https://github.com/can4hou6joeng4/boss-harness/issues/3245)
+- 源码候选更新为 npm `0.2.0-rc.560` 和 Python `0.2.0rc560`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.559 - 2026-11-23
 
 - 审批条目检查从 92 项扩展到 106 项，新增 14 个校验：`approve` 在 `running` / `approved`、`running` / `executing`、`failed` / `failed`、`completed` / `outcome_unknown` 下有效，`paused` 状态与 `running` / `pending_approval` 组合无效；`deny` 在 `running` / `not_approved` 下有效、`completed` 下无效；`expired` 在 `failed` / `not_executed` 下有效、`completed` 下无效；`turnId` 恰好 128 字符有效、129 字符无效；`deadline=1e-300` 有效；`pending_only=True` 放行已带 `expired` 裁决的待审批形态条目。隔离变异探针结构与行为分别检出 7/8、8/8，合计 8/8。[Issue #3243](https://github.com/can4hou6joeng4/boss-harness/issues/3243)
