@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""核对模型端点判定与服务端回退开关的配置边界。
+"""核对模型端点判定、请求时限、输出上限与凭据解析的配置边界。
 
 `_is_first_party_base_url` 决定 Anthropic 端点是否按官方主机处理：主机名必须精确
 比较，大小写、尾根点、端口与路径不影响结果，前缀伪装、userinfo 与畸形 IPv6 不得
 误判为官方。`_server_side_fallback` 解析 `BOSS_HARNESS_SERVER_FALLBACK`：未设置取
 默认，空白视为关闭，只接受固定开关写法，未知取值在严格模式失败且不回显原文。
-这里静态固定归一化与开关分支，并直接调用两个函数核对边界。不访问网络或模型。
+`_request_timeout_seconds` 与 `_max_tokens` 把空白视为未设置，按整数解析并收敛到
+固定错误码；`_configured_model`、`_has_configured_value` 与 `has_anthropic_credential`
+让纯空白占位值不遮蔽后续变量。这里静态固定解析分支，并直接调用这些函数核对边界。
+不访问网络或模型。
 """
 
 from __future__ import annotations
@@ -19,11 +22,19 @@ MODULE = "harness/src/boss_harness/models/provider.py"
 sys.path.insert(0, str(ROOT / "harness/src"))
 from boss_harness.models.config_errors import ModelConfigError  # noqa: E402
 from boss_harness.models.provider import (  # noqa: E402
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS,
+    MAX_MODEL_REQUEST_TIMEOUT_SECONDS,
     _FIRST_PARTY_HOST,
     _SWITCH_OFF,
     _SWITCH_ON,
+    _configured_model,
+    _has_configured_value,
     _is_first_party_base_url,
+    _max_tokens,
+    _request_timeout_seconds,
     _server_side_fallback,
+    has_anthropic_credential,
 )
 
 HOST_FRAGMENTS = (
@@ -46,6 +57,25 @@ SWITCH_FRAGMENTS = (
     "if not strict:\n        return default",
     'raise ModelConfigError("MODEL_SERVER_FALLBACK_INVALID")',
 )
+TIMEOUT_FRAGMENTS = (
+    'raw = (env.get("BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS") or "").strip()',
+    "if not raw:\n        return DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS",
+    'except ValueError:\n        raise ModelConfigError("MODEL_REQUEST_TIMEOUT_INVALID") from None',
+    'if not 1 <= seconds <= MAX_MODEL_REQUEST_TIMEOUT_SECONDS:\n'
+    '        raise ModelConfigError("MODEL_REQUEST_TIMEOUT_INVALID")',
+)
+TOKENS_FRAGMENTS = (
+    'raw = (env.get("BOSS_HARNESS_MAX_TOKENS") or "").strip()',
+    "if not raw:\n        return DEFAULT_MAX_TOKENS",
+    'except ValueError:\n        raise ModelConfigError("MODEL_MAX_TOKENS_INVALID") from None',
+    'if value <= 0:\n        raise ModelConfigError("MODEL_MAX_TOKENS_INVALID")',
+)
+MODEL_HELPER_FRAGMENTS = (
+    'value = (env.get(name) or "").strip()',
+    "if value:\n            return value",
+    'return any((env.get(name) or "").strip() for name in names)',
+    'return _has_configured_value(env, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")',
+)
 
 
 def _read(relative: str) -> str:
@@ -65,16 +95,21 @@ def _expect_value(actual: object, expected: object, label: str) -> int:
     return 1
 
 
-def _expect_error(call, label: str) -> int:
+def _expect_code(call, code: str, label: str, *, absent: str | None = None) -> int:
     try:
         call()
     except ModelConfigError as error:
-        if error.code != "MODEL_SERVER_FALLBACK_INVALID":
-            raise ValueError(f"{label}：错误码 {error.code!r}") from None
-        if "mystery-value-9" in str(error):
+        if error.code != code:
+            raise ValueError(f"{label}：错误码 {error.code!r}，期望 {code!r}") from None
+        if absent is not None and absent in str(error):
             raise ValueError(f"{label}：错误文案回显了原始取值") from None
         return 1
     raise ValueError(f"{label}：未抛出 ModelConfigError")
+
+
+def _expect_error(call, label: str) -> int:
+    return _expect_code(call, "MODEL_SERVER_FALLBACK_INVALID", label,
+                        absent="mystery-value-9")
 
 
 def _behavior_checks() -> int:
@@ -119,11 +154,71 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _model_env_checks() -> int:
+    checked = _expect_value((DEFAULT_MAX_TOKENS, DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS,
+                             MAX_MODEL_REQUEST_TIMEOUT_SECONDS),
+                            (64000, 600, 3600), "默认预算常量")
+    # 请求时限：未设置与纯空白取默认，去掉首尾空白后按整数解析，1 与 3600 都在界内。
+    timeout_name = "BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS"
+    checked += _expect_value(_request_timeout_seconds({}),
+                             DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS, "时限缺省")
+    for raw in ("", "   "):
+        checked += _expect_value(_request_timeout_seconds({timeout_name: raw}),
+                                 DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS, f"时限空白 {raw!r}")
+    checked += _expect_value((_request_timeout_seconds({timeout_name: " 30 "}),
+                              _request_timeout_seconds({timeout_name: "1"}),
+                              _request_timeout_seconds({timeout_name: "3600"}),
+                              _request_timeout_seconds({timeout_name: " 600 "})),
+                             (30, 1, 3600, 600), "时限取值")
+    for raw, absent in (("0", None), ("3601", "3601"), ("-5", "-5"), ("soon", "soon")):
+        checked += _expect_code(
+            lambda raw=raw: _request_timeout_seconds({timeout_name: raw}),
+            "MODEL_REQUEST_TIMEOUT_INVALID", f"时限非法 {raw!r}", absent=absent)
+    # 输出上限：未设置与纯空白取默认，去掉首尾空白后按正整数解析，错误不回显原文。
+    tokens_name = "BOSS_HARNESS_MAX_TOKENS"
+    checked += _expect_value(_max_tokens({}), DEFAULT_MAX_TOKENS, "上限缺省")
+    for raw in ("", "  "):
+        checked += _expect_value(_max_tokens({tokens_name: raw}),
+                                 DEFAULT_MAX_TOKENS, f"上限空白 {raw!r}")
+    checked += _expect_value((_max_tokens({tokens_name: " 1 "}),
+                              _max_tokens({tokens_name: "128000"})),
+                             (1, 128000), "上限取值")
+    for raw, absent in (("0", None), ("-1", "-1"), ("lots", "lots")):
+        checked += _expect_code(
+            lambda raw=raw: _max_tokens({tokens_name: raw}),
+            "MODEL_MAX_TOKENS_INVALID", f"上限非法 {raw!r}", absent=absent)
+    # 模型变量：按顺序取第一个去空白后非空的值；纯空白不遮蔽后续变量。
+    checked += _expect_value((_configured_model({}, "A"), _configured_model({"A": "  "}, "A")),
+                             ("", ""), "模型变量缺省")
+    checked += _expect_value(_configured_model({"A": "  ", "B": " model-b "}, "A", "B"),
+                             "model-b", "模型变量跳过空白")
+    checked += _expect_value(_configured_model({"A": "model-a", "B": "model-b"}, "A", "B"),
+                             "model-a", "模型变量优先级")
+    checked += _expect_value((_has_configured_value({}, "A", "B"),
+                              _has_configured_value({"A": " ", "B": ""}, "A", "B"),
+                              _has_configured_value({"A": " ", "B": "x"}, "A", "B")),
+                             (False, False, True), "凭据存在判定")
+    # Anthropic 凭据：两项去空白后任一非空即可；空键占位不遮蔽令牌。
+    checked += _expect_value(has_anthropic_credential({}), False, "Anthropic 凭据缺省")
+    checked += _expect_value((has_anthropic_credential({"ANTHROPIC_API_KEY": "k"}),
+                              has_anthropic_credential({"ANTHROPIC_AUTH_TOKEN": "t"})),
+                             (True, True), "Anthropic 单项凭据")
+    checked += _expect_value(has_anthropic_credential(
+        {"ANTHROPIC_API_KEY": "  ", "ANTHROPIC_AUTH_TOKEN": "t"}), True, "空键不遮蔽令牌")
+    checked += _expect_value(has_anthropic_credential(
+        {"ANTHROPIC_API_KEY": "  ", "ANTHROPIC_AUTH_TOKEN": " "}), False, "Anthropic 全空白")
+    return checked
+
+
 def check_provider_config() -> int:
     module = _read(MODULE)
     checked = _expect(HOST_FRAGMENTS, module, MODULE)
     checked += _expect(SWITCH_FRAGMENTS, module, MODULE)
+    checked += _expect(TIMEOUT_FRAGMENTS, module, MODULE)
+    checked += _expect(TOKENS_FRAGMENTS, module, MODULE)
+    checked += _expect(MODEL_HELPER_FRAGMENTS, module, MODULE)
     checked += _behavior_checks()
+    checked += _model_env_checks()
     return checked + 1
 
 
@@ -133,7 +228,7 @@ def main() -> int:
     except ValueError as error:
         print(f"模型配置边界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"模型配置边界一致：{checked} 项端点判定与回退开关防护")
+    print(f"模型配置边界一致：{checked} 项端点、回退、时限、上限与凭据解析防护")
     return 0
 
 
