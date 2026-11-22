@@ -3,17 +3,29 @@
 
 `session.py` 的 JSONL 是会话事实源。单行必须 UTF-8 有界并以换行结尾；解码必须
 拒绝重复键、非有限数值、孤立代理项与损坏行；会话头只允许出现在第 1 行；
-快照与追加共享同一单行上限，末尾中断的残段只丢弃不固化。这里固定这些边界，
-避免损坏记录被静默接受或残段被当成新记录。
+快照与追加共享同一单行上限，末尾中断的残段只丢弃不固化。检查固定源码结构，
+并用临时文件与内存流执行编码、解码、有界读取与边界场景。
 """
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/session.py"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.session import (  # noqa: E402
+    _complete_record_limit,
+    _decode_session_record,
+    _encode_session_line,
+    _iter_bounded_lines,
+    _iter_bounded_raw_lines_from_handle,
+    _truncate_partial_record_tail,
+)
 
 CONSTANT_FRAGMENTS = (
     "MAX_SESSION_LINE_BYTES = 32 * 1024 * 1024",
@@ -111,6 +123,176 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"会话日志行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        return _expect_value(str(error), message, label)
+    raise ValueError(f"会话日志应拒绝 {label}")
+
+
+def _expect_rejected(call, label: str) -> int:
+    try:
+        call()
+    except ValueError:
+        return 1
+    raise ValueError(f"会话日志应拒绝 {label}")
+
+
+def _behavior_checks() -> int:
+    encoded = _encode_session_line({"消息": "中文"})
+    checked = _expect_value(b"\\u" in encoded, False, "编码保留原始 Unicode")
+    checked += _expect_value(encoded, '{"消息":"中文"}\n'.encode("utf-8"), "编码紧凑与换行")
+    sample = {"k": "v"}
+    sample_line = _encode_session_line(sample)
+    checked += _expect_value(
+        _encode_session_line(sample, maximum=len(sample_line) - 1), sample_line, "编码字节上限接受"
+    )
+    checked += _expect_error(
+        lambda: _encode_session_line(sample, maximum=len(sample_line) - 2),
+        "会话日志单行超过大小限制", "编码字节上限拒绝",
+    )
+    checked += _expect_error(
+        lambda: _encode_session_line(sample, maximum=0, label="演示"), "演示单行超过大小限制", "编码标签"
+    )
+    checked += _expect_rejected(lambda: _encode_session_line({"value": float("nan")}), "非有限值编码")
+
+    checked += _expect_value(_decode_session_record('{"type":"session"}', line_number=1), None, "首行会话头忽略")
+    record = _decode_session_record(
+        '{"type":"item","id":"e1","timestamp":"t","payload":{},"parentId":null}', line_number=3
+    )
+    checked += _expect_value((record["type"], record["id"]), ("item", "e1"), "普通记录返回")
+    checked += _expect_error(
+        lambda: _decode_session_record('{"type":"session"}', line_number=2),
+        "会话日志第 2 行出现重复会话头，读取已停止", "重复会话头",
+    )
+    checked += _expect_error(
+        lambda: _decode_session_record('{"a":1,"a":2}', line_number=1),
+        "会话日志第 1 行损坏，读取已停止", "重复键",
+    )
+    checked += _expect_error(
+        lambda: _decode_session_record('{"value":NaN}', line_number=1),
+        "会话日志第 1 行损坏，读取已停止", "NaN 常量",
+    )
+    checked += _expect_error(
+        lambda: _decode_session_record('{"value":1e999}', line_number=1),
+        "会话日志第 1 行损坏，读取已停止", "非有限浮点",
+    )
+    checked += _expect_error(
+        lambda: _decode_session_record('{"value":"\\ud800"}', line_number=1),
+        "会话日志第 1 行损坏，读取已停止", "孤立代理项",
+    )
+    checked += _expect_error(
+        lambda: _decode_session_record("[1]", line_number=1),
+        "会话日志第 1 行格式无效，读取已停止", "非对象顶层",
+    )
+    checked += _expect_error(
+        lambda: _decode_session_record('{"type":"item"}', line_number=1),
+        "会话日志第 1 行格式无效，读取已停止", "缺少字段",
+    )
+    checked += _expect_error(
+        lambda: _decode_session_record(
+            '{"type":"item","id":"e1","timestamp":"t","payload":{},"parentId":1}', line_number=1
+        ),
+        "会话日志第 1 行格式无效，读取已停止", "parentId 类型",
+    )
+    checked += _expect_error(
+        lambda: _decode_session_record(
+            '{"type":"item","id":"e1","timestamp":"t","payload":[]}', line_number=1
+        ),
+        "会话日志第 1 行格式无效，读取已停止", "payload 类型",
+    )
+
+    with TemporaryDirectory() as directory:
+        root = Path(directory)
+        complete = root / "complete.jsonl"
+        complete.write_bytes(b'{"a":1}\n{"b":2}\n')
+        checked += _expect_value(
+            list(_iter_bounded_raw_lines_from_handle(io.BytesIO(complete.read_bytes()), maximum=1_024)),
+            [b'{"a":1}', b'{"b":2}'], "完整行产出",
+        )
+        partial = root / "partial.jsonl"
+        partial.write_bytes(b'{"a":1}\n{"b":')
+        checked += _expect_value(
+            list(_iter_bounded_raw_lines_from_handle(io.BytesIO(partial.read_bytes()), maximum=1_024)),
+            [b'{"a":1}'], "末尾残段丢弃",
+        )
+        checked += _expect_error(
+            lambda: list(_iter_bounded_raw_lines_from_handle(io.BytesIO(b'{"a":1}\n'), maximum=5)),
+            "JSONL单行超过大小限制", "单行超限",
+        )
+        checked += _expect_error(
+            lambda: list(_iter_bounded_raw_lines_from_handle(
+                io.BytesIO(b'{"a":1}\n' + b"x" * 10), maximum=8)),
+            "JSONL单行超过大小限制", "残段超限",
+        )
+        checked += _expect_error(
+            lambda: list(_iter_bounded_raw_lines_from_handle(
+                io.BytesIO(b'{"a":1}\n'), maximum=1_024, byte_limit=True)),
+            "JSONL 快照长度无效", "快照长度类型",
+        )
+        checked += _expect_error(
+            lambda: list(_iter_bounded_raw_lines_from_handle(
+                io.BytesIO(b'{"a":1}\n'), maximum=1_024, byte_limit=9)),
+            "JSONL快照读取不完整", "快照长度不足",
+        )
+        checked += _expect_value(
+            list(_iter_bounded_raw_lines_from_handle(
+                io.BytesIO(b'{"a":1}\n'), maximum=1_024, byte_limit=8)),
+            [b'{"a":1}'], "快照长度恰等接受",
+        )
+        checked += _expect_value(
+            list(_iter_bounded_raw_lines_from_handle(
+                io.BytesIO(b'{"a":1}\r\n{"b":2}\r'), maximum=1_024, universal_newlines=True)),
+            [b'{"a":1}', b'{"b":2}'], "CRLF 分隔",
+        )
+        invalid = root / "invalid.jsonl"
+        invalid.write_bytes(b"\xff\n")
+        checked += _expect_error(
+            lambda: list(_iter_bounded_lines(invalid, maximum=1_024)),
+            "JSONL第 1 行不是有效 UTF-8，读取已停止", "非法 UTF-8",
+        )
+
+        checked += _expect_value(
+            _complete_record_limit(io.BytesIO(b'{"a":1}\n'), 8), 8, "完整记录边界"
+        )
+        checked += _expect_value(
+            _complete_record_limit(io.BytesIO(b'{"a":1}\n{"b":'), 13), 8, "残段边界收敛"
+        )
+        checked += _expect_value(_complete_record_limit(io.BytesIO(b'{"a":1}'), 7), 0, "无换行边界归零")
+
+        truncate = root / "truncate.jsonl"
+        truncate.write_bytes(b'{"a":1}\n{"b":')
+        with truncate.open("r+b") as handle:
+            checked += _expect_value(
+                _truncate_partial_record_tail(handle.fileno(), 13), 8, "截断残段长度"
+            )
+        checked += _expect_value(truncate.read_bytes(), b'{"a":1}\n', "截断残段内容")
+
+        clean = root / "clean.jsonl"
+        clean.write_bytes(b'{"a":1}\n')
+        with clean.open("r+b") as handle:
+            checked += _expect_value(
+                _truncate_partial_record_tail(handle.fileno(), 8), 8, "完整记录不截断"
+            )
+        checked += _expect_value(clean.read_bytes(), b'{"a":1}\n', "完整记录保持不变")
+
+        no_newline = root / "none.jsonl"
+        no_newline.write_bytes(b'{"a":1}')
+        with no_newline.open("r+b") as handle:
+            checked += _expect_error(
+                lambda: _truncate_partial_record_tail(handle.fileno(), 7),
+                "会话日志末尾缺少完整记录边界", "无换行截断拒绝",
+            )
+    return checked
+
+
 def check_session_log() -> int:
     module = _read(MODULE)
     checked = 0
@@ -158,10 +340,11 @@ def check_session_log() -> int:
 def main() -> int:
     try:
         checked = check_session_log()
-    except ValueError as error:
+        scenarios = _behavior_checks()
+    except (ValueError, OSError) as error:
         print(f"会话日志核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"会话日志一致：{checked} 项编码、解码与快照防护")
+    print(f"会话日志一致：{checked} 项编码、解码与快照防护、{scenarios} 个行为场景")
     return 0
 
 
