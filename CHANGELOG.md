@@ -1,3 +1,8 @@
+## 0.2.0-rc.526 - 2026-11-23
+
+- 排队投影检查新增 40 个临时合成记录场景，实际执行 `queue_record`、`queue_view_record` 与 `project_queue`：坏记录跳过、代理项降级、白名单、技能与自动压缩收敛、暂停来源、输入截断、暂停优先、终结窗口与显式计数。隔离变异探针合计检出 15/15。[Issue #3177](https://github.com/can4hou6joeng4/boss-harness/issues/3177)
+- 源码候选更新为 npm `0.2.0-rc.526` 和 Python `0.2.0rc526`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.525 - 2026-11-23
 
 - 设置持久化检查新增 32 个临时状态目录场景，实际执行深度检测、有界读取、配置加载与原子保存：损坏 / 非法 UTF-8 / 超限 / 深层配置回退、无关键保留、缺少字段 / 未知字段 / 非法值 / 不可编码 / 合并超限拒绝与临时文件清理。隔离变异探针合计检出 12/12。[Issue #3175](https://github.com/can4hou6joeng4/boss-harness/issues/3175)
