@@ -186,7 +186,7 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 ### `check_tool_results.py`
 
-`scripts/check_tool_results.py` 核对工具结果分页与引用边界：`tool_results.py` 的内联 64 KiB / 单页 1 MiB 预算、默认 16,384 / 最大 32,768 码点与模型 8,192 码点必须保持不变，且满足 `MODEL_RESULT_READ_CHARS ≤ DEFAULT_RESULT_CHARS ≤ MAX_RESULT_CHARS`、单页预算低于内核帧上限；两条读取路径必须校验 `limit`，RPC 请求字段必须限定在 `threadId` / `itemId` / `sha256` / `cursor` / `limit`，摘要必须为 64 位小写十六进制，过期引用必须返回 `STALE_RESULT` 与 `currentRef`，游标必须校验前缀 `tr1_`、长度、条目归属与偏移。模型只读工具必须使用 `MODEL_RESULT_READ_CHARS` 上限、禁止额外属性，并透传当前引用与错误码。检查是常量与文本扫描，实际分页与读取行为仍需按用户指南核对。
+`scripts/check_tool_results.py` 核对工具结果分页与引用边界：`tool_results.py` 的内联 64 KiB / 单页 1 MiB 预算、默认 16,384 / 最大 32,768 码点与模型 8,192 码点必须保持不变，且满足 `MODEL_RESULT_READ_CHARS ≤ DEFAULT_RESULT_CHARS ≤ MAX_RESULT_CHARS`、单页预算低于内核帧上限；两条读取路径必须校验 `limit`，RPC 请求字段必须限定在 `threadId` / `itemId` / `sha256` / `cursor` / `limit`，摘要必须为 64 位小写十六进制，过期引用必须返回 `STALE_RESULT` 与 `currentRef`，游标必须校验前缀 `tr1_`、长度、条目归属与偏移。模型只读工具必须使用 `MODEL_RESULT_READ_CHARS` 上限、禁止额外属性，并透传当前引用与错误码。检查同时直接调用 `tool_execution_state`、`tool_disposition`、`disposition_for_state`、`result_text`、`result_reference`、`canonical_result_text`、`wire_size` 与 `project_item` 做行为对照（28 项）：九个执行状态原样返回、非法值丢弃，处置只保留两个合法字段，状态→处置矩阵区分 failed 的写读差异，结果按紧凑 JSON 与非 ASCII 拼写且拒绝 NaN，引用按 UTF-8 字节（surrogatepass）计算 SHA-256 与字节 / 码点双长度，规范化把孤立代理项降级为 U+FFFD、非有限浮点降级为 null，wire 预算加 512 字节帧余量且代理项按超限处理，内联上限恰好 64 KiB 保留、超出后省略结果并生成引用、截断固定字段且不修改输入。
 
 ### `check_tool_revision.py`
 

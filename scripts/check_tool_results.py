@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
-"""核对工具结果分页、内容寻址与引用恢复边界，成功时输出核对项数量。"""
+"""核对工具结果分页、内容寻址与引用恢复边界，成功时输出核对项数量。
+
+静态侧固定预算常量、分页片段与两条读取路径的 limit 校验；行为侧直接调用
+`tool_results.py` 的执行状态、处置、投影与引用函数，覆盖重试建议、桌面结果的
+内联预算与内容寻址引用。
+"""
 
 from __future__ import annotations
 
 import ast
+from copy import deepcopy
+import hashlib
 from pathlib import Path
 import re
 import sys
@@ -45,6 +52,36 @@ RPC_DEFAULT = re.compile(
     r'def on_tool_result_read\(.*?return read_result_chunk\(.*?limit=params\.get\("limit",\s*([\d_]+)\)',
     re.DOTALL,
 )
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.tool_results import (  # noqa: E402
+    MAX_INLINE_TOOL_RESULT_BYTES,
+    MAX_PAGE_BYTES,
+    TOOL_EXECUTION_STATES,
+    canonical_result_text,
+    disposition_for_state,
+    project_item,
+    result_reference,
+    result_text,
+    tool_disposition,
+    tool_execution_state,
+    wire_size,
+)
+
+
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"工具结果行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_raises(call, label: str) -> int:
+    try:
+        call()
+    except ValueError:
+        return 1
+    raise ValueError(f"工具结果行为变化 {label}：没有抛出 ValueError")
 
 
 def _read(relative: str) -> str:
@@ -95,7 +132,110 @@ def _missing(fragments: tuple[str, ...], text: str) -> list[str]:
     return [fragment for fragment in fragments if fragment not in text]
 
 
-def check_tool_results() -> tuple[int, int]:
+def _behavior_checks() -> int:
+    checked = 0
+    # 执行状态：九个合法值原样返回，其余一律 None，不猜测近似状态。
+    states = {"queued", "pending_approval", "approved", "not_approved", "executing",
+              "completed", "failed", "not_executed", "outcome_unknown"}
+    checked += _expect_value(TOOL_EXECUTION_STATES, frozenset(states), "执行状态集合")
+    checked += _expect_value(
+        [tool_execution_state(state) for state in sorted(states)],
+        sorted(states), "执行状态原样返回")
+    checked += _expect_value(
+        [tool_execution_state(value) for value in
+         ("running", "COMPLETED", "", None, 1, ["completed"])],
+        [None] * 6, "执行状态非法值")
+    # 重试处置：只保留 delivery / retry 两个合法字段，多余字段丢弃。
+    checked += _expect_value(
+        tool_disposition({"delivery": "unknown", "retry": "unsafe", "extra": 1}),
+        {"delivery": "unknown", "retry": "unsafe"}, "处置字段清洗")
+    checked += _expect_value(
+        [tool_disposition(value) for value in (
+            {}, {"delivery": "unknown"}, {"delivery": "delivered", "retry": "safe"},
+            {"delivery": "unknown", "retry": "yes"}, ["unknown"], None)],
+        [None] * 6, "处置非法值")
+    # 状态→处置矩阵：终态事实决定重试安全，写操作失败不得被当成可安全重试。
+    for state, expected, label in (
+        ("not_executed", {"delivery": "not_delivered", "retry": "safe"}, "未执行处置"),
+        ("not_approved", {"delivery": "not_delivered", "retry": "safe"}, "未批准处置"),
+        ("outcome_unknown", {"delivery": "delivery_uncertain", "retry": "unsafe"},
+         "结果不确定处置"),
+    ):
+        checked += _expect_value(
+            [disposition_for_state(state, write=write) for write in (True, False)],
+            [expected] * 2, label)
+    checked += _expect_value(
+        disposition_for_state("failed", write=True),
+        {"delivery": "unknown", "retry": "unknown"}, "写失败处置")
+    checked += _expect_value(
+        disposition_for_state("failed", write=False),
+        {"delivery": "not_delivered", "retry": "safe"}, "读失败处置")
+    checked += _expect_value(
+        [disposition_for_state(state, write=False) for state in
+         ("completed", "executing", "queued", "approved", "pending_approval", None, "bogus")],
+        [None] * 7, "非终态处置")
+    # 结果拼写：紧凑分隔符、保留插入顺序、非 ASCII 原样输出、非有限浮点拒绝。
+    checked += _expect_value(
+        result_text({"b": 1, "a": "中"}), '{"b":1,"a":"中"}', "紧凑 JSON 拼写")
+    checked += _expect_value(result_text([1, None, True]), "[1,null,true]", "标量拼写")
+    checked += _expect_raises(lambda: result_text(float("nan")), "NaN 拒绝")
+    # 内容寻址：SHA-256 取 UTF-8 字节，长度分别按字节与码点记录。
+    text = "中文"
+    checked += _expect_value(
+        result_reference("thread", "item", text),
+        {"threadId": "thread", "itemId": "item", "encoding": "json",
+         "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+         "byteLength": 6, "characterLength": 2}, "引用字段")
+    # 孤立代理项按 surrogatepass 编码摘要，写入路径与读取路径对同一文本一致。
+    surrogate = result_reference("thread", "item", "\ud800")
+    checked += _expect_value(
+        (surrogate["sha256"], surrogate["byteLength"], surrogate["characterLength"]),
+        (hashlib.sha256(b"\xed\xa0\x80").hexdigest(), 3, 1), "代理项摘要")
+    # 规范化拼写：干净值等同严格拼写；受损记录降级为可传输文本。
+    checked += _expect_value(
+        canonical_result_text({"ok": True}), result_text({"ok": True}), "干净值规范化")
+    checked += _expect_value(
+        canonical_result_text({"s": "\ud800"}), '{"s":"�"}', "代理项降级")
+    checked += _expect_value(
+        canonical_result_text({"n": float("nan")}), '{"n":null}', "非有限浮点降级")
+    # wire 预算：JSON 字节数加 512 帧余量；不可编码值按超过任何单页预算处理。
+    checked += _expect_value(wire_size({"a": 1}), 520, "wire 预算")
+    checked += _expect_value(wire_size({"a": "中"}), 524, "wire 非 ASCII 预算")
+    checked += _expect_value(wire_size("\ud800"), MAX_PAGE_BYTES + 1, "wire 代理项超限")
+    checked += _expect_raises(lambda: wire_size(float("nan")), "wire 非有限浮点拒绝")
+    # 内联上限：JSON 对象结构占 11 字节，恰好 64 KiB 时保留完整结果。
+    exact = {"id": "item-1", "kind": "toolCall", "status": "completed",
+             "result": {"text": "x" * (MAX_INLINE_TOOL_RESULT_BYTES - 11)}}
+    projected = project_item("thread", deepcopy(exact))
+    checked += _expect_value(projected == exact, True, "恰好上限内联")
+    # 每个「中」占 3 字节，结果比上限多 1 字节，码点数仍低于上限。
+    over = {"id": "item-1", "kind": "toolCall", "status": "failed", "modelResult": "x",
+            "errorCode": "e" * 200, "recoveryAction": "r" * 1200,
+            "resultSummary": "s" * 5000,
+            "result": {"text": "中" * ((MAX_INLINE_TOOL_RESULT_BYTES - 10) // 3)}}
+    original = deepcopy(over)
+    projected = project_item("thread", over)
+    text = canonical_result_text(original["result"])
+    encoded = text.encode("utf-8", "surrogatepass")
+    reference = projected.get("resultRef", {})
+    checked += _expect_value(
+        (sorted(projected), projected.get("resultOmitted"), projected.get("result")),
+        (["errorCode", "id", "kind", "recoveryAction", "resultOmitted", "resultRef",
+          "resultSummary", "status"], True, None), "超限省略")
+    checked += _expect_value(
+        (reference.get("threadId"), reference.get("itemId"), reference.get("encoding"),
+         reference.get("sha256"), reference.get("byteLength"),
+         reference.get("characterLength")),
+        ("thread", "item-1", "json", hashlib.sha256(encoded).hexdigest(),
+         len(encoded), len(text)), "超限引用")
+    checked += _expect_value(
+        (len(projected.get("errorCode", "")), len(projected.get("recoveryAction", "")),
+         len(projected.get("resultSummary", ""))), (128, 1000, 4000), "固定字段截断")
+    checked += _expect_value(over == original, True, "保留输入条目")
+    return checked
+
+
+def check_tool_results() -> tuple[int, int, int]:
     try:
         values = _assigned(ast.parse(_read(TOOL_RESULTS)))
     except SyntaxError:
@@ -143,16 +283,17 @@ def check_tool_results() -> tuple[int, int]:
 
     guards = (len(TOOL_RESULTS_FRAGMENTS) + len(APPLICATION_FRAGMENTS)
               + len(MODEL_TOOLS_FRAGMENTS) + 3)
-    return len(EXPECTED_CONSTANTS), guards
+    return len(EXPECTED_CONSTANTS), guards, _behavior_checks()
 
 
 def main() -> int:
     try:
-        constants, guards = check_tool_results()
+        constants, guards, behaviors = check_tool_results()
     except ValueError as error:
         print(f"工具结果边界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"工具结果边界一致：{constants} 个常量、{guards} 项分页与引用防护")
+    print(f"工具结果边界一致：{constants} 个常量、{guards} 项分页与引用防护、"
+          f"{behaviors} 项行为对照")
     return 0
 
 
