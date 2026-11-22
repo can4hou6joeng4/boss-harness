@@ -2,18 +2,32 @@
 """核对摘要规划器的预算、逐字来源与无工具边界。
 
 summary.py 决定每次摘要请求发送哪些字符、预留多少输出与滚动摘要空间，以及
-预算不足时是否拒绝。来源被截断、工具被重新引入或滚动摘要被截断都不会触发
-构建失败，因此用静态检查固定这些边界。
+预算不足时是否拒绝。检查固定源码结构，并用临时合成配置执行预算、逐字片段与
+拒绝场景。
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/summary.py"
 TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.context import ContextBudgetExceeded, describe_request  # noqa: E402
+from boss_harness.models.capabilities import ModelCapabilities  # noqa: E402
+from boss_harness.models.provider import ModelConfig  # noqa: E402
+from boss_harness.summary import (  # noqa: E402
+    BRANCH_SUMMARY_SYSTEM,
+    SUMMARY_MAX_REQUESTS,
+    SUMMARY_MAX_TOKENS,
+    SUMMARY_SYSTEM,
+    SummaryPlanner,
+)
 
 CONSTANT_FRAGMENTS = (
     "SUMMARY_MAX_TOKENS = 8_192\n",
@@ -93,6 +107,105 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"摘要规划行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _planner(source: str = "甲🙂乙\n丙", *, window: int = 200_000, output: int = 8_192,
+             max_tokens: int = 16_384, system: str = SUMMARY_SYSTEM) -> SummaryPlanner:
+    return SummaryPlanner(
+        source,
+        ModelConfig(provider="openai", model="summary-demo", max_tokens=max_tokens),
+        ModelCapabilities(context_window=window, max_output_tokens=output),
+        system=system,
+    )
+
+
+def _behavior_checks() -> int:
+    planner = _planner()
+    checked = _expect_value(planner.max_tokens, SUMMARY_MAX_TOKENS, "摘要输出上限约束")
+    checked += _expect_value(planner.character_limit, 32_000, "字符上限封顶")
+    checked += _expect_value(_planner(max_tokens=1_024).max_tokens, 1_024, "配置输出约束")
+    checked += _expect_value(_planner(output=500).max_tokens, 500, "模型输出上限约束")
+    checked += _expect_value(_planner(window=5_000, output=1_000).max_tokens, 226, "窗口四分之一约束")
+
+    budget_planner = _planner(window=20_000, output=2_048, max_tokens=2_048)
+    budget = describe_request(budget_planner._request(0, 0, "", SUMMARY_MAX_REQUESTS),
+                              budget_planner.capabilities)
+    expected_limit = min(32_000, max(0, (budget["inputBudget"] - budget["estimatedInputTokens"] - 64) * 2 // 8))
+    checked += _expect_value(budget_planner.character_limit, expected_limit, "字符上限预算公式")
+
+    source = "甲🙂\n乙" * 1_000
+    planner = _planner(source)
+    fragment = planner.fragment(7, "旧摘要", 3)
+    payload = json.loads(fragment.request.messages[0].text)
+    checked += _expect_value(fragment.start, 7, "片段起点")
+    checked += _expect_value(fragment.end > fragment.start, True, "片段非空")
+    checked += _expect_value(payload["sourceFragment"], source[7:fragment.end], "片段逐字来源")
+    checked += _expect_value(
+        (payload["sourceStart"], payload["sourceEnd"], payload["fragmentIndex"]),
+        (7, fragment.end, 3), "片段边界字段",
+    )
+    checked += _expect_value(payload["previousSummary"], "旧摘要", "滚动摘要字段")
+    checked += _expect_value(payload["sourceCharacters"], len(source), "来源字符数")
+    checked += _expect_value(
+        payload["sourceTextDigest"], hashlib.sha256(source.encode("utf-8")).hexdigest(), "来源摘要"
+    )
+    checked += _expect_value(payload["summaryCharacterLimit"], planner.character_limit, "字符上限字段")
+    checked += _expect_value("甲🙂" in fragment.request.messages[0].text, True, "非 ASCII 不转义")
+    checked += _expect_value((fragment.request.tools, fragment.request.thinking), ((), None), "无工具无思考")
+    checked += _expect_value(
+        (fragment.request.model, fragment.request.max_tokens),
+        ("summary-demo", planner.max_tokens), "请求模型与输出",
+    )
+    branch = _planner(system=BRANCH_SUMMARY_SYSTEM).fragment(0, "", 0)
+    checked += _expect_value(branch.request.system, BRANCH_SUMMARY_SYSTEM, "分支系统提示")
+
+    limit = planner.character_limit
+    checked += _expect_value(planner.fragment(0, "a" * limit, 0).start, 0, "摘要恰好上限接受")
+    try:
+        planner.fragment(0, "a" * (limit + 1), 0)
+    except ValueError as error:
+        checked += _expect_value(str(error), "摘要超过滚动输入预算，不得截断已有摘要", "摘要超限拒绝")
+    else:
+        raise ValueError("摘要规划应拒绝超限滚动摘要")
+
+    try:
+        _planner(window=4_200, output=1_000, max_tokens=1_000)
+    except ContextBudgetExceeded as error:
+        checked += _expect_value(error.budget["withinBudget"], False, "预算不足标记")
+    else:
+        raise ValueError("摘要规划应拒绝不足预算")
+
+    try:
+        planner.fragment(len(source), "", 0)
+    except ContextBudgetExceeded as error:
+        checked += _expect_value(error.budget["withinBudget"], False, "来源末尾拒绝")
+    else:
+        raise ValueError("摘要规划应拒绝来源末尾")
+
+    raw = "甲\ud800乙"
+    degraded = _planner(raw)
+    checked += _expect_value(degraded.source, "甲�乙", "代理项降级")
+    checked += _expect_value(len(degraded.source), len(raw), "降级长度不变")
+    checked += _expect_value(
+        degraded.source_digest, hashlib.sha256("甲�乙".encode("utf-8")).hexdigest(), "降级来源摘要"
+    )
+    degraded_payload = json.loads(degraded.fragment(0, "", 0).request.messages[0].text)
+    checked += _expect_value("甲�乙" in degraded_payload["sourceFragment"], True, "降级可编码片段")
+
+    long_source = "丁" * 300_000
+    wide = _planner(long_source)
+    wide_fragment = wide.fragment(0, "", 0)
+    checked += _expect_value(
+        wide_fragment.end <= 2 * wide.capabilities.context_window, True, "片段不超过窗口两倍"
+    )
+    checked += _expect_value(wide.fragment(0, "", 0).end, wide_fragment.end, "重复规划稳定")
+    return checked
+
+
 def check_summary() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
@@ -123,10 +236,11 @@ def check_summary() -> int:
 def main() -> int:
     try:
         checked = check_summary()
-    except ValueError as error:
+        scenarios = _behavior_checks()
+    except (ValueError, OSError) as error:
         print(f"摘要规划核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"摘要规划一致：{checked} 项预算、逐字来源与无工具防护")
+    print(f"摘要规划一致：{checked} 项预算、逐字来源与无工具防护、{scenarios} 个行为场景")
     return 0
 
 
