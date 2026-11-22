@@ -680,7 +680,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_openai_responses.py`
 
-`scripts/check_openai_responses.py` 固定 OpenAI Responses 适配器的流式边界：终态原因映射按 completed / in_progress / queued → stop、incomplete → length（仅 `max_output_tokens`）、failed / cancelled → error 收敛；文本与思考增量事件集合、可重试状态 `408/409/429/500/502/503/504`、网关过载标记保持原样；流内错误先采用 `errors.py` 的结构化结论，`CONTEXT_OVERFLOW` 永不重试，无结论时才回退文本标记。输入条目必须区分 `function_call_output`、`function_call` 与 `output_text`，工具调用以 `call_id` 配对、参数以 `ensure_ascii=False` 序列化，思考块不回放。用量缺失或缺输入 / 输出计数时返回 `None`，不伪造全零。单次尝试固定 30 秒超时与零 SDK 重试，工具调用标识与名称超过 256 字符即拒绝；已向调用方产出内容后不再重试，清理未确认与共享恢复预算用尽时以固定说明停止。反向断言禁止吞掉全部异常、直接 `json.loads(raw)` 与回放加密内容。检查是常量与文本扫描，真实流行为仍需按用户指南核对。
+`scripts/check_openai_responses.py` 固定 OpenAI Responses 适配器的流式边界：终态原因映射按 completed / in_progress / queued → stop、incomplete → length（仅 `max_output_tokens`）、failed / cancelled → error 收敛；文本与思考增量事件集合、可重试状态 `408/409/429/500/502/503/504`、网关过载标记保持原样；流内错误先采用 `errors.py` 的结构化结论，`CONTEXT_OVERFLOW` 永不重试，无结论时才回退文本标记。输入条目必须区分 `function_call_output`、`function_call` 与 `output_text`，工具调用以 `call_id` 配对、参数以 `ensure_ascii=False` 序列化，思考块不回放。用量缺失或缺输入 / 输出计数时返回 `None`，不伪造全零。单次尝试固定 30 秒超时与零 SDK 重试，工具调用标识与名称超过 256 字符即拒绝；已向调用方产出内容后不再重试，清理未确认与共享恢复预算用尽时以固定说明停止。检查共 175 项，其中行为对照直接调用解析辅助函数：`None` / 空串 / 纯空白 / 非对象 JSON / `NaN` / 深嵌套参数的收敛，completed / incomplete / failed / cancelled 各终态文案，缺失 / 部分 / 明细用量，结构化结论与文本标记的重试优先级，summary → content 与 output_text / refusal 的拼接及预算键与字节计量，`body.error.message` → `body.message` → 异常 message 的回退链。反向断言禁止吞掉全部异常、直接 `json.loads(raw)` 与回放加密内容；真实流行为仍需按用户指南核对。
 
 ### `check_anthropic_provider.py`
 
