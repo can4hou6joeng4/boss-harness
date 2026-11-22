@@ -1,3 +1,8 @@
+## 0.2.0-rc.574 - 2026-11-23
+
+- 新增 `scripts/check_tool_bundle.py`，固化工具定义、组合与注册表的校验边界（109 项，含 78 项行为对照）：名称 1–64 字符的 `[A-Za-z0-9_-]`、描述非空白、handler 可调用、审批标记精确布尔、执行模式仅 `sequential` / `parallel` 且并行不得要求审批；结果预算只接受 8192 到 1 MiB 的精确整数；schema 注册时规范化且 `input_schema` 每次返回新副本；参数校验回调收到深拷贝，异常与非 `None` 返回统一为固定文案；组合 id 非空、不超过 128 字符且无空白，成员必须是 `ToolDefinition` 元组且不重名；注册表保留顺序、处理器只读、`read_only` 投影按精确布尔筛选，描述字段与执行模式映射一致。工作流在 Source build 与 Python 矩阵注册该检查，`check_workflows.py` 的脚本覆盖同步为 172。[Issue #3273](https://github.com/can4hou6joeng4/boss-harness/issues/3273)
+- 源码候选更新为 npm `0.2.0-rc.574` 和 Python `0.2.0rc574`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.573 - 2026-11-23
 
 - 新增 `scripts/check_application_helpers.py`，固化 `application.py` 的启动默认值与 RPC 入参边界（98 项，含 71 项行为对照）：审批期限的空值 / 空白 / 非有限 / 非正回退与显式值有效性，过期清扫 5 秒基线与 2 的幂退避封顶 60 秒，steering 模式与环境变量非法时不回显原文，分支视图与文本参数的固定错误文案，工作区内外 POSIX 相对路径，技能目录新目录优先 / 旧目录回退 / 文件占位不算目录，检查点归属的重复、满额与 128 / 129 字符边界。工作流在 Source build 与 Python 矩阵注册该检查，`check_workflows.py` 的脚本覆盖同步为 171。[Issue #3271](https://github.com/can4hou6joeng4/boss-harness/issues/3271)
