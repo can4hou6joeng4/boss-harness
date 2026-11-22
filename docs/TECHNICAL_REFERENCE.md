@@ -262,7 +262,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_queue_view.py`
 
-`scripts/check_queue_view.py` 核对队列读取投影的上限与截断边界：`queue_view.py` 的待处理项上限 200、已终结窗口 50、正文预览 600 字符、可选字符串与队列 id 上限 200、技能 10 项，以及 `_QUEUE_VIEW_FIELDS` 白名单必须逐字段声明（禁止把持久记录整份透传）；`queue_record` 必须校验 `kind` / `status` / `id` 并把编码失败降级到 `wire_value`，仍不可编码时按坏记录跳过；`queue_view_record` 只删除类型不符的可选字段，暂停来源必须是内核枚举，`executionStarted` 只接受 `False`；`project_queue` 必须先保留暂停项再用剩余名额容纳排队 / 投递中项，正文截断时标注 `inputTruncated`，分类计数在调用方传入时不得改由有界子集重算。脚本同时核对技术参考与使用指南的队列读取说明。检查另用临时合成记录执行 `queue_record`、`queue_view_record` 与 `project_queue`：合法与坏记录、id 与可选字符串上限、代理项降级、NaN 跳过、白名单、技能去重与上限、自动压缩清理、暂停来源与执行标志收敛，以及输入截断、暂停优先、终结窗口、坏记录跳过与显式计数；桌面渲染仍按用户指南核对。
+`scripts/check_queue_view.py` 核对队列读取投影的上限与截断边界：`queue_view.py` 的待处理项上限 200、已终结窗口 50、正文预览 600 字符、可选字符串与队列 id 上限 200、技能 10 项，以及 `_QUEUE_VIEW_FIELDS` 白名单必须逐字段声明（禁止把持久记录整份透传）；`queue_record` 必须校验 `kind` / `status` / `id` 并把编码失败降级到 `wire_value`，仍不可编码时按坏记录跳过；`queue_view_record` 只删除类型不符的可选字段，暂停来源必须是内核枚举，`executionStarted` 只接受 `False`；`project_queue` 必须先保留暂停项再用剩余名额容纳排队 / 投递中项，正文截断时标注 `inputTruncated`，分类计数在调用方传入时不得改由有界子集重算。脚本同时核对技术参考与使用指南的队列读取说明。检查另用临时合成记录执行 `queue_record`、`queue_view_record` 与 `project_queue`：合法与坏记录、id 与可选字符串上限、代理项降级、NaN 跳过、白名单、技能去重与上限、自动压缩清理、暂停来源与执行标志收敛，以及输入截断、暂停优先、终结窗口、坏记录跳过与显式计数。自动压缩另有 13 项边界对照：`enabled` 只接受布尔，`triggerPercent` / `keepRecentTokens` 只接受 0 到 2^53−1 的整数，布尔、负数、越界、浮点与字符串丢弃，未知字段不进入投影；清理后为空或原始值不是字典时整个字段按缺失处理。桌面渲染仍按用户指南核对。
 
 ### `check_queue_counts.py`
 
