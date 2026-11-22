@@ -586,7 +586,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_event_page.py`
 
-`scripts/check_event_page.py` 在临时目录构造 `SessionStore`，核对事件回放的游标分页：追加帧的游标从 1 严格递增并携带 32 位事件编号，首页按 `limit + 1` 报告 `hasMore` 与最后一条游标，续页、空页与 `latest_event_cursor` 保持游标推进；`threadId` 与 `methods` 筛选、`limit` 与游标校验、保护字段、方法名与参数形状都被固定；写入删除标记后该会话事件从回放中过滤，索引行被篡改时从 `events.jsonl` 重建并重试，重启后完成删除会剔除该会话事件并追加 `thread/deleted`。脚本同时扫描 `events_after` 的 `limit + 1`、删除标记注入、重建重试与 `nextCursor`，`_event_rows` 的原始字节预算与首行特例，`_event_page_entries` 的四类索引损坏与 `method` 类型，以及 `append_event` 的保护字段与落盘顺序；反向断言只在条数与字节两处截断。它在 Source build 与 Python 3.10–3.14 矩阵中分别运行，只使用临时目录。
+`scripts/check_event_page.py` 在临时目录构造 `SessionStore`，核对事件回放的游标分页：追加帧的游标从 1 严格递增并携带 32 位事件编号，首页按 `limit + 1` 报告 `hasMore` 与最后一条游标，续页、空页与 `latest_event_cursor` 保持游标推进；`threadId` 与 `methods` 筛选（含 16 个方法的通过边界）、`limit` 与游标校验、保护字段、方法名与参数形状都被固定；写入删除标记后该会话事件从回放中过滤，`params_json` 为非对象数组或 `method` 为空串时索引行都会被重建并逐条校对 `eventCursor` 与游标列，重启后完成删除会剔除该会话事件并追加 `thread/deleted`；3 MiB + 2 MiB 与单条 5 MiB 的合成参数实际执行 `_event_rows` 的字节预算、截断续页与首行超预算特例，嵌套 `eventCursor` 保留在参数内。脚本同时扫描 `events_after` 的 `limit + 1`、删除标记注入、重建重试与 `nextCursor`，`_event_rows` 的原始字节预算与首行特例，`_event_page_entries` 的四类索引损坏与 `method` 类型，以及 `append_event` 的保护字段与落盘顺序；反向断言只在条数与字节两处截断。它在 Source build 与 Python 3.10–3.14 矩阵中分别运行，只使用临时目录。
 
 ### `check_event_rewrite.py`
 
