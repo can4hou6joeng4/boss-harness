@@ -1,3 +1,8 @@
+## 0.2.0-rc.514 - 2026-11-23
+
+- 回合流检查新增 10 项结果摘要与来源行为对照。`summarize_result` 的分页元数据先于正文，成功与失败路径都受 `limit` 截断，错误字段缺省与凭据脱敏保持稳定；`tool_source` 的引用格式与查询时间固定。隔离变异探针检出 11/11，技术参考同步更新。[Issue #3153](https://github.com/can4hou6joeng4/boss-harness/issues/3153)
+- 源码候选更新为 npm `0.2.0-rc.514` 和 Python `0.2.0rc514`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.513 - 2026-11-23
 
 - 工具结果检查新增 32 项分页行为对照。两条读取入口交替续读，核对 Unicode 码点偏移、规范化结果拼接、末页、`limit` 边界、过期引用、游标归属与格式。16 种模拟回归均被检出，技术参考同步更新。[Issue #3151](https://github.com/can4hou6joeng4/boss-harness/issues/3151)

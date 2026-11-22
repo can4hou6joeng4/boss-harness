@@ -5,7 +5,8 @@
 何时重试上下文恢复、如何持久化工具批次与终态。这里固定回合状态词汇、
 请求预算与偏移校验、工具批次上限先于长度截断、续接签名失败与截断都
 不执行工具、重试事件成对且早于回合终态、输出预算与用量条目的资格判定、
-错误与中断的归一化，以及摘要与模型结果的有界输出。
+错误与中断的归一化，以及摘要与模型结果的有界输出。行为检查直接调用
+`summarize_result` 与 `tool_source`，核对摘要拼写、截断、脱敏与来源字段。
 """
 
 from __future__ import annotations
@@ -106,7 +107,78 @@ SUMMARY_FRAGMENTS = (
     "def model_result(result: ToolResult, *, source: dict | None = None, item_id: str | None = None,",
     "max_bytes: int = DEFAULT_MODEL_TOOL_RESULT_BYTES,",
     "return model_result_content(payload, item_id, source=source, max_bytes=max_bytes,",
+    "def tool_source(thread_id: str, entry: Entry, name: str) -> dict:",
+    '"queriedAt": entry.timestamp}',
 )
+
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.agent import summarize_result, tool_source  # noqa: E402
+from boss_harness.toolkit import ToolResult  # noqa: E402
+
+
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"回合流行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+class _Unserializable:
+    def __str__(self) -> str:
+        return "weird"
+
+
+class _Entry:
+    id = "item-1"
+    timestamp = "2026-11-23T00:00:00Z"
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    # 成功结果：分页信息位于数据之前，避免截断页掩盖分页事实。
+    checked += _expect_value(
+        summarize_result(ToolResult(ok=True, command="search 北京", data={"rows": [1]})),
+        'ok=true command=search 北京 data={"rows": [1]}', "成功结果拼写")
+    paged = summarize_result(ToolResult(ok=True, command="search 北京", data={"rows": [1]},
+                                        pagination={"page": 2}))
+    checked += _expect_value(
+        paged,
+        'ok=true command=search 北京 pagination={"page": 2} data={"rows": [1]}', "分页位置")
+    # 结果按插入顺序输出原样非 ASCII，不可序列化数据降级为文本。
+    checked += _expect_value(
+        summarize_result(ToolResult(ok=True, command="c", data="中文")),
+        'ok=true command=c data="中文"', "非 ASCII 数据")
+    checked += _expect_value(
+        summarize_result(ToolResult(ok=True, command="c", data=_Unserializable())),
+        'ok=true command=c data=weird', "不可序列化数据")
+    # 成功与失败都受 limit 约束。
+    checked += _expect_value(
+        summarize_result(ToolResult(ok=True, command="search 北京", data={"rows": [1]}), limit=20),
+        'ok=true command=sear', "成功结果截断")
+    # 失败结果：缺省字段与脱敏。
+    checked += _expect_value(
+        summarize_result(ToolResult(ok=False, command="greet")),
+        "ok=false command=greet code=UNKNOWN message= recovery=", "错误字段缺省")
+    checked += _expect_value(
+        summarize_result(ToolResult(ok=False, command="greet", error={
+            "code": "RISK", "message": "被限制", "recovery_action": "稍后重试"})),
+        "ok=false command=greet code=RISK message=被限制 recovery=稍后重试", "错误字段拼写")
+    checked += _expect_value(
+        summarize_result(ToolResult(ok=False, command="greet", error={
+            "code": "X", "message": "Authorization: Bearer abcdef123456"})),
+        "ok=false command=greet code=X message=Authorization: Bearer <redacted> recovery=",
+        "凭据脱敏")
+    checked += _expect_value(
+        summarize_result(ToolResult(ok=False, command="greet", error={
+            "code": "RISK", "message": "被限制", "recovery_action": "稍后重试"}), limit=10),
+        "ok=false c", "错误结果截断")
+    # 来源字段固定形状，不随条目其他字段变化。
+    checked += _expect_value(
+        tool_source("thread-1", _Entry(), "boss_search"),
+        {"ref": "tool:thread-1:item-1", "tool": "boss_search",
+         "queriedAt": "2026-11-23T00:00:00Z"}, "工具来源")
+    return checked
 
 
 def _read(relative: str) -> str:
@@ -152,7 +224,7 @@ def check_turn_stream() -> int:
         raise ValueError(f"{MODULE} 的错误文本必须经 safe_error 收敛")
     if "do_not_retry" in module:
         raise ValueError(f"{MODULE} 不得引入未定义的恢复标记")
-    return checked + 1
+    return checked + 1 + _behavior_checks()
 
 
 def main() -> int:
@@ -161,7 +233,7 @@ def main() -> int:
     except ValueError as error:
         print(f"回合循环核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"回合循环一致：{checked} 项回合、流式与终态防护")
+    print(f"回合循环一致：{checked} 项回合、流式、终态防护与结果摘要校验")
     return 0
 
 
