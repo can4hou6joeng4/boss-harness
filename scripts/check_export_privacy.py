@@ -37,6 +37,7 @@ from boss_harness.session_export import (  # noqa: E402
     _path_end,
     _short_text,
     _status_text,
+    _wire_bytes,
 )
 DESKTOP_EXPORT = re.compile(r"const EXPORT_MAX_BYTES = (\d+(?:\s*\*\s*\d+)*);")
 DESKTOP_EXPORT_CHECK = 'Buffer.byteLength(value.content, "utf8") > EXPORT_MAX_BYTES'
@@ -56,6 +57,10 @@ REDACTION_FRAGMENTS = (
 PATH_SEGMENT_FRAGMENTS = (
     # 末段提取同时剥离两种分隔符，否则 Windows 路径的尾分隔符会把末段判为空。
     r'return re.split(r"[/\\]", value.rstrip("/\\"))[-1]',
+)
+WIRE_BYTES_FRAGMENTS = (
+    # 预算按转义后的传输拼写计字节；孤立代理项先降级，不能抛 UnicodeEncodeError。
+    'return len(json.dumps(wire_text(text), ensure_ascii=False).encode("utf-8"))',
 )
 FORBIDDEN_WRITES = (
     "write_text(",
@@ -502,6 +507,11 @@ def _behavior_checks() -> int:
         ("", "", "", "C:"), "退化末段")
 
     checked += _expect_value(
+        (_wire_bytes("abc"), _wire_bytes("汉"), _wire_bytes('"'), _wire_bytes("\\"),
+         _wire_bytes("\ud800"), _wire_bytes("😀")),
+        (5, 5, 4, 4, 5, 6), "传输字节计量")
+
+    checked += _expect_value(
         _path_end("/etc 只是单段根", 0, 4), 4, "路径正文停止")
     continued = "/tmp/a" + "".join(f" /x{index}" for index in range(10))
     checked += _expect_value(_path_end(continued, 0, 6), 6 + 8 * 4, "路径续接上限")
@@ -589,13 +599,18 @@ def check_export_privacy() -> int:
     ]
     if missing:
         raise ValueError("路径末段提取缺少分隔符处理：" + "、".join(missing))
+    missing = [
+        fragment for fragment in WIRE_BYTES_FRAGMENTS if fragment not in export_text
+    ]
+    if missing:
+        raise ValueError("导出字节计量缺少传输拼写或代理项降级：" + "、".join(missing))
     writes = [token for token in FORBIDDEN_WRITES if token in export_text]
     if writes:
         raise ValueError("session_export.py 不得触碰目标文件：" + "、".join(writes))
     pipeline = _check_sensitive_pipeline(tree, export_text)
     tool = _check_tool_projection(tree, export_text)
     behavior = _behavior_checks()
-    return 7 + len(PATH_SEGMENT_FRAGMENTS) + pipeline + tool + behavior
+    return 7 + len(PATH_SEGMENT_FRAGMENTS) + len(WIRE_BYTES_FRAGMENTS) + pipeline + tool + behavior
 
 
 def main() -> int:

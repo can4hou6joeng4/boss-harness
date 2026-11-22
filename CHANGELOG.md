@@ -1,3 +1,8 @@
+## 0.2.0-rc.586 - 2026-11-23
+
+- 会话导出隐私检查从 153 项扩展到 155 项：静态固定 `_wire_bytes` 的 `wire_text` 降级与 `ensure_ascii=False` 计量，并直接对照 ASCII、中文、引号、反斜杠、孤立代理项与表情符号的传输字节数。代理项不降级会让整次导出抛 `UnicodeEncodeError`，改为 ASCII 转义或非 JSON 计量则会让预算与写出字节不一致。隔离变异探针结构与行为均检出 5/5。[Issue #3297](https://github.com/can4hou6joeng4/boss-harness/issues/3297)
+- 源码候选更新为 npm `0.2.0-rc.586` 和 Python `0.2.0rc586`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.585 - 2026-11-23
 
 - 工具参数检查从 24 项扩展到 30 项：行为对照经真实注册表拒绝孤立高代理项、低代理项与空字符参数，错误文案统一点名不可传递字符，合法表情符号放行；另用临时可执行脚本验证 CLI 层：合法参数真实执行并返回成功信封，含空字符参数返回 `CLI_ARGUMENT_ERROR` 且脚本未被启动，未启动结果仍按 `not_executed` 结算并暂停回合。隔离变异探针行为检出 7/7（结构片段检出 6/7，`except ValueError` 片段由行为对照补足）。[Issue #3295](https://github.com/can4hou6joeng4/boss-harness/issues/3295)
