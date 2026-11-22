@@ -1,3 +1,8 @@
+## 0.2.0-rc.554 - 2026-11-23
+
+- 会话元数据检查新增 9 个行为场景，用临时目录与合成条目实际执行 `update_thread`、`archive_thread` 与 `unarchive_thread`：合法 `pending_approval` 工具调用归档后审批决策为 `expired`、执行状态为 `not_executed`、错误码为 `APPROVAL_EXPIRED`，且只追加一条裁决与一条归档记录，重复归档不再结算；缺少 `approvalId` 的审批跳过结算只写归档记录；`projectId` 恰好 200 字符、`cwd` 字符串、`model` 为 null 被接受，`toolPolicy` 为 null 以「toolPolicy 必须是 readOnly 或 approval」拒绝。隔离变异探针结构与行为分别检出 7/8、8/8，合计 8/8。[Issue #3233](https://github.com/can4hou6joeng4/boss-harness/issues/3233)
+- 源码候选更新为 npm `0.2.0-rc.554` 和 Python `0.2.0rc554`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.553 - 2026-11-23
 
 - 会话日志检查新增 10 个行为场景，用临时文件与内存流实际执行 `_iter_bounded_raw_lines_from_handle`、`_iter_bounded_lines`、`_complete_record_limit` 与 `_decode_session_record`：`byte_limit` 为零返回空列表、为负以「JSONL 快照长度无效」拒绝；约 70 KiB 的单行跨 64 KiB 读取块完整产出；快照截在长行中间时残段丢弃；裸 `\r` 在默认模式保留在行内；真实 UTF-8 文件中的中文与空行按行解码；首字节换行边界返回 1；非字符串 `type` / `id` / `timestamp` 均以「格式无效」拒绝。隔离变异探针结构与行为分别检出 5/9、8/9，合计 9/9。[Issue #3231](https://github.com/can4hou6joeng4/boss-harness/issues/3231)
