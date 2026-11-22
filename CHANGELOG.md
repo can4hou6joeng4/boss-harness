@@ -1,3 +1,8 @@
+## 0.2.0-rc.559 - 2026-11-23
+
+- 审批条目检查从 92 项扩展到 106 项，新增 14 个校验：`approve` 在 `running` / `approved`、`running` / `executing`、`failed` / `failed`、`completed` / `outcome_unknown` 下有效，`paused` 状态与 `running` / `pending_approval` 组合无效；`deny` 在 `running` / `not_approved` 下有效、`completed` 下无效；`expired` 在 `failed` / `not_executed` 下有效、`completed` 下无效；`turnId` 恰好 128 字符有效、129 字符无效；`deadline=1e-300` 有效；`pending_only=True` 放行已带 `expired` 裁决的待审批形态条目。隔离变异探针结构与行为分别检出 7/8、8/8，合计 8/8。[Issue #3243](https://github.com/can4hou6joeng4/boss-harness/issues/3243)
+- 源码候选更新为 npm `0.2.0-rc.559` 和 Python `0.2.0rc559`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.558 - 2026-11-23
 
 - 待审批检查从 41 项行为场景扩展到 44 项：三条待审批时 `limit=1` 只返回最新一条且截断标记为 true；删除标记会话的计数与列表一样以「会话正在删除，暂不可读取」拒绝；索引中的短 `params_digest`（3 字符）行与同一 `item_id` 的两行都按行列出、计数按行累加，列表与计数口径一致。隔离变异探针结构与行为各检出 6/6。[Issue #3241](https://github.com/can4hou6joeng4/boss-harness/issues/3241)
