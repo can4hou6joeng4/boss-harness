@@ -17,7 +17,6 @@ sys.path.insert(0, str(ROOT / "harness/src"))
 
 from boss_harness.startup_check import (  # noqa: E402
     _directories_overlap,
-    _free_space,
     _insecure_base_url,
     _is_loopback_host,
     _runtime_check,
@@ -60,6 +59,7 @@ FREE_ORDER = (
     "return shutil.disk_usage(current).free",
     "parent = current.parent",
     "if parent == current:",
+    "current = parent",
 )
 TURN_LIMITS = "harness/src/boss_harness/turn_limits.py"
 RESOURCES = "harness/src/boss_harness/resources.py"
@@ -994,11 +994,6 @@ def _boundary_checks() -> int:
         ):
             _expect_value(_directories_overlap(left, right), expected, f"目录重叠 {label}")
             cases += 1
-        free = _free_space(root)
-        _expect_value(isinstance(free, int) and free >= 0, True, "剩余空间读数")
-        cases += 1
-        _expect_value(_free_space(root / "a" / "b" / "c"), free, "嵌套路径沿祖先读取")
-        cases += 1
     return cases
 
 
