@@ -24,6 +24,12 @@ CONTEXT = "harness/src/boss_harness/context.py"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
 from boss_harness.context import (  # noqa: E402
+    ContextBudgetExceeded,
+    _BUDGET_MESSAGE,
+    _CAPACITY_MESSAGE,
+    _OVERHEAD_MESSAGE,
+    _budget_message,
+    _canonical_json_text,
     _json_size,
     _message_fingerprint_payload,
     _message_size,
@@ -171,6 +177,19 @@ RETAINED_ORDER = (
     "previous_rounded = rounded",
     "applied_intervals.append((start, end))",
     "return calibrated, applied_intervals",
+)
+BUDGET_ORDER = (
+    'input_budget = budget.get("inputBudget")',
+    "if type(input_budget) is not int:",
+    "if input_budget <= 0:",
+    'for key in ("system", "tools", "options"):',
+    "return _OVERHEAD_MESSAGE if fixed > input_budget else _BUDGET_MESSAGE",
+)
+CANONICAL_ORDER = (
+    "text = _canonical_json(value)",
+    'return text.encode("utf-8")',
+    "except UnicodeEncodeError:",
+    'return wire_text(text).encode("utf-8")',
 )
 
 
@@ -525,6 +544,60 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _budget_checks() -> int:
+    # 预算文案：非整数回退通用提示，非正预算提示容量，固定开销超限提示压缩无效。
+    checked = _expect_value(_budget_message({}), _BUDGET_MESSAGE, "缺预算")
+    for budget in ({"inputBudget": None}, {"inputBudget": "100"}, {"inputBudget": True}):
+        checked += _expect_value(_budget_message(budget), _BUDGET_MESSAGE,
+                                 f"非整数预算 {budget!r}")
+    for budget in ({"inputBudget": 0}, {"inputBudget": -5}):
+        checked += _expect_value(_budget_message(budget), _CAPACITY_MESSAGE,
+                                 f"非正预算 {budget!r}")
+    checked += _expect_value(_budget_message({"inputBudget": 100}), _BUDGET_MESSAGE,
+                             "无明细预算")
+    checked += _expect_value(_budget_message({"inputBudget": 100, "breakdown": "x"}),
+                             _BUDGET_MESSAGE, "坏明细预算")
+    checked += _expect_value(
+        _budget_message({"inputBudget": 100,
+                         "breakdown": {"system": 60, "tools": 30, "options": 10}}),
+        _BUDGET_MESSAGE, "固定开销恰好用尽")
+    checked += _expect_value(
+        _budget_message({"inputBudget": 100,
+                         "breakdown": {"system": 60, "tools": 30, "options": 11}}),
+        _OVERHEAD_MESSAGE, "固定开销超限")
+    checked += _expect_value(
+        _budget_message({"inputBudget": 100,
+                         "breakdown": {"system": 200, "tools": "999", "options": True}}),
+        _OVERHEAD_MESSAGE, "非整数字段不计入")
+    checked += _expect_value(
+        _budget_message({"inputBudget": 100,
+                         "breakdown": {"system": 50, "messages": 999}}),
+        _BUDGET_MESSAGE, "未列明细字段不计入")
+    checked += _expect_value(
+        _budget_message({"inputBudget": 100, "breakdown": {"system": -5}}),
+        _BUDGET_MESSAGE, "负固定开销")
+    budget = {"inputBudget": 0}
+    error = ContextBudgetExceeded(budget)
+    checked += _expect_value((str(error), error.budget is budget),
+                             (_CAPACITY_MESSAGE, True), "异常文案与预算引用")
+    # canonical 文本：键排序、紧凑分隔、中文不转义，代理项降级，NaN 拒绝。
+    checked += _expect_value(_canonical_json_text({"b": 1, "a": "中"}), '{"a":"中","b":1}',
+                             "canonical 排序与紧凑")
+    checked += _expect_value(_canonical_json_text("\ud800"), '"�"', "canonical 代理项")
+    checked += _expect_value(_canonical_json_text({"k": "\ud800中"}), '{"k":"�中"}',
+                             "canonical 混合代理项")
+    checked += _expect_value((_canonical_json_text(1.5), _canonical_json_text(None),
+                              _canonical_json_text([1, 2])), ("1.5", "null", "[1,2]"),
+                             "canonical 标量与数组")
+    try:
+        _canonical_json_text({"x": float("nan")})
+    except ValueError:
+        checked += 1
+    else:
+        raise ValueError("上下文规模估算行为变化 canonical 文本必须拒绝 NaN")
+    return checked
+
+
 def check_context_estimate() -> int:
     source = _read(CONTEXT)
     tree = ast.parse(source)
@@ -536,6 +609,8 @@ def check_context_estimate() -> int:
     payload = _function(tree, source, "_message_fingerprint_payload")
     retained = _function(tree, source, "_retained_usage_estimate")
     messages = _function(tree, source, "messages_from_items")
+    budget = _function(tree, source, "_budget_message")
+    canonical = _function(tree, source, "_canonical_json_bytes")
     checked = _ordered(JSON_ORDER, json_size, CONTEXT)
     checked += _ordered(MESSAGE_ORDER, message_size, CONTEXT)
     checked += _ordered(MESSAGES_ORDER, messages, CONTEXT)
@@ -544,6 +619,15 @@ def check_context_estimate() -> int:
     checked += _ordered(FINGERPRINT_ORDER, fingerprint, CONTEXT)
     checked += _ordered(PAYLOAD_ORDER, payload, CONTEXT)
     checked += _ordered(RETAINED_ORDER, retained, CONTEXT)
+    checked += _ordered(BUDGET_ORDER, budget, CONTEXT)
+    checked += _ordered(CANONICAL_ORDER, canonical, CONTEXT)
+    # 预算异常必须复用文案选择，canonical 文本必须复用可编码字节。
+    if source.count("super().__init__(_budget_message(budget))") != 1:
+        raise ValueError(f"{CONTEXT} 的预算异常必须使用固定文案")
+    checked += 1
+    if source.count('return _canonical_json_bytes(value).decode("utf-8")') != 1:
+        raise ValueError(f"{CONTEXT} 的 canonical 文本必须复用字节编码")
+    checked += 1
     # 规模估算必须逐条加固定开销，且思考签名与脱敏数据各自计数一次。
     if message_size.count("size += 32") != 1:
         raise ValueError(f"{CONTEXT} 的规模估算必须为每条消息加固定开销")
@@ -618,7 +702,7 @@ def check_context_estimate() -> int:
     if retained.count("applied_intervals.append((start, end))") != 1:
         raise ValueError(f"{CONTEXT} 的用量校准必须记录已应用区间")
     checked += 1
-    return checked + _behavior_checks()
+    return checked + _behavior_checks() + _budget_checks()
 
 
 def main() -> int:
