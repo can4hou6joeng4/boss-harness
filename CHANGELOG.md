@@ -1,3 +1,8 @@
+## 0.2.0-rc.540 - 2026-11-23
+
+- 离线指令与领域提示检查新增 51 个行为场景，实际执行 `offline_reply`、`_parse_command` 与 `compose_system_prompt`：命令解析、`/search` 空参数与关键词透传、七项只读指令映射、`/candidates` 查询形状、两种降级文案、大小写敏感、只读表禁令、默认 / 自定义提示与 UTF-8 字节预算、控制字符过滤。隔离变异探针结构与行为分别检出 11/12、12/12，合计 12/12。[Issue #3205](https://github.com/can4hou6joeng4/boss-harness/issues/3205)
+- 源码候选更新为 npm `0.2.0-rc.540` 和 Python `0.2.0rc540`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.539 - 2026-11-23
 
 - 附件添加检查新增 66 个行为场景，实际执行 `AttachmentStore.add` 与配额判定：工作区路径、保留段与 `.env*` 前缀、缺失文件 / 目录 / 越界符号链接、2 MiB 与 UTF-8 边界、记录字段与对象落盘、同内容去重、空文件、字节 / 对象配额与等量上限、发布失败清理与计数回退、清理异常隔离、附件目录守卫、对象三层校验，以及数值环境变量解析。隔离变异探针结构与行为分别检出 11/12、10/12，合计 12/12。[Issue #3203](https://github.com/can4hou6joeng4/boss-harness/issues/3203)

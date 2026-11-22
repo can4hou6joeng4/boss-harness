@@ -5,6 +5,7 @@
 以及领域工具缺席时的降级文案；`tools/recruitment.py` 承载默认身份与全部
 领域规则。两者都不经模型即可影响工具调用与对外承诺，因此把指令表、
 `/search` 的空参数拒绝、候选人查询参数形状与提示词预算固定下来。
+脚本另用合成 runner 实际执行离线回复与提示组合。
 """
 
 from __future__ import annotations
@@ -15,6 +16,19 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 COMMANDS = "harness/src/boss_harness/tools/commands.py"
 RECRUITMENT = "harness/src/boss_harness/tools/recruitment.py"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.tools.commands import (  # noqa: E402
+    _READ_ONLY_COMMANDS,
+    _parse_command,
+    offline_reply,
+)
+from boss_harness.tools.recruitment import (  # noqa: E402
+    SYSTEM_INSTRUCTIONS,
+    SYSTEM_PREAMBLE,
+    SYSTEM_PROMPT,
+    compose_system_prompt,
+)
 
 COMMAND_FRAGMENTS = (
     '_READ_ONLY_COMMANDS: dict[str, tuple[str, str]] = {',
@@ -112,13 +126,163 @@ def check_domain_tools() -> int:
     return checked + 1
 
 
+class _Bridge:
+    def __init__(self, available: bool) -> None:
+        self._available = available
+
+    def available(self) -> bool:
+        return self._available
+
+
+class _Result:
+    def __init__(self, content: str) -> None:
+        self.content = content
+
+
+class _Runner:
+    def __init__(self, *, available: bool = True, content: str = "结果正文") -> None:
+        self.calls: list[tuple[str, str, dict]] = []
+        self.tool_bridge = _Bridge(available)
+        self.content = content
+
+    def execute_tool(self, thread_id: str, tool_name: str, arguments: dict) -> _Result:
+        self.calls.append((thread_id, tool_name, dict(arguments)))
+        return _Result(self.content)
+
+
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"离线指令与领域提示行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != message:
+            raise ValueError(
+                f"离线指令与领域提示行为变化 {label}：期望 {message!r}，实际 "
+                f"{str(error)!r}") from None
+        return 1
+    except Exception as error:
+        raise ValueError(
+            f"离线指令与领域提示行为变化 {label}：期望 ValueError，实际 "
+            f"{type(error).__name__}") from None
+    raise ValueError(f"离线指令与领域提示行为变化 {label}：未抛出错误")
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    checked += _expect_value(_parse_command(""), ("", ""), "空指令")
+    checked += _expect_value(_parse_command("   "), ("", ""), "纯空白指令")
+    checked += _expect_value(_parse_command("/tools"), ("/tools", ""), "无参数指令")
+    checked += _expect_value(_parse_command("/candidates Python 后端"),
+                             ("/candidates", "Python 后端"), "带参指令")
+    checked += _expect_value(_parse_command("/search   关键词  "),
+                             ("/search", "关键词"), "多空白参数")
+
+    search_empty = "请提供检索关键词，例如 `/search Python`。未发出检索，也不会使用默认关键词。"
+    runner = _Runner()
+    checked += _expect_value(offline_reply(runner, "thread-1", "/search"),
+                             search_empty, "/search 空参数提示")
+    checked += _expect_value(runner.calls, [], "/search 空参数不调用工具")
+    checked += _expect_value(offline_reply(runner, "thread-1", "  /search    "),
+                             search_empty, "/search 空白参数提示")
+    checked += _expect_value(runner.calls, [], "/search 空白参数不调用工具")
+
+    reply = offline_reply(runner, "thread-1", "/search Python 后端")
+    checked += _expect_value(runner.calls,
+                             [("thread-1", "boss_search", {"keyword": "Python 后端"})],
+                             "/search 透传关键词")
+    checked += _expect_value(reply, "检索「Python 后端」：\n结果正文", "/search 回复")
+
+    runner = _Runner(available=False)
+    offline_reply(runner, "thread-1", "/search 关键词")
+    checked += _expect_value(len(runner.calls), 1, "/search 不依赖桥接可用性")
+
+    for command, (tool_name, title) in _READ_ONLY_COMMANDS.items():
+        runner = _Runner(content=f"{command}-正文")
+        reply = offline_reply(runner, "thread-2", command)
+        checked += _expect_value(runner.calls, [("thread-2", tool_name, {})],
+                                 f"{command} 映射")
+        checked += _expect_value(reply, f"{title}：\n{command}-正文", f"{command} 标题")
+
+    runner = _Runner()
+    offline_reply(runner, "thread-1", "/candidates Python 后端")
+    checked += _expect_value(runner.calls,
+                             [("thread-1", "boss_hr_candidates", {"query": "Python 后端"})],
+                             "/candidates 查询参数")
+    runner = _Runner()
+    offline_reply(runner, "thread-1", "/candidates   ")
+    checked += _expect_value(runner.calls, [("thread-1", "boss_hr_candidates", {})],
+                             "/candidates 空参数")
+
+    runner = _Runner()
+    checked += _expect_value(
+        offline_reply(runner, "thread-1", "你好"),
+        "当前未配置模型。可以使用 /tools、/status、/stats 等只读指令，或配置模型后继续任务。",
+        "未配置模型提示")
+    checked += _expect_value(runner.calls, [], "未知指令不调用工具")
+    runner = _Runner(available=False)
+    checked += _expect_value(
+        offline_reply(runner, "thread-1", "你好"),
+        "内核已连通，但未找到可用的 boss 可执行文件，领域工具暂不可用。",
+        "桥接不可用提示")
+    checked += _expect_value(runner.calls, [], "桥接不可用不调用工具")
+    runner = _Runner()
+    checked += _expect_value(
+        offline_reply(runner, "thread-1", "/TOOLS"),
+        "当前未配置模型。可以使用 /tools、/status、/stats 等只读指令，或配置模型后继续任务。",
+        "命令大小写敏感")
+
+    checked += _expect_value(len(_READ_ONLY_COMMANDS), 7, "只读指令数量")
+    checked += _expect_value("/search" in _READ_ONLY_COMMANDS, False,
+                             "只读表不含 /search")
+    checked += _expect_value(
+        any(tool == "boss_hr_greet" for tool, _ in _READ_ONLY_COMMANDS.values()), False,
+        "只读表不含写工具")
+
+    checked += _expect_value(compose_system_prompt(), SYSTEM_PROMPT, "默认提示")
+    checked += _expect_value(SYSTEM_PROMPT.startswith(SYSTEM_PREAMBLE), True,
+                             "默认提示首段")
+    custom = compose_system_prompt("  自定义身份  ")
+    checked += _expect_value(custom.startswith("自定义身份\n\n"), True, "自定义身份裁剪")
+    checked += _expect_value(SYSTEM_INSTRUCTIONS in custom, True, "自定义仍保留领域规则")
+    checked += _expect_value(SYSTEM_PREAMBLE in custom, False, "自定义替换默认身份")
+    checked += _expect_value(
+        "boss_hr_greet：向指定推荐牛人发起首次打招呼（敏感写操作，需操作者明确批准）" in custom,
+        True, "写操作审批规则保留")
+
+    message = "prompt_preamble 必须是非空且不超过 16 KiB 的文本"
+    error_cases = (
+        ("空串", ""),
+        ("全空白", "   "),
+        ("非字符串", 123),
+        ("ASCII 超限", "a" * (16 * 1024 + 1)),
+        ("UTF-8 超限", "你" * 5462),
+        ("控制字符", "身份\x00"),
+    )
+    for label, value in error_cases:
+        checked += _expect_error(lambda: compose_system_prompt(value), message, label)
+    checked += _expect_value(compose_system_prompt("a" * (16 * 1024)).startswith("a" * 16),
+                             True, "ASCII 预算边界允许")
+    checked += _expect_value(compose_system_prompt("你" * 5461).startswith("你" * 5461),
+                             True, "UTF-8 预算边界允许")
+    checked += _expect_value(compose_system_prompt("身份\t\n\r").startswith("身份"), True,
+                             "允许制表与换行")
+    return checked
+
+
 def main() -> int:
     try:
         checked = check_domain_tools()
+        scenarios = _behavior_checks()
     except ValueError as error:
         print(f"离线指令与领域提示核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"离线指令与领域提示一致：{checked} 项只读指令、检索与提示预算防护")
+    print(f"离线指令与领域提示一致：{checked} 项只读指令、检索与提示预算防护、"
+          f"{scenarios} 个行为场景")
     return 0
 
 

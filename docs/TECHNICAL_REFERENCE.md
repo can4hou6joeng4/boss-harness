@@ -188,7 +188,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_domain_tools.py`
 
-`scripts/check_domain_tools.py` 固定离线指令与默认领域提示：`tools/commands.py` 的只读指令表必须恰为 `/tools`、`/status`、`/stats`、`/recommend`、`/jobs`、`/chat`、`/candidates` 七项并指向对应工具与标题，`/search` 必须保留独立分支、先拒绝空参数再调用 `boss_search`，`/candidates` 仅在有关键词时携带 `query`，业务 CLI 缺席与未配置模型两种降级文案保持不变；反向断言禁止把 `/search` 做成表项、禁止指令表包含写工具或默认关键词。`tools/recruitment.py` 必须保留默认身份、`SYSTEM_PROMPT` 组合、14 个领域工具说明中的关键条目，以及审批门禁、不自动重试与分页如实说明等规则；`compose_system_prompt` 只替换身份并保留全部领域规则，身份文本必须非空、按 UTF-8 字节不超过 16 KiB 且拒绝控制字符。检查是文本扫描，运行时提示效果仍需人工核对。
+`scripts/check_domain_tools.py` 固定离线指令与默认领域提示：`tools/commands.py` 的只读指令表必须恰为 `/tools`、`/status`、`/stats`、`/recommend`、`/jobs`、`/chat`、`/candidates` 七项并指向对应工具与标题，`/search` 必须保留独立分支、先拒绝空参数再调用 `boss_search`，`/candidates` 仅在有关键词时携带 `query`，业务 CLI 缺席与未配置模型两种降级文案保持不变；反向断言禁止把 `/search` 做成表项、禁止指令表包含写工具或默认关键词。`tools/recruitment.py` 必须保留默认身份、`SYSTEM_PROMPT` 组合、14 个领域工具说明中的关键条目，以及审批门禁、不自动重试与分页如实说明等规则；`compose_system_prompt` 只替换身份并保留全部领域规则，身份文本必须非空、按 UTF-8 字节不超过 16 KiB 且拒绝控制字符。脚本另用合成 runner 实际执行 `offline_reply`、`_parse_command` 与 `compose_system_prompt`，覆盖 51 个行为场景：命令解析的空串 / 带参 / 多空白；`/search` 空参数与纯空白不调用工具、带参透传关键词且不查桥接可用性；七项只读指令的工具名、标题与空参数；`/candidates` 有参 `query`、无参空对象；未知命令与桥接不可用的两种文案；命令大小写敏感；只读表数量与写工具禁令；默认提示、自定义身份裁剪与领域规则保留；空 / 空白 / 非字符串 / ASCII 与 UTF-8 字节预算 / 控制字符的拒绝，以及 `\n\r\t` 允许。
 
 ### `check_tool_results.py`
 
