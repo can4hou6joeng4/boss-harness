@@ -3,7 +3,8 @@
 
 `_turns` 把条目日志归并成回合表：`task_phase` 只在归属回合、合法阶段 / 状态 /
 尝试次数与重启上限下合并，可选恢复原因与恢复策略有长度和枚举边界；回合首现时按
-上一条终态记录的序号加一记下 `firstOrdinal`，持久载荷不得覆盖内部记账字段；终态
+上一条终态记录的序号加一记下 `firstOrdinal`，交错出现与连续终态时 running 回合
+不推进起点；持久载荷不得覆盖内部记账字段，公开回合必须过滤三个内部序号。终态
 记录只保留首个 `boundaryOrdinal` 与 `completedAt`，并推进「上一条已结束回合」。
 这张表驱动分支列表、冻结快照、fork 边界切分与列表索引，这里固定规则，避免重构后
 边界切片拿到错误序号或内部字段泄漏到公开回合，并直接调用 `_turns` 核对归并行为。
@@ -225,6 +226,39 @@ def _behavior_checks() -> int:
         _turns([{"type": "turn",
                  "payload": {"turnId": "t1", "status": "completed"}}])[0]["completedAt"],
         "", "终态缺失时间戳")
+    # 交错与连续终态：firstOrdinal 以上一条已结束回合为起点，running 不推进。
+    interleaved = _turns([_entry("t1", "ts1", status="running"),
+                          _entry("t2", "ts2", status="running"),
+                          _entry("t1", "ts3", status="completed"),
+                          _entry("t3", "ts4", status="running")])
+    checked += _expect_value(
+        [turn["firstOrdinal"] for turn in interleaved], [0, 0, 3], "交错起点")
+    checked += _expect_value(
+        [turn.get("boundaryOrdinal") for turn in interleaved], [2, None, None], "交错边界")
+    checked += _expect_value(
+        [turn["firstOrdinal"] for turn in _turns([
+            _entry("t1", status="running"), _entry("t2", status="running")])],
+        [0, 0], "running 不推进起点")
+    checked += _expect_value(
+        [turn["firstOrdinal"] for turn in _turns([
+            _entry("t1", status="completed"),
+            _entry("t2", status="completed"),
+            _entry("t3", status="running")])],
+        [0, 1, 2], "连续终态起点")
+    # 终态之后到达的阶段仍合并；载荷覆盖 startedAt，但不改写 updatedAt。
+    late = _turns([_entry("t1", "ts1", status="completed"),
+                   _phase("t1", phase="finish")])[0]
+    checked += _expect_value(
+        (late.get("taskPhase"), late.get("taskPhaseStatus")), ("finish", "running"), "终态后阶段合并")
+    clocked = _turns([_entry("t1", "ts1", status="running",
+                             startedAt="payload-start", updatedAt="payload-update")])[0]
+    checked += _expect_value(
+        (clocked["startedAt"], clocked["updatedAt"]), ("payload-start", "ts1"), "载荷覆盖边界")
+    # 公开回合过滤内部记账字段。
+    checked += _expect_value(
+        SessionStore._public_turn({"turnId": "t1", "status": "completed", "completedAt": "ts",
+                                   "firstOrdinal": 0, "lastOrdinal": 1, "boundaryOrdinal": 1}),
+        {"turnId": "t1", "status": "completed", "completedAt": "ts"}, "公开回合过滤")
     return checked
 
 
