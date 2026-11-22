@@ -12,11 +12,20 @@
 from __future__ import annotations
 
 import ast
+import os
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.session import (  # noqa: E402
+    Entry,
+    SessionStore,
+    _encode_session_line,
+)
 
 READ_ORDER = (
     "def read_entries(self, thread_id: str) -> list[dict]:",
@@ -150,6 +159,145 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _entry(entry_id: str, text: str = "记录") -> dict:
+    return Entry(type="item", id=entry_id,
+                 payload={"kind": "assistantMessage", "text": text}).to_dict()
+
+
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"会话读取缓存行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != message:
+            raise ValueError(
+                f"会话读取缓存行为变化 {label}：期望错误 {message!r}，实际 {str(error)!r}") from None
+        return 1
+    raise ValueError(f"会话读取缓存行为变化 {label}：期望错误 {message!r}，实际未抛出")
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    with TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        thread = store.create("缓存")["id"]
+        path = store.path_for(thread)
+        header = path.read_bytes()
+
+        entries = store.read_entries(thread)
+        checked += _expect_value(entries, [], "空会话条目")
+        cached = store._entries_cache.get(thread)
+        checked += _expect_value(cached is not None and cached[1], 1, "完整边界写入缓存")
+        entries.append(_entry("leak"))
+        second = store.read_entries(thread)
+        checked += _expect_value((second, entries is second), ([], False), "命中返回副本")
+
+        store.append(thread, Entry(type="item", id="a1",
+                                   payload={"kind": "assistantMessage", "text": "A"}))
+        checked += _expect_value([row["id"] for row in store.read_entries(thread)], ["a1"],
+                                 "追加后读取")
+        cached = store._entries_cache.get(thread)
+        stat = path.stat()
+        checked += _expect_value(cached[0], (stat.st_size, stat.st_mtime_ns, stat.st_ino),
+                                 "追加后缓存 stamp")
+
+        store._append_line(path, _entry("a2", "B"))
+        checked += _expect_value([row["id"] for row in store.read_entries(thread)],
+                                 ["a1", "a2"], "外部追增读取")
+        checked += _expect_value(store._entries_cache[thread][1], 3, "增量解析接续行号")
+
+        path.write_bytes(header + _encode_session_line(_entry("b1", "短")))
+        checked += _expect_value([row["id"] for row in store.read_entries(thread)], ["b1"],
+                                 "截断重写不返回前缀")
+
+        path.write_bytes(header + _encode_session_line(_entry("c1", "X")))
+        store.read_entries(thread)
+        path.write_bytes(header + _encode_session_line(_entry("c1", "Y")))
+        stat = path.stat()
+        os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+        checked += _expect_value(store.read_entries(thread)[0]["payload"]["text"], "Y",
+                                 "同尺寸改写重新解析")
+
+        path.write_bytes(header + _encode_session_line(_entry("d1", "更长的记录" * 3)))
+        checked += _expect_value([row["id"] for row in store.read_entries(thread)], ["d1"],
+                                 "旧前缀非换行时重新解析")
+
+        replacement = Path(str(path) + ".new")
+        replacement.write_bytes(header + _encode_session_line(_entry("e1", "替换记录" * 4)))
+        os.replace(replacement, path)
+        checked += _expect_value([row["id"] for row in store.read_entries(thread)], ["e1"],
+                                 "inode 替换重新解析")
+
+        before_partial = path.stat().st_size
+        line = _encode_session_line(_entry("f1", "补齐"))
+        with path.open("ab") as handle:
+            handle.write(line[: len(line) // 2])
+        checked += _expect_value([row["id"] for row in store.read_entries(thread)], ["e1"],
+                                 "尾残段不进入条目")
+        checked += _expect_value(store._entries_cache[thread][0][0], before_partial,
+                                 "尾残段不推进缓存")
+        with path.open("ab") as handle:
+            handle.write(line[len(line) // 2:])
+        checked += _expect_value([row["id"] for row in store.read_entries(thread)],
+                                 ["e1", "f1"], "补齐残段后读取")
+
+        with path.open("rb") as handle:
+            checked += _expect_value(store._line_boundary(handle, 0), False,
+                                     "空文件无完整边界")
+            checked += _expect_value(store._line_boundary(handle, len(header)), True,
+                                     "换行结尾为完整边界")
+        with path.open("ab") as handle:
+            handle.write(b"{")
+        with path.open("rb") as handle:
+            checked += _expect_value(
+                store._line_boundary(handle, path.stat().st_size), False,
+                "无换行结尾非完整边界")
+
+    with TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        threads = [store.create(f"缓存 {index}")["id"] for index in range(4)]
+        for thread_id in threads:
+            store.read_entries(thread_id)
+        checked += _expect_value(len(store._entries_cache), 4, "缓存达到上限")
+        store.read_entries(threads[0])
+        fifth = store.create("缓存 4")["id"]
+        store.read_entries(fifth)
+        checked += _expect_value(
+            (threads[0] in store._entries_cache, threads[1] in store._entries_cache,
+             threads[2] in store._entries_cache, len(store._entries_cache)),
+            (True, False, True, 4), "最近使用淘汰")
+
+        thread = threads[2]
+        checked += _expect_value(store.read_entries_snapshot(thread), [], "快照空会话")
+        store.append(thread, Entry(type="item", id="g1",
+                                   payload={"kind": "assistantMessage", "text": "快照"}))
+        checked += _expect_value([row["id"] for row in store.read_entries_snapshot(thread)],
+                                 ["g1"], "快照包含追加条目")
+        snapshot = store.read_entries_snapshot(thread)
+        snapshot.append(_entry("leak"))
+        checked += _expect_value(
+            [row["id"] for row in store.read_entries_snapshot(thread)], ["g1"],
+            "快照命中返回副本")
+
+    with TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        thread = store.create("损坏")["id"]
+        path = store.path_for(thread)
+        path.write_bytes(path.read_bytes() + b"{}\n")
+        for label in ("首次", "再次"):
+            checked += _expect_error(
+                lambda: store.read_entries(thread),
+                "会话日志第 2 行格式无效，读取已停止", f"损坏行{label}拒绝")
+        checked += _expect_value(store._entries_cache[thread][0][0], len(header),
+                                 "损坏行不推进缓存")
+    return checked
+
+
 def check_entries_cache() -> int:
     source = _read(SESSION)
     tree = ast.parse(source)
@@ -249,10 +397,11 @@ def check_entries_cache() -> int:
 def main() -> int:
     try:
         checked = check_entries_cache()
-    except (ValueError, SyntaxError) as error:
+        scenarios = _behavior_checks()
+    except (ValueError, SyntaxError, OSError) as error:
         print(f"会话读取缓存核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"会话读取缓存一致：{checked} 项命中、增量与边界校验")
+    print(f"会话读取缓存一致：{checked} 项命中、增量与边界校验、{scenarios} 个行为场景")
     return 0
 
 

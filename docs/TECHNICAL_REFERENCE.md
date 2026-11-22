@@ -626,7 +626,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_entries_cache.py`
 
-`scripts/check_entries_cache.py` 核对会话读取缓存与增量解析：`read_entries` 在写锁内以 `(size, mtime_ns, ino)` 命中缓存并返回副本，未命中时 `_appendable_entries` 只接受同一 inode、严格更短（`0 < size < 新 size`）且旧前缀末尾为换行的缓存，命中后同样移到最近使用；否则 `_read_all_entries` 从 0 开始按快照字节数设限、行号从 1 开始。增量路径从旧前缀末尾起只读新增范围，行号以 `line_count + added` 接续。只有 `_line_boundary` 成立（非空且最后一字节为换行）才 `_store_entries`，缓存先移除再插入，超过 4 个会话时按最久未用淘汰。`read_entries_snapshot` 在锁内查缓存、锁外解码快照，随后复核当前 stamp 等于快照 stamp 才写缓存；缺失或损坏时为不缓存。脚本反向断言读取路径不直接操作缓存、两处返回值都是副本、空文件不缓存。检查是 AST 切片与顺序扫描，不执行读取，运行时行为仍需按用户指南核对。
+`scripts/check_entries_cache.py` 核对会话读取缓存与增量解析：`read_entries` 在写锁内以 `(size, mtime_ns, ino)` 命中缓存并返回副本，未命中时 `_appendable_entries` 只接受同一 inode、严格更短（`0 < size < 新 size`）且旧前缀末尾为换行的缓存，命中后同样移到最近使用；否则 `_read_all_entries` 从 0 开始按快照字节数设限、行号从 1 开始。增量路径从旧前缀末尾起只读新增范围，行号以 `line_count + added` 接续。只有 `_line_boundary` 成立（非空且最后一字节为换行）才 `_store_entries`，缓存先移除再插入，超过 4 个会话时按最久未用淘汰。`read_entries_snapshot` 在锁内查缓存、锁外解码快照，随后复核当前 stamp 等于快照 stamp 才写缓存；缺失或损坏时为不缓存。脚本反向断言读取路径不直接操作缓存、两处返回值都是副本、空文件不缓存。脚本另用临时 `SessionStore` 实际执行缓存与增量解析（25 项行为场景）：完整边界写入缓存、命中返回列表副本、追加与外部追增接续行号、截断重写 / 同尺寸改写 / 旧前缀非换行 / inode 替换都不得返回过期条目、尾残段不进入条目且不推进缓存、损坏行重复拒绝且不推进缓存、空白 / 换行边界、最近使用淘汰与快照副本。检查不读取或写入本机真实状态目录。
 
 ### `check_settings.py`
 
