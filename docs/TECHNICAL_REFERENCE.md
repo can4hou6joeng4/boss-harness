@@ -532,7 +532,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_attachment_read.py`
 
-`scripts/check_attachment_read.py` 核对附件分页读取的游标绑定与解码边界：`read_chunk` 的 `limit` 只接受 1 到 `MAX_READ_CHARS` 的整数；先经条目投影取记录再按记录的摘要与字节数读取对象；继续读取必须携带匹配当前摘要的 `sha256`，否则返回 `STALE_ATTACHMENT`（`-32011`、`currentRef`）；游标必须带 `at1_` 前缀、长度不超过 2048，载荷是 `threadId` / `attachmentId` / `sha256` / 偏移四元组，偏移严格小于字符长度，base64url 严格解码且捕获五类解析异常；`end` 取 `min(offset + limit, len(text))`，只有未读完时才生成无填充的紧凑 JSON 游标；正文经 `wire_text` 降级，`contentRef` 带字节与字符长度。记录中的摘要格式、名称长度与字节范围按损坏处理，附件正文解码失败转为产品错误。完整读取复制记录，`include_content` 关闭时不读对象。检查是顺序与文本扫描，实际分页行为仍需按用户指南核对。
+`scripts/check_attachment_read.py` 核对附件分页读取的游标绑定与解码边界：`read_chunk` 的 `limit` 只接受 1 到 `MAX_READ_CHARS` 的整数；先经条目投影取记录再按记录的摘要与字节数读取对象；继续读取必须携带匹配当前摘要的 `sha256`，否则返回 `STALE_ATTACHMENT`（`-32011`、`currentRef`）；游标必须带 `at1_` 前缀、长度不超过 2048，载荷是 `threadId` / `attachmentId` / `sha256` / 偏移四元组，偏移严格小于字符长度，base64url 严格解码且捕获五类解析异常；`end` 取 `min(offset + limit, len(text))`，只有未读完时才生成无填充的紧凑 JSON 游标；正文经 `wire_text` 降级，`contentRef` 带字节与字符长度。记录中的摘要格式、名称长度与字节范围按损坏处理，附件正文解码失败转为产品错误。完整读取复制记录，`include_content` 关闭时不读对象。脚本另用临时目录与合成条目实际执行 `read_chunk` 与 `read`，覆盖 56 个行为场景：完整一页与 `contentRef` 五字段、按字符而非字节分页、后续游标的 `at1_` 前缀 / 四元组载荷 / 末页为空、`limit` 的零值 / 上界 +1 / 布尔 / 浮点 / 字符串错误、`sha256` 格式错误与摘要不匹配的 `-32011` 与 `currentRef`、十一类无效游标、未知附件、七类损坏记录、对象缺失 / 内容被替换 / 非 UTF-8、孤立代理项名称降级，以及 `include_content` 开关。
 
 ### `check_attachment_context.py`
 

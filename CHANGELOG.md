@@ -1,3 +1,8 @@
+## 0.2.0-rc.538 - 2026-11-23
+
+- 附件分页读取检查新增 56 个合成行为场景，实际执行 `AttachmentStore.read_chunk` 与 `read`：完整一页与 `contentRef` 五字段、按字符分页、后续游标载荷与末页终止、`limit` 与 `sha256` 边界、`-32011` 陈旧引用、十一类无效游标、七类损坏记录、对象缺失 / 替换 / 非 UTF-8、孤立代理项名称降级与 `include_content` 开关。隔离变异探针结构与行为分别检出 11/12、12/12，合计 12/12。[Issue #3201](https://github.com/can4hou6joeng4/boss-harness/issues/3201)
+- 源码候选更新为 npm `0.2.0-rc.538` 和 Python `0.2.0rc538`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.537 - 2026-11-23
 
 - 工具桥清理检查新增 17 个合成行为场景，实际执行 `BridgeLifecycle`：`None` 早退、同一对象只清理一次、`close` / `dispose` 优先关系、无钩子安全、异常只记录类型名且不落原文、钩子在锁外可并发清理、不可弱引用对象不登记与死引用剔除。隔离变异探针结构与行为分别检出 9/9、7/9，合计 9/9。[Issue #3199](https://github.com/can4hou6joeng4/boss-harness/issues/3199)
