@@ -74,6 +74,16 @@ MODEL_RESULT_FRAGMENTS = (
     'content["errorCode"] = wire_text(code[:128])',
     "keep = min(len(preview), max(1, limit // 2))",
 )
+ERROR_FRAGMENTS = (
+    "if wire_size(error) <= 4096:",
+    'preview = {key: str(error.get(key) or "")[:maximum]',
+    'for key, maximum in (("code", 128), ("message", 2000), ("recovery_action", 1000))',
+    'return wire_value({**preview, "detailsOmitted": True})',
+    "plain is not None and escaped is not None and plain <= max_bytes and escaped <= max_bytes",
+    "text = json.dumps(value, ensure_ascii=False, allow_nan=False)",
+    'except (TypeError, ValueError):\n            text = ""',
+    "return wire_text(text)",
+)
 RPC_DEFAULT = re.compile(
     r'def on_tool_result_read\(.*?return read_result_chunk\(.*?limit=params\.get\("limit",\s*([\d_]+)\)',
     re.DOTALL,
@@ -90,13 +100,16 @@ from boss_harness.tool_results import (  # noqa: E402
     MAX_INLINE_TOOL_RESULT_BYTES,
     MAX_PAGE_BYTES,
     TOOL_EXECUTION_STATES,
+    _command_text,
     _fit_projection,
+    _fits,
     _merge_outcome,
     _unavailable_result,
     canonical_result_text,
     disposition_for_state,
     model_result_content,
     model_result_for_item,
+    project_error,
     project_item,
     read_result_chunk,
     read_result_text_chunk,
@@ -546,6 +559,49 @@ def _projection_checks() -> int:
     return checked
 
 
+def _error_checks() -> int:
+    # 错误预览：小错误原样投影；超限错误只保留三个字段的前缀，其余键丢弃。
+    checked = _expect_value(project_error(None), None, "无错误")
+    small = {"code": "X", "message": "m"}
+    copied = project_error(small)
+    checked += _expect_value((copied, copied is small, small),
+                             (small, False, {"code": "X", "message": "m"}), "小错误原样")
+    checked += _expect_value(project_error({}), {}, "空错误")
+    inline = project_error({"message": "x" * 3500})
+    checked += _expect_value((sorted(inline), len(inline["message"])), (["message"], 3500),
+                             "阈值内保留全文")
+    big = project_error({"message": "x" * 3600, "code": "C" * 200,
+                         "recovery_action": "r" * 1200, "extra": "drop"})
+    checked += _expect_value(sorted(big),
+                             ["code", "detailsOmitted", "message", "recovery_action"], "超限字段")
+    checked += _expect_value(
+        (len(big["code"]), len(big["message"]), len(big["recovery_action"]), big["detailsOmitted"]),
+        (128, 2000, 1000, True), "超限截断")
+    checked += _expect_value(project_error({"message": "x" * 3600, "code": 123})["code"],
+                             "123", "超限非字符串转换")
+    surrogate = project_error({"message": "\ud800" + "x" * 3600})
+    checked += _expect_value((surrogate["message"][0], len(surrogate["message"])),
+                             ("�", 2000), "超限代理项降级")
+    # 命令文本：字符串原样；非字符串按 JSON 拼写；不可编码值回退空串。
+    for value, expected in (("abc", "abc"), (123, "123"), (None, "null"),
+                            ({"a": 1}, '{"a": 1}'), ([1, 2], "[1, 2]"),
+                            ({"k": "中"}, '{"k": "中"}')):
+        checked += _expect_value(_command_text(value), expected, f"命令文本 {value!r}")
+    for value in (float("nan"), {"bad": float("nan")}):
+        checked += _expect_value(_command_text(value), "", f"命令文本回退 {value!r}"[:40])
+    checked += _expect_value(_command_text(object()), "", "命令文本不可编码对象")
+    checked += _expect_value(_command_text("\ud800"), "�", "命令文本代理项")
+    # 预算判据：普通与 ASCII 转义拼写都必须放得下；不可编码值按超限处理。
+    checked += _expect_value((_fits({"a": 1}, 8), _fits({"a": 1}, 7)), (True, False),
+                             "普通拼写预算")
+    checked += _expect_value((_fits({"k": "中"}, 15), _fits({"k": "中"}, 14)), (True, False),
+                             "转义拼写预算")
+    checked += _expect_value(
+        (_fits({"a": float("nan")}, 100), _fits(object(), 100), _fits("\ud800", 100)),
+        (False, False, False), "不可编码值超限")
+    return checked
+
+
 def check_tool_results() -> tuple[int, int, int]:
     try:
         values = _assigned(ast.parse(_read(TOOL_RESULTS)))
@@ -584,6 +640,9 @@ def check_tool_results() -> tuple[int, int, int]:
     missing = _missing(MODEL_RESULT_FRAGMENTS, tool_results)
     if missing:
         raise ValueError("tool_results.py 的模型结果投影边界缺少：" + "、".join(missing))
+    missing = _missing(ERROR_FRAGMENTS, tool_results)
+    if missing:
+        raise ValueError("tool_results.py 的错误预览与预算判据缺少：" + "、".join(missing))
 
     defaults = RPC_DEFAULT.findall(application)
     if len(defaults) != 1:
@@ -596,9 +655,10 @@ def check_tool_results() -> tuple[int, int, int]:
         raise ValueError("模型读取 schema 与工具描述必须一致使用 MODEL_RESULT_READ_CHARS")
 
     guards = (len(TOOL_RESULTS_FRAGMENTS) + len(APPLICATION_FRAGMENTS)
-              + len(MODEL_TOOLS_FRAGMENTS) + len(MODEL_RESULT_FRAGMENTS) + 3)
+              + len(MODEL_TOOLS_FRAGMENTS) + len(MODEL_RESULT_FRAGMENTS)
+              + len(ERROR_FRAGMENTS) + 3)
     return (len(EXPECTED_CONSTANTS), guards,
-            _behavior_checks() + _pagination_checks() + _projection_checks())
+            _behavior_checks() + _pagination_checks() + _projection_checks() + _error_checks())
 
 
 def main() -> int:

@@ -199,6 +199,8 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 另有 39 项模型结果投影行为检查直接调用 `model_result_content`、`model_result_for_item`、`_fit_projection`、`_merge_outcome` 与 `_unavailable_result`。覆盖：默认预算 20 KiB 落在 8 KiB–1 MiB 读写上下限之间；布尔、越界与字符串预算回退默认；超限结果替换为 `ok` / `command` / `resultOmitted` / `resultRef` 四项投影，引用摘要与长度来自持久原文且 `reference_text` 可覆盖模型副本；itemId 为空、129 字符或含孤立代理项时不提供必然失败的读取入口，128 字符仍可引用；超长 command 截断到预算一半并标注 `commandTruncated`，不可信的 `source` 在必要时整体让位；结果预览最多占一半预算；结算字段只补差异并保持原拼写，无结算时原样返回；缺失结果按 128 字符截断错误码并减半截断摘要；旧版失败写操作得到 `unknown` / `unknown` 处置而不猜测可重试；旧投影接近预算、补字段会超限时改从持久结果重建。
 
+结构片段固定 `project_error` 的 `wire_size(error) <= 4096` 阈值、三个字段上限与 `detailsOmitted` 标记，以及 `_fits` / `_command_text` 的回退分支。另有 21 项错误预览与预算判据行为检查直接调用 `project_error`、`_command_text` 与 `_fits`：`None` 原样返回，小错误复制且不修改输入；阈值内保留错误全文，超限时只保留 `code` / `message` / `recovery_action` 的 128 / 2000 / 1000 字符前缀与 `detailsOmitted`，camel 键与多余字段丢弃，非字符串按 `str` 转换，孤立代理项降级为 U+FFFD；命令文本字符串原样、非字符串按中文不转义的 JSON 拼写、`NaN` 与不可编码对象回退空串、代理项按 `wire_text` 降级；预算判据同时核对普通与 ASCII 转义拼写（`{"k": "中"}` 15 字节通过、14 字节拒绝），`NaN`、不可编码对象与孤立代理项一律按超限处理。
+
 ### `check_tool_revision.py`
 
 `scripts/check_tool_revision.py` 核对工具结果修订的恢复口径：`SessionStore.append_tool_revision` 只接受 `item` / `toolCall` / 字符串 `revises` 的条目；首次追加与 `append` 一样在写前、写后各刷新一次索引并返回 `(entry, False)`。首次失败后重新逐行解码日志：同 id 且内容一致才可复用，内容不同为 `conflict`，解码失败为 `invalid`，已存在且 `r+b` 打开后 `fsync` 成功为 `durable`，`fsync` 失败为 `present_uncertain`，未找到为 `absent`。`durable` 刷新索引后返回 `(entry, True)`；`conflict` / `present_uncertain` 直接抛 `ToolRevisionPersistenceError`；`absent` 只允许在首轮重试追加一次，之后一律按持久化错误抛出。异常路径会再核对一次，二次核对失败标记 `uncertain`，并把最后一次错误附在最终异常上。脚本反向断言恢复路径不引用 handler 或审批、追加机会恰为两次、`except ToolRevisionPersistenceError` 必须重新抛出、`ToolRevisionPersistenceError` 保持 `OSError` 语义。结构检查使用 AST 切片与顺序扫描。

@@ -1,3 +1,8 @@
+## 0.2.0-rc.576 - 2026-11-23
+
+- 工具结果检查从 99 项行为对照扩展到 120 项，新增 8 条源码片段与 21 项错误预览 / 预算判据行为对照，直接调用 `project_error`、`_command_text` 与 `_fits`：小错误原样复制且不修改输入，`wire_size(error) <= 4096` 阈值内保留全文，超限时只保留 `code` / `message` / `recovery_action` 的 128 / 2000 / 1000 字符前缀与 `detailsOmitted`，camel 键与多余字段丢弃、非字符串按 `str` 转换、孤立代理项降级为 U+FFFD；命令文本非字符串按中文不转义 JSON 拼写，`NaN` 与不可编码对象回退空串；预算判据同时核对普通与 ASCII 转义拼写，`NaN`、不可编码对象与代理项按超限处理。隔离变异探针结构与行为分别检出 12/12、11/12，合计 12/12（4096→4097 阈值放宽在现有边界上不可观察，由结构片段拦截）。[Issue #3277](https://github.com/can4hou6joeng4/boss-harness/issues/3277)
+- 源码候选更新为 npm `0.2.0-rc.576` 和 Python `0.2.0rc576`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.575 - 2026-11-23
 
 - 新增 `scripts/check_export_timestamps.py`，固化会话导出的时间戳解析、耗时与审批期限展示（55 项，含 39 项行为对照）：`_parse_timestamp` 只接受非空字符串，`Z` 后缀改写为 `+00:00`，解析结果必须带时区，非法值与朴素时间返回 `None`；`_timestamp_duration` 两端都必须可解析且不倒序，正常差值按毫秒四舍五入；`_deadline_text` 只接受 `int` / `float`（布尔按类型排除），非有限、非正与 `10**400` / `1e300` 溢出按无期限处理，正常值输出 UTC 秒级 ISO 时间；回合头部只在耗时可用时写入 `durationMs`，审批记录只在期限可用时写入 `deadline`。工作流在 Source build 与 Python 矩阵注册该检查，`check_workflows.py` 的脚本覆盖同步为 173。[Issue #3275](https://github.com/can4hou6joeng4/boss-harness/issues/3275)
