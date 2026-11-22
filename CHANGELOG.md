@@ -1,3 +1,8 @@
+## 0.2.0-rc.524 - 2026-11-23
+
+- 会话日志检查新增 34 个离线行为场景，实际执行编码、严格解码、有界读取、快照边界与追加前截断：完整行与残段丢弃、单行与残段超限、快照长度恰等与不完整、CRLF、重复会话头与各类坏行。隔离变异探针合计检出 14/14。[Issue #3173](https://github.com/can4hou6joeng4/boss-harness/issues/3173)
+- 源码候选更新为 npm `0.2.0-rc.524` 和 Python `0.2.0rc524`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.523 - 2026-11-23
 
 - 摘要规划检查新增 28 个离线行为场景，实际执行 `SummaryPlanner` 的四路输出约束、字符预算公式、逐字片段与来源摘要、滚动摘要上限、预算不足与来源末尾拒绝，以及孤立代理项降级。隔离变异探针合计检出 9/9。[Issue #3171](https://github.com/can4hou6joeng4/boss-harness/issues/3171)
