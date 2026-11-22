@@ -1,3 +1,8 @@
+## 0.2.0-rc.516 - 2026-11-23
+
+- 工具结果修订检查新增 10 个离线恢复场景，核对正常追加、写前失败后重试、写后报错时复用已有结果、同 ID 冲突、日志损坏、同步失败及重试耗尽。隔离变异探针检出 12/12。[Issue #3157](https://github.com/can4hou6joeng4/boss-harness/issues/3157)
+- 源码候选更新为 npm `0.2.0-rc.516` 和 Python `0.2.0rc516`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.515 - 2026-11-23
 
 - 队列状态检查新增 29 项行为对照。检查在临时会话存储上直接调用 `TurnQueue`，覆盖新增与客户端幂等、技能去重、编辑与转移表、steering 回合匹配、暂停范围与原因保留、作用域清理及条目上限。隔离变异探针检出 17/17，技术参考同步更新。[Issue #3155](https://github.com/can4hou6joeng4/boss-harness/issues/3155)

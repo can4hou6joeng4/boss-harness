@@ -198,7 +198,9 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_tool_revision.py`
 
-`scripts/check_tool_revision.py` 核对工具结果修订的恢复口径：`SessionStore.append_tool_revision` 只接受 `item` / `toolCall` / 字符串 `revises` 的条目；首次追加与 `append` 一样在写前、写后各刷新一次索引并返回 `(entry, False)`。首次失败后重新逐行解码日志：同 id 且内容一致才可复用，内容不同为 `conflict`，解码失败为 `invalid`，已存在且 `r+b` 打开后 `fsync` 成功为 `durable`，`fsync` 失败为 `present_uncertain`，未找到为 `absent`。`durable` 刷新索引后返回 `(entry, True)`；`conflict` / `present_uncertain` 直接抛 `ToolRevisionPersistenceError`；`absent` 只允许在首轮重试追加一次，之后一律按持久化错误抛出。异常路径会再核对一次，二次核对失败标记 `uncertain`，并把最后一次错误附在最终异常上。脚本反向断言恢复路径不引用 handler 或审批、追加机会恰为两次、`except ToolRevisionPersistenceError` 必须重新抛出、`ToolRevisionPersistenceError` 保持 `OSError` 语义。检查是 AST 切片与顺序扫描，不执行写入或恢复，运行时行为仍需按用户指南核对。
+`scripts/check_tool_revision.py` 核对工具结果修订的恢复口径：`SessionStore.append_tool_revision` 只接受 `item` / `toolCall` / 字符串 `revises` 的条目；首次追加与 `append` 一样在写前、写后各刷新一次索引并返回 `(entry, False)`。首次失败后重新逐行解码日志：同 id 且内容一致才可复用，内容不同为 `conflict`，解码失败为 `invalid`，已存在且 `r+b` 打开后 `fsync` 成功为 `durable`，`fsync` 失败为 `present_uncertain`，未找到为 `absent`。`durable` 刷新索引后返回 `(entry, True)`；`conflict` / `present_uncertain` 直接抛 `ToolRevisionPersistenceError`；`absent` 只允许在首轮重试追加一次，之后一律按持久化错误抛出。异常路径会再核对一次，二次核对失败标记 `uncertain`，并把最后一次错误附在最终异常上。脚本反向断言恢复路径不引用 handler 或审批、追加机会恰为两次、`except ToolRevisionPersistenceError` 必须重新抛出、`ToolRevisionPersistenceError` 保持 `OSError` 语义。结构检查使用 AST 切片与顺序扫描。
+
+脚本还在临时会话中运行 10 个离线恢复场景。首写成功、写前失败后重试、首次或重试写入后才报错时，核对返回条目、恢复标记、追加次数和日志条目。另在首次或重试追加后注入同 ID 内容冲突和损坏行，并模拟同步已有条目失败、连续两次追加失败，核对失败分类和最后一次错误。
 
 ### `check_toolkit.py`
 
