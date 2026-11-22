@@ -226,7 +226,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_pending_approvals.py`
 
-`scripts/check_pending_approvals.py` 核对待审批分页与计数的共享过滤口径：`_pending_approvals_where` 必须在删除占位超过 800 时整次放弃读取，连接会话与回合表，只取未裁决、`running` + `pending_approval`、未归档且回合为 `running` / `interrupted` 的审批；七个 `typeof` 类型守卫、六个非空守卫与 `deadline BETWEEN 0 AND 1e15` 必须完整，当前时间与会话 / 删除 id 全部走参数绑定，删除会话用占位符 `NOT IN` 过滤。`pending_approvals` 的条目上限为 200，按会话更新时间、会话 id 与条目 id 倒序排列，多取一行得出 `truncated`，并按上限切片；损坏的 `deadline` 或非字符串 / 空字段按缺失跳过。`pending_approval_counts` 共用同一条件并按会话分组，不得出现 `LIMIT` 或条目上限校验，返回字符串键与整数计数。脚本用反向断言要求两处读取共用条件、删除过滤逐个绑定、列表摘要只回显工具名。检查是源码扫描，不执行 SQL 或审批读取。
+`scripts/check_pending_approvals.py` 核对待审批分页与计数的共享过滤口径：`_pending_approvals_where` 必须在删除占位超过 800 时整次放弃读取，连接会话与回合表，只取未裁决、`running` + `pending_approval`、未归档且回合为 `running` / `interrupted` 的审批；七个 `typeof` 类型守卫、六个非空守卫与 `deadline BETWEEN 0 AND 1e15` 必须完整，当前时间与会话 / 删除 id 全部走参数绑定，删除会话用占位符 `NOT IN` 过滤。`pending_approvals` 的条目上限为 200，按会话更新时间、会话 id 与条目 id 倒序排列，多取一行得出 `truncated`，并按上限切片；损坏的 `deadline` 或非字符串 / 空字段按缺失跳过。`pending_approval_counts` 共用同一条件并按会话分组，不得出现 `LIMIT` 或条目上限校验，返回字符串键与整数计数。脚本用反向断言要求两处读取共用条件、删除过滤逐个绑定、列表摘要只回显工具名。脚本另用临时 `SessionStore` 的合成会话、回合与审批条目实际执行列表与计数（41 项行为场景）：有效待审批的投影字段、摘要只回显工具名、已裁决 / 过期 / 已归档 / 终态回合排除、中断回合计入、会话过滤与跨会话分组、`limit` 上下界与 `limit + 1` 截断、条目 id 倒序与计数不受上限影响、删除标记会话排除、删除占位超过 800 时列表与计数同时放弃，以及直接写入索引的畸形行（空标识、文本或越界期限、错误状态、已完成回合）被共享过滤排除。检查不启动审批流程，也不读取或写入本机真实状态目录。
 
 ### `check_approval_remember.py`
 
