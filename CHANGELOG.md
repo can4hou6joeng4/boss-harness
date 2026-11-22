@@ -1,3 +1,8 @@
+## 0.2.0-rc.536 - 2026-11-23
+
+- 模型结果读取工具检查新增 31 个行为场景，实际执行 `model_tool_specs` 与 `validate_model_result_read`：保留既有工具并追加只读工具、重名拒绝、独立参数副本、`itemId` / `sha256` / `cursor` / `limit` 边界、缺失必填 / 额外字段 / 非对象 / 空字符的固定错误，以及工具名称、schema 关键字段、64 KiB 上限与描述一致。隔离变异探针结构与行为均检出 12/12。[Issue #3197](https://github.com/can4hou6joeng4/boss-harness/issues/3197)
+- 源码候选更新为 npm `0.2.0-rc.536` 和 Python `0.2.0rc536`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.535 - 2026-11-23
 
 - 运行时容量检查新增 62 个合成行为场景，实际执行 `RuntimeManager`：双上限与关闭拒绝、预留登记、同对象释放与旧回合不释放新槽位、三种回收路径、idle 通知、回合不符拒绝、幂等中止认领与回调绑定、关闭时认领但不绑定中断、停止派发幂等、容量 worker 启动 / 唤醒 / 关闭停止，以及 `stop` 与 `wait_for_stop` 截止返回。隔离变异探针结构与行为分别检出 12/12、11/12，合计 12/12。[Issue #3195](https://github.com/can4hou6joeng4/boss-harness/issues/3195)

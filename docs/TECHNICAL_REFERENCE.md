@@ -184,7 +184,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_model_tools.py`
 
-`scripts/check_model_tools.py` 固定模型可见的结果读取工具：`model_tools.py` 的 `read_session_tool_result` 模式只接受 `itemId`（1–128 字符）、`sha256`（64 位小写十六进制）两个必需字段，以及有界 `cursor`（至多 2,048 字符）与 `limit`（引用 `MODEL_RESULT_READ_CHARS`），禁止额外字段；读取流程必须依次完成参数校验、按 thread 与 item 查找会话记录、缺失拒绝、只允许 `toolCall` 条目、规范化结果正文、按 `sha256` 与游标返回有界分段，整份载荷上限固定为 64 KiB，禁止把完整条目或全文直接回灌模型；错误映射必须按 `ItemLookupError`、`RpcError`、`ValueError` 的顺序收敛为固定码，`RpcError` 的 `currentRef` 必须透传，名称冲突守卫必须拒绝与内核工具同名的自定义工具。检查是文本扫描，运行时读取行为仍需按用户指南核对。
+`scripts/check_model_tools.py` 固定模型可见的结果读取工具：`model_tools.py` 的 `read_session_tool_result` 模式只接受 `itemId`（1–128 字符）、`sha256`（64 位小写十六进制）两个必需字段，以及有界 `cursor`（至多 2,048 字符）与 `limit`（引用 `MODEL_RESULT_READ_CHARS`），禁止额外字段；读取流程必须依次完成参数校验、按 thread 与 item 查找会话记录、缺失拒绝、只允许 `toolCall` 条目、规范化结果正文、按 `sha256` 与游标返回有界分段，整份载荷上限固定为 64 KiB，禁止把完整条目或全文直接回灌模型；错误映射必须按 `ItemLookupError`、`RpcError`、`ValueError` 的顺序收敛为固定码，`RpcError` 的 `currentRef` 必须透传，名称冲突守卫必须拒绝与内核工具同名的自定义工具。脚本另实际调用 `model_tool_specs` 与 `validate_model_result_read` 执行 31 个行为场景：保留既有工具并追加只读工具、重名拒绝、合法参数返回独立副本、`itemId` / `sha256` / `cursor` / `limit` 边界接受与拒绝、缺失必填 / 额外字段 / 非对象 / 空字符的固定错误，以及工具名称、schema 关键字段、64 KiB 上限与描述文案一致；不访问网络、模型、招聘平台或本机状态目录。
 
 ### `check_domain_tools.py`
 
