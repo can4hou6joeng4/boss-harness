@@ -1,3 +1,8 @@
+## 0.2.0-rc.567 - 2026-11-23
+
+- 启动自检的构建前门禁不再比较两次实时磁盘余量，避免并发写盘造成偶发误报。最近祖先定位、采样与沿父路径推进仍由源码检查覆盖；运行时自检和低余量告警阈值不变。[Issue #3261](https://github.com/can4hou6joeng4/boss-harness/issues/3261)
+- 源码候选更新为 npm `0.2.0-rc.567` 和 Python `0.2.0rc567`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.566 - 2026-11-23
 
 - 准备聚合 `v0.2.0-rc.15` 以来已合入变化的下一轮预发布候选：以固定主干为基线，核对安装入口、兼容限制和分发包验收范围。本轮不改变运行时或 JSON-RPC 协议，候选合入不等于实际发布。[Issue #3259](https://github.com/can4hou6joeng4/boss-harness/issues/3259)
