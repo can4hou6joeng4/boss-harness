@@ -1,3 +1,8 @@
+## 0.2.0-rc.565 - 2026-11-23
+
+- 启动自检检查新增 17 条端点 / 目录源码片段与 30 项行为对照：`_is_loopback_host` 的 `localhost.` / `127.0.0.0/8` / `::1` / 大小写归一与 `[::1]` / `0.0.0.0` / 空串拒绝；`_insecure_base_url` 的无值 / `https` / 本机 `http`（含 IPv6 字面量）/ 无 scheme / 畸形 URL / 非回环主机判定；`_directories_overlap` 的相同、父子、反向、兄弟与含 `..` 等价路径；`_free_space` 的已存在目录与非存在嵌套路径沿最近祖先读取。隔离变异探针结构与行为分别检出 7/8、6/8，合计 8/8（两处未检出源于 `urlparse` 已做 scheme 与主机小写归一，片段仍作为静态防护保留）。[Issue #3255](https://github.com/can4hou6joeng4/boss-harness/issues/3255)
+- 源码候选更新为 npm `0.2.0-rc.565` 和 Python `0.2.0rc565`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.564 - 2026-11-23
 
 - 上下文估算检查从 192 项扩展到 219 项，新增 10 条组装顺序片段与 17 项行为对照：`messages_from_items` 的空输入、用户与助手正文、运行中 / 失败 / 空正文助手与非字符串用户正文过滤、孤立代理项降级；工具调用按 `toolBatchId` 合并与拆分、用户消息打断批次、运行中工具跳过、缺少 `toolCallId` 回退条目 id、失败工具标记、Anthropic 续接标识过滤、重复 `toolBatchAssistantItemId` 拒绝，以及工具结果中的孤立代理项降级。隔离变异探针结构与行为分别检出 4/8、7/8，合计 8/8。[Issue #3253](https://github.com/can4hou6joeng4/boss-harness/issues/3253)
