@@ -358,6 +358,8 @@ jobs:
         run: python scripts/check_task_ownership.py
       - name: Verify task relation
         run: python scripts/check_task_relation.py
+      - name: Verify application input boundaries
+        run: python scripts/check_application_helpers.py
       - name: Verify search snippet boundaries
         run: python scripts/check_search_snippet.py
       - name: Verify release asset boundaries
@@ -471,6 +473,8 @@ jobs:
         run: python scripts/check_recovery.py
       - name: Verify task relation
         run: python scripts/check_task_relation.py
+      - name: Verify application input boundaries
+        run: python scripts/check_application_helpers.py
       - name: Verify process io
         run: python scripts/check_process_io.py
       - name: Compile kernel and scripts
