@@ -240,7 +240,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_turn_stream.py`
 
-`scripts/check_turn_stream.py` 核对回合循环与流式终态：`agent.py` 的 13 个通知名、`MAX_TOOL_ROUNDS` 与 300 秒审批默认值；请求偏移必须是非负整数且不超过请求上限，恢复预算与循环守卫在回合级创建；工具批次上限必须先于续接签名与长度截断处理，截断或续接失败都不得执行本批工具，`MODEL_OUTPUT_TRUNCATED` / `PROVIDER_CONTINUATION_TOO_LARGE` / `TOOL_BATCH_LIMIT` / `CONTEXT_BUDGET_EXCEEDED` 保持固定码；并行批次不可用时回退串行，取消时仅整批执行完成后才记完成。`_stream_round` 的 `retry_start` 只做观测、`retry_end` 与已发起点成对且早于回合终态，文本 / 思考增量计入输出预算，文本 / 思考 / 工具调用增量都记为已观测产出（工具参数预算在 provider 层），`done` 事件对最终文本复核预算；`CONTEXT_OVERFLOW` 恢复资格要求无中断、无产出与无助手消息，用量条目在中断、错误与 `aborted` / `error` 终态下标记不合格；条目终态在中断 / 错误 / 截断时为 `failed`。本检查只扫描源码片段与首次出现顺序，不执行回合，不替代行为测试。`summarize_result` 把分页元数据放在正文之前并在失败路径脱敏，`model_result` 默认沿用 `DEFAULT_MODEL_TOOL_RESULT_BYTES`。反向断言禁止中断时标成完成、`redact_secrets(str(exc))` 与未定义恢复标记。
+`scripts/check_turn_stream.py` 核对回合循环与流式终态：`agent.py` 的 13 个通知名、`MAX_TOOL_ROUNDS` 与 300 秒审批默认值；请求偏移必须是非负整数且不超过请求上限，恢复预算与循环守卫在回合级创建；工具批次上限必须先于续接签名与长度截断处理，截断或续接失败都不得执行本批工具，`MODEL_OUTPUT_TRUNCATED` / `PROVIDER_CONTINUATION_TOO_LARGE` / `TOOL_BATCH_LIMIT` / `CONTEXT_BUDGET_EXCEEDED` 保持固定码；并行批次不可用时回退串行，取消时仅整批执行完成后才记完成。`_stream_round` 的 `retry_start` 只做观测、`retry_end` 与已发起点成对且早于回合终态，文本 / 思考增量计入输出预算，文本 / 思考 / 工具调用增量都记为已观测产出（工具参数预算在 provider 层），`done` 事件对最终文本复核预算；`CONTEXT_OVERFLOW` 恢复资格要求无中断、无产出与无助手消息，用量条目在中断、错误与 `aborted` / `error` 终态下标记不合格；条目终态在中断 / 错误 / 截断时为 `failed`。源码侧固定片段与首次出现顺序，`model_result` 默认沿用 `DEFAULT_MODEL_TOOL_RESULT_BYTES`。反向断言禁止中断时标成完成、`redact_secrets(str(exc))` 与未定义恢复标记。检查还直接调用 `summarize_result` 与 `tool_source` 做行为对照（10 项）：成功结果的命令、正文与分页元数据顺序，非 ASCII 原样输出，不可序列化数据降级为文本，成功与失败路径都受 `limit` 截断，失败缺省为 `UNKNOWN`，错误码 / 消息 / 恢复建议按序拼接并经凭据脱敏，来源引用固定为 `tool:<会话>:<条目>` 并带查询时间。检查仍不执行完整回合，不替代真实模型与桌面验收。
 
 ### `check_queue_state.py`
 
