@@ -1,3 +1,8 @@
+## 0.2.0-rc.568 - 2026-11-23
+
+- 工具结果检查从 60 项扩展到 99 项，新增 21 条源码片段与 39 项行为对照：`model_result_content` 的非法 / 越界 / 布尔预算回退默认、超限结果替换成四项引用投影且两种 JSON 拼写都在预算内、`reference_text` 决定引用摘要、itemId 空 / 129 字符 / 孤立代理项不提供读取入口而 128 字符仍可引用、超长 command 截断到预算一半并标注、不可信 `source` 让位、结果预览减半截断；`_merge_outcome` 的无结算原样返回、差异字段补齐、损坏投影拒绝与预算边界；`_unavailable_result` 的错误码 128 字符截断与摘要减半；`model_result_for_item` 的旧投影补状态、写失败 `unknown` / `unknown` 处置、读失败无处置、未执行与结果不确定处置、损坏投影重建、条目预算回退与缺失结果告知。隔离变异探针结构与行为分别检出 14/14、13/14，合计 14/14（代理项变异由最小兜底重复拦截）。[Issue #3257](https://github.com/can4hou6joeng4/boss-harness/issues/3257)
+- 源码候选更新为 npm `0.2.0-rc.568` 和 Python `0.2.0rc568`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.567 - 2026-11-23
 
 - 启动自检的构建前门禁不再比较两次实时磁盘余量，避免并发写盘造成偶发误报。最近祖先定位、采样与沿父路径推进仍由源码检查覆盖；运行时自检和低余量告警阈值不变。[Issue #3261](https://github.com/can4hou6joeng4/boss-harness/issues/3261)
