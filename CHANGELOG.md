@@ -1,3 +1,8 @@
+## 0.2.0-rc.537 - 2026-11-23
+
+- 工具桥清理检查新增 17 个合成行为场景，实际执行 `BridgeLifecycle`：`None` 早退、同一对象只清理一次、`close` / `dispose` 优先关系、无钩子安全、异常只记录类型名且不落原文、钩子在锁外可并发清理、不可弱引用对象不登记与死引用剔除。隔离变异探针结构与行为分别检出 9/9、7/9，合计 9/9。[Issue #3199](https://github.com/can4hou6joeng4/boss-harness/issues/3199)
+- 源码候选更新为 npm `0.2.0-rc.537` 和 Python `0.2.0rc537`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.536 - 2026-11-23
 
 - 模型结果读取工具检查新增 31 个行为场景，实际执行 `model_tool_specs` 与 `validate_model_result_read`：保留既有工具并追加只读工具、重名拒绝、独立参数副本、`itemId` / `sha256` / `cursor` / `limit` 边界、缺失必填 / 额外字段 / 非对象 / 空字符的固定错误，以及工具名称、schema 关键字段、64 KiB 上限与描述一致。隔离变异探针结构与行为均检出 12/12。[Issue #3197](https://github.com/can4hou6joeng4/boss-harness/issues/3197)
