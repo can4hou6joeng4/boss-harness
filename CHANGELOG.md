@@ -1,3 +1,8 @@
+## 0.2.0-rc.585 - 2026-11-23
+
+- 工具参数检查从 24 项扩展到 30 项：行为对照经真实注册表拒绝孤立高代理项、低代理项与空字符参数，错误文案统一点名不可传递字符，合法表情符号放行；另用临时可执行脚本验证 CLI 层：合法参数真实执行并返回成功信封，含空字符参数返回 `CLI_ARGUMENT_ERROR` 且脚本未被启动，未启动结果仍按 `not_executed` 结算并暂停回合。隔离变异探针行为检出 7/7（结构片段检出 6/7，`except ValueError` 片段由行为对照补足）。[Issue #3295](https://github.com/can4hou6joeng4/boss-harness/issues/3295)
+- 源码候选更新为 npm `0.2.0-rc.585` 和 Python `0.2.0rc585`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.584 - 2026-11-23
 
 - 会话导出隐私检查从 149 项扩展到 153 项：静态要求 `_last_path_segment` 同时剥离 `/` 与 `\`，并直接调用它覆盖 POSIX / Windows 末段、尾部分隔符、混合分隔符、裸文件名、根路径、空串与盘符根。末段提取出错会把正文误当作路径继续脱敏，或让本机路径片段进入导出文件。隔离变异探针结构与行为均检出 5/5。[Issue #3293](https://github.com/can4hou6joeng4/boss-harness/issues/3293)
