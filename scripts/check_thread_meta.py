@@ -4,8 +4,9 @@
 `_validate_changes` 把 `project_id` 规范化为 `projectId` 并按七个字段的白名单
 逐个校验；`update_thread` 只在非空时追加 `thread_info` 记录；`archive_thread`
 在锁内把未裁决的待审批标记为 `expired` 后写入 `{"archived": true}`，重复归档
-幂等；`unarchive_thread` 只在已归档时写记录。本脚本在临时目录构造 `SessionStore`
-做行为对照并扫描源码；不访问网络、模型或招聘平台。
+幂等；`unarchive_thread` 只在已归档时写记录。本脚本在临时目录构造 `SessionStore`，
+覆盖更新、字段边界、归档待审批结算与无效审批跳过，并扫描源码；不访问网络、
+模型或招聘平台。
 """
 
 from __future__ import annotations
@@ -19,7 +20,12 @@ ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
-from boss_harness.session import REASONING_EFFORTS, SessionStore  # noqa: E402
+from boss_harness.session import (  # noqa: E402
+    REASONING_EFFORTS,
+    Entry,
+    SessionStore,
+    approval_parameters_digest,
+)
 
 VALIDATE_ORDER = (
     "def _validate_changes(changes: dict) -> dict:",
@@ -112,6 +118,24 @@ def _expect_error(action, message: str, label: str) -> None:
             raise ValueError(f"{label} 错误信息变化：{error}") from None
         return
     raise ValueError(f"{label} 必须被拒绝")
+
+
+def _pending_item(store: SessionStore, thread_id: str, approval_id: str) -> Entry:
+    arguments = {"greeting": "hi"}
+    payload = {
+        "kind": "toolCall",
+        "toolName": "boss_hr_greet",
+        "toolArguments": arguments,
+        "status": "running",
+        "executionState": "pending_approval",
+        "turnId": "turn-1",
+        "approval": {"approvalId": approval_id, "toolName": "boss_hr_greet",
+                     "params": arguments, "deadline": 4102444800,
+                     "description": "允许打招呼",
+                     "paramsDigest": approval_parameters_digest(arguments)},
+    }
+    return store.append(thread_id, Entry(type="item",
+                                         parent_id=store.last_entry_id(thread_id), payload=payload))
 
 
 def check_thread_meta() -> int:
@@ -222,6 +246,18 @@ def check_thread_meta() -> int:
             if store.update_thread(thread_id, model="m").get("model") != "m":
                 raise ValueError("model 必须接受字符串")
             checked += 1
+            if store.update_thread(thread_id, projectId="p" * 200).get("projectId") != "p" * 200:
+                raise ValueError("项目编号恰好 200 字符必须被接受")
+            checked += 1
+            if store.update_thread(thread_id, cwd="/tmp/work").get("cwd") != "/tmp/work":
+                raise ValueError("cwd 必须接受字符串")
+            checked += 1
+            if store.update_thread(thread_id, model=None).get("model") is not None:
+                raise ValueError("model 必须接受 null")
+            checked += 1
+            _expect_error(lambda: store.update_thread(thread_id, toolPolicy=None),
+                          "toolPolicy 必须是 readOnly 或 approval", "工具策略 null")
+            checked += 1
             try:
                 store.update_thread(thread_id, model={"value": object()})
             except TypeError:
@@ -253,6 +289,47 @@ def check_thread_meta() -> int:
             checked += 1
             if store.archive(thread_id)["archived"] is not True or store.unarchive(thread_id)["archived"] is not False:
                 raise ValueError("归档别名必须与完整方法一致")
+            checked += 1
+            approval_thread = store.create("审批")["id"]
+            approval_item = _pending_item(store, approval_thread, "a" * 32)
+            approval_before = len(store.read_entries(approval_thread))
+            if store.archive_thread(approval_thread)["archived"] is not True:
+                raise ValueError("含待审批的会话必须能归档")
+            checked += 1
+            settled = next(value for value in store.read_items(approval_thread)
+                           if value["id"] == approval_item.id)
+            if (settled.get("approval", {}).get("decision") != "expired"
+                    or settled.get("executionState") != "not_executed"
+                    or settled.get("errorCode") != "APPROVAL_EXPIRED"):
+                raise ValueError("归档必须把待审批结算为 expired")
+            checked += 1
+            if len(store.read_entries(approval_thread)) != approval_before + 2:
+                raise ValueError("归档结算必须只写一条裁决与一条归档记录")
+            checked += 1
+            settled_entries = len(store.read_entries(approval_thread))
+            store.archive_thread(approval_thread)
+            if len(store.read_entries(approval_thread)) != settled_entries:
+                raise ValueError("重复归档不得重复结算审批")
+            checked += 1
+            invalid_thread = store.create("坏审批")["id"]
+            invalid_payload = {
+                "kind": "toolCall",
+                "toolName": "boss_hr_greet",
+                "toolArguments": {},
+                "status": "running",
+                "executionState": "pending_approval",
+                "turnId": "turn-2",
+                "approval": {"toolName": "boss_hr_greet", "params": {}},
+            }
+            invalid_item = store.append(invalid_thread, Entry(
+                type="item", parent_id=store.last_entry_id(invalid_thread), payload=invalid_payload))
+            invalid_before = len(store.read_entries(invalid_thread))
+            store.archive_thread(invalid_thread)
+            invalid_settled = next(value for value in store.read_items(invalid_thread)
+                                   if value["id"] == invalid_item.id)
+            if ("decision" in invalid_settled.get("approval", {})
+                    or len(store.read_entries(invalid_thread)) != invalid_before + 1):
+                raise ValueError("无效审批必须跳过结算")
             checked += 1
         finally:
             store.close()

@@ -594,7 +594,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_thread_meta.py`
 
-`scripts/check_thread_meta.py` 在临时目录构造 `SessionStore`，核对会话元数据更新：`project_id` 规范化为 `projectId` 且重复提供被拒绝，白名单恰好 `title` / `projectId` / `provider` / `model` / `cwd` / `toolPolicy` / `reasoningEffort` 七个字段，身份与归档字段不可改写；`toolPolicy` 与 `reasoningEffort` 用固定枚举，`title` 上限 500、`projectId` 上限 200、`provider` 非空且无空白，`cwd` / `model` 类型与 `null` 均被覆盖；空更新不写记录，归档与恢复只在状态变化时各写一条并幂等，两个别名与完整方法一致。脚本同时扫描 `_validate_changes` 的规范化、白名单、逐字段校验与序列化位置，以及 `update_thread` / `archive_thread` / `unarchive_thread` 的写入门槛；反向断言白名单恰好七个字段、规范化先于白名单、序列化校验在逐字段校验之后。它在 Source build 与 Python 3.10–3.14 矩阵中分别运行，只使用临时目录。
+`scripts/check_thread_meta.py` 在临时目录构造 `SessionStore`，核对会话元数据更新：`project_id` 规范化为 `projectId` 且重复提供被拒绝，白名单恰好 `title` / `projectId` / `provider` / `model` / `cwd` / `toolPolicy` / `reasoningEffort` 七个字段，身份与归档字段不可改写；`toolPolicy` 与 `reasoningEffort` 用固定枚举，`title` 上限 500、`projectId` 上限 200、`provider` 非空且无空白，`cwd` / `model` 类型与 `null` 均被覆盖，其中 `projectId` 恰好 200 字符、`cwd` 字符串与 `model` 为 null 被接受而 `toolPolicy` 为 null 被拒绝；归档会把合法的 `pending_approval` 工具调用结算为 `expired` / `not_executed` / `APPROVAL_EXPIRED` 并只追加一条裁决，重复归档不再写入，缺少 `approvalId` 的审批跳过结算；空更新不写记录，归档与恢复只在状态变化时各写一条并幂等，两个别名与完整方法一致。脚本同时扫描 `_validate_changes` 的规范化、白名单、逐字段校验与序列化位置，以及 `update_thread` / `archive_thread` / `unarchive_thread` 的写入门槛；反向断言白名单恰好七个字段、规范化先于白名单、序列化校验在逐字段校验之后。它在 Source build 与 Python 3.10–3.14 矩阵中分别运行，只使用临时目录。
 
 ### `check_thread_page.py`
 
