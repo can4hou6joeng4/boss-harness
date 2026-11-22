@@ -8,13 +8,21 @@ ownership.py 用一个非阻塞 flock 声明状态目录所有权：拿不到锁
 
 from __future__ import annotations
 
+import errno
+import gc
 from pathlib import Path
+import stat
 import sys
+from tempfile import TemporaryDirectory
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/ownership.py"
 TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 USER_GUIDE = "docs/USER_GUIDE.md"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.ownership import StateDirectoryOwner  # noqa: E402
 
 CONSTANT_FRAGMENTS = (
     "Exclusive runtime ownership precedes recovery or index maintenance.",
@@ -67,6 +75,67 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"状态目录占用行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_occupied(call, label: str) -> int:
+    started = time.monotonic()
+    try:
+        call()
+    except OSError as error:
+        elapsed = time.monotonic() - started
+        checked = _expect_value(error.errno, errno.EWOULDBLOCK, f"{label}错误码")
+        checked += _expect_value(
+            error.strerror, "状态目录已由另一个内核使用；请先关闭该内核", f"{label}文案")
+        checked += _expect_value(elapsed < 1.0, True, f"{label}非阻塞")
+        return checked
+    raise ValueError(f"状态目录占用行为变化 {label}：期望 OSError，实际获取成功")
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary) / "state"
+        lock = root / ".owner.lock"
+        owner = StateDirectoryOwner(root)
+        checked += _expect_value(owner.root, root.resolve(), "根路径解析")
+        checked += _expect_value(lock.is_file(), True, "锁文件创建")
+        checked += _expect_value(stat.S_IMODE(lock.stat().st_mode), 0o600, "锁文件权限")
+        checked += _expect_value(stat.S_IMODE(root.stat().st_mode), 0o700, "状态目录权限")
+
+        candidate = StateDirectoryOwner.__new__(StateDirectoryOwner)
+        checked += _expect_occupied(lambda: candidate.__init__(root), "互斥拒绝")
+        checked += _expect_value(getattr(candidate, "_fd", "missing"), None,
+                                 "失败释放描述符")
+        candidate.close()
+        checked += _expect_value(getattr(candidate, "_fd", "missing"), None, "失败重复关闭")
+
+        checked += _expect_value(owner._fd is not None, True, "拒绝后持有者保持")
+        owner.close()
+        owner.close()
+        checked += _expect_value(owner._fd, None, "重复关闭摘字段")
+        checked += _expect_value(lock.exists(), True, "关闭保留锁文件")
+
+        again = StateDirectoryOwner(root)
+        checked += _expect_value(again._fd is not None, True, "关闭后重新获取")
+        again.close()
+
+        bare = StateDirectoryOwner.__new__(StateDirectoryOwner)
+        bare.close()
+        checked += _expect_value(getattr(bare, "_fd", None), None, "未初始化关闭安全")
+
+        doomed = StateDirectoryOwner(root)
+        del doomed
+        gc.collect()
+        after = StateDirectoryOwner(root)
+        checked += _expect_value(after._fd is not None, True, "析构释放锁")
+        after.close()
+    return checked
+
+
 def check_ownership() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
@@ -108,10 +177,11 @@ def check_ownership() -> int:
 def main() -> int:
     try:
         checked = check_ownership()
-    except ValueError as error:
+        scenarios = _behavior_checks()
+    except (ValueError, OSError) as error:
         print(f"状态目录占用核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"状态目录占用一致：{checked} 项独占与释放防护")
+    print(f"状态目录占用一致：{checked} 项独占与释放防护、{scenarios} 个行为场景")
     return 0
 
 
