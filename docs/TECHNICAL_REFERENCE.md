@@ -524,7 +524,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_attachments.py`
 
-`scripts/check_attachments.py` 核对附件边界：`resources.py` 的默认存储 512 MiB / 4096 对象、上限 `2**63 - 1`、`DEFAULT_READ_CHARS = 16,384` 与 `MAX_READ_CHARS = 32,768` 必须保持不变；`attachment/read` 的请求字段白名单、默认分段、`wire_size(result) > MAX_PAGE_BYTES` 单页守卫，以及 `RESPONSE_TOO_LARGE` / `attachment/read` / `suggestedLimit` 恢复信息必须保留；两个存储配额环境变量名也不得改名。脚本还固定删除会话后的共享附件清理：`_purge_unreferenced_attachments` 必须扫描全部会话的 `attachment` 引用、跳过待删除会话、只删除「候选减引用」、空候选提前返回，并在附件目录、会话文件与附件文件三处按属主 / 单链接 / 私有权限 fail closed（两处单链接检查各出现一次）；`_finish_deletion` 必须先移除会话文件再清理附件，顺序颠倒会让被删会话把自己算作引用而留下残留。检查是常量与文本扫描，实际配额与分页行为仍需按用户指南核对。
+`scripts/check_attachments.py` 核对附件边界：`resources.py` 的默认存储 512 MiB / 4096 对象、上限 `2**63 - 1`、`DEFAULT_READ_CHARS = 16,384` 与 `MAX_READ_CHARS = 32,768` 必须保持不变；`attachment/read` 的请求字段白名单、默认分段、`wire_size(result) > MAX_PAGE_BYTES` 单页守卫，以及 `RESPONSE_TOO_LARGE` / `attachment/read` / `suggestedLimit` 恢复信息必须保留；两个存储配额环境变量名也不得改名。脚本还固定删除会话后的共享附件清理：`_purge_unreferenced_attachments` 必须扫描全部会话的 `attachment` 引用、跳过待删除会话、只删除「候选减引用」、空候选提前返回，并在附件目录、会话文件与附件文件三处按属主 / 单链接 / 私有权限 fail closed（两处单链接检查各出现一次）；`_finish_deletion` 必须先移除会话文件再清理附件，顺序颠倒会让被删会话把自己算作引用而留下残留。脚本另用临时目录、合成会话 JSONL 与附件对象构造真实 `SessionStore`，实际执行 `_purge_unreferenced_attachments` 与 `cleanup_unreferenced_attachments`，覆盖 27 个行为场景：共享引用在多会话、CRLF 日志与重复记录下保留，未引用 / 多候选 / 重复候选对象删除，缺失对象与缺失附件目录静默，空候选不扫描，待删除会话被跳过且其会话文件与标记保留，其他会话的删除标记不影响引用；非附件记录、空载荷、非法格式与大写摘要不算引用；损坏会话、非对象载荷、符号链接 / 硬链接会话文件、符号链接 / 硬链接 / 目录附件与文件 / 符号链接附件根分别给出固定 fail closed 文案；公开包装委托清理、传播错误并接受空清单。
 
 ### `check_attachment_add.py`
 
