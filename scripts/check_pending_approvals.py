@@ -5,17 +5,29 @@
 共用的过滤条件：未裁决、运行中回合、未归档会话、期限范围内，列类型与非空
 约束必须同时成立，删除占位过多时整次读取放弃。列表用 `limit + 1` 判定是否
 还有更多，损坏行按缺失跳过；计数按会话分组，不受列表上限影响。这里按源码
-顺序固定这些边界，避免侧栏徽标与列表对不上，或损坏行让整次读取失败。
+顺序固定这些边界，避免侧栏徽标与列表对不上，或损坏行让整次读取失败；并用
+临时合成会话、回合与审批记录实际执行列表与计数。
 """
 
 from __future__ import annotations
 
 import ast
+import hashlib
+import json
 from pathlib import Path
 import sys
+import time
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.session import (  # noqa: E402
+    Entry,
+    SessionStore,
+    approval_parameters_digest,
+)
 
 # 共享过滤：删除占位上限 → 三表连接 → 未裁决与活跃回合 → 列类型与非空守卫 →
 # 期限范围 → 当前时间与可选会话 / 删除过滤参数。
@@ -115,6 +127,229 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"待审批行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != message:
+            raise ValueError(
+                f"待审批行为变化 {label}：期望错误 {message!r}，实际 {str(error)!r}") from None
+        return 1
+    raise ValueError(f"待审批行为变化 {label}：期望错误 {message!r}，实际未抛出")
+
+
+def _approval_id(item_id: str) -> str:
+    return hashlib.sha256(item_id.encode("utf-8")).hexdigest()[:32]
+
+
+def _approval_payload(turn_id: str, *, approval_id: str, tool: str = "boss_hr_greet",
+                      deadline: float | None = None, decision: str | None = None,
+                      status: str = "running",
+                      execution_state: str = "pending_approval",
+                      arguments: dict | None = None,
+                      description: str = "对外发起沟通") -> dict:
+    arguments = {"jobId": "job-1"} if arguments is None else arguments
+    approval = {"approvalId": approval_id, "toolName": tool,
+                "deadline": time.time() + 3600 if deadline is None else deadline,
+                "description": description, "params": arguments,
+                "paramsDigest": approval_parameters_digest(arguments)}
+    if decision is not None:
+        approval["decision"] = decision
+    return {"kind": "toolCall", "toolName": tool, "turnId": turn_id, "status": status,
+            "executionState": execution_state, "toolArguments": arguments,
+            "approval": approval}
+
+
+def _add_turn(store: SessionStore, thread_id: str, turn_id: str, status: str = "running") -> None:
+    store.append(thread_id, Entry(type="turn", payload={"turnId": turn_id, "status": status}))
+
+
+def _add_approval(store: SessionStore, thread_id: str, item_id: str, turn_id: str, *,
+                  approval_id: str | None = None, **options) -> None:
+    store.append(thread_id, Entry(type="item", id=item_id, payload=_approval_payload(
+        turn_id, approval_id=approval_id or _approval_id(item_id), **options)))
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    with TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        checked += _expect_value(store.pending_approvals(), ([], False), "空状态目录列表")
+        checked += _expect_value(store.pending_approval_counts(), {}, "空状态目录计数")
+
+        thread = store.create("审批")["id"]
+        deadline = time.time() + 3600
+        _add_turn(store, thread, "turn-1")
+        _add_approval(store, thread, "item-1", "turn-1", deadline=deadline,
+                      description="机密说明 sk-demo-123456")
+        approvals, truncated = store.pending_approvals()
+        checked += _expect_value(truncated, False, "单条列表截断标记")
+        checked += _expect_value(approvals, [{
+            "approvalId": _approval_id("item-1"), "threadId": thread, "turnId": "turn-1",
+            "itemId": "item-1", "toolName": "boss_hr_greet",
+            "summary": "需要你批准后才会执行：boss_hr_greet", "deadline": deadline,
+            "paramsDigest": approval_parameters_digest({"jobId": "job-1"}),
+        }], "单条待审批投影")
+        checked += _expect_value(store.pending_approval_counts(), {thread: 1}, "单条分组计数")
+        if "sk-demo-123456" in str(approvals) or "job-1" in str(approvals):
+            raise ValueError("待审批列表泄露了审批参数或描述")
+        checked += 1
+
+        _add_approval(store, thread, "item-approved", "turn-1", decision="approve",
+                      execution_state="approved")
+        _add_approval(store, thread, "item-denied", "turn-1", decision="deny",
+                      status="failed", execution_state="not_approved")
+        _add_approval(store, thread, "item-expired", "turn-1", decision="expired",
+                      status="failed", execution_state="not_executed")
+        _add_approval(store, thread, "item-late", "turn-1", deadline=time.time() - 1)
+        approvals, _ = store.pending_approvals()
+        checked += _expect_value([row["itemId"] for row in approvals], ["item-1"],
+                                 "已裁决与过期审批排除")
+        checked += _expect_value(store.pending_approval_counts(), {thread: 1},
+                                 "已裁决与过期计数排除")
+
+        _add_turn(store, thread, "turn-done", "completed")
+        _add_approval(store, thread, "item-done-turn", "turn-done")
+        _add_turn(store, thread, "turn-interrupted", "interrupted")
+        _add_approval(store, thread, "item-interrupted", "turn-interrupted")
+        approvals, _ = store.pending_approvals()
+        checked += _expect_value(sorted(row["itemId"] for row in approvals),
+                                 ["item-1", "item-interrupted"], "回合状态过滤")
+        checked += _expect_value(store.pending_approval_counts(), {thread: 2}, "回合状态计数")
+
+        store.append(thread, Entry(type="thread_info", payload={"archived": True}))
+        checked += _expect_value(store.pending_approvals(), ([], False), "归档会话排除")
+        checked += _expect_value(store.pending_approval_counts(), {}, "归档会话计数排除")
+        store.append(thread, Entry(type="thread_info", payload={"archived": False}))
+        checked += _expect_value(len(store.pending_approvals()[0]), 2, "取消归档后恢复列表")
+
+        other = store.create("其他")["id"]
+        _add_turn(store, other, "turn-2")
+        _add_approval(store, other, "item-2", "turn-2")
+        checked += _expect_value([row["itemId"] for row in store.pending_approvals(thread)[0]],
+                                 ["item-interrupted", "item-1"], "会话过滤列表")
+        checked += _expect_value(store.pending_approvals(other)[0][0]["itemId"], "item-2",
+                                 "会话过滤单条")
+        checked += _expect_value(store.pending_approval_counts(thread), {thread: 2},
+                                 "会话过滤计数")
+        checked += _expect_value(store.pending_approval_counts(), {thread: 2, other: 1},
+                                 "跨会话分组计数")
+        checked += _expect_error(lambda: store.pending_approvals("../bad"),
+                                 "threadId 格式无效", "非法会话列表")
+        checked += _expect_error(lambda: store.pending_approvals("0123456789ab"),
+                                 "会话不存在", "未知会话列表")
+        checked += _expect_error(lambda: store.pending_approval_counts("0123456789ab"),
+                                 "会话不存在", "未知会话计数")
+
+        page = store.create("排序")["id"]
+        _add_turn(store, page, "turn-3")
+        for item_id in ("item-a", "item-b", "item-c"):
+            _add_approval(store, page, item_id, "turn-3")
+        first, truncated = store.pending_approvals(page, limit=2)
+        checked += _expect_value([row["itemId"] for row in first], ["item-c", "item-b"],
+                                 "倒序分页")
+        checked += _expect_value(truncated, True, "分页截断标记")
+        second, truncated = store.pending_approvals(page, limit=3)
+        checked += _expect_value([row["itemId"] for row in second],
+                                 ["item-c", "item-b", "item-a"], "整页排序")
+        checked += _expect_value(truncated, False, "整页不截断")
+        checked += _expect_value(len(store.pending_approvals(page, limit=200)[0]), 3,
+                                 "上限 200 可用")
+        checked += _expect_value(store.pending_approval_counts(page), {page: 3},
+                                 "计数不受列表上限影响")
+        for limit in (0, 201, True):
+            checked += _expect_error(lambda limit=limit: store.pending_approvals(page, limit=limit),
+                                     "limit 必须是 1 到 200 之间的整数", f"条目上限拒绝 {limit!r}")
+
+        marked = store.create("删除中")["id"]
+        _add_turn(store, marked, "turn-4")
+        _add_approval(store, marked, "item-marked", "turn-4")
+        (Path(store.root) / f".delete-{marked}.json").write_text(json.dumps(
+            {"version": 1, "threadId": marked, "attachmentDigests": [], "eventId": "0" * 32},
+            ensure_ascii=False), encoding="utf-8")
+        listed = [row["itemId"] for row in store.pending_approvals(limit=200)[0]]
+        checked += _expect_value("item-marked" in listed, False, "删除标记会话排除")
+        checked += _expect_value(marked in store.pending_approval_counts(), False,
+                                 "删除标记计数排除")
+        checked += _expect_error(lambda: store.pending_approvals(marked),
+                                 "会话正在删除，暂不可读取", "删除标记会话过滤拒绝")
+
+        for index in range(801):
+            marker = f"{index + 1:012x}"
+            if marker == marked:
+                marker = "deadbeefcafe"
+            (Path(store.root) / f".delete-{marker}.json").write_text("{}", encoding="utf-8")
+        checked += _expect_value(store.pending_approvals(), ([], False), "占位超限放弃列表")
+        checked += _expect_value(store.pending_approval_counts(), {}, "占位超限放弃计数")
+
+    with TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        thread = store.create("索引")["id"]
+        _add_turn(store, thread, "turn-5")
+        future = time.time() + 3600
+        digest = approval_parameters_digest({"jobId": "job-1"})
+        rows = (
+            ("a" * 32, thread, "direct-ok", "turn-5", "boss_hr_greet", future, digest,
+             None, "running", "pending_approval"),
+            ("", thread, "bad-empty-approval", "turn-5", "boss_hr_greet", future, digest,
+             None, "running", "pending_approval"),
+            ("b" * 32, thread, "", "turn-5", "boss_hr_greet", future, digest,
+             None, "running", "pending_approval"),
+            ("c" * 32, thread, "bad-empty-tool", "turn-5", "", future, digest,
+             None, "running", "pending_approval"),
+            ("d" * 32, thread, "bad-empty-digest", "turn-5", "boss_hr_greet", future, "",
+             None, "running", "pending_approval"),
+            ("e" * 32, thread, "bad-text-deadline", "turn-5", "boss_hr_greet", "later",
+             digest, None, "running", "pending_approval"),
+            ("f" * 32, thread, "bad-huge-deadline", "turn-5", "boss_hr_greet", 1e16, digest,
+             None, "running", "pending_approval"),
+            ("1" * 32, thread, "bad-zero-deadline", "turn-5", "boss_hr_greet", 0, digest,
+             None, "running", "pending_approval"),
+            ("2" * 32, thread, "bad-status", "turn-5", "boss_hr_greet", future, digest,
+             None, "completed", "pending_approval"),
+            ("3" * 32, thread, "bad-state", "turn-5", "boss_hr_greet", future, digest,
+             None, "running", "approved"),
+            ("4" * 32, thread, "bad-decided", "turn-5", "boss_hr_greet", future, digest,
+             "approve", "running", "pending_approval"),
+            ("5" * 32, thread, "bad-turn", "turn-6", "boss_hr_greet", future, digest,
+             None, "running", "pending_approval"),
+        )
+        with store._index.connection() as connection:
+            connection.execute(
+                "INSERT INTO turns (thread_id,turn_id,status,first_ordinal,last_ordinal,"
+                "metadata_json) VALUES (?,?,?,?,?,?)",
+                (thread, "turn-6", "completed", 0, 0, "{}"))
+            for row in rows:
+                connection.execute(
+                    "INSERT INTO approvals (approval_id,thread_id,item_id,turn_id,tool_name,"
+                    "deadline,params_digest,decision,status,execution_state) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?)", row)
+        approvals, truncated = store.pending_approvals()
+        checked += _expect_value([row["itemId"] for row in approvals], ["direct-ok"],
+                                 "畸形索引行排除")
+        checked += _expect_value(truncated, False, "畸形索引行不触发截断")
+        checked += _expect_value(store.pending_approval_counts(), {thread: 1},
+                                 "畸形索引行计数排除")
+        with store._index.connection() as connection:
+            connection.execute("UPDATE threads SET archived=1 WHERE id=?", (thread,))
+        checked += _expect_value(store.pending_approvals(), ([], False), "索引归档排除")
+        checked += _expect_value(store.pending_approval_counts(), {}, "索引归档计数排除")
+        with store._index.connection() as connection:
+            connection.execute("UPDATE threads SET archived=0 WHERE id=?", (thread,))
+        checked += _expect_value([row["itemId"] for row in store.pending_approvals()[0]],
+                                 ["direct-ok"], "取消索引归档后恢复")
+        approvals[0]["itemId"] = "changed"
+        checked += _expect_value(store.pending_approvals()[0][0]["itemId"], "direct-ok",
+                                 "投影不复用返回对象")
+    return checked
+
+
 def check_pending_approvals() -> int:
     source = _read(SESSION)
     tree = ast.parse(source)
@@ -177,10 +412,11 @@ def check_pending_approvals() -> int:
 def main() -> int:
     try:
         checked = check_pending_approvals()
-    except (ValueError, SyntaxError) as error:
+        scenarios = _behavior_checks()
+    except (ValueError, SyntaxError, OSError) as error:
         print(f"待审批分页与计数核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"待审批分页与计数一致：{checked} 项过滤、分页与分组校验")
+    print(f"待审批分页与计数一致：{checked} 项过滤、分页与分组校验、{scenarios} 个行为场景")
     return 0
 
 

@@ -1,3 +1,8 @@
+## 0.2.0-rc.528 - 2026-11-23
+
+- 待审批检查新增 41 个临时合成场景，实际执行共享过滤、列表分页与分组计数：已裁决 / 过期 / 未运行回合 / 归档会话排除、中断回合计入、会话过滤与跨会话分组、`limit` 边界与截断、条目 id 倒序、删除标记会话与占位超限放弃，以及直接写入索引的畸形行排除。隔离变异探针合计检出 20/20。[Issue #3181](https://github.com/can4hou6joeng4/boss-harness/issues/3181)
+- 源码候选更新为 npm `0.2.0-rc.528` 和 Python `0.2.0rc528`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.527 - 2026-11-23
 
 - 任务归属检查新增 57 个临时合成记录场景，实际执行恢复策略、自动压缩归属、队列关系、回合 / 队列快照与用户消息引用：unknown 优先、进程持有、delivered_as / targets、重复与身份冲突、阶段绑定、超限溢出与不投影正文。隔离变异探针合计检出 20/20。[Issue #3179](https://github.com/can4hou6joeng4/boss-harness/issues/3179)
