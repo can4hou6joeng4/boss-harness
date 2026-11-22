@@ -11,9 +11,24 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import types
 from types import SimpleNamespace
 
-from boss_harness.models.openai_responses import (
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+try:
+    import openai  # noqa: F401
+except ModuleNotFoundError as error:
+    if error.name != "openai":
+        raise
+    # Source build 不安装第三方 SDK：解析辅助函数在导入期不使用 SDK 运行时属性。
+    stub = types.ModuleType("openai")
+    stub.APIStatusError = type("APIStatusError", (Exception,), {})
+    stub.AsyncOpenAI = type("AsyncOpenAI", (), {})
+    sys.modules["openai"] = stub
+
+from boss_harness.models.openai_responses import (  # noqa: E402
     _error_message,
     _message_text,
     _parse_arguments,
@@ -22,10 +37,9 @@ from boss_harness.models.openai_responses import (
     _stream_error_retryable,
     _usage_from_response,
 )
-from boss_harness.models.output_budget import ResponseTextBudget
-from boss_harness.models.types import ModelErrorInfo, Usage
+from boss_harness.models.output_budget import ResponseTextBudget  # noqa: E402
+from boss_harness.models.types import ModelErrorInfo, Usage  # noqa: E402
 
-ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/models/openai_responses.py"
 
 CONSTANT_FRAGMENTS = (
