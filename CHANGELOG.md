@@ -1,3 +1,8 @@
+## 0.2.0-rc.582 - 2026-11-23
+
+- 生命周期 hook 检查从 112 项结构、32 个行为场景扩展到 123 项结构、65 个行为场景，新增 `_signal_mode` 的 7 条分类片段、4 条分发片段与 33 项行为对照：仅位置参数按位置传信令，普通 / 仅关键字 / `**kwargs` 按关键字传，名为 `signal` 的 `*signal` / `**signal` 与无可解析签名回退为单参数调用；经 `LifecycleHooks` 分发时回调收到跟随取消事件的 `HookCancellationSignal`，无取消事件不注入信令，`after_tool_call` 始终提供信令，缺少必需参数的写法 fail closed 为 `HOOK_ERROR`，已取消的回合不再启动回调。隔离变异探针结构与行为均检出 9/9。[Issue #3289](https://github.com/can4hou6joeng4/boss-harness/issues/3289)
+- 源码候选更新为 npm `0.2.0-rc.582` 和 Python `0.2.0rc582`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.581 - 2026-11-23
 
 - 模型错误检查从 199 项扩展到 208 项，新增 2 条函数片段与 7 项行为对照，直接调用 `_error_payload`：嵌套 `error` 为字典或对象时取内层载荷；缺少 `error` 或显式 `None` 时回退外层且保持对象身份；`0`、空串与标量载荷按原值返回，不被真值判断吞掉。隔离变异探针结构与行为均检出 5/5。[Issue #3287](https://github.com/can4hou6joeng4/boss-harness/issues/3287)
