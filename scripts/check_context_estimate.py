@@ -35,6 +35,7 @@ from boss_harness.context import (  # noqa: E402
     _message_size,
     _retained_usage_estimate,
     _usage_input_tokens,
+    _wire_assistant,
     estimate_tokens,
     messages_from_items,
     request_fingerprint,
@@ -190,6 +191,10 @@ CANONICAL_ORDER = (
     'return text.encode("utf-8")',
     "except UnicodeEncodeError:",
     'return wire_text(text).encode("utf-8")',
+)
+WIRE_ORDER = (
+    "blocks = tuple(TextBlock(text=wire_text(block.text)) if isinstance(block, TextBlock) else block",
+    "return message if blocks == message.blocks else replace(message, blocks=blocks)",
 )
 
 
@@ -598,6 +603,34 @@ def _budget_checks() -> int:
     return checked
 
 
+def _wire_checks() -> int:
+    # 回放助手消息：只降级文本块；块相等时保持原对象，签名思考与工具参数原样保留。
+    clean = AssistantMessage(blocks=(TextBlock(text="hi"),))
+    checked = _expect_value(_wire_assistant(clean) is clean, True, "干净单块保持身份")
+    multi = AssistantMessage(blocks=(TextBlock(text="a"), TextBlock(text="b")))
+    checked += _expect_value(_wire_assistant(multi) is multi, True, "干净多块保持身份")
+    thinking = ThinkingBlock(thinking="think\ud800", signature="sig", prefix_digest="dig")
+    checked += _expect_value(
+        _wire_assistant(AssistantMessage(blocks=(thinking,))).blocks[0] is thinking,
+        True, "思考块保持身份")
+    call = ToolCallBlock(id="c1", name="read", arguments={"q": "\ud800"})
+    checked += _expect_value(
+        _wire_assistant(AssistantMessage(blocks=(call,))).blocks[0] is call,
+        True, "工具调用块保持身份")
+    degraded = TextBlock(text="a\ud800b")
+    message = AssistantMessage(blocks=(degraded, thinking, call), stop_reason="tool_use")
+    wired = _wire_assistant(message)
+    checked += _expect_value((wired is message, wired.stop_reason), (False, "tool_use"),
+                             "降级生成新消息且保留停止原因")
+    checked += _expect_value((wired.blocks[0].text, wired.blocks[0] is degraded),
+                             ("a�b", False), "文本块代理项降级")
+    checked += _expect_value((wired.blocks[1] is thinking, wired.blocks[2] is call),
+                             (True, True), "非文本块原样保留")
+    checked += _expect_value((wired.blocks[1].thinking, wired.blocks[2].arguments),
+                             ("think\ud800", {"q": "\ud800"}), "思考与参数不改写")
+    return checked
+
+
 def check_context_estimate() -> int:
     source = _read(CONTEXT)
     tree = ast.parse(source)
@@ -611,6 +644,7 @@ def check_context_estimate() -> int:
     messages = _function(tree, source, "messages_from_items")
     budget = _function(tree, source, "_budget_message")
     canonical = _function(tree, source, "_canonical_json_bytes")
+    wire = _function(tree, source, "_wire_assistant")
     checked = _ordered(JSON_ORDER, json_size, CONTEXT)
     checked += _ordered(MESSAGE_ORDER, message_size, CONTEXT)
     checked += _ordered(MESSAGES_ORDER, messages, CONTEXT)
@@ -621,6 +655,7 @@ def check_context_estimate() -> int:
     checked += _ordered(RETAINED_ORDER, retained, CONTEXT)
     checked += _ordered(BUDGET_ORDER, budget, CONTEXT)
     checked += _ordered(CANONICAL_ORDER, canonical, CONTEXT)
+    checked += _ordered(WIRE_ORDER, wire, CONTEXT)
     # 预算异常必须复用文案选择，canonical 文本必须复用可编码字节。
     if source.count("super().__init__(_budget_message(budget))") != 1:
         raise ValueError(f"{CONTEXT} 的预算异常必须使用固定文案")
@@ -702,7 +737,7 @@ def check_context_estimate() -> int:
     if retained.count("applied_intervals.append((start, end))") != 1:
         raise ValueError(f"{CONTEXT} 的用量校准必须记录已应用区间")
     checked += 1
-    return checked + _behavior_checks() + _budget_checks()
+    return checked + _behavior_checks() + _budget_checks() + _wire_checks()
 
 
 def main() -> int:

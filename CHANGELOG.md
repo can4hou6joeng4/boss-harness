@@ -1,3 +1,8 @@
+## 0.2.0-rc.579 - 2026-11-23
+
+- 上下文估算检查从 249 项扩展到 259 项，新增 2 条函数片段与 8 项行为对照，直接调用 `_wire_assistant`：只降级 `TextBlock` 并保留签名思考块与工具调用块的对象身份和内容；干净文本的单块与多块消息返回原对象，发生降级时以 `replace` 生成新消息并保留 `stop_reason`。隔离变异探针结构与行为均检出 7/7。[Issue #3283](https://github.com/can4hou6joeng4/boss-harness/issues/3283)
+- 源码候选更新为 npm `0.2.0-rc.579` 和 Python `0.2.0rc579`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.578 - 2026-11-23
 
 - 用量汇总检查从 139 项扩展到 161 项，新增 22 项行为对照，直接调用 `_provenance` 与 `_job_metadata`：来源列表只接受字符串、先按 `wire_text` 降级代理项，空串、超长、重复与数量上限都不追加；分支摘要固定 `kind=branchSummary`、只取 `targetTurnId` 且 `origin=model`，其余条目按压缩任务过滤 `reason` 的 `threshold` / `budget` / `overflow` 与 `origin` 的 `user` / `model`，标识经 `bounded_identifier` 限制 128 字符并降级代理项。隔离变异探针结构与行为分别检出 10/12、12/12，合计 12/12（两处 `wire_text` 降级不在静态片段内，由行为对照拦截）。[Issue #3281](https://github.com/can4hou6joeng4/boss-harness/issues/3281)

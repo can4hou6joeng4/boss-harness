@@ -1,6 +1,6 @@
 {
   "name": "@boss-harness/protocol",
-  "version": "0.2.0-rc.578",
+  "version": "0.2.0-rc.579",
   "private": true,
   "license": "MIT",
   "description": "BOSS Harness 的 JSON-RPC 协议类型与常量",
