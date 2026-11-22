@@ -6,7 +6,8 @@ restartLimit 固定，恢复原因与恢复策略只在提供时写入。`_aband
 是启动恢复与在线结算共用的终态修订规则：剥离身份字段、状态恒为 failed、
 待决审批结算为 expired、工具调用按执行状态区分「未执行」与「结果不确定」。
 `settle_abandoned_turn` 在锁内把属于该回合的 running 条目与待决审批补上终态并
-返回条目数，重复调用幂等。本脚本在临时目录构造 `SessionStore` 做行为对照并
+返回条目数，重复调用幂等；归属既认显式 `turnId`，也认 running 回合上下文与
+首个同名回合的回溯。本脚本在临时目录构造 `SessionStore` 做行为对照并
 扫描源码；不访问网络、模型或招聘平台。
 """
 
@@ -142,6 +143,12 @@ def _add_item(store: SessionStore, thread_id: str, *, parent: bool = True, **pay
     return entry.id if hasattr(entry, "id") else entry["id"]
 
 
+def _add_turn(store: SessionStore, thread_id: str, turn_id: str, status: str) -> None:
+    store.append(thread_id, Entry(
+        type="turn", parent_id=store.last_entry_id(thread_id),
+        payload={"turnId": turn_id, "status": status}))
+
+
 def _items(store: SessionStore, thread_id: str) -> dict[str, dict]:
     return {item["id"]: item for item in store.read_items(thread_id)}
 
@@ -267,6 +274,21 @@ def check_turn_phase() -> int:
             _expect_error(lambda: store.record_task_phase("000000000000", "task-3", "finish", "running"),
                           "会话不存在", "会话不存在")
             checked += 1
+            for label, attempt, restart_limit in (("下界", 1, 0), ("上界", 1000, 32)):
+                store.record_task_phase(thread_id, f"edge-{attempt}", "finish", "running",
+                                        attempt=attempt, restart_limit=restart_limit)
+                last = store.read_entries(thread_id)[-1]
+                if (last["payload"].get("attempt") != attempt
+                        or last["payload"].get("restartLimit") != restart_limit):
+                    raise ValueError(f"{label}阶段边界必须被接受并原样写入")
+                checked += 1
+            store.record_task_phase(thread_id, "enum-recovery", "finish", "running",
+                                    recovery_reason="terminalStateRecovered", resume_policy="closed")
+            last = store.read_entries(thread_id)[-1]
+            if (last["payload"].get("recoveryReason") != "terminalStateRecovered"
+                    or last["payload"].get("resumePolicy") != "closed"):
+                raise ValueError("其余恢复枚举值必须被接受并写入")
+            checked += 1
         finally:
             store.close()
     # 行为：失败回合收尾。
@@ -371,6 +393,52 @@ def check_turn_phase() -> int:
             checked += 1
             _expect_error(lambda: store.settle_abandoned_turn("000000000000", turn),
                           "会话不存在", "收尾会话不存在")
+            checked += 1
+            # 归属：显式 turnId 之外，还认 running 回合上下文与首个同名回合的回溯。
+            context_thread = store.create("归属")["id"]
+            _add_turn(store, context_thread, "ctx-1", "running")
+            contextual = _add_item(store, context_thread, kind="message", role="assistant", status="running")
+            contextual_call = _add_item(store, context_thread, kind="toolCall", toolName="boss_hr_greet",
+                                        status="running", executionState="pending_approval",
+                                        approval={"approvalId": "b" * 32})
+            if store.settle_abandoned_turn(context_thread, "ctx-1") != 2:
+                raise ValueError("上下文归属的遗留条目必须被结算")
+            checked += 1
+            context_items = _items(store, context_thread)
+            if (context_items[contextual]["status"] != "failed"
+                    or context_items[contextual_call]["executionState"] != "not_executed"
+                    or context_items[contextual_call]["approval"].get("decision") != "expired"):
+                raise ValueError("上下文归属的工具条目必须按未执行结算")
+            checked += 1
+            _add_turn(store, context_thread, "ctx-1", "completed")
+            orphan = _add_item(store, context_thread, kind="message", role="assistant", status="running")
+            if store.settle_abandoned_turn(context_thread, "ctx-1") != 0:
+                raise ValueError("回合终态后的无归属条目不得被结算")
+            checked += 1
+            if _items(store, context_thread)[orphan]["status"] != "running":
+                raise ValueError("回合终态后的无归属条目必须保持 running")
+            checked += 1
+            legacy_thread = store.create("回溯")["id"]
+            legacy = _add_item(store, legacy_thread, kind="message", role="assistant", status="running")
+            _add_turn(store, legacy_thread, "legacy-1", "running")
+            if store.settle_abandoned_turn(legacy_thread, "legacy-1") != 1:
+                raise ValueError("回合条目之前写入的遗留条目必须被结算")
+            checked += 1
+            if _items(store, legacy_thread)[legacy]["status"] != "failed":
+                raise ValueError("回溯归属必须收敛到 failed")
+            checked += 1
+            explicit_thread = store.create("显式")["id"]
+            _add_turn(store, explicit_thread, "explicit-1", "running")
+            explicit = _add_item(store, explicit_thread, kind="message", role="assistant",
+                                 status="running", turnId="explicit-2")
+            if store.settle_abandoned_turn(explicit_thread, "explicit-1") != 0:
+                raise ValueError("上下文不得覆盖显式 turnId")
+            checked += 1
+            if _items(store, explicit_thread)[explicit]["status"] != "running":
+                raise ValueError("显式 turnId 的条目在错误回合必须保持 running")
+            checked += 1
+            if store.settle_abandoned_turn(explicit_thread, "explicit-2") != 1:
+                raise ValueError("显式 turnId 的条目必须在所属回合结算")
             checked += 1
         finally:
             store.close()

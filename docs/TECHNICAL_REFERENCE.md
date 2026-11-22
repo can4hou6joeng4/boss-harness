@@ -602,7 +602,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_turn_phase.py`
 
-`scripts/check_turn_phase.py` 在临时目录构造 `SessionStore`，核对回合阶段与失败回合收尾：`record_task_phase` 的最小记录只含 `taskId` / `ownerKind` / `phase` / `status` / `attempt` / `restartLimit`，恢复原因与恢复策略只在提供时写入；任务编号标识符、五个阶段、`_TERMINAL` 加 `running` 的状态、`attempt` 1–1000、`restartLimit` 0–32、可选文本 256 字符与两组枚举都被固定。`_abandoned_item_payload` 剥离 `id` / `threadId`、状态恒为 `failed` 并指向原条目，待决审批结算为 `expired` 且保留原字段，工具调用在 `queued` / `pending_approval` / `approved` / `not_approved` 下按「未执行」、其余按「结果不确定」处理。`settle_abandoned_turn` 只结算属于该回合的 `running` 条目与待决审批，其他回合与已终态条目不动，多条逐条结算且重复调用幂等。脚本同时扫描三个阶段方法的固定字段、枚举与顺序；反向断言阶段记录恰好一条、在线结算只有状态与归属两处跳过、计数恰好一次。它在 Source build 与 Python 3.10–3.14 矩阵中分别运行，只使用临时目录。
+`scripts/check_turn_phase.py` 在临时目录构造 `SessionStore`，核对回合阶段与失败回合收尾：`record_task_phase` 的最小记录只含 `taskId` / `ownerKind` / `phase` / `status` / `attempt` / `restartLimit`，恢复原因与恢复策略只在提供时写入；任务编号标识符、五个阶段、`_TERMINAL` 加 `running` 的状态、`attempt` 1–1000、`restartLimit` 0–32、可选文本 256 字符与两组枚举都被固定。`_abandoned_item_payload` 剥离 `id` / `threadId`、状态恒为 `failed` 并指向原条目，待决审批结算为 `expired` 且保留原字段，工具调用在 `queued` / `pending_approval` / `approved` / `not_approved` 下按「未执行」、其余按「结果不确定」处理。`attempt` 恰好 1 与 1000、`restartLimit` 恰好 0 与 32 被接受并原样写入，`terminalStateRecovered` 与 `closed` 也被接受。`settle_abandoned_turn` 只结算属于该回合的 `running` 条目与待决审批，其他回合与已终态条目不动，多条逐条结算且重复调用幂等；归属除显式 `turnId` 外还认 running 回合上下文与首个同名回合的回溯，回合终态后新增的无归属条目不结算，显式 `turnId` 优先于上下文。脚本同时扫描三个阶段方法的固定字段、枚举与顺序；反向断言阶段记录恰好一条、在线结算只有状态与归属两处跳过、计数恰好一次。它在 Source build 与 Python 3.10–3.14 矩阵中分别运行，只使用临时目录。
 
 ### `check_turn_page.py`
 

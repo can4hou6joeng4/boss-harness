@@ -1,3 +1,8 @@
+## 0.2.0-rc.555 - 2026-11-23
+
+- 回合阶段检查从 135 项扩展到 147 项，新增 12 个行为场景：`attempt` 恰好 1 与 1000、`restartLimit` 恰好 0 与 32 被接受并原样写入，`recoveryReason="terminalStateRecovered"` 与 `resumePolicy="closed"` 被接受；`settle_abandoned_turn` 的归属除显式 `turnId` 外还认 running 回合上下文与首个同名回合的回溯，上下文归属的消息与待审批工具条目分别按失败与未执行结算，回合终态后新增的无归属条目不结算且保持 `running`，显式 `turnId` 优先于上下文。隔离变异探针结构与行为分别检出 6/8、8/8，合计 8/8。[Issue #3235](https://github.com/can4hou6joeng4/boss-harness/issues/3235)
+- 源码候选更新为 npm `0.2.0-rc.555` 和 Python `0.2.0rc555`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.554 - 2026-11-23
 
 - 会话元数据检查新增 9 个行为场景，用临时目录与合成条目实际执行 `update_thread`、`archive_thread` 与 `unarchive_thread`：合法 `pending_approval` 工具调用归档后审批决策为 `expired`、执行状态为 `not_executed`、错误码为 `APPROVAL_EXPIRED`，且只追加一条裁决与一条归档记录，重复归档不再结算；缺少 `approvalId` 的审批跳过结算只写归档记录；`projectId` 恰好 200 字符、`cwd` 字符串、`model` 为 null 被接受，`toolPolicy` 为 null 以「toolPolicy 必须是 readOnly 或 approval」拒绝。隔离变异探针结构与行为分别检出 7/8、8/8，合计 8/8。[Issue #3233](https://github.com/can4hou6joeng4/boss-harness/issues/3233)
