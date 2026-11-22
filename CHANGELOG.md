@@ -1,3 +1,8 @@
+## 0.2.0-rc.543 - 2026-11-23
+
+- 会话分叉检查新增 57 个行为场景，以临时目录与合成 JSONL 构造真实 `SessionStore` 并执行 `fork_thread`：活动分支与指定较早回合的选择、合成叶分叉被放弃回合、运行中回合 / 未收尾条目 / 未决审批 / 拆开工具批次 / 非法续接偏移的拒绝、内核专用记录排除、`threadId` / `approvalId` / `parentId` 改写、迟到修订归属、续接边界摘要重算与删除、来源日志只读。隔离变异探针结构与行为分别检出 7/20、20/20，合计 20/20。[Issue #3211](https://github.com/can4hou6joeng4/boss-harness/issues/3211)
+- 源码候选更新为 npm `0.2.0-rc.543` 和 Python `0.2.0rc543`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.542 - 2026-11-23
 
 - 内核工具检查新增 56 个行为场景，实际执行 `validate_arguments`、`_decode_cli_envelope`、`resolve_browser_source_override`、`_executable_path`、`resolve_binary`、`tool_handlers`、`approval_required_tools` 与 `should_pause`：信封非有限数字 / 重复键 / 代理项 / 深度边界、浏览器来源规范化、可执行文件与符号链接判定、参数类型 / 枚举 / 数组 / 额外字段、审批集与暂停代码。隔离变异探针结构与行为分别检出 1/15、15/15，合计 15/15。[Issue #3209](https://github.com/can4hou6joeng4/boss-harness/issues/3209)
