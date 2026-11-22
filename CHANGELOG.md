@@ -1,3 +1,8 @@
+## 0.2.0-rc.534 - 2026-11-23
+
+- 关闭检查新增 25 个真实线程场景，实际执行 `TrackedAbort` 与 `join_until`：回调优先、provider 回退、缺少钩子、回调 / 收尾异常收敛、`done` 与 `on_done` 单次、重复与并发启动只派发一次、工作线程 daemon 与名称，以及跳过 `None` / 当前线程 / 未启动 / 重复线程、按截止时间返回且不等待存活 worker。隔离变异探针结构与行为均检出 9/9。[Issue #3193](https://github.com/can4hou6joeng4/boss-harness/issues/3193)
+- 源码候选更新为 npm `0.2.0-rc.534` 和 Python `0.2.0rc534`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.533 - 2026-11-23
 
 - 占用锁检查新增 15 个临时状态目录场景，实际创建并竞争 `.owner.lock`：锁文件与目录私有权限、同进程第二个持有者非阻塞拒绝、失败实例释放描述符、首个持有者不受影响、关闭后保留锁文件并可重新获取、重复 / 未初始化关闭与析构释放。隔离变异探针结构与行为均检出 10/10。[Issue #3191](https://github.com/can4hou6joeng4/boss-harness/issues/3191)

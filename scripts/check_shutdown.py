@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import threading
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/shutdown.py"
@@ -18,6 +20,9 @@ APPLICATION = "harness/src/boss_harness/application.py"
 CONNECTIONS = "harness/src/boss_harness/connections.py"
 TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 USER_GUIDE = "docs/USER_GUIDE.md"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.shutdown import TrackedAbort, join_until  # noqa: E402
 
 CONSTANT_FRAGMENTS = (
     # 两秒预算属于内核关闭策略，不得下沉到 provider 传输层。
@@ -133,6 +138,120 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"关闭等待预算行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+class _Provider:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def request_abort(self) -> None:
+        self.calls += 1
+
+
+class _CountingThread(threading.Thread):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.joins = 0
+
+    def join(self, timeout=None):
+        self.joins += 1
+        return super().join(timeout)
+
+
+def _raise_abort() -> None:
+    raise RuntimeError("中止失败")
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    provider = _Provider()
+    events: list[str] = []
+    guard = TrackedAbort(provider, lambda: events.append("done"), name="turn-abort",
+                         callback=lambda: events.append("callback"))
+    checked += _expect_value(guard.start(), None, "启动返回")
+    checked += _expect_value(guard.done.wait(2), True, "显式回调完成")
+    checked += _expect_value(events, ["callback", "done"], "回调优先与收尾")
+    checked += _expect_value(provider.calls, 0, "provider 不参与")
+    checked += _expect_value((guard.worker.daemon, guard.worker.name), (True, "turn-abort"),
+                             "工作线程属性")
+    guard.start()
+    checked += _expect_value(events, ["callback", "done"], "重复启动不重跑")
+
+    provider = _Provider()
+    guard = TrackedAbort(provider, lambda: None, name="provider-abort")
+    guard.start()
+    checked += _expect_value(guard.done.wait(2), True, "provider 兜底完成")
+    checked += _expect_value(provider.calls, 1, "provider 兜底调用")
+
+    guard = TrackedAbort(object(), lambda: None, name="no-hook")
+    guard.start()
+    checked += _expect_value(guard.done.wait(2), True, "缺少钩子正常收尾")
+
+    finished: list[int] = []
+    guard = TrackedAbort(_Provider(), lambda: finished.append(1), name="raising",
+                         callback=_raise_abort)
+    guard.start()
+    checked += _expect_value(guard.done.wait(2), True, "回调异常仍置位")
+    checked += _expect_value(finished, [1], "回调异常仍收尾")
+
+    guard = TrackedAbort(_Provider(), _raise_abort, name="bad-done", callback=lambda: None)
+    guard.start()
+    checked += _expect_value(guard.done.wait(2), True, "收尾异常仍置位")
+    checked += _expect_value(guard._finished, True, "收尾异常仍记账")
+
+    calls: list[int] = []
+    guard = TrackedAbort(_Provider(), lambda: calls.append(1), name="idempotent")
+    guard._finish()
+    guard._finish()
+    checked += _expect_value(calls, [1], "收尾只执行一次")
+    checked += _expect_value(guard.done.is_set(), True, "直接收尾置位")
+
+    calls = []
+    guard = TrackedAbort(_Provider(), lambda: None, name="concurrent",
+                         callback=lambda: calls.append(1))
+    starters = [threading.Thread(target=guard.start) for _ in range(8)]
+    for starter in starters:
+        starter.start()
+    for starter in starters:
+        starter.join()
+    checked += _expect_value(guard.done.wait(2), True, "并发启动完成")
+    checked += _expect_value(calls, [1], "并发启动只派发一次")
+
+    current = threading.current_thread()
+    unstarted = _CountingThread(target=lambda: None, name="unstarted", daemon=True)
+    finished_thread = _CountingThread(target=lambda: None, name="finished", daemon=True)
+    finished_thread.start()
+    finished_thread.join()
+    finished_thread.joins = 0
+    started = time.monotonic()
+    checked += _expect_value(join_until(
+        [None, current, unstarted, finished_thread, finished_thread], started + 0.2), None,
+        "等待返回")
+    checked += _expect_value(time.monotonic() - started < 1.0, True, "跳过不等待")
+    checked += _expect_value(unstarted.joins, 0, "未启动不 join")
+    checked += _expect_value(finished_thread.joins, 1, "重复线程只 join 一次")
+
+    release = threading.Event()
+    blocked = _CountingThread(target=release.wait, name="blocked", daemon=True)
+    blocked.start()
+    started = time.monotonic()
+    join_until([blocked], started + 0.05)
+    elapsed = time.monotonic() - started
+    alive_at_deadline = blocked.is_alive()
+    # 先释放测试线程再断言：失败路径也不能留下非守护线程拖住进程退出。
+    release.set()
+    blocked.join(2)
+    checked += _expect_value(elapsed >= 0.01, True, "等待到截止时间")
+    checked += _expect_value(elapsed < 0.5, True, "截止时间上限")
+    checked += _expect_value(alive_at_deadline, True, "截止后不等待存活线程")
+    checked += _expect_value(blocked.is_alive(), False, "释放后退出")
+    return checked
+
+
 def check_shutdown() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
@@ -212,10 +331,11 @@ def check_shutdown() -> int:
 def main() -> int:
     try:
         checked = check_shutdown()
-    except ValueError as error:
+        scenarios = _behavior_checks()
+    except (ValueError, OSError) as error:
         print(f"关闭等待预算核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"关闭等待预算一致：{checked} 项中止与等待防护")
+    print(f"关闭等待预算一致：{checked} 项中止与等待防护、{scenarios} 个行为场景")
     return 0
 
 

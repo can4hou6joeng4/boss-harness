@@ -750,7 +750,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_shutdown.py`
 
-`scripts/check_shutdown.py` 核对内核关闭的等待预算与中止线程所有权：`TrackedAbort` 必须只发信号（显式 callback 优先、否则回退 `request_abort`，异常收敛，`finally` 收尾），收尾必须先占锁判重、再置位 `done`、最后执行 `on_done`；启动只允许一次，线程启动失败只退休记账，绝不回退为内联中止；`join_until` 必须跳过未启动、当前线程与重复 worker，并按剩余期限 `join`。脚本同时固定 runtime / application / connections 的最多两秒共享期限、关闭时「冻结准入 → 派发取消 → 各域依次等待 → 关闭 hook 与快照」的顺序，以及技术参考与使用指南的关闭口径。脚本只扫描源码，不证明运行时线程已退出。
+`scripts/check_shutdown.py` 核对内核关闭的等待预算与中止线程所有权：`TrackedAbort` 必须只发信号（显式 callback 优先、否则回退 `request_abort`，异常收敛，`finally` 收尾），收尾必须先占锁判重、再置位 `done`、最后执行 `on_done`；启动只允许一次，线程启动失败只退休记账，绝不回退为内联中止；`join_until` 必须跳过未启动、当前线程与重复 worker，并按剩余期限 `join`。脚本同时固定 runtime / application / connections 的最多两秒共享期限、关闭时「冻结准入 → 派发取消 → 各域依次等待 → 关闭 hook 与快照」的顺序，以及技术参考与使用指南的关闭口径。脚本另用真实线程执行 25 个行为场景：显式回调优先且 provider 不被调用、无回调时回退 provider、缺少钩子正常收尾、回调与收尾异常均被吞掉且 `done` 置位、`on_done` 只执行一次、重复与并发 `start()` 只派发一次、工作线程为 daemon 且名称正确，以及 `join_until` 跳过 `None` / 当前线程 / 未启动 / 重复线程、按截止时间返回且不等待仍存活的 worker；不访问网络、模型、招聘平台或本机状态目录。
 
 ### `check_browser_source.py`
 
