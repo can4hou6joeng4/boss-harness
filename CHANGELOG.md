@@ -1,3 +1,8 @@
+## 0.2.0-rc.572 - 2026-11-23
+
+- Anthropic 适配器检查从 112 项扩展到 160 项，新增 5 条源码片段与 43 项行为对照，直接调用纯辅助函数：工具参数解析对空串、非对象、`NaN` 等非法常量与深嵌套输入收敛为 `None`；状态重试覆盖上下文溢出、明确不可重试、流内 200 与 `408/409/429/500/502/503/504/529` 集合；工具结果保持中文、序列化失败回退字符串并按字符截断到 20000；消息翻译覆盖工具结果、文本、工具调用、签名 / 加密 / 无签名思考与空消息丢弃，前缀摘要匹配才回放思考、无系统提示不过滤。隔离变异探针结构与行为分别检出 20/21、21/21，合计 21/21（400 可重试变异保留原状态码片段，由行为对照拦截）。[Issue #3269](https://github.com/can4hou6joeng4/boss-harness/issues/3269)
+- 源码候选更新为 npm `0.2.0-rc.572` 和 Python `0.2.0rc572`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.571 - 2026-11-23
 
 - OpenAI Responses 检查从 107 项扩展到 175 项，新增 6 条源码片段与 62 项行为对照，直接调用解析辅助函数：`None` / 空串解析为空对象，纯空白、截断、非对象 JSON、`NaN` 等非法常量与深嵌套参数收敛为 `None`；completed / in_progress 由工具调用覆盖为 `tool_use`，incomplete 仅 `max_output_tokens` 记 `length`，其余原因与 failed / cancelled 的错误文案保持固定；用量缺失或缺输入 / 输出计数返回 `None`，字符串计数可识别，明细缺失时缓存为 0、思考为 `None`；`CONTEXT_OVERFLOW` 永不重试，结构化结论优先于文本标记，无结论时才回退；思考文本 summary 优先、全空才回退 content，消息文本仅当 text 缺失时用 refusal，预算键与 UTF-8 字节计量固定；错误消息按 `body.error.message` → `body.message` → 异常 message → 异常字符串回退。隔离变异探针结构与行为分别检出 21/21、21/21，合计 21/21。[Issue #3267](https://github.com/can4hou6joeng4/boss-harness/issues/3267)
