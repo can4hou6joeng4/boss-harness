@@ -5,7 +5,8 @@
 列表与容量上限；编辑只改排队项正文并按替换后的字节重算上限；转移表禁止
 已投递项回退；领取 steering 时必须匹配当前回合；暂停来源按 kind 优先，
 结算只处理排队 / 投递中的项，并在一次 `append_many` 后清理作用域。这里按
-源码顺序固定这些边界，避免去重、上限或状态机被重构放宽。
+源码顺序固定这些边界。行为检查在临时会话存储上直接调用 `TurnQueue`，避免
+去重、上限或状态机被重构放宽。
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = "harness/src/boss_harness/runtime.py"
@@ -139,6 +141,169 @@ SETTLE_ORDER = (
 )
 
 
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.rpc import RpcError  # noqa: E402
+from boss_harness.runtime import (  # noqa: E402
+    MAX_PENDING_QUEUE_INPUT_BYTES,
+    MAX_PENDING_QUEUE_ITEMS,
+    TurnQueue,
+)
+from boss_harness.session import SessionStore  # noqa: E402
+
+
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"队列状态行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) == message:
+            return 1
+        raise ValueError(
+            f"队列状态行为变化 {label}：错误文案 {str(error)!r} 不等于 {message!r}") from None
+    raise ValueError(f"队列状态行为变化 {label}：没有抛出 ValueError")
+
+
+def _expect_limit(call, label: str) -> int:
+    try:
+        call()
+    except RpcError as error:
+        if (error.code, error.data) == (-32005, {
+                "code": "QUEUE_LIMIT", "maxItems": MAX_PENDING_QUEUE_ITEMS,
+                "maxInputBytes": MAX_PENDING_QUEUE_INPUT_BYTES}):
+            return 1
+        raise ValueError(f"队列状态行为变化 {label}：超限信息变化 {error.code} {error.data!r}") from None
+    raise ValueError(f"队列状态行为变化 {label}：没有抛出 RpcError")
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    # 静态统计只覆盖排队与投递中，字节数按 UTF-8。
+    checked += _expect_value(
+        TurnQueue._pending_usage([
+            {"status": "queued", "input": "中"}, {"status": "delivering", "input": "ab"},
+            {"status": "paused", "input": "x"}, {"status": "delivered", "input": "x"}]),
+        (2, 5), "待处理统计")
+    with TemporaryDirectory() as directory:
+        store = SessionStore(Path(directory) / "sessions")
+        queue = TurnQueue(store)
+
+        def thread() -> str:
+            return store.create("t")["id"]
+
+        # 新增：技能去重保序，转向消息拒绝技能，重复客户端 id 只接受同一输入。
+        added_thread = thread()
+        item = queue.add(added_thread, "hello", client_id="c1", skill_ids=["b", "a", "a"])
+        checked += _expect_value(
+            (item["kind"], item["status"], item["expectedTurnId"],
+             item["clientUserMessageId"], item["skillIds"]),
+            ("followUp", "queued", None, "c1", ["b", "a"]), "新增字段")
+        checked += _expect_value(
+            queue.add(added_thread, "hello", client_id="c1", skill_ids=["b", "a"])["id"],
+            item["id"], "客户端幂等")
+        checked += _expect_value(len(queue.list(added_thread)), 1, "幂等不重复入队")
+        checked += _expect_error(
+            lambda: queue.add(added_thread, "other", client_id="c1"),
+            "clientUserMessageId 已用于不同输入或技能组合", "客户端 id 冲突")
+        checked += _expect_error(
+            lambda: queue.add(added_thread, "x", kind="steering", skill_ids=["a"]),
+            "转向消息不支持技能", "转向消息拒绝技能")
+        checked += _expect_error(
+            lambda: queue.add(added_thread, "x", kind="nope"),
+            "kind 必须是 steering 或 followUp", "非法 kind")
+        checked += _expect_error(
+            lambda: queue.add(added_thread, "  "),
+            "队列 input 必须是 1 到 100000 字符", "空白输入")
+        checked += _expect_error(
+            lambda: queue.add(added_thread, "x", skill_ids=[str(index) for index in range(11)]),
+            "skillIds 必须是最多 10 项的非空字符串数组", "技能数量上限")
+        checked += _expect_error(
+            lambda: queue.add(added_thread, "x", skill_ids=["a", ""]),
+            "skillIds 必须是最多 10 项的非空字符串数组", "技能空字符串")
+
+        # 编辑：只改正文并保留条目身份；已投递项与不存在的条目都拒绝。
+        updated = queue.update_input(added_thread, item["id"], "changed")
+        checked += _expect_value(
+            (updated["id"], updated["input"], updated["status"]),
+            (item["id"], "changed", "queued"), "编辑正文")
+        checked += _expect_value(queue.update_input(added_thread, item["id"], "changed")["id"],
+                                 item["id"], "同文编辑")
+        checked += _expect_error(
+            lambda: queue.update_input(added_thread, "missing", "x"),
+            "队列项不存在", "编辑不存在项")
+
+        # 转移表：排队可投递、投递中可完成，已投递不可回退，暂停不可继续投递。
+        queue.transition(added_thread, item["id"], "delivering")
+        checked += _expect_error(
+            lambda: queue.update_input(added_thread, item["id"], "x"),
+            "只有排队中的消息可以编辑", "投递中不可编辑")
+        queue.transition(added_thread, item["id"], "delivered")
+        checked += _expect_error(
+            lambda: queue.transition(added_thread, item["id"], "queued"),
+            "队列项已投递或状态不允许此操作", "已投递不可回退")
+        paused_item = queue.add(added_thread, "pause me")
+        queue.transition(added_thread, paused_item["id"], "paused")
+        checked += _expect_error(
+            lambda: queue.transition(added_thread, paused_item["id"], "delivering"),
+            "队列项已投递或状态不允许此操作", "暂停不可投递")
+        checked += _expect_value(
+            queue.transition(added_thread, paused_item["id"], "cancelled")["status"],
+            "cancelled", "暂停可取消")
+
+        # 领取：steering 必须匹配回合，重复领取返回空；followUp 不受回合限制。
+        claim_thread = thread()
+        steering = queue.add(claim_thread, "steer", kind="steering", turn_id="turn-1")
+        follow = queue.add(claim_thread, "follow", turn_id="turn-9")
+        checked += _expect_value(queue.claim(claim_thread, "steering", "turn-2"), None,
+                                 "回合不匹配不领取")
+        checked += _expect_value(
+            (queue.claim(claim_thread, "steering", "turn-1") or {}).get("id"),
+            steering["id"], "回合匹配领取")
+        checked += _expect_value(queue.claim(claim_thread, "steering", "turn-1"), None,
+                                 "已领取不再返回")
+        checked += _expect_value(
+            (queue.claim(claim_thread, "followUp", "other") or {}).get("id"),
+            follow["id"], "followUp 忽略回合")
+
+        # 暂停结算：具体来源优先只作用于同类排队项，无来源兜底处理其余活动项，
+        # 已暂停项保留原原因；作用域在一次结算后清理，新项不受旧暂停影响。
+        pause_thread = thread()
+        first = queue.add(pause_thread, "a", kind="followUp")
+        steering_item = queue.add(pause_thread, "b", kind="steering", turn_id="t1")
+        checked += _expect_value(
+            queue.pause(pause_thread, kind="followUp", reason="network"), [first["id"]],
+            "按 kind 暂停")
+        states = {q["id"]: (q["status"], q.get("pausedReason")) for q in queue.list(pause_thread)}
+        checked += _expect_value(
+            (states[first["id"]], states[steering_item["id"]]),
+            (("paused", "network"), ("queued", None)), "暂停作用范围")
+        later = queue.add(pause_thread, "c", kind="followUp")
+        checked += _expect_value(later["status"], "queued", "结算后作用域清理")
+        checked += _expect_value(
+            sorted(queue.pause(pause_thread, reason=None)),
+            sorted([later["id"], steering_item["id"]]), "无来源暂停其余活动项")
+        states = {q["id"]: (q["status"], q.get("pausedReason")) for q in queue.list(pause_thread)}
+        checked += _expect_value(
+            (states[first["id"]], states[later["id"]], states[steering_item["id"]]),
+            (("paused", "network"), ("paused", None), ("paused", None)), "已暂停原因保留")
+        checked += _expect_value(queue.pause(pause_thread), [], "无活动项结算为空")
+
+        # 容量：第 129 个待处理项触发 QUEUE_LIMIT，已结算的暂停项不计入。
+        limit_thread = thread()
+        for index in range(MAX_PENDING_QUEUE_ITEMS):
+            queue.add(limit_thread, f"item-{index}")
+        checked += _expect_limit(lambda: queue.add(limit_thread, "one more"), "条目上限")
+        queue.pause(limit_thread, reason=None)
+        checked += _expect_value(queue.add(limit_thread, "after pause")["status"], "queued",
+                                 "暂停项不占容量")
+    return checked
+
+
 def _read(relative: str) -> str:
     try:
         return (ROOT / relative).read_text(encoding="utf-8")
@@ -259,7 +424,7 @@ def check_queue_state() -> int:
     if settle.count('return [entry.payload["id"] for entry in updates]') != 1:
         raise ValueError(f"{RUNTIME} 的暂停结算必须返回实际暂停的 id")
     checked += 1
-    return checked
+    return checked + _behavior_checks()
 
 
 def main() -> int:
@@ -268,7 +433,7 @@ def main() -> int:
     except (ValueError, SyntaxError) as error:
         print(f"队列状态核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"队列状态一致：{checked} 项新增、编辑、转移与暂停校验")
+    print(f"队列状态一致：{checked} 项新增、编辑、转移、暂停与行为校验")
     return 0
 
 
