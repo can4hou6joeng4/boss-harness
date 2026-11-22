@@ -6,7 +6,10 @@
 路径固定为 `<root>/<id>/SKILL.md` 且不得越界；读取经 `_read_bounded` 受大小
 限制，摘要必须与目录记录一致，否则提示重新选择；注入文本以
 `<skill name={json.dumps(id)}>` 包装并以空行连接，返回的选中记录来自目录而
-不是用户输入。这里按源码顺序固定这些边界。
+不是用户输入。`session.bounded_skill_ids` 则把持久记录还原为注入集合：非列表
+返回空，非法项先跳过再计数、去重保序、最多 10 项且单个最多 200 字符。
+除源码顺序外，本脚本在临时目录构造 `SkillCatalog` 并直接调用两个函数对照
+这些边界；不启动子进程、模型或招聘平台。
 """
 
 from __future__ import annotations
@@ -14,9 +17,18 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RESOURCES = "harness/src/boss_harness/resources.py"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.resources import SkillCatalog  # noqa: E402
+from boss_harness.session import (  # noqa: E402
+    MAX_SKILL_ID_LENGTH,
+    MAX_SKILL_IDS,
+    bounded_skill_ids,
+)
 
 LOAD_ORDER = (
     "def load(self, ids: Any) -> tuple[str, list[dict]]:",
@@ -72,6 +84,104 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
             raise ValueError(f"{label} 缺少或顺序变化：{fragment}")
         position = index
     return len(fragments)
+
+
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(
+            f"技能注入行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != message:
+            raise ValueError(
+                f"技能注入行为变化 {label}：期望 {message!r}，实际 {str(error)!r}"
+            ) from None
+        return 1
+    raise ValueError(f"技能注入行为变化 {label}：期望 ValueError")
+
+
+def _write_skill(root: Path, skill_id: str, name: str, body: str = "正文") -> None:
+    directory = root / skill_id
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "SKILL.md").write_text(
+        f"---\nname: {name}\ndescription: {name} 的说明\n---\n{body}",
+        encoding="utf-8")
+
+
+class _StaleDigestCatalog(SkillCatalog):
+    def list(self) -> list[dict]:
+        return [{**entry, "digest": "0" * 64} for entry in super().list()]
+
+
+class _EscapedIdCatalog(SkillCatalog):
+    def list(self) -> list[dict]:
+        return [{**entry, "id": "/escape"} for entry in super().list()]
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    ids_message = "skillIds 必须是最多 10 项的字符串数组"
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary) / "skills"
+        _write_skill(root, "skill-a", "甲")
+        _write_skill(root, "skill-b", "乙")
+        for index in range(2, 10):
+            _write_skill(root, f"skill-{index:02d}", f"技能 {index}")
+        catalog = SkillCatalog(root)
+        checked += _expect_value(catalog.load(None), ("", []), "None 输入")
+        checked += _expect_value(catalog.load([]), ("", []), "空列表")
+        for label, ids in (
+            ("非列表", "skill-a"),
+            ("11 项", [f"s{index}" for index in range(11)]),
+            ("重复 12 项", [f"s{index}" for index in range(6)] * 2),
+            ("非字符串元素", ["skill-a", 3]),
+        ):
+            checked += _expect_error(lambda ids=ids: catalog.load(ids), ids_message, label)
+        checked += _expect_error(lambda: catalog.load([""]), "技能不存在或不可读取", "空 id")
+        checked += _expect_error(
+            lambda: catalog.load(["missing"]), "技能不存在或不可读取", "未知 id")
+        ten_ids = ["skill-a", "skill-b"] + [f"skill-{index:02d}" for index in range(2, 10)]
+        checked += _expect_value(len(catalog.load(ten_ids)[1]), MAX_SKILL_IDS, "恰好 10 项")
+        content, selected = catalog.load(["skill-b", "skill-a", "skill-b"])
+        checked += _expect_value(
+            [item["id"] for item in selected], ["skill-b", "skill-a"], "去重保序")
+        checked += _expect_value(
+            content.count('<skill name="skill-b">'), 1, "重复 id 只注入一次")
+        checked += _expect_value(
+            catalog.load(["skill-a"])[0],
+            '<skill name="skill-a">\n---\nname: 甲\ndescription: 甲 的说明\n---\n正文\n</skill>',
+            "固定包装")
+        joined = catalog.load(["skill-a", "skill-b"])[0]
+        checked += _expect_value(
+            joined.count("</skill>\n\n<skill name="), 1, "空行分隔")
+        checked += _expect_value(
+            [item["name"] for item in selected], ["乙", "甲"], "选中记录来自目录")
+        stale = _StaleDigestCatalog(root)
+        checked += _expect_error(
+            lambda: stale.load(["skill-a"]), "技能文件已变化；请重新选择", "摘要变化")
+        escaped = _EscapedIdCatalog(root)
+        checked += _expect_error(
+            lambda: escaped.load(["/escape"]), "技能路径越界", "路径越界")
+
+        checked += _expect_value(bounded_skill_ids(None), [], "持久 id 非列表")
+        checked += _expect_value(bounded_skill_ids("skill-a"), [], "持久 id 字符串")
+        checked += _expect_value(
+            bounded_skill_ids([3, "", "a", "a", "b" * (MAX_SKILL_ID_LENGTH + 1),
+                               "b" * MAX_SKILL_ID_LENGTH]),
+            ["a", "b" * MAX_SKILL_ID_LENGTH], "持久 id 过滤去重")
+        checked += _expect_value(
+            bounded_skill_ids([f"s{index}" for index in range(MAX_SKILL_IDS + 2)]),
+            [f"s{index}" for index in range(MAX_SKILL_IDS)], "持久 id 上限")
+        checked += _expect_value(
+            bounded_skill_ids([None] + [f"s{index}" for index in range(MAX_SKILL_IDS)]),
+            [f"s{index}" for index in range(MAX_SKILL_IDS)], "非法项不占名额")
+        checked += _expect_value(bounded_skill_ids(["b", "a", "b"]), ["b", "a"], "持久 id 顺序")
+    return checked
 
 
 def check_skill_context() -> int:
@@ -137,7 +247,7 @@ def check_skill_context() -> int:
     if load.index("content.append(") < digest_check:
         raise ValueError(f"{RESOURCES} 的技能正文必须在摘要校验之后追加")
     checked += 1
-    return checked
+    return checked + _behavior_checks()
 
 
 def main() -> int:
@@ -146,7 +256,7 @@ def main() -> int:
     except (ValueError, SyntaxError) as error:
         print(f"技能上下文注入核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"技能上下文注入一致：{checked} 项数量、路径与摘要校验")
+    print(f"技能上下文注入一致：{checked} 项数量、路径、摘要与持久 id 校验")
     return 0
 
 

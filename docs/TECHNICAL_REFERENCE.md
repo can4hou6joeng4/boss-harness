@@ -544,7 +544,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_skill_context.py`
 
-`scripts/check_skill_context.py` 核对技能上下文注入的数量、路径与摘要口径：`SkillCatalog.load` 的 `ids` 必须是最多 10 项的字符串数组并去重保序，`None` 与空数组两处早退；每次调用以 `list()` 重建目录映射，技能 id 必须存在；路径固定为 `<root>/<id>/SKILL.md` 且父目录不得越界；正文经 `_read_bounded` 读取一次，摘要必须与目录记录一致，变化时提示重新选择；注入文本以 `<skill name={json.dumps(id)}>` 包装、以空行连接，返回的选中记录来自目录而不是用户输入。检查是顺序与文本扫描，实际注入行为仍需按用户指南核对。
+`scripts/check_skill_context.py` 核对技能上下文注入的数量、路径与摘要口径：`SkillCatalog.load` 的 `ids` 必须是最多 10 项的字符串数组并去重保序，`None` 与空数组两处早退；每次调用以 `list()` 重建目录映射，技能 id 必须存在；路径固定为 `<root>/<id>/SKILL.md` 且父目录不得越界；正文经 `_read_bounded` 读取一次，摘要必须与目录记录一致，变化时提示重新选择；注入文本以 `<skill name={json.dumps(id)}>` 包装、以空行连接，返回的选中记录来自目录而不是用户输入。除顺序与文本扫描外，脚本在临时目录构造 `SkillCatalog` 并直接调用 `load` 与 `bounded_skill_ids`（合计 63 项）：`None` / 空数组早退；非列表、11 项、重复 12 项与非字符串元素返回固定错误；空字符串与未知 id 按不存在拒绝；恰好 10 项被接受；重复 id 只注入一次并保留输入顺序，单双技能正文按固定包装与空行连接，选中名称来自目录；覆写 `list()` 的摘要不一致与绝对 id 分别命中「技能文件已变化；请重新选择」与「技能路径越界」。`bounded_skill_ids` 行为覆盖非列表回落、非法项先跳过再计数、200 字符上限、去重保序与 10 项截断。
 
 ### `check_skill_catalog.py`
 
