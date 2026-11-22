@@ -6,18 +6,26 @@
 `sha256` 必须匹配当前摘要，否则返回 `STALE_ATTACHMENT`（`-32011`）；游标载荷
 是四元组，偏移必须严格小于文本长度，`end` 取 `min(offset + limit, len(text))`，
 只有未读完时才生成 `at1_` 游标。记录字段与对象内容都可能被外部改写，摘要、
-名称与字节范围按损坏处理，解码错误转为产品错误而不是内部错误。这里按源码
-顺序固定这些边界。
+名称与字节范围按损坏处理，解码错误转为产品错误而不是内部错误。这里先按源码
+顺序固定这些边界，再用合成条目与临时对象实际执行 `read_chunk` 与 `read`。
 """
 
 from __future__ import annotations
 
 import ast
+import base64
+import hashlib
+import json
 from pathlib import Path
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RESOURCES = "harness/src/boss_harness/resources.py"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.resources import AttachmentStorageLimits, AttachmentStore  # noqa: E402
+from boss_harness.rpc import RpcError  # noqa: E402
 
 READ_ORDER = (
     "def read(self, thread_id: str, attachment_id: str, *, include_content: bool = True) -> dict:",
@@ -261,13 +269,221 @@ def check_attachment_read() -> int:
     return checked
 
 
+class _Sessions:
+    def __init__(self, entries: list[dict]) -> None:
+        self.entries = entries
+
+    def read_entries(self, thread_id: str) -> list[dict]:
+        return self.entries
+
+    def cleanup_attachment_temporaries(self) -> None:
+        return None
+
+
+def _payload(data: bytes, **overrides: object) -> dict:
+    payload = {"id": "a1", "name": "note.txt", "digest": hashlib.sha256(data).hexdigest(),
+               "bytes": len(data), "mediaType": "text/plain; charset=utf-8"}
+    payload.update(overrides)
+    return payload
+
+
+def _store(root: Path, payload: dict, object_data: bytes | None = None) -> AttachmentStore:
+    # 对象文件按记录摘要落盘；损坏记录与缺失对象用例不写文件。
+    if object_data is not None:
+        root.mkdir(parents=True, exist_ok=True)
+        (root / payload["digest"]).write_bytes(object_data)
+    sessions = _Sessions([{"type": "attachment", "payload": payload}])
+    return AttachmentStore(sessions, root, root, limits=AttachmentStorageLimits())
+
+
+def _cursor(payload: list) -> str:
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return "at1_" + base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+def _cursor_payload(cursor: str) -> list:
+    encoded = cursor[4:]
+    return json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+
+
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"附件分页读取行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != message:
+            raise ValueError(
+                f"附件分页读取行为变化 {label}：期望 {message!r}，实际 {str(error)!r}") from None
+        return 1
+    except Exception as error:
+        raise ValueError(
+            f"附件分页读取行为变化 {label}：期望 ValueError，实际 {type(error).__name__}") from None
+    raise ValueError(f"附件分页读取行为变化 {label}：未抛出错误")
+
+
+def _expect_rpc(call, message: str, label: str) -> int:
+    try:
+        call()
+    except RpcError as error:
+        checked = _expect_value(error.code, -32011, label + "错误码")
+        checked += _expect_value(str(error), message, label + "消息")
+        checked += _expect_value(error.data.get("code"), "STALE_ATTACHMENT", label + "数据码")
+        return checked
+    except Exception as error:
+        raise ValueError(
+            f"附件分页读取行为变化 {label}：期望 RpcError，实际 {type(error).__name__}") from None
+    raise ValueError(f"附件分页读取行为变化 {label}：未抛出错误")
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    message_corrupt = "附件内容已损坏；请重新添加"
+    message_record = "附件记录已损坏；请重新添加"
+    message_cursor = "附件分页游标无效、归属不匹配或内容已变化"
+    message_limit = f"limit 必须是 1 到 {AttachmentStore.MAX_READ_CHARS} 的整数"
+    message_sha = "sha256 必须是附件内容引用中的 64 位小写十六进制摘要"
+    with tempfile.TemporaryDirectory() as directory:
+        base = Path(directory)
+        text = "abcdef"
+        data = text.encode("utf-8")
+        payload = _payload(data)
+        digest = payload["digest"]
+        store = _store(base / "base", payload, data)
+
+        full = store.read_chunk("thread-1", "a1")
+        checked += _expect_value(full["text"], text, "完整一页正文")
+        checked += _expect_value(full["offset"], 0, "完整一页偏移")
+        checked += _expect_value(full["nextCursor"], None, "完整一页无后续游标")
+        reference = {"threadId": "thread-1", "attachmentId": "a1", "name": "note.txt",
+                     "sha256": digest, "byteLength": 6, "characterLength": 6}
+        checked += _expect_value(full["contentRef"], reference, "内容引用字段")
+
+        first = store.read_chunk("thread-1", "a1", limit=4)
+        checked += _expect_value(first["text"], "abcd", "首段正文")
+        checked += _expect_value(first["offset"], 0, "首段偏移")
+        checked += _expect_value(isinstance(first["nextCursor"], str), True, "后续游标类型")
+        checked += _expect_value(first["nextCursor"].startswith("at1_"), True, "后续游标前缀")
+        checked += _expect_value(_cursor_payload(first["nextCursor"]),
+                                 ["thread-1", "a1", digest, 4], "后续游标载荷")
+        second = store.read_chunk("thread-1", "a1", cursor=first["nextCursor"], limit=4,
+                                  sha256=digest)
+        checked += _expect_value((second["text"], second["offset"], second["nextCursor"]),
+                                 ("ef", 4, None), "次段读完")
+        tail = store.read_chunk("thread-1", "a1", cursor=_cursor(["thread-1", "a1", digest, 5]),
+                                limit=4, sha256=digest)
+        checked += _expect_value((tail["text"], tail["offset"], tail["nextCursor"]),
+                                 ("f", 5, None), "末页截断")
+        restart = store.read_chunk("thread-1", "a1", limit=2,
+                                   cursor=_cursor(["thread-1", "a1", digest, 0]))
+        checked += _expect_value((restart["text"], restart["offset"]), ("ab", 0), "零偏移游标")
+        verified = store.read_chunk("thread-1", "a1", limit=2, sha256=digest)
+        checked += _expect_value((verified["text"], verified["offset"]), ("ab", 0),
+                                 "摘要校验后从头读取")
+
+        # 分页按字符计数：同一游标在 12 字节 / 4 字符的文本上按 2 字符推进。
+        unicode_data = "你好世界".encode("utf-8")
+        unicode_store = _store(base / "unicode", _payload(unicode_data), unicode_data)
+        unicode_first = unicode_store.read_chunk("thread-1", "a1", limit=2)
+        checked += _expect_value(unicode_first["text"], "你好", "按字符分页正文")
+        checked += _expect_value(unicode_first["contentRef"]["characterLength"], 4, "字符长度")
+        checked += _expect_value(unicode_first["contentRef"]["byteLength"], 12, "字节长度")
+        unicode_second = unicode_store.read_chunk("thread-1", "a1", limit=2,
+                                                  cursor=unicode_first["nextCursor"])
+        checked += _expect_value(
+            (unicode_second["text"], unicode_second["offset"], unicode_second["nextCursor"]),
+            ("世界", 2, None), "按字符续读")
+
+        for limit in (0, AttachmentStore.MAX_READ_CHARS + 1, True, 1.0, "2"):
+            checked += _expect_error(
+                lambda: store.read_chunk("thread-1", "a1", limit=limit),
+                message_limit, f"limit={limit!r}")
+        for value in ("a" * 63, "A" * 64, 123):
+            checked += _expect_error(
+                lambda: store.read_chunk("thread-1", "a1", sha256=value),
+                message_sha, f"sha256={value!r}")
+        checked += _expect_rpc(
+            lambda: store.read_chunk("thread-1", "a1", sha256="b" * 64),
+            "附件内容已变化，请重新读取附件并确认新的内容引用", "摘要不匹配")
+        try:
+            store.read_chunk("thread-1", "a1", sha256="b" * 64)
+        except RpcError as error:
+            checked += _expect_value(error.data.get("currentRef"), reference,
+                                     "陈旧引用携带当前引用")
+
+        invalid_cursors = (
+            "bad",
+            b"at1_x",
+            _cursor(["thread-2", "a1", digest, 2]),
+            _cursor(["thread-1", "a2", digest, 2]),
+            _cursor(["thread-1", "a1", "c" * 64, 2]),
+            _cursor(["thread-1", "a1", digest]),
+            _cursor(["thread-1", "a1", digest, 6]),
+            _cursor(["thread-1", "a1", digest, -1]),
+            _cursor(["thread-1", "a1", digest, True]),
+            "at1_!!!",
+            "at1_" + "A" * 2045,
+        )
+        for cursor in invalid_cursors:
+            checked += _expect_error(
+                lambda: store.read_chunk("thread-1", "a1", cursor=cursor),
+                message_cursor, f"游标 {cursor!r}",)
+
+        checked += _expect_error(lambda: store.read_chunk("thread-1", "a2"),
+                                 "附件不属于该会话", "未知附件")
+        broken = (
+            {"digest": "XY"},
+            {"name": ""},
+            {"name": None},
+            {"name": "x" * 1025},
+            {"bytes": -1},
+            {"bytes": True},
+            {"bytes": AttachmentStore.MAX_BYTES + 1},
+        )
+        for index, overrides in enumerate(broken):
+            broken_payload = _payload(data)
+            broken_payload.update(overrides)
+            broken_store = _store(base / f"broken-{index}", broken_payload)
+            checked += _expect_error(lambda: broken_store.read_chunk("thread-1", "a1"),
+                                     message_record, f"损坏记录 {overrides}")
+
+        missing_store = _store(base / "missing", _payload(data))
+        checked += _expect_error(lambda: missing_store.read_chunk("thread-1", "a1"),
+                                 message_corrupt, "对象缺失")
+        tampered_store = _store(base / "tampered", _payload(data), b"abcdeX")
+        checked += _expect_error(lambda: tampered_store.read_chunk("thread-1", "a1"),
+                                 message_corrupt, "对象内容被替换")
+        binary_data = b"\xff\xfe\x00"
+        binary_store = _store(base / "binary", _payload(binary_data), binary_data)
+        checked += _expect_error(lambda: binary_store.read_chunk("thread-1", "a1"),
+                                 "附件内容不是 UTF-8 文本；请重新添加", "非 UTF-8 对象")
+
+        surrogate_store = _store(base / "surrogate", _payload(data, name="\ud800bad.txt"), data)
+        degraded = surrogate_store.read_chunk("thread-1", "a1", limit=1)
+        checked += _expect_value(degraded["contentRef"]["name"], "�bad.txt", "附件名降级")
+        checked += _expect_value(degraded["contentRef"]["characterLength"], 6,
+                                 "降级不改字符长度")
+
+        record = store.read("thread-1", "a1", include_content=False)
+        checked += _expect_value("content" in record, False, "不含正文读取")
+        checked += _expect_value(record["name"], "note.txt", "不含正文仍返回记录")
+        with_content = store.read("thread-1", "a1")
+        checked += _expect_value(with_content["content"], text, "完整读取正文")
+    return checked
+
+
 def main() -> int:
     try:
         checked = check_attachment_read()
+        scenarios = _behavior_checks()
     except (ValueError, SyntaxError) as error:
         print(f"附件分页读取核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"附件分页读取一致：{checked} 项游标、范围与解码校验")
+    print(f"附件分页读取一致：{checked} 项游标、范围与解码校验、{scenarios} 个行为场景")
     return 0
 
 
