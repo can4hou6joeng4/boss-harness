@@ -1,3 +1,8 @@
+## 0.2.0-rc.558 - 2026-11-23
+
+- 待审批检查从 41 项行为场景扩展到 44 项：三条待审批时 `limit=1` 只返回最新一条且截断标记为 true；删除标记会话的计数与列表一样以「会话正在删除，暂不可读取」拒绝；索引中的短 `params_digest`（3 字符）行与同一 `item_id` 的两行都按行列出、计数按行累加，列表与计数口径一致。隔离变异探针结构与行为各检出 6/6。[Issue #3241](https://github.com/can4hou6joeng4/boss-harness/issues/3241)
+- 源码候选更新为 npm `0.2.0-rc.558` 和 Python `0.2.0rc558`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.557 - 2026-11-23
 
 - 回合分页检查从 69 项扩展到 76 项，新增 7 个行为场景：相同 `first_ordinal` 的游标续页只返回游标之后的回合、序号超过全部回合时返回空页、`limit` 恰好 200 被接受；`first_ordinal=-5` 与 `turn_id=''` 属于合法列值，不触发重建并按列值排序；`metadata_json` 为非对象数组、非 JSON 文本与 `null` 三类损坏都按会话重建并返回对象。隔离变异探针结构与行为分别检出 5/6、6/6，合计 6/6。[Issue #3239](https://github.com/can4hou6joeng4/boss-harness/issues/3239)

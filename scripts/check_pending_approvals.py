@@ -4,9 +4,11 @@
 `_pending_approvals_where` 是 `pending_approvals` 与 `pending_approval_counts`
 共用的过滤条件：未裁决、运行中回合、未归档会话、期限范围内，列类型与非空
 约束必须同时成立，删除占位过多时整次读取放弃。列表用 `limit + 1` 判定是否
-还有更多，损坏行按缺失跳过；计数按会话分组，不受列表上限影响。这里按源码
-顺序固定这些边界，避免侧栏徽标与列表对不上，或损坏行让整次读取失败；并用
-临时合成会话、回合与审批记录实际执行列表与计数。
+还有更多（`limit=1` 也返回最新一条并标记截断），损坏行按缺失跳过；计数按会话
+分组，不受列表上限影响；删除标记会话的列表与计数都以可读错误拒绝。索引中的
+短 `params_digest` 与重复 `item_id` 行按行处理，列表与计数保持一致。这里按
+源码顺序固定这些边界，避免侧栏徽标与列表对不上，或损坏行让整次读取失败；
+并用临时合成会话、回合与审批记录实际执行列表与计数。
 """
 
 from __future__ import annotations
@@ -259,6 +261,9 @@ def _behavior_checks() -> int:
         checked += _expect_value([row["itemId"] for row in second],
                                  ["item-c", "item-b", "item-a"], "整页排序")
         checked += _expect_value(truncated, False, "整页不截断")
+        single, truncated = store.pending_approvals(page, limit=1)
+        checked += _expect_value([row["itemId"] for row in single], ["item-c"], "单条分页")
+        checked += _expect_value(truncated, True, "单条分页截断标记")
         checked += _expect_value(len(store.pending_approvals(page, limit=200)[0]), 3,
                                  "上限 200 可用")
         checked += _expect_value(store.pending_approval_counts(page), {page: 3},
@@ -279,6 +284,8 @@ def _behavior_checks() -> int:
                                  "删除标记计数排除")
         checked += _expect_error(lambda: store.pending_approvals(marked),
                                  "会话正在删除，暂不可读取", "删除标记会话过滤拒绝")
+        checked += _expect_error(lambda: store.pending_approval_counts(marked),
+                                 "会话正在删除，暂不可读取", "删除标记会话计数拒绝")
 
         for index in range(801):
             marker = f"{index + 1:012x}"
@@ -319,6 +326,12 @@ def _behavior_checks() -> int:
              "approve", "running", "pending_approval"),
             ("5" * 32, thread, "bad-turn", "turn-6", "boss_hr_greet", future, digest,
              None, "running", "pending_approval"),
+            ("6" * 32, thread, "short-digest", "turn-5", "boss_hr_greet", future, "abc",
+             None, "running", "pending_approval"),
+            ("7" * 32, thread, "dup-item", "turn-5", "boss_hr_greet", future, digest,
+             None, "running", "pending_approval"),
+            ("8" * 32, thread, "dup-item", "turn-5", "boss_hr_greet", future, digest,
+             None, "running", "pending_approval"),
         )
         with store._index.connection() as connection:
             connection.execute(
@@ -331,10 +344,11 @@ def _behavior_checks() -> int:
                     "deadline,params_digest,decision,status,execution_state) "
                     "VALUES (?,?,?,?,?,?,?,?,?,?)", row)
         approvals, truncated = store.pending_approvals()
-        checked += _expect_value([row["itemId"] for row in approvals], ["direct-ok"],
+        checked += _expect_value(sorted(row["itemId"] for row in approvals),
+                                 ["direct-ok", "dup-item", "dup-item", "short-digest"],
                                  "畸形索引行排除")
         checked += _expect_value(truncated, False, "畸形索引行不触发截断")
-        checked += _expect_value(store.pending_approval_counts(), {thread: 1},
+        checked += _expect_value(store.pending_approval_counts(), {thread: 4},
                                  "畸形索引行计数排除")
         with store._index.connection() as connection:
             connection.execute("UPDATE threads SET archived=1 WHERE id=?", (thread,))
@@ -342,10 +356,12 @@ def _behavior_checks() -> int:
         checked += _expect_value(store.pending_approval_counts(), {}, "索引归档计数排除")
         with store._index.connection() as connection:
             connection.execute("UPDATE threads SET archived=0 WHERE id=?", (thread,))
-        checked += _expect_value([row["itemId"] for row in store.pending_approvals()[0]],
-                                 ["direct-ok"], "取消索引归档后恢复")
+        checked += _expect_value(sorted(row["itemId"] for row in store.pending_approvals()[0]),
+                                 ["direct-ok", "dup-item", "dup-item", "short-digest"],
+                                 "取消索引归档后恢复")
+        first_item = approvals[0]["itemId"]
         approvals[0]["itemId"] = "changed"
-        checked += _expect_value(store.pending_approvals()[0][0]["itemId"], "direct-ok",
+        checked += _expect_value(store.pending_approvals()[0][0]["itemId"], first_item,
                                  "投影不复用返回对象")
     return checked
 
