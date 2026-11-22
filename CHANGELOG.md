@@ -1,3 +1,8 @@
+## 0.2.0-rc.566 - 2026-11-23
+
+- 准备聚合 `v0.2.0-rc.15` 以来已合入变化的下一轮预发布候选：以固定主干为基线，核对安装入口、兼容限制和分发包验收范围。本轮不改变运行时或 JSON-RPC 协议，候选合入不等于实际发布。[Issue #3259](https://github.com/can4hou6joeng4/boss-harness/issues/3259)
+- 源码候选更新为 npm `0.2.0-rc.566` 和 Python `0.2.0rc566`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.565 - 2026-11-23
 
 - 启动自检检查新增 17 条端点 / 目录源码片段与 30 项行为对照：`_is_loopback_host` 的 `localhost.` / `127.0.0.0/8` / `::1` / 大小写归一与 `[::1]` / `0.0.0.0` / 空串拒绝；`_insecure_base_url` 的无值 / `https` / 本机 `http`（含 IPv6 字面量）/ 无 scheme / 畸形 URL / 非回环主机判定；`_directories_overlap` 的相同、父子、反向、兄弟与含 `..` 等价路径；`_free_space` 的已存在目录与非存在嵌套路径沿最近祖先读取。隔离变异探针结构与行为分别检出 7/8、6/8，合计 8/8（两处未检出源于 `urlparse` 已做 scheme 与主机小写归一，片段仍作为静态防护保留）。[Issue #3255](https://github.com/can4hou6joeng4/boss-harness/issues/3255)
