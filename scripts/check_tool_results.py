@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """核对工具结果分页、内容寻址与引用恢复边界，成功时输出核对项数量。
 
-源码检查覆盖预算常量和读取路径的接入边界。行为检查覆盖执行状态、重试处置、
-桌面结果投影、内容寻址引用和两条读取路径之间的分页续读。
+源码检查覆盖预算常量、读取路径与模型结果投影的接入边界。行为检查覆盖执行状态、
+重试处置、桌面结果投影、内容寻址引用、两条读取路径之间的分页续读，以及模型侧
+超限替换、结算字段合并与缺失结果告知。
 """
 
 from __future__ import annotations
@@ -50,19 +51,52 @@ MODEL_TOOLS_FRAGMENTS = (
     'error["currentRef"] = current_ref',
     '"code": code if isinstance(code, str) else "RESULT_READ_FAILED",',
 )
+MODEL_RESULT_FRAGMENTS = (
+    "if (type(max_bytes) is not int",
+    "or not MIN_MODEL_TOOL_RESULT_BYTES <= max_bytes <= MAX_MODEL_TOOL_RESULT_BYTES):",
+    "max_bytes = DEFAULT_MODEL_TOOL_RESULT_BYTES",
+    'payload = {**result, **outcome, **({"source": source} if source is not None else {})}',
+    "if size is not None and size <= max_bytes:",
+    '"command": result.get("command"),',
+    'projected["resultRef"] = {key: reference[key] for key in',
+    "text = reference_text if reference_text is not None else result_text(result)",
+    "if item_id is not None and 0 < len(item_id) <= 128 and not any(",
+    "projected = _fit_projection(projected, max_bytes)",
+    'minimal = {"ok": projected["ok"], "resultOmitted": True, **outcome,',
+    'flagged = {**projected, "commandTruncated": True}',
+    'without_source = {key: value for key, value in flagged.items() if key != "source"}',
+    "low, high = 0, min(len(text), max_bytes // 2)",
+    'parsed.get("executionState") != execution_state',
+    'if len(candidate.encode("utf-8")) <= limit:',
+    "if type(limit) is not int or not MIN_MODEL_TOOL_RESULT_BYTES <= limit <= MAX_MODEL_TOOL_RESULT_BYTES:",
+    'disposition = {"delivery": "unknown", "retry": "unknown"} if write else None',
+    'if disposition is None and execution_state in {"not_executed", "not_approved", "outcome_unknown"}:',
+    'content["errorCode"] = wire_text(code[:128])',
+    "keep = min(len(preview), max(1, limit // 2))",
+)
 RPC_DEFAULT = re.compile(
     r'def on_tool_result_read\(.*?return read_result_chunk\(.*?limit=params\.get\("limit",\s*([\d_]+)\)',
     re.DOTALL,
 )
 
 sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.models.types import (  # noqa: E402
+    DEFAULT_MODEL_TOOL_RESULT_BYTES,
+    MAX_MODEL_TOOL_RESULT_BYTES,
+    MIN_MODEL_TOOL_RESULT_BYTES,
+)
 from boss_harness.rpc import RpcError  # noqa: E402
 from boss_harness.tool_results import (  # noqa: E402
     MAX_INLINE_TOOL_RESULT_BYTES,
     MAX_PAGE_BYTES,
     TOOL_EXECUTION_STATES,
+    _fit_projection,
+    _merge_outcome,
+    _unavailable_result,
     canonical_result_text,
     disposition_for_state,
+    model_result_content,
+    model_result_for_item,
     project_item,
     read_result_chunk,
     read_result_text_chunk,
@@ -316,6 +350,202 @@ def _pagination_checks() -> int:
     return checked
 
 
+def _projection_checks() -> int:
+    # 模型预算常量：默认值必须落在读写上下限之间，读写上下限各自固定。
+    checked = _expect_value(
+        (MIN_MODEL_TOOL_RESULT_BYTES, DEFAULT_MODEL_TOOL_RESULT_BYTES,
+         MAX_MODEL_TOOL_RESULT_BYTES),
+        (8 * 1024, 20 * 1024, 1024 * 1024), "模型结果预算常量")
+    checked += _expect_value(
+        MIN_MODEL_TOOL_RESULT_BYTES < DEFAULT_MODEL_TOOL_RESULT_BYTES
+        <= MAX_MODEL_TOOL_RESULT_BYTES, True, "模型结果预算次序")
+    # 预算内保留结构化结果；结算字段与来源按结果、状态、处置、来源的顺序并入。
+    checked += _expect_value(
+        model_result_content({"ok": True, "text": "hi"}, None, source=None,
+                             max_bytes=65536, preview=""),
+        '{"ok": true, "text": "hi"}', "预算内内联")
+    checked += _expect_value(
+        model_result_content(
+            {"ok": True}, "item-1", source={"path": "/tmp/x"}, max_bytes=65536,
+            preview="", execution_state="failed",
+            disposition={"delivery": "unknown", "retry": "unknown"}),
+        '{"ok": true, "executionState": "failed", '
+        '"disposition": {"delivery": "unknown", "retry": "unknown"}, '
+        '"source": {"path": "/tmp/x"}}', "结算字段与来源")
+    # 非法预算（含布尔值、越界值与字符串）回退默认预算，12 KB 结果仍内联。
+    big = {"text": "x" * 12000}
+    for budget in (True, 0, MIN_MODEL_TOOL_RESULT_BYTES - 1,
+                   MAX_MODEL_TOOL_RESULT_BYTES + 1, "8192"):
+        checked += _expect_value(
+            "resultOmitted" in json.loads(model_result_content(
+                big, None, source=None, max_bytes=budget, preview="")),
+            False, f"预算 {budget!r} 回退默认")
+    # 超限结果替换成引用：字段固定为四项，摘要与长度来自同一持久拼写。
+    text = result_text(big)
+    parsed = json.loads(model_result_content(
+        big, "item-1", source=None, max_bytes=MIN_MODEL_TOOL_RESULT_BYTES, preview=""))
+    checked += _expect_value(
+        sorted(parsed), ["command", "ok", "resultOmitted", "resultRef"], "超限投影字段")
+    checked += _expect_value(
+        (parsed["resultRef"]["itemId"],
+         parsed["resultRef"]["sha256"] == hashlib.sha256(text.encode("utf-8")).hexdigest(),
+         parsed["resultRef"]["byteLength"], parsed["resultRef"]["characterLength"]),
+        ("item-1", True, len(text.encode("utf-8")), len(text)), "超限引用内容")
+    checked += _expect_value(
+        len(model_result_content(big, "item-1", source=None,
+                                 max_bytes=MIN_MODEL_TOOL_RESULT_BYTES,
+                                 preview="").encode("utf-8"))
+        <= MIN_MODEL_TOOL_RESULT_BYTES, True, "超限投影预算")
+    # reference_text 决定引用摘要：模型副本可清洗，引用必须指向持久原文。
+    parsed = json.loads(model_result_content(
+        big, "item-1", source=None, max_bytes=MIN_MODEL_TOOL_RESULT_BYTES,
+        preview="", reference_text="Z" * 10))
+    checked += _expect_value(
+        (parsed["resultRef"]["sha256"] == hashlib.sha256(b"Z" * 10).hexdigest(),
+         parsed["resultRef"]["byteLength"], parsed["resultRef"]["characterLength"]),
+        (True, 10, 10), "引用原文覆盖")
+    # itemId 超出读取契约（空、129 字符、孤立代理项）时不提供必然失败的读取入口。
+    for label, item_id in (("空", ""), ("超长", "i" * 129), ("代理项", "\ud800")):
+        parsed = json.loads(model_result_content(
+            big, item_id, source=None, max_bytes=MIN_MODEL_TOOL_RESULT_BYTES, preview=""))
+        checked += _expect_value(
+            (parsed.get("resultUnavailable"), "resultRef" in parsed), (True, False),
+            f"不可读 itemId {label}")
+    parsed = json.loads(model_result_content(
+        big, "i" * 128, source=None, max_bytes=MIN_MODEL_TOOL_RESULT_BYTES, preview=""))
+    checked += _expect_value(
+        ("resultRef" in parsed, parsed.get("resultUnavailable")), (True, None),
+        "itemId 128 字符上限")
+    # 超长 command 保留前缀并标注；上限取预算一半，截断后仍落在预算内。
+    parsed = json.loads(model_result_content(
+        {"ok": True, "command": "y" * 9000, "text": "x" * 12000}, "item-1",
+        source=None, max_bytes=MIN_MODEL_TOOL_RESULT_BYTES, preview=""))
+    checked += _expect_value(
+        (parsed.get("commandTruncated"), len(parsed.get("command", ""))),
+        (True, MIN_MODEL_TOOL_RESULT_BYTES // 2), "command 截断")
+    # 不可信来源字段让位：command 本身合格时保留原文，只丢弃 source。
+    fitted = _fit_projection(
+        {"ok": True, "command": "y" * 10, "resultOmitted": True,
+         "source": {"path": "s" * 9000}}, MIN_MODEL_TOOL_RESULT_BYTES)
+    checked += _expect_value(
+        (sorted(fitted), fitted.get("command"), fitted.get("commandTruncated")),
+        (["command", "commandTruncated", "ok", "resultOmitted"], "y" * 10, True),
+        "来源字段让位")
+    # 预览最多占一半预算，输出仍受硬预算约束。
+    parsed = json.loads(model_result_content(
+        big, "item-1", source=None, max_bytes=MIN_MODEL_TOOL_RESULT_BYTES,
+        preview="p" * 10000))
+    checked += _expect_value(
+        len(parsed.get("resultPreview", "")), MIN_MODEL_TOOL_RESULT_BYTES // 2,
+        "预览减半截断")
+    # 结算合并只补差异字段：无变化原样返回，变化后按默认拼写重排。
+    checked += _expect_value(
+        _merge_outcome('{"a":1}', None, None, 100), '{"a":1}', "合并无结算")
+    checked += _expect_value(
+        _merge_outcome('{"a":1}', "failed", None, 100),
+        '{"a": 1, "executionState": "failed"}', "合并执行状态")
+    checked += _expect_value(
+        _merge_outcome('{"executionState":"failed"}', "failed", None, 100),
+        '{"executionState":"failed"}', "合并保持原拼写")
+    checked += _expect_value(
+        _merge_outcome('{"a":1}', None,
+                       {"delivery": "unknown", "retry": "unknown"}, 100),
+        '{"a": 1, "disposition": {"delivery": "unknown", "retry": "unknown"}}',
+        "合并处置字段")
+    checked += _expect_value(
+        [_merge_outcome('{"a"', "failed", None, 100),
+         _merge_outcome("[1]", "failed", None, 100),
+         _merge_outcome('"x"', "failed", None, 100)],
+        [None, None, None], "合并拒绝损坏投影")
+    candidate = '{"a": 1, "executionState": "failed"}'
+    checked += _expect_value(
+        (_merge_outcome('{"a":1}', "failed", None, len(candidate.encode("utf-8")))
+         == candidate,
+         _merge_outcome('{"a":1}', "failed", None, len(candidate.encode("utf-8")) - 1)),
+        (True, None), "合并预算边界")
+    # 缺失结果保留状态、错误码与摘要；错误码按 128 字符截断。
+    parsed = json.loads(_unavailable_result(
+        {"status": "failed", "errorCode": "E" * 200}, MIN_MODEL_TOOL_RESULT_BYTES, "摘要"))
+    checked += _expect_value(
+        (parsed["ok"], parsed["resultUnavailable"], len(parsed["errorCode"]),
+         parsed["resultPreview"]),
+        (False, True, 128, "摘要"), "缺失结果字段")
+    checked += _expect_value(
+        json.loads(_unavailable_result({"status": "completed"}, 8192, ""))
+        == {"ok": None, "resultUnavailable": True}, True, "缺失结果无摘要")
+    parsed = json.loads(_unavailable_result(
+        {"status": "completed"}, MIN_MODEL_TOOL_RESULT_BYTES, "p" * 20000))
+    checked += _expect_value(
+        (len(parsed.get("resultPreview", "")), parsed.get("ok")),
+        (MIN_MODEL_TOOL_RESULT_BYTES // 2, None), "缺失摘要减半截断")
+    # 旧投影补结算：预算内合并；写失败不得被猜成可重试。
+    checked += _expect_value(
+        model_result_for_item(
+            {"modelResult": '{"ok":true}', "executionState": "completed"}),
+        '{"ok": true, "executionState": "completed"}', "旧投影补状态")
+    checked += _expect_value(
+        json.loads(model_result_for_item(
+            {"toolName": "boss_hr_greet", "status": "failed",
+             "executionState": "failed", "modelResult": '{"ok":false}'})),
+        {"ok": False, "executionState": "failed",
+         "disposition": {"delivery": "unknown", "retry": "unknown"}}, "旧写失败处置")
+    checked += _expect_value(
+        json.loads(model_result_for_item(
+            {"toolName": "boss_list_jobs", "status": "failed",
+             "executionState": "failed", "modelResult": '{"ok":false}'})),
+        {"ok": False, "executionState": "failed"}, "旧读失败无处置")
+    checked += _expect_value(
+        json.loads(model_result_for_item(
+            {"executionState": "not_executed", "modelResult": '{"ok":true}'})),
+        {"ok": True, "executionState": "not_executed",
+         "disposition": {"delivery": "not_delivered", "retry": "safe"}},
+        "未执行旧投影")
+    checked += _expect_value(
+        json.loads(model_result_for_item(
+            {"executionState": "outcome_unknown", "modelResult": '{"ok":true}'})),
+        {"ok": True, "executionState": "outcome_unknown",
+         "disposition": {"delivery": "delivery_uncertain", "retry": "unsafe"}},
+        "结果不确定旧投影")
+    # 损坏的旧投影从持久结果重建引用；非法条目预算回退默认预算。
+    parsed = json.loads(model_result_for_item(
+        {"id": "item-1", "modelResult": "not-json",
+         "modelResultLimitBytes": MIN_MODEL_TOOL_RESULT_BYTES,
+         "result": big, "executionState": "failed"}))
+    checked += _expect_value(
+        (parsed.get("resultOmitted"), "resultRef" in parsed,
+         parsed.get("executionState"), parsed.get("disposition")),
+        (True, True, "failed", None), "损坏投影重建")
+    checked += _expect_value(
+        "resultOmitted" in json.loads(model_result_for_item(
+            {"id": "item-2", "modelResult": "not-json",
+             "modelResultLimitBytes": 100, "result": big,
+             "executionState": "failed"})),
+        False, "条目预算回退默认")
+    # 缺失结果把拒绝原因交给模型，避免把写操作当成空结果重试。
+    checked += _expect_value(
+        json.loads(model_result_for_item(
+            {"id": "item-3", "status": "failed", "executionState": "not_executed",
+             "errorCode": "BOOM", "resultSummary": "审批被拒绝"})),
+        {"ok": False, "resultUnavailable": True, "executionState": "not_executed",
+         "disposition": {"delivery": "not_delivered", "retry": "safe"},
+         "errorCode": "BOOM", "resultPreview": "审批被拒绝"}, "缺失结果告知")
+    checked += _expect_value(
+        json.loads(model_result_for_item(
+            {"id": "item-4", "executionState": "not_approved"})),
+        {"ok": None, "resultUnavailable": True, "executionState": "not_approved",
+         "disposition": {"delivery": "not_delivered", "retry": "safe"}},
+        "缺失结果无摘要")
+    # 旧投影接近预算、补结算字段会超限时，改从持久结果重建。
+    near = '{"payload": "' + "x" * (MIN_MODEL_TOOL_RESULT_BYTES - 30) + '"}'
+    parsed = json.loads(model_result_for_item(
+        {"id": "item-5", "modelResult": near,
+         "modelResultLimitBytes": MIN_MODEL_TOOL_RESULT_BYTES,
+         "result": {"text": "small"}, "executionState": "failed"}))
+    checked += _expect_value(
+        parsed, {"text": "small", "executionState": "failed"}, "旧投影超限重建")
+    return checked
+
+
 def check_tool_results() -> tuple[int, int, int]:
     try:
         values = _assigned(ast.parse(_read(TOOL_RESULTS)))
@@ -351,6 +581,9 @@ def check_tool_results() -> tuple[int, int, int]:
     missing = _missing(MODEL_TOOLS_FRAGMENTS, model_tools)
     if missing:
         raise ValueError("model_tools.py 的模型读取边界缺少：" + "、".join(missing))
+    missing = _missing(MODEL_RESULT_FRAGMENTS, tool_results)
+    if missing:
+        raise ValueError("tool_results.py 的模型结果投影边界缺少：" + "、".join(missing))
 
     defaults = RPC_DEFAULT.findall(application)
     if len(defaults) != 1:
@@ -363,8 +596,9 @@ def check_tool_results() -> tuple[int, int, int]:
         raise ValueError("模型读取 schema 与工具描述必须一致使用 MODEL_RESULT_READ_CHARS")
 
     guards = (len(TOOL_RESULTS_FRAGMENTS) + len(APPLICATION_FRAGMENTS)
-              + len(MODEL_TOOLS_FRAGMENTS) + 3)
-    return len(EXPECTED_CONSTANTS), guards, _behavior_checks() + _pagination_checks()
+              + len(MODEL_TOOLS_FRAGMENTS) + len(MODEL_RESULT_FRAGMENTS) + 3)
+    return (len(EXPECTED_CONSTANTS), guards,
+            _behavior_checks() + _pagination_checks() + _projection_checks())
 
 
 def main() -> int:
@@ -373,7 +607,7 @@ def main() -> int:
     except ValueError as error:
         print(f"工具结果边界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"工具结果边界一致：{constants} 个常量、{guards} 项分页与引用防护、"
+    print(f"工具结果边界一致：{constants} 个常量、{guards} 项分页、引用与结果投影防护、"
           f"{behaviors} 项行为对照")
     return 0
 

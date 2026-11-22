@@ -1,3 +1,8 @@
+## 0.2.0-rc.566 - 2026-11-23
+
+- 工具结果检查从 60 项扩展到 99 项，新增 21 条源码片段与 39 项行为对照：`model_result_content` 的非法 / 越界 / 布尔预算回退默认、超限结果替换成四项引用投影且两种 JSON 拼写都在预算内、`reference_text` 决定引用摘要、itemId 空 / 129 字符 / 孤立代理项不提供读取入口而 128 字符仍可引用、超长 command 截断到预算一半并标注、不可信 `source` 让位、结果预览减半截断；`_merge_outcome` 的无结算原样返回、差异字段补齐、损坏投影拒绝与预算边界；`_unavailable_result` 的错误码 128 字符截断与摘要减半；`model_result_for_item` 的旧投影补状态、写失败 `unknown` / `unknown` 处置、读失败无处置、未执行与结果不确定处置、损坏投影重建、条目预算回退与缺失结果告知。隔离变异探针结构与行为分别检出 14/14、13/14，合计 14/14（代理项变异由最小兜底重复拦截）。[Issue #3257](https://github.com/can4hou6joeng4/boss-harness/issues/3257)
+- 源码候选更新为 npm `0.2.0-rc.566` 和 Python `0.2.0rc566`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.565 - 2026-11-23
 
 - 启动自检检查新增 17 条端点 / 目录源码片段与 30 项行为对照：`_is_loopback_host` 的 `localhost.` / `127.0.0.0/8` / `::1` / 大小写归一与 `[::1]` / `0.0.0.0` / 空串拒绝；`_insecure_base_url` 的无值 / `https` / 本机 `http`（含 IPv6 字面量）/ 无 scheme / 畸形 URL / 非回环主机判定；`_directories_overlap` 的相同、父子、反向、兄弟与含 `..` 等价路径；`_free_space` 的已存在目录与非存在嵌套路径沿最近祖先读取。隔离变异探针结构与行为分别检出 7/8、6/8，合计 8/8（两处未检出源于 `urlparse` 已做 scheme 与主机小写归一，片段仍作为静态防护保留）。[Issue #3255](https://github.com/can4hou6joeng4/boss-harness/issues/3255)
