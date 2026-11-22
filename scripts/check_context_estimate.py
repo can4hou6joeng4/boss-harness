@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""核对上下文规模估算、请求指纹与成功用量校准口径。
+"""核对上下文规模估算、请求指纹、成功用量校准与消息组装口径。
 
 `_message_size` 逐类型累加正文、思考签名、脱敏数据、工具调用与工具结果，
 并为每条消息加固定开销；`estimate_tokens` 以字符数的一半作为保守估算。
 `_usage_input_tokens` 只接受当前 provider 的非负整数字段，并受单请求上限
 约束；`request_fingerprint` 覆盖模型、系统提示、消息、工具、输出预算、
 推理档位与思考配置；`_retained_usage_estimate` 只用已验证前缀的成功用量
-校准逐条估算。这里既按源码顺序固定这些边界，也直接调用上述函数核对计数、
-指纹与校准结果。不访问网络、模型或招聘平台。
+校准逐条估算；`messages_from_items` 把持久条目还原为模型请求，过滤未完成、
+空正文与续接来源的助手消息，按 `toolBatchId` 分组工具调用并降级孤立代理项。
+这里既按源码顺序固定这些边界，也直接调用上述函数核对计数、指纹、组装与
+校准结果。不访问网络、模型或招聘平台。
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from boss_harness.context import (  # noqa: E402
     _retained_usage_estimate,
     _usage_input_tokens,
     estimate_tokens,
+    messages_from_items,
     request_fingerprint,
 )
 from boss_harness.models.types import (  # noqa: E402
@@ -67,6 +70,18 @@ MESSAGE_ORDER = (
     "else:",
     "size += sum(len(result.content) + len(result.tool_call_id) for result in message.results)",
     "size += 32",
+)
+MESSAGES_ORDER = (
+    "def messages_from_items(items: list[dict],",
+    'write_tools: frozenset[str] = frozenset({"boss_hr_greet"})) -> tuple[ChatMessage, ...]:',
+    "marker = item.get(ANTHROPIC_CONTINUATION_FIELD)",
+    'batch_assistant_id = item.get("toolBatchAssistantItemId")',
+    "content=wire_text(model_result_for_item(p, write_tools=write_tools)),",
+    'is_error=p.get("status") == "failed") for p in pending)))',
+    'if kind != "toolCall" or (pending and item.get("toolBatchId") != batch):',
+    'if isinstance(item.get("text"), str):',
+    'and not _is_one_of(item.get("id"), continuation_agent_ids)):',
+    'elif kind == "toolCall" and item.get("status") != "running":',
 )
 ESTIMATE_ORDER = (
     'def estimate_tokens(messages: tuple[ChatMessage, ...] | list[ChatMessage], system: str = "") -> int:',
@@ -190,6 +205,18 @@ def _expect_value(actual, expected, label: str) -> int:
         raise ValueError(
             f"上下文规模估算行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
     return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != message:
+            raise ValueError(
+                f"上下文规模估算行为变化 {label}：期望 {message!r}，实际 {str(error)!r}"
+            ) from None
+        return 1
+    raise ValueError(f"上下文规模估算行为变化 {label}：期望 ValueError")
 
 
 def _request(messages, *, model: str = "m", system: str = "", tools: tuple = (),
@@ -411,6 +438,90 @@ def _behavior_checks() -> int:
     checked += _expect_value(
         _retained(request, [{"type": "model_usage", "payload": None}, high],
                   ["t", "t", "t"]), (fallback, []), "空载荷跳过")
+
+    user = {"kind": "userMessage", "id": "u1", "text": "你好"}
+    agent = {"kind": "agentMessage", "id": "a1", "text": "回复", "status": "completed"}
+    checked += _expect_value(messages_from_items([]), (), "空条目")
+    checked += _expect_value(
+        messages_from_items([user, agent]),
+        (UserMessage("你好"), AssistantMessage(blocks=(TextBlock(text="回复"),))),
+        "用户与助手")
+    for label, item in (
+        ("运行中助手", {"kind": "agentMessage", "id": "a2", "text": "运行", "status": "running"}),
+        ("失败助手", {"kind": "agentMessage", "id": "a3", "text": "失败", "status": "failed"}),
+        ("空正文助手", {"kind": "agentMessage", "id": "a4", "text": "", "status": "completed"}),
+        ("非字符串用户", {"kind": "userMessage", "id": "u2", "text": 3}),
+    ):
+        checked += _expect_value(messages_from_items([item]), (), label)
+    checked += _expect_value(
+        messages_from_items([
+            {"kind": "userMessage", "id": "u3", "text": "坏\ud800字"},
+            {"kind": "agentMessage", "id": "a5", "text": "也\udc00坏",
+             "status": "completed"}]),
+        (UserMessage("坏�字"), AssistantMessage(blocks=(TextBlock(text="也�坏"),))),
+        "孤立代理项降级")
+
+    tool_a = {"kind": "toolCall", "id": "t1", "toolCallId": "c1", "toolName": "boss_list_jobs",
+              "toolArguments": {"page": 1}, "toolBatchId": "b1", "status": "completed",
+              "result": {"ok": True}}
+    tool_b = {"kind": "toolCall", "id": "t2", "toolCallId": "c2", "toolName": "boss_list_jobs",
+              "toolArguments": {}, "toolBatchId": "b1", "status": "completed",
+              "result": {"ok": False}}
+    checked += _expect_value(
+        messages_from_items([tool_a]),
+        (AssistantMessage(blocks=(ToolCallBlock(id="c1", name="boss_list_jobs",
+                                                arguments={"page": 1}),)),
+         ToolResultsMessage(results=(ToolResultItem(
+             tool_call_id="c1", content='{"ok": true}', is_error=False),))),
+        "单工具批次")
+    checked += _expect_value(
+        messages_from_items([tool_a, tool_b]),
+        (AssistantMessage(blocks=(ToolCallBlock(id="c1", name="boss_list_jobs",
+                                                arguments={"page": 1}),
+                                  ToolCallBlock(id="c2", name="boss_list_jobs",
+                                                arguments={}))),
+         ToolResultsMessage(results=(
+             ToolResultItem(tool_call_id="c1", content='{"ok": true}', is_error=False),
+             ToolResultItem(tool_call_id="c2", content='{"ok": false}', is_error=False)))),
+        "同批合并")
+    checked += _expect_value(
+        len(messages_from_items([tool_a, dict(tool_b, toolBatchId="b2")])), 4, "批次拆分")
+    interrupted = messages_from_items([tool_a, user, tool_a])
+    checked += _expect_value(
+        [type(message).__name__ for message in interrupted],
+        ["AssistantMessage", "ToolResultsMessage", "UserMessage",
+         "AssistantMessage", "ToolResultsMessage"], "用户消息打断批次")
+    checked += _expect_value(
+        messages_from_items([dict(tool_a, status="running")]), (), "运行中工具跳过")
+    fallback = messages_from_items([{
+        "kind": "toolCall", "id": "t9", "toolName": "boss_list_jobs",
+        "toolArguments": {}, "toolBatchId": "b1", "status": "completed",
+        "result": {}}])[1]
+    checked += _expect_value(fallback.results[0].tool_call_id, "t9", "缺少调用 id 回退")
+    failed = messages_from_items([{
+        "kind": "toolCall", "id": "t3", "toolCallId": "c3",
+        "toolName": "boss_list_jobs", "toolArguments": {},
+        "toolBatchId": "b1", "status": "failed", "resultSummary": "命令失败"}])[1]
+    checked += _expect_value(
+        (failed.results[0].is_error, "resultUnavailable" in failed.results[0].content),
+        (True, True), "失败工具标记")
+    checked += _expect_value(
+        messages_from_items([
+            {"kind": "agentMessage", "id": "a6", "text": "带签名", "status": "completed",
+             "_anthropicContinuation": {"assistantItemId": "a6"}}, user]),
+        (UserMessage("你好"),), "续接标识过滤")
+    checked += _expect_error(
+        lambda: messages_from_items([dict(tool_a, toolBatchAssistantItemId="x"),
+                                     dict(tool_b, toolBatchAssistantItemId="y")]),
+        "Tool batch assistant reference is duplicated", "重复批次引用")
+    surrogate_result = messages_from_items([{
+        "kind": "toolCall", "id": "t4", "toolCallId": "c4",
+        "toolName": "boss_list_jobs", "toolArguments": {},
+        "toolBatchId": "b1", "status": "completed",
+        "result": {"text": "坏\ud800"}}])[1]
+    checked += _expect_value(
+        ("�" in surrogate_result.results[0].content,
+         "\ud800" in surrogate_result.results[0].content), (True, False), "工具结果降级")
     return checked
 
 
@@ -424,8 +535,10 @@ def check_context_estimate() -> int:
     fingerprint = _function(tree, source, "request_fingerprint")
     payload = _function(tree, source, "_message_fingerprint_payload")
     retained = _function(tree, source, "_retained_usage_estimate")
+    messages = _function(tree, source, "messages_from_items")
     checked = _ordered(JSON_ORDER, json_size, CONTEXT)
     checked += _ordered(MESSAGE_ORDER, message_size, CONTEXT)
+    checked += _ordered(MESSAGES_ORDER, messages, CONTEXT)
     checked += _ordered(ESTIMATE_ORDER, estimate, CONTEXT)
     checked += _ordered(USAGE_ORDER, usage, CONTEXT)
     checked += _ordered(FINGERPRINT_ORDER, fingerprint, CONTEXT)
@@ -514,7 +627,7 @@ def main() -> int:
     except (ValueError, SyntaxError) as error:
         print(f"上下文规模估算核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"上下文规模估算一致：{checked} 项结构、行为与校准校验")
+    print(f"上下文规模估算一致：{checked} 项结构、组装、行为与校准校验")
     return 0
 
 

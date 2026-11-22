@@ -1,3 +1,8 @@
+## 0.2.0-rc.564 - 2026-11-23
+
+- 上下文估算检查从 192 项扩展到 219 项，新增 10 条组装顺序片段与 17 项行为对照：`messages_from_items` 的空输入、用户与助手正文、运行中 / 失败 / 空正文助手与非字符串用户正文过滤、孤立代理项降级；工具调用按 `toolBatchId` 合并与拆分、用户消息打断批次、运行中工具跳过、缺少 `toolCallId` 回退条目 id、失败工具标记、Anthropic 续接标识过滤、重复 `toolBatchAssistantItemId` 拒绝，以及工具结果中的孤立代理项降级。隔离变异探针结构与行为分别检出 4/8、7/8，合计 8/8。[Issue #3253](https://github.com/can4hou6joeng4/boss-harness/issues/3253)
+- 源码候选更新为 npm `0.2.0-rc.564` 和 Python `0.2.0rc564`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.563 - 2026-11-23
 
 - 技能上下文检查从 41 项扩展到 63 项，新增 22 项行为对照：临时目录构造 `SkillCatalog` 后，`load(None)` 与空数组早退；非列表、11 项、含重复的 12 项与非字符串元素返回「skillIds 必须是最多 10 项的字符串数组」，空字符串与未知 id 按不存在拒绝；恰好 10 项被接受，重复 id 只注入一次并保留输入顺序，单双技能正文按固定包装与空行连接，选中名称来自目录；覆写 `list()` 的摘要不一致与绝对 id 分别命中「技能文件已变化；请重新选择」与「技能路径越界」。`bounded_skill_ids` 覆盖非列表回落、非法项先跳过再计数、200 字符上限、去重保序与 10 项截断。隔离变异探针结构与行为分别检出 4/8、8/8，合计 8/8。[Issue #3251](https://github.com/can4hou6joeng4/boss-harness/issues/3251)
