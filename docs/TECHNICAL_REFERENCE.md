@@ -240,7 +240,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_queue_steer.py`
 
-`scripts/check_queue_steer.py` 为 `queue/steer` 提供专项源码守卫：内核侧核对 `promote_to_steering` 只接受 `queued` 的 `followUp`、拒绝技能 / 自动压缩覆盖，并通过持久 `_save` 保留原 id、正文与请求编号；`on_queue_steer` 必须校验 active turn、`expectedTurnId`、取消状态与 `STEER_UNAVAILABLE`。脚本还核对 `queueSteer` 能力、协议参数类型、主进程两份白名单与方法参数校验、RPC 错误保留、渲染层 bridge 与面板按钮状态。它是 AST 与文本扫描，不替代状态机探针或真实桌面操作。
+`scripts/check_queue_steer.py` 为 `queue/steer` 提供专项源码守卫：内核侧核对 `promote_to_steering` 只接受 `queued` 的 `followUp`、拒绝技能 / 自动压缩覆盖，并通过持久 `_save` 保留原 id、正文与请求编号；`on_queue_steer` 必须校验 active turn、`expectedTurnId`、取消状态与 `STEER_UNAVAILABLE`。脚本还核对 `queueSteer` 能力、协议参数类型、主进程两份白名单与方法参数校验、RPC 错误保留、渲染层 bridge 与面板按钮状态。脚本并在临时目录构造 `SessionStore` 与 `TurnQueue`（合计 45 项），核对提升输出保留 id / 输入、清空技能、透传客户端消息标识、列表即提升结果，以及重复提升、状态非排队、类型非 followUp、带技能、带自动压缩覆盖、`expectedTurnId` 空串 / 129 字符与未知队列项等拒绝文案，并接受 128 字符的 `expectedTurnId`。除这些进程内行为对照外，脚本不启动真实会话或桌面，不替代状态机探针或真实桌面操作。
 
 ### `check_turn_stream.py`
 

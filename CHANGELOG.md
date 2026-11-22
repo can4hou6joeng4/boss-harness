@@ -1,3 +1,8 @@
+## 0.2.0-rc.561 - 2026-11-23
+
+- 转向检查从 28 项扩展到 45 项，新增 17 个行为场景：`promote_to_steering` 提升排队中的后续回合后保留原 id 与输入、清空技能、透传客户端消息标识，结果为 `kind="steering"` / `status="queued"` 且队列列表只有该条；重复提升按类型拒绝；状态非排队、类型非 followUp、带技能、带自动压缩覆盖、`expectedTurnId` 为空或 129 字符、未知队列项分别返回固定文案，恰好 128 字符的 `expectedTurnId` 被接受。隔离变异探针结构与行为分别检出 4/8、8/8，合计 8/8。[Issue #3247](https://github.com/can4hou6joeng4/boss-harness/issues/3247)
+- 源码候选更新为 npm `0.2.0-rc.561` 和 Python `0.2.0rc561`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.560 - 2026-11-23
 
 - 浏览器来源检查从 43 项扩展到 48 项：部分大小写值 `Stored-Cookie` 归一为 `stored-cookie`；环境为空串时回落 null；环境为 `AUTO` 时归一为 `auto`；环境合法而显式值非法时仍以固定文案拒绝；允许值集合恰好 `auto` / `existing-browser` / `stored-cookie` 三个。隔离变异探针结构与行为分别检出 4/6、6/6，合计 6/6。[Issue #3245](https://github.com/can4hou6joeng4/boss-harness/issues/3245)
