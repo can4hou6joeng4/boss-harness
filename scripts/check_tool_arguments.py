@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""核对工具参数中的空字符在审批前被拒绝，未启动的 CLI 不被记成可能已生效。
+"""核对工具参数中的空字符与孤立代理项在审批前被拒绝，未启动的 CLI 不被记成可能已生效。
 
-字符串参数携带 `\\u0000` 时，命令行参数无法构造、进程必然拒绝启动。注册表在参数
-快照阶段就要拒绝它，不能让需批准的工具先消耗一轮审批再以「可能已生效」收尾。
-子进程仍未启动时，CLI 层要返回独立的未启动错误码，收尾阶段据此结算为未执行并
-暂停回合。除固定实现位置外，本脚本用真实注册表与执行器跑一遍这三段行为。
+字符串参数携带 `\\u0000` 或孤立代理项时，命令行参数无法构造、进程必然拒绝启动。
+注册表在参数快照阶段就要拒绝它，不能让需批准的工具先消耗一轮审批再以「可能已生效」
+收尾。子进程仍未启动时，CLI 层要返回独立的未启动错误码，收尾阶段据此结算为未执行并
+暂停回合。除固定实现位置外，本脚本用真实注册表、临时可执行脚本与执行器跑一遍这些行为。
 """
 
 from __future__ import annotations
@@ -62,12 +62,13 @@ def _load_harness():
     if source not in sys.path:
         sys.path.insert(0, source)
     from boss_harness import agent, session, tool_bundle, tool_schema, toolkit
+    from boss_harness.tools import boss_cli
 
-    return agent, session, tool_bundle, tool_schema, toolkit
+    return agent, boss_cli, session, tool_bundle, tool_schema, toolkit
 
 
 def _behaviour(checked: list[str]) -> None:
-    agent, session, tool_bundle, tool_schema, toolkit = _load_harness()
+    agent, boss_cli, session, tool_bundle, tool_schema, toolkit = _load_harness()
     definition = tool_bundle.ToolDefinition(
         name="probe_tool", description="核对用工具", input_schema={
             "type": "object", "properties": {"message": {"type": "string"}},
@@ -94,6 +95,45 @@ def _behaviour(checked: list[str]) -> None:
         raise ValueError("注册表接受了错误类型的字符串参数")
     registry.validate("probe_tool", {"message": "正常文本"})
     checked.append("正常字符串参数通过注册表")
+    # 空字符与孤立代理项走同一条拒绝路径；合法表情符号（代理对）不得误判。
+    for label, arguments in (
+        ("高代理项参数", {"message": "a\ud800b"}),
+        ("低代理项参数", {"message": "\udc00"}),
+        ("空字符参数", {"message": "\x00"}),
+    ):
+        try:
+            registry.validate("probe_tool", arguments)
+        except ValueError as error:
+            if str(error) != tool_schema._UNPASSABLE_TEXT_ERROR:
+                raise ValueError(f"{label}未返回点名字符类别的错误文案") from None
+            checked.append(f"{label}在注册表被拒绝")
+        else:
+            raise ValueError(f"注册表接受了{label}")
+    registry.validate("probe_tool", {"message": "😀 正常表情"})
+    checked.append("表情符号参数通过注册表")
+
+    with tempfile.TemporaryDirectory() as directory:
+        marker = Path(directory) / "ran"
+        binary = Path(directory) / "boss"
+        binary.write_text(
+            "#!/bin/sh\n"
+            f"touch '{marker}'\n"
+            "printf '%s' '{\"ok\":true,\"schema_version\":\"1.0\",\"command\":\"status\","
+            "\"data\":{},\"pagination\":null,\"error\":null,\"hints\":null}'\n",
+            encoding="utf-8")
+        binary.chmod(0o755)
+        tool = boss_cli.BossCliTool(binary=str(binary))
+        result = tool.call("status")
+        if not result.ok or not marker.exists():
+            raise ValueError("合法参数没有真正执行上游脚本")
+        checked.append("合法参数执行上游脚本")
+        marker.unlink()
+        result = tool.call("status", "a\x00b")
+        if result.ok or (result.error or {}).get("code") != "CLI_ARGUMENT_ERROR":
+            raise ValueError("空字符参数没有返回未启动错误码")
+        if marker.exists():
+            raise ValueError("空字符参数仍在子进程层被执行")
+        checked.append("空字符参数在 CLI 层未启动")
 
     with tempfile.TemporaryDirectory() as directory:
         store = session.SessionStore(Path(directory) / "sessions")
@@ -137,7 +177,7 @@ def main() -> int:
     except ValueError as error:
         print(f"工具参数边界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"工具参数边界一致：{checked} 项空字符拒绝与未启动结算")
+    print(f"工具参数边界一致：{checked} 项不可传递字符与未启动结算")
     return 0
 
 
