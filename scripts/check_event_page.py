@@ -6,7 +6,8 @@
 保证游标推进；`_event_page_entries` 要求 `params_json` 与游标列一致、`method`
 是字符串，索引损坏时由 `_rebuild_event_index` 从 `events.jsonl` 重建并重试。
 `append_event` 负责保护字段、方法名与参数校验、落盘与索引同步。本脚本在
-临时目录构造 `SessionStore` 做行为对照并扫描源码；不访问网络、模型或招聘平台。
+临时目录构造 `SessionStore` 做行为对照，覆盖字节预算、首行超预算与四类索引
+损坏，并扫描源码；不访问网络、模型或招聘平台。
 """
 
 from __future__ import annotations
@@ -245,6 +246,11 @@ def check_event_page() -> int:
             if len(filtered["events"]) != 3:
                 raise ValueError("方法筛选必须接受列表并保留多个方法")
             checked += 1
+            allowed = tuple(f"m{index}" for index in range(16))
+            filtered = store.events_after(None, None, 10, allowed)
+            if filtered["events"]:
+                raise ValueError("十六个方法筛选必须通过且没有匹配事件")
+            checked += 1
             if store.latest_event_cursor() != "4":
                 raise ValueError("最新事件游标必须是最后一条")
             checked += 1
@@ -283,6 +289,25 @@ def check_event_page() -> int:
             if [event["method"] for event in recovered["events"]] != ["thread/updated", "queue/updated", "turn/stream", "turn/stream"]:
                 raise ValueError("索引损坏后必须从事件日志重建")
             checked += 1
+            cursors = [event["params"].get("eventCursor") for event in recovered["events"]]
+            if cursors != ["1", "2", "3", "4"]:
+                raise ValueError("索引重建后的事件游标必须与日志一致")
+            checked += 1
+            with store._index.transaction() as connection:
+                connection.execute("UPDATE events SET params_json='[]' WHERE cursor=3")
+            recovered = store.events_after(None, None, 10)
+            if ([event["method"] for event in recovered["events"]]
+                    != ["thread/updated", "queue/updated", "turn/stream", "turn/stream"]
+                    or [event["params"].get("eventCursor") for event in recovered["events"]]
+                    != ["1", "2", "3", "4"]):
+                raise ValueError("非对象参数必须触发索引重建")
+            checked += 1
+            with store._index.transaction() as connection:
+                connection.execute("UPDATE events SET method='' WHERE cursor=4")
+            recovered = store.events_after(None, None, 10)
+            if [event["method"] for event in recovered["events"]] != ["thread/updated", "queue/updated", "turn/stream", "turn/stream"]:
+                raise ValueError("空方法名必须触发索引重建")
+            checked += 1
             # 删除标记会话的事件不再出现在回放中。
             store._write_delete_intent(first, [])
             remaining = store.events_after(None, None, 10)
@@ -310,6 +335,48 @@ def check_event_page() -> int:
             checked += 1
         finally:
             restarted.close()
+    # 行为：原始字节预算、首行超预算与嵌套保护字段。
+    with tempfile.TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "page" / "sessions")
+        try:
+            store.append_event("budget/first", {"blob": "x" * (3 * 1024 * 1024)})
+            store.append_event("budget/second", {"blob": "y" * (2 * 1024 * 1024)})
+            page = store.events_after(limit=10)
+            if [event["method"] for event in page["events"]] != ["budget/first"]:
+                raise ValueError("字节预算必须在第二行前截断")
+            checked += 1
+            if page["hasMore"] is not True or page["nextCursor"] != "1":
+                raise ValueError("字节预算截断必须报告更多并推进游标")
+            checked += 1
+            page = store.events_after(page["nextCursor"], limit=10)
+            if [event["method"] for event in page["events"]] != ["budget/second"]:
+                raise ValueError("续页必须从预算截断处继续")
+            checked += 1
+            if page["hasMore"] is not False or page["nextCursor"] != "2":
+                raise ValueError("预算续页必须收尾到第二条")
+            checked += 1
+            nested = store.append_event("nested/event", {"meta": {"eventCursor": "keep"}})
+            if nested["params"]["meta"]["eventCursor"] != "keep":
+                raise ValueError("嵌套 eventCursor 必须保留")
+            checked += 1
+            page = store.events_after("2", limit=10)
+            if [event["method"] for event in page["events"]] != ["nested/event"]:
+                raise ValueError("嵌套保护字段事件必须可回放")
+            checked += 1
+        finally:
+            store.close()
+        single = SessionStore(Path(temporary) / "single" / "sessions")
+        try:
+            single.append_event("budget/single", {"blob": "z" * (5 * 1024 * 1024)})
+            page = single.events_after(limit=10)
+            if [event["method"] for event in page["events"]] != ["budget/single"]:
+                raise ValueError("首行超预算必须仍返回该行")
+            checked += 1
+            if page["hasMore"] is not False or page["nextCursor"] != "1":
+                raise ValueError("首行超预算后必须正常收尾")
+            checked += 1
+        finally:
+            single.close()
     return checked
 
 

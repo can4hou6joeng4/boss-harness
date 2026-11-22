@@ -1,3 +1,8 @@
+## 0.2.0-rc.549 - 2026-11-23
+
+- 事件分页检查新增字节预算与索引损坏行为场景，用临时目录与合成 `SessionStore` 实际执行 `events_after`：3 MiB + 2 MiB 参数累计超预算时一页只返回首条并给出 `hasMore` 与推进后的游标、续页继续第二条，单条 5 MiB 参数首行超预算仍返回且正常收尾；方法筛选恰好 16 个通过；`params_json` 为非对象数组、`method` 为空串两类损坏均触发索引重建，并逐条校对重建后的 `eventCursor` 与游标列。隔离变异探针结构与行为分别检出 11/13、12/13，合计 13/13。[Issue #3223](https://github.com/can4hou6joeng4/boss-harness/issues/3223)
+- 源码候选更新为 npm `0.2.0-rc.549` 和 Python `0.2.0rc549`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.548 - 2026-11-23
 
 - JSON-RPC 传输检查新增 74 个行为场景，用内存流与合成帧实际执行 `_decode_json_frame`、`describe_failure` 与 `JsonRpcServer` 的写出、派发、请求响应关联与关闭路径：重复键 / `NaN` / `Infinity` / 非有限浮点 / 深度边界 / 孤立代理项拒绝，`OSError` 固定原因与路径隐藏，`ValueError` / `RpcError` / 普通异常的分类码与 `data`，响应与 stderr 的凭据脱敏，`RESPONSE_TOO_LARGE` / `RESPONSE_INVALID` 降级且 handler 只执行一次，超大 id 回退无 id，字节缓冲优先，通知白名单，关闭后请求拒绝与在途取消，计时器启动失败 fail closed，读取循环对空行、坏帧与缺 LF 帧的处理。隔离变异探针结构与行为分别检出 12/16、16/16，合计 16/16。[Issue #3221](https://github.com/can4hou6joeng4/boss-harness/issues/3221)
