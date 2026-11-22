@@ -7,7 +7,9 @@ approve / deny / expired，approvalId 必须是 32 位小写十六进制事件 i
 turnId 必须符合标识符格式，展示用工具名与条目 id 去空白后非空且不超过
 200 字符，params 必须与 toolArguments 完全一致，status / executionState
 组合随 decision 收紧，deadline 必须是有限正数，description 不超过 1000
-字符，paramsDigest 必须与参数摘要一致。这里按源码顺序固定这些边界，避免
+字符，paramsDigest 必须与参数摘要一致。状态组合矩阵覆盖三种裁决的合法执行态
+与非法状态，`turnId` 有 128 字符边界，极小正截止时间有效，待审批模式只校验
+形态、不拒绝已有裁决。这里按源码顺序固定这些边界，避免
 重构放宽后铃铛总数与通知面板对不上，或让结构不完整的审批串进列表，并构造
 条目直接调用校验函数核对展示、状态与摘要边界。
 """
@@ -217,6 +219,43 @@ def _behavior_checks() -> int:
         _valid(_item(approval={"paramsDigest": "0" * 64})), False, "摘要不匹配")
     checked += _expect_value(
         _valid(_item(arguments={"v": float("nan")})), False, "参数不可规范化")
+    # 状态组合矩阵：三种裁决各自的合法执行态与非法状态。
+    for label, overrides in (
+        ("批准执行中", {"approval": {"decision": "approve"}, "status": "running",
+                       "executionState": "approved"}),
+        ("批准执行态 executing", {"approval": {"decision": "approve"}, "status": "running",
+                               "executionState": "executing"}),
+        ("批准失败", {"approval": {"decision": "approve"}, "status": "failed",
+                   "executionState": "failed"}),
+        ("批准完成结果未知", {"approval": {"decision": "approve"}, "status": "completed",
+                          "executionState": "outcome_unknown"}),
+    ):
+        checked += _expect_value(_valid(_item(**overrides)), True, label)
+    for label, overrides in (
+        ("批准未知状态", {"approval": {"decision": "approve"}, "status": "paused",
+                       "executionState": "approved"}),
+        ("批准待审批执行态", {"approval": {"decision": "approve"}, "status": "running",
+                          "executionState": "pending_approval"}),
+        ("拒绝已完成", {"approval": {"decision": "deny"}, "status": "completed",
+                    "executionState": "not_approved"}),
+        ("过期已完成", {"approval": {"decision": "expired"}, "status": "completed",
+                    "executionState": "not_executed"}),
+    ):
+        checked += _expect_value(_valid(_item(**overrides)), False, label)
+    checked += _expect_value(
+        _valid(_item(approval={"decision": "deny"}, status="running",
+                     executionState="not_approved")), True, "拒绝执行中")
+    checked += _expect_value(
+        _valid(_item(approval={"decision": "expired"}, status="failed",
+                     executionState="not_executed")), True, "过期失败")
+    # 标识符与截止时间边界；待审批模式只校验形态，不拒绝已有裁决。
+    checked += _expect_value(_valid(_item(turnId="t" * 128)), True, "回合号 128 字符")
+    checked += _expect_value(_valid(_item(turnId="t" * 129)), False, "回合号 129 字符")
+    checked += _expect_value(
+        _valid(_item(approval={"deadline": 1e-300})), True, "极小正截止时间")
+    checked += _expect_value(
+        _valid(_item(approval={"decision": "expired"}), pending_only=True), True,
+        "待审批模式放行已带裁决形态")
     return checked
 
 
