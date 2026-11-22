@@ -1,3 +1,10 @@
+## 0.2.0-rc.511 - 2026-11-22
+
+rc.511 源码候选为工具结果边界补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
+
+- `tool_results.py` 为模型提供执行状态与重试处置，并为桌面提供内联结果和内容寻址引用。原有 `scripts/check_tool_results.py` 只做常量 AST 与源码片段扫描（5 个常量、18 项），本轮加入行为对照（28 项）：直接调用 `tool_execution_state`、`tool_disposition`、`disposition_for_state`、`result_text`、`result_reference`、`canonical_result_text`、`wire_size` 与 `project_item`，覆盖九个合法执行状态与非法值丢弃、处置字段清洗与非法枚举、状态→处置矩阵（含 failed 的写读差异）、紧凑 JSON 与标量拼写及 NaN 拒绝、引用摘要与字节 / 码点长度及 surrogatepass、规范化对孤立代理项与非有限浮点的降级、wire 预算与代理项超限、内联上限恰好 64 KiB 保留、超出后省略并生成引用、固定字段截断与不修改输入。CI 无需改动，技术参考同步说明。修复 Issue [#3147](https://github.com/can4hou6joeng4/boss-harness/issues/3147)。
+- 变异验证：结构侧 limit 校验、摘要格式、STALE 引用、游标长度、游标偏移、内联阈值、nextCursor、参数白名单与模型读取上限共九种，行为侧执行状态放行非法值 / 拒绝合法值、处置保留多余字段、不确定结果判为安全、写失败判为安全、结果强制 ASCII / 放行 NaN、引用按字符计长、规范化不做降级、wire 缺帧余量、内联边界含等号或按码点计长、固定字段不截断与投影修改输入共十四种，均被检查发现（23/23）。五项本地门禁通过。版本推进到 npm `0.2.0-rc.511` / Python `0.2.0rc511`。
+
 ## 0.2.0-rc.510 - 2026-11-22
 
 rc.510 源码候选为回合归并补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。
