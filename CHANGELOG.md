@@ -1,3 +1,8 @@
+## 0.2.0-rc.547 - 2026-11-23
+
+- 摘要发布检查新增 48 个行为场景，用临时目录与合成 `SessionStore` 实际执行 `append_checkpoint`：入口与条目类型校验、成功发布保留原记录且回调在提交后执行、尾部半条记录截到最后一个完整边界、没有完整边界时拒绝、符号链接 / 硬链接 / 待删除会话拒绝、构造条目与发布前的源变化拒绝、`os.replace` 异常按原始 / 候选 / 其他 inode 分别重抛、视为提交与 `CheckpointCommitUncertain`、提交后目录同步 / 回调 / 索引刷新失败转换为 `CheckpointCommittedError`、临时文件清理。隔离变异探针结构与行为分别检出 12/14、14/14，合计 14/14。[Issue #3219](https://github.com/can4hou6joeng4/boss-harness/issues/3219)
+- 源码候选更新为 npm `0.2.0-rc.547` 和 Python `0.2.0rc547`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.546 - 2026-11-23
 
 - 会话写入检查新增 40 个行为场景，用临时目录与合成 `SessionStore` 实际执行 `append_many` / `append` / `_write_new` / `append_attachment`：批次与上限校验、空批次早退、严格字节边界与超限文件不变、缺失结尾换行的 1 字节前缀与残段截断、单条追加、新建冲突不覆盖且清理临时名、NaN 载荷、条目与会话头单行上限、附件类型 / 摘要 / 发布器校验、发布先于引用行、发布失败不留引用、历史损坏时发布器不被调用。隔离变异探针结构与行为分别检出 12/14、14/14，合计 14/14。[Issue #3217](https://github.com/can4hou6joeng4/boss-harness/issues/3217)
