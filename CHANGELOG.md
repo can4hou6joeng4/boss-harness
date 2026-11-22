@@ -1,3 +1,8 @@
+## 0.2.0-rc.541 - 2026-11-23
+
+- 冻结快照检查新增 76 个行为场景，实际执行解码、投影、分页与存储生命周期：宽容 UTF-8、条目载荷 / id 损坏映射、行切分与残段丢弃、源读取上限与回绕、投影字段裁剪、并发构建上限、TTL 清理、分支失效墓碑、按快照 / 会话删除与关闭清理。隔离变异探针结构与行为分别检出 10/14、14/14，合计 14/14。[Issue #3207](https://github.com/can4hou6joeng4/boss-harness/issues/3207)
+- 源码候选更新为 npm `0.2.0-rc.541` 和 Python `0.2.0rc541`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.540 - 2026-11-23
 
 - 离线指令与领域提示检查新增 51 个行为场景，实际执行 `offline_reply`、`_parse_command` 与 `compose_system_prompt`：命令解析、`/search` 空参数与关键词透传、七项只读指令映射、`/candidates` 查询形状、两种降级文案、大小写敏感、只读表禁令、默认 / 自定义提示与 UTF-8 字节预算、控制字符过滤。隔离变异探针结构与行为分别检出 11/12、12/12，合计 12/12。[Issue #3205](https://github.com/can4hou6joeng4/boss-harness/issues/3205)
