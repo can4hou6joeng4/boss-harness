@@ -17,7 +17,7 @@
 1. 从最新 `origin/main` 列出上次实际发布 tag 之后的提交与关联 PR，区分能力、修复、兼容变化和文档。以远程 tag / Release 为依据，不能只看主干中的版本字符串。
 2. 建立发布 Issue，记录拟发布版本、基线、包含范围、验收、产物与未完成事项；已有待处理 release PR 时先核对其基线和变更范围，不直接沿用过期分支。
 3. 按 SemVer 判断兼容影响。候选版本的 npm 拼写形如 `0.2.0-rc.N`，Python 使用对应的 PEP 440 拼写 `0.2.0rcN`；序号不设位数上限（`0.2.0-rc.101` 与 `0.2.0rc101` 同样有效）。桌面版本展示按不透明字符串处理；Python 发布脚本用 `packaging.version.Version` 解析并按 PEP 440 归一写入清单，因此 `--version` 应使用 `pyproject.toml` 的 Python 拼写。JSON-RPC 协议版本独立管理，不随候选号机械改变。
-4. 在独立 release 分支同步根包、桌面包、各工作区包、锁文件与 Python 包的版本来源，然后用 Node.js 24+ 和 Python 3.11+ 运行 `npm run check`。其中 `scripts/check_versions.py` 核对 npm 实际发现的工作区、锁文件、`pyproject.toml`、内核 `__version__`、`CHANGELOG.md` 首条版本与版本链、使用指南的源码版本行，以及许可证与包元数据；脚本成功时输出 Python 版本，Source build 复用该结果生成资产清单和核对隔离安装。其余脚本分别守护协议、桌面安全、工具与审批、本地资源、连接、搜索、工作流和文档链接，各自的核对范围只在[构建前静态检查](docs/TECHNICAL_REFERENCE.md#构建前静态检查)维护；发布准备时运行全部脚本，不按改动范围挑选。运行时和关于页的版本展示另行核对。
+4. 在独立 release 分支同步根包、桌面包、各工作区包、锁文件与 Python 包的版本来源，然后用 Node.js 24+ 和 Python 3.11+ 执行 `npm run check`，运行整组[构建前检查](docs/TECHNICAL_REFERENCE.md#构建前检查)。其中 `scripts/check_versions.py` 核对 npm 实际发现的工作区、锁文件、`pyproject.toml`、内核 `__version__`、`CHANGELOG.md` 首条版本与版本链、使用指南的源码版本行，以及许可证与包元数据。脚本成功时输出 Python 版本，Source build 复用该结果生成资产清单和核对隔离安装。运行时和关于页的版本展示另行核对。
 5. 核对 CHANGELOG：它不设「未发布」小节，每个源码候选合入时已写入对应条目。逐条确认自上次实际发布以来各条目的链接、兼容影响与验证限制仍然准确，再把它们汇总进 Release 正文；不回头改写已合入条目的版本号或日期。
 6. 核对 README 的定位、首次启动步骤与文档入口仍然准确：首页不写具体版本号，也不追加批次修复清单或候选自检细节。已发布版本状态写在[项目状态](docs/STATUS.md)，完整问题历史保留在 CHANGELOG、GitHub Release 与关联 PR。
 7. 准备 Release 正文：定位、重点变化、升级方式、交付资产、来源、验证与限制。尚未执行的检查写为待执行，不能预先宣称通过。

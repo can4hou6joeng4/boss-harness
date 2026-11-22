@@ -200,9 +200,9 @@ npm run build
 git diff --check
 ```
 
-`npm run check` 依次运行全部构建前静态检查（`scripts/check_*.py`），覆盖版本与发布元数据、协议与传输、桌面与 IPC 安全、内核工具与审批、本地资源与隐私、连接、搜索、CI 工作流和文档链接；各脚本的核对范围见[构建前静态检查](docs/TECHNICAL_REFERENCE.md#构建前静态检查)。CI 先运行同一组检查，再执行依赖审计、TypeScript 检查、Electron 源码构建、Python wheel / sdist 构建与隔离安装，并在 Python 3.10–3.14 上分别核对搜索归一化与源码编译。
+`npm run check` 运行与 CI 一致的构建前检查，涵盖源码与配置核对及离线行为验证。运行条件和各脚本的覆盖范围见[构建前检查](docs/TECHNICAL_REFERENCE.md#构建前检查)。
 
-以上命令用于开发检查，允许使用工作树中的未提交改动；发布构建必须按[发布约定](RELEASING.md#构建与验收)从指定提交的 `git archive` 隔离目录执行。检查与构建通过不代表真实模型、招聘平台、桌面交互或签名安装包已验收；提交与 PR 流程见[贡献与交付约定](CONTRIBUTING.md)。
+以上命令可用于验证工作树中的未提交改动。提交与 PR 流程见[贡献与交付约定](CONTRIBUTING.md)，隔离发布构建见[发布约定](RELEASING.md#构建与验收)，待验收范围见[项目状态](docs/STATUS.md#待完成与待验收)。
 
 ## 项目导航
 
@@ -212,7 +212,7 @@ git diff --check
 | [让编码 Agent 协助安装](SETUP.md) | 从源码安装、自检与首次启动的分步指引；不包含凭据、模型调用与平台登录。 |
 | [使用指南](docs/USER_GUIDE.md) | 模型配置、运行参数、自检、职位搜索、沟通列表、技能、队列和上游 CLI 设置。 |
 | [桌面交互指南](docs/DESKTOP_GUIDE.md) | 搜索、审批、通知、会话查找、队列、长会话、界面偏好与导出行为。 |
-| [内核与业务契约参考](docs/TECHNICAL_REFERENCE.md) | 请求边界、失败恢复、上下文预算、资源上限、模块接口与构建前静态检查。 |
+| [内核与业务契约参考](docs/TECHNICAL_REFERENCE.md) | 请求边界、失败恢复、上下文预算、资源上限、模块接口与构建前检查。 |
 | [项目状态与待验收范围](docs/STATUS.md) | 源码候选与实际发布的区别、已具备能力、待完成事项与非目标。 |
 | [贡献与交付约定](CONTRIBUTING.md) | 开发约定、本地验证、提交格式、PR 与文档同步。 |
 | [版本交付与项目介绍](RELEASING.md) | 版本节奏、版本一致性、发布验证与对外介绍。 |
@@ -232,7 +232,9 @@ BOSS Harness is an agent harness for recruiting tasks: a desktop workbench that 
 - **Design notes**: the kernel follows Pi's agent-harness / durable design ideas but implements this project's recruiting safety contract independently. A read-only review log of external reference repositories is kept in [UPSTREAM.md](UPSTREAM.md); those projects are not upstreams and their links do not imply endorsement.
 - **Status**: `main` is the development branch and source candidates are not releases; use [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases) for published versions. The desktop is built from source and has no standalone installer yet. [Project status](docs/STATUS.md) lists implemented, pending and non-goal boundaries.
 
-The commands under [快速开始](#快速开始) are language-neutral. Further documentation is in Chinese: [user guide](docs/USER_GUIDE.md) · [desktop guide](docs/DESKTOP_GUIDE.md) · [technical reference](docs/TECHNICAL_REFERENCE.md).
+See [Quick start](#快速开始) for setup. To run the same source checks and offline behavior checks as CI, use `npm run check` with the prerequisites in the [development guide](CONTRIBUTING.md).
+
+Further documentation is available in Chinese in the [user guide](docs/USER_GUIDE.md), [desktop guide](docs/DESKTOP_GUIDE.md), and [technical reference](docs/TECHNICAL_REFERENCE.md).
 
 ## License
 

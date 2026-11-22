@@ -1,3 +1,8 @@
+## 0.2.0-rc.512 - 2026-11-22
+
+- README 的中英文开发入口说明 `npm run check` 的源码核对与离线行为验证范围。技术参考集中说明本地运行条件、CI 覆盖和单项脚本入口，并保留原构建前检查锚点。文档索引、项目状态、贡献与发布约定同步链接。关联 Issue [#3149](https://github.com/can4hou6joeng4/boss-harness/issues/3149)。
+- 源码候选标记为 npm `0.2.0-rc.512` 和 Python `0.2.0rc512`。最新公开预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。
+
 ## 0.2.0-rc.511 - 2026-11-22
 
 rc.511 源码候选为工具结果边界补充行为对照。最新公开预发布为 [`v0.2.0-rc.15`](https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15)。

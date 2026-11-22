@@ -12,7 +12,7 @@
 - [JSON-RPC 帧完整性](#json-rpc-帧完整性)
 - [启动自检报告](#启动自检报告)
 - [服务端通知](#服务端通知)
-- [构建前静态检查](#构建前静态检查)
+- [构建前检查](#构建前检查)
 - [返回 README](../README.md)
 
 ## JSON-RPC 帧完整性
@@ -49,11 +49,17 @@ handler 可能已经产生外部或持久副作用，响应编码失败时不能
 
 `ServerNotifications` 是方法名常量，不是完整参数 schema；方法参数仍以 `packages/protocol` 的类型和对应读取接口为准。
 
-## 构建前静态检查
+<a name="构建前静态检查"></a>
 
-`scripts/check_*.py` 是一组静态检查：CI 的 Source build 在安装依赖前逐个运行，任一失败即终止构建；本地用 `npm run check` 按文件名顺序运行全部（通常在数秒内完成），遇到第一个失败即停止并沿用其退出码，也可以单独运行某个脚本。`npm run check` 默认使用仓库根目录的 `.venv/bin/python`，设置 `PYTHON` 环境变量可改用其他 Python 3.11+ 解释器；它是 POSIX shell 循环，不安装依赖。这些脚本只读取源码、配置与文档（`check_versions.py` 与 `check_search_unicode.py` 另调用本机的 `npm` / `node`），不联网，不调用模型、招聘 CLI 或招聘平台；通过只说明已登记的不变量没有被改动，不代替运行时验证、真实平台或安装包验收。
+## 构建前检查
 
-各脚本的核对范围只在本节维护；README、贡献约定与发布约定链接到这里，不再各自抄写清单。新增检查脚本时须接入 `.github/workflows/build.yml` 并在本节补充同名小节，两处分别由 `check_workflows.py` 与 `check_docs_links.py` 核对。
+`scripts/check_*.py` 核对源码、配置和文档。部分脚本还直接调用内核函数或本地子进程，验证工具结果投影、会话归并和双端搜索归一化等行为。涉及持久化写入的离线检查使用临时目录。运行这组脚本无需网络、模型凭据或招聘平台账号。
+
+在仓库根目录使用 Node.js 24+、npm 和 Python 3.11+ 运行 `npm run check`。命令默认使用 `.venv/bin/python`，也可通过 `PYTHON` 指定解释器。它按文件名顺序运行全部脚本，遇到首个失败即返回该脚本的退出码。可用同一个解释器单独运行某个脚本，例如 `.venv/bin/python scripts/check_tool_results.py`。
+
+CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python 3.10–3.14 的矩阵运行部分检查并编译源码。各脚本的覆盖范围见本节下表与对应说明，实际环境的验收范围见[项目状态](STATUS.md#待完成与待验收)。
+
+新增检查脚本时须接入 `.github/workflows/build.yml` 并在本节补充同名小节。两处分别由 `check_workflows.py` 与 `check_docs_links.py` 核对。
 
 | 领域 | 脚本 |
 | --- | --- |

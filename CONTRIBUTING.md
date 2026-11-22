@@ -26,7 +26,9 @@ git diff --check
 
 以上命令用于开发检查，允许使用工作树中的未提交改动；发布构建必须按 [RELEASING.md](RELEASING.md) 从指定提交的 `git archive` 隔离目录执行，避免未跟踪文件进入资产。
 
-`npm run check` 依次运行全部 `scripts/check_*.py`，与 CI 的 Source build 在安装依赖前运行的是同一组脚本；各脚本的核对范围、解释器选择与运行条件只在[构建前静态检查](docs/TECHNICAL_REFERENCE.md#构建前静态检查)维护，其他文档链接到那里，不再抄写清单。新增检查脚本时接入 `.github/workflows/build.yml` 并在该节补充同名小节。CI 随后执行 npm 依赖审计、TypeScript 检查、Electron 源码构建与 Python wheel / sdist 构建，生成构建清单与 SHA-256 摘要，隔离安装两个 Python 包并运行 `boss-harness --check --provider none`，最后把 `python-dist` 作为工作流产物上传；Python 3.10–3.14 的独立矩阵 job 另分别核对搜索归一化并编译内核与脚本源码。
+`npm run check` 运行与 CI 的 Source build 同一组 `scripts/check_*.py`。新增脚本的接入方式、解释器选择与各项覆盖范围见[构建前检查](docs/TECHNICAL_REFERENCE.md#构建前检查)。
+
+CI 随后执行 npm 依赖审计、TypeScript 检查和 Electron 源码构建。Python 构建生成 wheel、sdist、构建清单和 SHA-256 摘要，分别隔离安装两种分发包并运行 `boss-harness --check --provider none`，最后上传 `python-dist` 工作流产物。Python 3.10–3.14 的矩阵另运行部分检查和源码编译。
 
 变更还需完成适用的工具契约、执行状态、中断、审批、异常恢复和上游兼容验证。离线验证使用模拟工具、脱敏数据和独立临时目录，避免调用真实平台或读取真实会话。
 
