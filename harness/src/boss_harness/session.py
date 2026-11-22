@@ -2566,6 +2566,12 @@ class SessionStore:
         return event
 
     def _purge_unreferenced_attachments(self, digests: list[str]) -> None:
+        # 候选直接拼接为附件路径：在读取目录与扫描会话前收敛为摘要格式，
+        # 避免内部方法被误用时指向附件根之外的状态文件。
+        if not isinstance(digests, (list, tuple)) or any(
+                not isinstance(digest, str) or not _ATTACHMENT_DIGEST.fullmatch(digest)
+                for digest in digests):
+            raise ValueError("附件清理候选摘要格式无效")
         candidates = set(digests)
         if not candidates:
             return

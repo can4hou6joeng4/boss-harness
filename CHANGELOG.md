@@ -1,3 +1,8 @@
+## 0.2.0-rc.545 - 2026-11-23
+
+- `_purge_unreferenced_attachments` 在读取目录与扫描会话前把候选收敛为 64 位小写十六进制摘要：相对越界、绝对路径、大写、短摘要、非字符串、不可哈希与非序列候选以固定文案「附件清理候选摘要格式无效」拒绝；合法候选与空清单行为不变。附件边界检查同步新增 9 个行为场景（合计 36 个），并确认附件目录外的状态库不受影响。对照 Pi 固定提交的会话管理无对应机制，差异记入 `UPSTREAM.md`。[Issue #3215](https://github.com/can4hou6joeng4/boss-harness/issues/3215)
+- 源码候选更新为 npm `0.2.0-rc.545` 和 Python `0.2.0rc545`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.544 - 2026-11-23
 
 - 附件边界检查新增 27 个行为场景，用临时目录、合成会话 JSONL 与附件对象构造真实 `SessionStore` 执行 `_purge_unreferenced_attachments` 与 `cleanup_unreferenced_attachments`：共享引用在 CRLF、重复记录与多会话下保留，未引用 / 多候选 / 重复候选对象删除，缺失对象与缺失目录静默、空候选不扫描、待删除会话跳过且标记保留，非附件记录 / 空载荷 / 非法与大写摘要不算引用，损坏会话、非对象载荷、链接与目录输入的 fail closed 文案，以及公开包装的错误传播。隔离变异探针结构与行为分别检出 7/12、12/12，合计 12/12。[Issue #3213](https://github.com/can4hou6joeng4/boss-harness/issues/3213)

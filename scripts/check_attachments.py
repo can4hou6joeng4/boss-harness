@@ -47,6 +47,7 @@ APPLICATION_FRAGMENTS = (
 )
 # 删除会话后的附件清理：共享内容寻址附件必须先扫描全部会话引用，再 fail closed 清理。
 SESSION_FRAGMENTS = (
+    'raise ValueError("附件清理候选摘要格式无效")',
     'candidates = set(digests)',
     'for session_path in self.root.glob("*.jsonl"):',
     'if session_path.stem in self._pending_deletion_ids():',
@@ -410,6 +411,33 @@ def _behavior_checks() -> int:
         checked += _expect_error(
             lambda: store._purge_unreferenced_attachments([_digest("x")]),
             untrusted_root, "附件根符号链接")
+
+        # 候选摘要格式在扫描前收敛：越界、绝对路径与非摘要值被拒绝。
+        store, sessions, attachments = _build(base, "guards")
+        _write_session(sessions, _THREAD, [])
+        state = sessions.parent / "state.sqlite3"
+        message = "附件清理候选摘要格式无效"
+        checked += _expect_error(
+            lambda: store.cleanup_unreferenced_attachments(["../state.sqlite3"]),
+            message, "相对越界候选")
+        checked += _expect_value(state.exists(), True, "状态文件不受影响")
+        checked += _expect_error(
+            lambda: store.cleanup_unreferenced_attachments([str(state)]),
+            message, "绝对路径候选")
+        checked += _expect_error(
+            lambda: store.cleanup_unreferenced_attachments([_digest("upper").upper()]),
+            message, "大写候选")
+        checked += _expect_error(
+            lambda: store.cleanup_unreferenced_attachments(["a" * 63]), message, "短摘要候选")
+        checked += _expect_error(
+            lambda: store.cleanup_unreferenced_attachments([123]), message, "非字符串候选")
+        checked += _expect_error(
+            lambda: store.cleanup_unreferenced_attachments([["x"]]), message, "不可哈希候选")
+        checked += _expect_error(
+            lambda: store.cleanup_unreferenced_attachments(None), message, "非序列候选")
+        checked += _expect_error(
+            lambda: store._purge_unreferenced_attachments(["../state.sqlite3"]),
+            message, "内部入口同样拒绝")
 
         # 静默路径：空候选不扫描、附件目录缺失、重复候选与宽松权限对象。
         store, sessions, attachments = _build(base, "empty-candidates")
