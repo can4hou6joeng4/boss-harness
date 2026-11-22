@@ -304,7 +304,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_summary.py`
 
-`scripts/check_summary.py` 核对摘要规划的预算、逐字来源与无工具边界：`summary.py` 的输出上限 8 192、请求上限 32、摘要器提示对执行状态（只有「已执行成功」可说成已发生）与授权（既有审批只属于对应工具调用、摘要不扩大未来操作授权）的措辞、分支摘要的来源说明；来源先经 `wire_text` 降级并计算 SHA-256，单次输出预留模型上限与 4096 余量后的四分之一，滚动摘要预算按 32 000 字符与可用输入折算；预算不足或滚动摘要超限必须分别以 `ContextBudgetExceeded` 与 `ValueError` 拒绝，不得截断已有摘要；摘要请求必须 `tools=()`、`thinking=None`、`ensure_ascii=False`，来源按 `start:end` 逐字发送；片段切分按上下文窗口两倍的二分查找，起点无法容纳时以 `ContextBudgetExceeded` 失败。脚本反向断言来源不得从头截断、不得使用 `ensure_ascii=True`，并核对技术参考的摘要说明。检查是常量与顺序扫描，实际摘要质量仍需按用户指南核对。
+`scripts/check_summary.py` 核对摘要规划的预算、逐字来源与无工具边界：`summary.py` 的输出上限 8 192、请求上限 32、摘要器提示对执行状态（只有「已执行成功」可说成已发生）与授权（既有审批只属于对应工具调用、摘要不扩大未来操作授权）的措辞、分支摘要的来源说明；来源先经 `wire_text` 降级并计算 SHA-256，单次输出预留模型上限与 4096 余量后的四分之一，滚动摘要预算按 32 000 字符与可用输入折算；预算不足或滚动摘要超限必须分别以 `ContextBudgetExceeded` 与 `ValueError` 拒绝，不得截断已有摘要；摘要请求必须 `tools=()`、`thinking=None`、`ensure_ascii=False`，来源按 `start:end` 逐字发送；片段切分按上下文窗口两倍的二分查找，起点无法容纳时以 `ContextBudgetExceeded` 失败。脚本反向断言来源不得从头截断、不得使用 `ensure_ascii=True`，并核对技术参考的摘要说明。检查另用临时合成配置执行 `SummaryPlanner`：四路输出约束、字符预算公式、逐字片段与来源摘要、恰好上限与超限拒绝、预算不足与来源末尾的 `ContextBudgetExceeded`、孤立代理项降级与重复规划稳定性；摘要质量本身仍需按用户指南核对。
 
 ### `check_private_files.py`
 

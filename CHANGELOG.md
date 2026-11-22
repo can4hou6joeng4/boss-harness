@@ -1,3 +1,8 @@
+## 0.2.0-rc.523 - 2026-11-23
+
+- 摘要规划检查新增 28 个离线行为场景，实际执行 `SummaryPlanner` 的四路输出约束、字符预算公式、逐字片段与来源摘要、滚动摘要上限、预算不足与来源末尾拒绝，以及孤立代理项降级。隔离变异探针合计检出 9/9。[Issue #3171](https://github.com/can4hou6joeng4/boss-harness/issues/3171)
+- 源码候选更新为 npm `0.2.0-rc.523` 和 Python `0.2.0rc523`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.522 - 2026-11-23
 
 - 生命周期 hook 检查新增 32 个离线行为场景，执行策略与观察上下文的完整复制、只读视图、脱敏、截断、键项与深度省略、字节 / 节点 / 深度边界，以及环引用、非字符串键、代理项、非有限浮点、不支持类型与非映射顶层的拒绝。隔离变异探针合计检出 12/12。[Issue #3169](https://github.com/can4hou6joeng4/boss-harness/issues/3169)
