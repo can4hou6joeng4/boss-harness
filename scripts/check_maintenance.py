@@ -2,17 +2,28 @@
 """核对索引修复的清单、移动与回滚边界。
 
 maintenance.py 只移动索引文件，从不改写会话日志与事件：清单大小与摘要来自同一
-描述符，移动前再次核对路径身份，成功与失败路径都以目录 fsync 收尾。任一保护被
-删改都不会触发构建失败，因此静态固定。
+描述符，移动前再次核对路径身份，成功与失败路径都以目录 fsync 收尾。检查核对
+源码结构，并在临时状态目录中执行成功、拒绝与回滚场景。
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness import maintenance  # noqa: E402
+from boss_harness.session import Entry, SessionStore  # noqa: E402
+
 MODULE = "harness/src/boss_harness/maintenance.py"
+INDEX_FILES = ("state.sqlite3", "state.sqlite3-wal", "state.sqlite3-shm")
 TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 USER_GUIDE = "docs/USER_GUIDE.md"
 
@@ -122,6 +133,128 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"索引修复行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_rejected(call, message: str, label: str) -> None:
+    try:
+        call()
+    except ValueError as error:
+        _expect_value(str(error), message, label)
+    else:
+        raise ValueError(f"索引修复应拒绝 {label}")
+
+
+def _expect_failure(call, message: str, label: str) -> None:
+    try:
+        call()
+    except RuntimeError as error:
+        _expect_value(str(error), message, label)
+    else:
+        raise ValueError(f"索引修复应报告 {label}")
+
+
+def _seed_state(root: Path) -> tuple[str, bytes, dict[str, bytes], str]:
+    store = SessionStore(root / "sessions")
+    thread = store.create("修复演示")
+    store.append(thread["id"], Entry("item", payload={"text": "保留"}))
+    store.append_event("演示/事件", {"threadId": thread["id"]})
+    log = (root / "sessions" / f"{thread['id']}.jsonl").read_bytes()
+    cursor = store.latest_event_cursor()
+    store.close()
+    (root / "state.sqlite3-wal").write_bytes(b"wal-demo")
+    (root / "state.sqlite3-shm").write_bytes(b"shm-demo")
+    return thread["id"], log, {name: (root / name).read_bytes() for name in INDEX_FILES}, cursor
+
+
+def _manifest(names: dict[str, bytes]) -> list[dict]:
+    return [{"name": name, "bytes": len(names[name]), "sha256": hashlib.sha256(names[name]).hexdigest()}
+            for name in INDEX_FILES if name in names]
+
+
+def _behavior_checks() -> int:
+    missing_message = "状态目录不存在，未执行索引修复；核对 --state-dir 或 BOSS_HARNESS_DIR"
+    foreign_message = "目标目录不是内核状态目录，未执行索引修复；核对 --state-dir 或 BOSS_HARNESS_DIR"
+    with TemporaryDirectory() as directory:
+        base = Path(directory)
+        absent = base / "absent"
+        _expect_rejected(lambda: maintenance.repair_index(absent), missing_message, "缺失路径")
+        _expect_value(absent.exists(), False, "缺失路径未被创建")
+
+        foreign = base / "foreign"
+        foreign.mkdir()
+        (foreign / "notes.txt").write_text("保留", encoding="utf-8")
+        _expect_rejected(lambda: maintenance.repair_index(foreign), foreign_message, "陌生目录")
+        _expect_value(sorted(path.name for path in foreign.iterdir()), ["notes.txt"], "陌生目录未被写入")
+
+        empty = base / "empty"
+        empty.mkdir()
+        empty_summary = maintenance.repair_index(empty)
+        empty_backup = Path(empty_summary["backupPath"])
+        _expect_value(empty_summary["repaired"], True, "空目录修复标记")
+        _expect_value(empty_summary["threads"], 0, "空目录会话数")
+        _expect_value(empty_summary["eventCursor"], "0", "空目录事件游标")
+        _expect_value("skipped" in empty_summary, False, "空目录跳过列表")
+        _expect_value(json.loads((empty_backup / "manifest.json").read_text(encoding="utf-8")),
+                      [], "空目录清单")
+        _expect_value((empty / "state.sqlite3").exists(), True, "空目录重建索引")
+
+        state = base / "state"
+        thread_id, log, before, cursor = _seed_state(state)
+        summary = maintenance.repair_index(state)
+        backup = Path(summary["backupPath"])
+        _expect_value((summary["repaired"], summary["threads"]), (True, 1), "状态目录修复结果")
+        _expect_value(summary["eventCursor"], cursor, "状态目录事件游标")
+        _expect_value("skipped" in summary, False, "状态目录跳过列表")
+        _expect_value(backup.resolve().parent, (state / "repairs").resolve(), "备份位于修复目录")
+        _expect_value(json.loads((backup / "manifest.json").read_text(encoding="utf-8")),
+                      _manifest(before), "状态目录清单")
+        _expect_value({name: (backup / name).read_bytes() for name in INDEX_FILES}, before, "备份文件内容")
+        _expect_value((state / "sessions" / f"{thread_id}.jsonl").read_bytes(), log, "会话日志保持不变")
+        _expect_value((state / "state.sqlite3").exists(), True, "状态目录重建索引")
+
+        early = base / "early"
+        early_thread, early_log, early_before, _ = _seed_state(early)
+        with patch.object(maintenance, "SessionStore", side_effect=RuntimeError("模拟重建失败")):
+            _expect_failure(lambda: maintenance.repair_index(early), "模拟重建失败", "重建失败")
+        early_backup = next((early / "repairs").iterdir())
+        _expect_value({name: (early / name).read_bytes() for name in INDEX_FILES}, early_before, "重建失败回滚")
+        _expect_value((early / "sessions" / f"{early_thread}.jsonl").read_bytes(), early_log,
+                      "重建失败日志保持不变")
+        _expect_value(json.loads((early_backup / "manifest.json").read_text(encoding="utf-8")),
+                      _manifest(early_before), "重建失败清单")
+        _expect_value(list((early_backup / "failed-candidate").iterdir()), [], "重建失败没有新候选")
+
+        class _LateFailure(SessionStore):
+            def latest_event_cursor(self) -> str:
+                raise RuntimeError("模拟重建后失败")
+
+        late = base / "late"
+        late_thread, late_log, late_before, _ = _seed_state(late)
+        with patch.object(maintenance, "SessionStore", _LateFailure):
+            _expect_failure(lambda: maintenance.repair_index(late), "模拟重建后失败", "重建后失败")
+        late_backup = next((late / "repairs").iterdir())
+        _expect_value({name: (late / name).read_bytes() for name in INDEX_FILES}, late_before,
+                      "重建后失败回滚")
+        _expect_value((late / "sessions" / f"{late_thread}.jsonl").read_bytes(), late_log,
+                      "重建后失败日志保持不变")
+        _expect_value(sorted(path.name for path in (late_backup / "failed-candidate").iterdir()),
+                      ["state.sqlite3"], "重建后失败保留新候选")
+
+        skipped = base / "skipped"
+        (skipped / "sessions").mkdir(parents=True)
+        damaged = skipped / "sessions" / "0123456789ab.jsonl"
+        damaged.write_bytes(b"{\n")
+        skipped_summary = maintenance.repair_index(skipped)
+        _expect_value((skipped_summary["threads"], skipped_summary["skipped"]), (0, ["0123456789ab"]),
+                      "跳过损坏会话")
+        _expect_value(damaged.read_bytes(), b"{\n", "损坏日志保持不变")
+    return 7
+
+
 def check_maintenance() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
@@ -175,10 +308,11 @@ def check_maintenance() -> int:
 def main() -> int:
     try:
         checked = check_maintenance()
-    except ValueError as error:
+        scenarios = _behavior_checks()
+    except (ValueError, OSError) as error:
         print(f"索引修复核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"索引修复一致：{checked} 项清单、移动与回滚防护")
+    print(f"索引修复一致：{checked} 项结构防护、{scenarios} 个修复场景")
     return 0
 
 

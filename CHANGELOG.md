@@ -1,3 +1,8 @@
+## 0.2.0-rc.521 - 2026-11-23
+
+- 索引修复检查新增 7 个临时状态场景，实际执行拒绝、成功修复、重建失败回滚与损坏会话跳过，并核对清单摘要、日志不变和事件游标。结构、行为与合计检出分别为 9/10、9/10、10/10。[Issue #3167](https://github.com/can4hou6joeng4/boss-harness/issues/3167)
+- 源码候选更新为 npm `0.2.0-rc.521` 和 Python `0.2.0rc521`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.520 - 2026-11-23
 
 - README 与安装指南为首次桌面验证给出共用的临时内核状态路径，自检通过后再用同一路径启动，并说明如何恢复平时的启动方式。[Issue #3165](https://github.com/can4hou6joeng4/boss-harness/issues/3165)
