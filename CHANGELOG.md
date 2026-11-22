@@ -1,3 +1,8 @@
+## 0.2.0-rc.544 - 2026-11-23
+
+- 附件边界检查新增 27 个行为场景，用临时目录、合成会话 JSONL 与附件对象构造真实 `SessionStore` 执行 `_purge_unreferenced_attachments` 与 `cleanup_unreferenced_attachments`：共享引用在 CRLF、重复记录与多会话下保留，未引用 / 多候选 / 重复候选对象删除，缺失对象与缺失目录静默、空候选不扫描、待删除会话跳过且标记保留，非附件记录 / 空载荷 / 非法与大写摘要不算引用，损坏会话、非对象载荷、链接与目录输入的 fail closed 文案，以及公开包装的错误传播。隔离变异探针结构与行为分别检出 7/12、12/12，合计 12/12。[Issue #3213](https://github.com/can4hou6joeng4/boss-harness/issues/3213)
+- 源码候选更新为 npm `0.2.0-rc.544` 和 Python `0.2.0rc544`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.543 - 2026-11-23
 
 - 会话分叉检查新增 57 个行为场景，以临时目录与合成 JSONL 构造真实 `SessionStore` 并执行 `fork_thread`：活动分支与指定较早回合的选择、合成叶分叉被放弃回合、运行中回合 / 未收尾条目 / 未决审批 / 拆开工具批次 / 非法续接偏移的拒绝、内核专用记录排除、`threadId` / `approvalId` / `parentId` 改写、迟到修订归属、续接边界摘要重算与删除、来源日志只读。隔离变异探针结构与行为分别检出 7/20、20/20，合计 20/20。[Issue #3211](https://github.com/can4hou6joeng4/boss-harness/issues/3211)
