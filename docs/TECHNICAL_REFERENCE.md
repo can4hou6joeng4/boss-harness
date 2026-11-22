@@ -256,7 +256,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_request_identity.py`
 
-`scripts/check_request_identity.py` 核对请求身份的校验、去重与冲突边界：`request_identity.py` 的 `clientUserMessageId` 必须整串匹配 `[A-Za-z0-9_-]{1,128}`，无效格式直接拒绝；持久记录的 `queueId` / `turnId` 链接必须经类型校验后参与两轮收敛，队列记录必须与 `queue/list` 共用 `queue_record` 契约；转向类型冲突、不同输入与身份歧义必须分别以 `CLIENT_REQUEST_CONFLICT`、`CLIENT_REQUEST_AMBIGUOUS`、`REQUEST_REQUIRES_REVIEW` 拒绝；输入摘要按 UTF-8 原文计算，持久事实不一致或「未启动却已完成」的回合必须要求核对。脚本同时核对技术参考与使用指南的请求身份说明。检查是常量与文本扫描，实际去重与恢复行为仍需按用户指南核对。
+`scripts/check_request_identity.py` 核对请求身份的校验、去重与冲突边界：`request_identity.py` 的 `clientUserMessageId` 必须整串匹配 `[A-Za-z0-9_-]{1,128}`，无效格式直接拒绝；持久记录的 `queueId` / `turnId` 链接必须经类型校验后参与两轮收敛，队列记录必须与 `queue/list` 共用 `queue_record` 契约；转向类型冲突、不同输入与身份歧义必须分别以 `CLIENT_REQUEST_CONFLICT`、`CLIENT_REQUEST_AMBIGUOUS`、`REQUEST_REQUIRES_REVIEW` 拒绝；输入摘要按 UTF-8 原文计算，持久事实不一致或「未启动却已完成」的回合必须要求核对。脚本同时核对技术参考与使用指南的请求身份说明。脚本另在临时 `SessionStore` 上用合成队列、输入与回合记录实际执行编号校验、身份解析与回执投影（47 项行为场景）：整串匹配与长度边界、空身份短路、外部 `queue-<id>` 字符串不能认领队列、队列编号与输入一致性、转向队列 / 转向输入拒绝、损坏存储编号按缺失处理、两轮链接收敛、重复队列 / 回合 / 输入的歧义复核、缺少可核对输入、持久事实冲突与「未启动却已完成」复核，以及 delivered / paused 回执字段。检查不启动真实请求，也不读取或写入本机真实状态目录。
 
 ### `check_queue_view.py`
 
