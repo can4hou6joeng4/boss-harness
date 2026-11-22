@@ -630,7 +630,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_settings.py`
 
-`scripts/check_settings.py` 核对自动压缩设置的有界读取、原子写入与持久边界：`settings.py` 的 `config.json`、三个自动压缩字段、256 KiB 与深度 64 上限；读取只经 `open_private_file` 的私有描述符，确认 `S_ISREG`，只读到上限 + 1 字节并在多出时按不可读处理，`json.loads` 的 UTF-8 解码与宽泛异常收敛为默认值，结果必须是深度受限的 JSON 对象；保存前必须验证三个字段齐全，已存在但不可读的配置拒绝覆盖；序列化使用 `ensure_ascii=False` 保留无关键，编码异常、孤立代理项与超限分别收敛为可读中文错误；写入必须经 `tempfile.mkstemp`、`fsync` 文件、`os.replace` 与目录 `fsync`，异常时清理临时文件。脚本按首次出现顺序核对 fsync → replace → 目录同步，并反向断言不得使用 `read_text` / `write_text`；同时核对技术参考与使用指南的设置口径。检查是常量与顺序扫描，实际持久行为仍需按用户指南核对。
+`scripts/check_settings.py` 核对自动压缩设置的有界读取、原子写入与持久边界：`settings.py` 的 `config.json`、三个自动压缩字段、256 KiB 与深度 64 上限；读取只经 `open_private_file` 的私有描述符，确认 `S_ISREG`，只读到上限 + 1 字节并在多出时按不可读处理，`json.loads` 的 UTF-8 解码与宽泛异常收敛为默认值，结果必须是深度受限的 JSON 对象；保存前必须验证三个字段齐全，已存在但不可读的配置拒绝覆盖；序列化使用 `ensure_ascii=False` 保留无关键，编码异常、孤立代理项与超限分别收敛为可读中文错误；写入必须经 `tempfile.mkstemp`、`fsync` 文件、`os.replace` 与目录 `fsync`，异常时清理临时文件。脚本按首次出现顺序核对 fsync → replace → 目录同步，并反向断言不得使用 `read_text` / `write_text`；同时核对技术参考与使用指南的设置口径。检查另用临时状态目录执行 `_within_depth`、`_read_object`、`load_auto_compaction` 与 `save_auto_compaction`：深度边界、缺失 / 非对象 / 损坏 / 非法 UTF-8 / 超限 / 深层配置回退、合法与部分字段加载、无关键保留、各类拒绝与临时文件清理；真实掉电时序仍按用户指南核对。
 
 ### `check_snapshot_store.py`
 
