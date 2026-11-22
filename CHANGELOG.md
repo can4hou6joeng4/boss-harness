@@ -1,3 +1,8 @@
+## 0.2.0-rc.513 - 2026-11-23
+
+- 工具结果检查新增 32 项分页行为对照。两条读取入口交替续读，核对 Unicode 码点偏移、规范化结果拼接、末页、`limit` 边界、过期引用、游标归属与格式。16 种模拟回归均被检出，技术参考同步更新。[Issue #3151](https://github.com/can4hou6joeng4/boss-harness/issues/3151)
+- 源码候选更新为 npm `0.2.0-rc.513` 和 Python `0.2.0rc513`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.512 - 2026-11-22
 
 - README 的中英文开发入口说明 `npm run check` 的源码核对与离线行为验证范围。技术参考集中说明本地运行条件、CI 覆盖和单项脚本入口，并保留原构建前检查锚点。文档索引、项目状态、贡献与发布约定同步链接。关联 Issue [#3149](https://github.com/can4hou6joeng4/boss-harness/issues/3149)。

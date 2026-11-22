@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """核对工具结果分页、内容寻址与引用恢复边界，成功时输出核对项数量。
 
-静态侧固定预算常量、分页片段与两条读取路径的 limit 校验；行为侧直接调用
-`tool_results.py` 的执行状态、处置、投影与引用函数，覆盖重试建议、桌面结果的
-内联预算与内容寻址引用。
+源码检查覆盖预算常量和读取路径的接入边界。行为检查覆盖执行状态、重试处置、
+桌面结果投影、内容寻址引用和两条读取路径之间的分页续读。
 """
 
 from __future__ import annotations
 
 import ast
+import base64
 from copy import deepcopy
+from functools import partial
 import hashlib
+import json
 from pathlib import Path
 import re
 import sys
@@ -54,6 +56,7 @@ RPC_DEFAULT = re.compile(
 )
 
 sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.rpc import RpcError  # noqa: E402
 from boss_harness.tool_results import (  # noqa: E402
     MAX_INLINE_TOOL_RESULT_BYTES,
     MAX_PAGE_BYTES,
@@ -61,6 +64,8 @@ from boss_harness.tool_results import (  # noqa: E402
     canonical_result_text,
     disposition_for_state,
     project_item,
+    read_result_chunk,
+    read_result_text_chunk,
     result_reference,
     result_text,
     tool_disposition,
@@ -81,6 +86,8 @@ def _expect_raises(call, label: str) -> int:
         call()
     except ValueError:
         return 1
+    except RpcError as error:
+        raise ValueError(f"工具结果行为变化 {label}：收到 RPC 错误 {error.code}") from None
     raise ValueError(f"工具结果行为变化 {label}：没有抛出 ValueError")
 
 
@@ -235,6 +242,80 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _pagination_checks() -> int:
+    thread_id, item_id = "thread", "item-1"
+    item = {"id": item_id, "kind": "toolCall", "result": {"text": "中🙂\ud800A"}}
+    text = '{"text":"中🙂�A"}'
+    reference = result_reference(thread_id, item_id, text)
+    digest = reference["sha256"]
+    read_item = partial(read_result_chunk, thread_id, item, sha256=digest)
+    read_text = partial(read_result_text_chunk, thread_id, item_id, text, sha256=digest)
+
+    # 在两个读取入口之间交替使用同一个结果的游标。
+    first = read_item(limit=10)
+    first_cursor = first["nextCursor"]
+    checked = _expect_value(
+        (first["text"], first["offset"], first["resultRef"]),
+        ('{"text":"中', 0, reference), "分页首段")
+    checked += _expect_value(
+        isinstance(first_cursor, str) and first_cursor.startswith("tr1_"), True, "首段游标")
+    second = read_text(cursor=first_cursor, limit=2)
+    second_cursor = second["nextCursor"]
+    checked += _expect_value(
+        (second["text"], second["offset"], second["resultRef"]),
+        ("🙂�", 10, reference), "文本入口续页")
+    last = read_item(cursor=second_cursor, limit=EXPECTED_CONSTANTS["MAX_RESULT_CHARS"])
+    checked += _expect_value(last, {
+        "text": 'A"}', "offset": 12, "resultRef": reference, "nextCursor": None,
+    }, "条目入口末页")
+    checked += _expect_value(first["text"] + second["text"] + last["text"], text, "拼回全文")
+
+    # limit 最小值可用；布尔值也必须被拒绝。
+    for route, read in (("条目", read_item), ("文本", read_text)):
+        checked += _expect_value(read(limit=1)["text"], "{", f"{route}入口最小 limit")
+        for limit in (0, EXPECTED_CONSTANTS["MAX_RESULT_CHARS"] + 1, True, "2"):
+            checked += _expect_raises(partial(read, limit=limit), f"{route}入口 limit {limit!r}")
+        try:
+            read(sha256="0" * 64)
+        except RpcError as error:
+            checked += _expect_value(
+                (error.code, error.data), (-32011, {"code": "STALE_RESULT", "currentRef": reference}),
+                f"{route}入口返回当前引用")
+        else:
+            raise ValueError(f"工具结果行为变化 {route}入口接受过期引用")
+
+    changed_text = '{"text":"内容已更新"}'
+    changed_ref = result_reference(thread_id, item_id, changed_text)
+    for label, read in (
+        ("会话不匹配", partial(read_result_chunk, "other-thread", item, sha256=digest)),
+        ("条目不匹配", partial(read_result_chunk, thread_id, {**item, "id": "other-item"}, sha256=digest)),
+        ("摘要不匹配", partial(read_result_text_chunk, thread_id, item_id, changed_text,
+                              sha256=changed_ref["sha256"])),
+    ):
+        checked += _expect_raises(partial(read, cursor=first_cursor), label)
+    # 给可解码的游标增加 JSON 末尾空白，单独触发长度边界。
+    cursor_data = json.dumps([thread_id, item_id, digest, 1]).encode("ascii")
+    padded = base64.urlsafe_b64encode(cursor_data + b" " * 2048).decode("ascii").rstrip("=")
+    for label, cursor in (
+        ("空游标", ""),
+        ("游标前缀", "tr0_" + first_cursor[4:]),
+        ("游标 Base64 格式", first_cursor + "!!!!"),
+        ("游标长度", "tr1_" + padded),
+    ):
+        checked += _expect_raises(partial(read_text, cursor=cursor), label)
+
+    # 用合成记录核对偏移字段的类型和范围。
+    for offset in (-1, len(text), len(text) + 1, True, 1.0):
+        data = json.dumps([thread_id, item_id, digest, offset]).encode("ascii")
+        cursor = "tr1_" + base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+        checked += _expect_raises(partial(read_text, cursor=cursor), f"游标偏移 {offset!r}")
+    checked += _expect_raises(partial(read_item, sha256=digest.upper()), "条目入口摘要格式")
+    for label, overrides in (("非工具条目", {"kind": "agentMessage"}), ("缺少对象结果", {"result": None})):
+        checked += _expect_raises(
+            partial(read_result_chunk, thread_id, {**item, **overrides}, sha256=digest), label)
+    return checked
+
+
 def check_tool_results() -> tuple[int, int, int]:
     try:
         values = _assigned(ast.parse(_read(TOOL_RESULTS)))
@@ -283,7 +364,7 @@ def check_tool_results() -> tuple[int, int, int]:
 
     guards = (len(TOOL_RESULTS_FRAGMENTS) + len(APPLICATION_FRAGMENTS)
               + len(MODEL_TOOLS_FRAGMENTS) + 3)
-    return len(EXPECTED_CONSTANTS), guards, _behavior_checks()
+    return len(EXPECTED_CONSTANTS), guards, _behavior_checks() + _pagination_checks()
 
 
 def main() -> int:
