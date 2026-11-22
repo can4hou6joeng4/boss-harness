@@ -11,9 +11,44 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import types
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/models/anthropic_provider.py"
+
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+try:
+    import anthropic  # noqa: F401
+except ModuleNotFoundError as error:
+    if error.name != "anthropic":
+        raise
+    # Source build 不安装第三方 SDK：纯辅助函数在导入期不使用 SDK 运行时属性。
+    stub = types.ModuleType("anthropic")
+    for name in ("APIStatusError", "RateLimitError", "APIConnectionError", "APIError"):
+        setattr(stub, name, type(name, (Exception,), {}))
+    stub.Anthropic = type("Anthropic", (), {})
+    stub.AsyncAnthropic = type("AsyncAnthropic", (), {})
+    stub.omit = object()
+    sys.modules["anthropic"] = stub
+
+from boss_harness.models.anthropic_provider import (  # noqa: E402
+    _parse_tool_arguments,
+    _status_retryable,
+    to_sdk_messages,
+    tool_result_payload,
+)
+from boss_harness.models.continuation import anthropic_prefix_digest  # noqa: E402
+from boss_harness.models.types import (  # noqa: E402
+    AssistantMessage,
+    ModelErrorInfo,
+    TextBlock,
+    ThinkingBlock,
+    ToolCallBlock,
+    ToolResultItem,
+    ToolResultsMessage,
+    UserMessage,
+)
 
 CONSTANT_FRAGMENTS = (
     '_FALLBACK_BETA = "server-side-fallback-2026-07-01"',
@@ -53,6 +88,13 @@ MESSAGE_FRAGMENTS = (
     'out.append({"role": "user", "content": message.text})',
     "prefix_digest = anthropic_prefix_digest(system, tools, out) if system is not None else None",
     "and block.prefix_digest != prefix_digest):\n                        continue",
+)
+TRANSFORM_FRAGMENTS = (
+    "def _parse_tool_arguments(raw: str) -> dict[str, object] | None:",
+    'if blocks:\n                out.append({"role": "assistant", "content": blocks})',
+    "if (prefix_digest is not None and block.prefix_digest is not None",
+    "if block.redacted_data is not None:",
+    "elif block.signature is not None:",
 )
 CREDENTIAL_FRAGMENTS = (
     'id = "anthropic"',
@@ -151,11 +193,160 @@ def _expect(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual: object, expected: object, label: str) -> None:
+    if actual != expected:
+        raise ValueError(f"{label}：期望 {expected!r}，实际 {actual!r}")
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    # 参数解析：空串与 None 不是合法对象，纯空白、非对象、非法常量与深嵌套都归为 None。
+    for raw, expected in (
+        ('{"a": 1}', {"a": 1}),
+        ('  {"a": 1}  ', {"a": 1}),
+        ("", None),
+        (None, None),
+        ("[]", None),
+        ("null", None),
+        ('"s"', None),
+        ('{"a": 1', None),
+        ("NaN", None),
+        ('{"a": NaN}', None),
+        ("[" * 20000 + "]" * 20000, None),
+    ):
+        _expect_value(_parse_tool_arguments(raw), expected, f"参数解析 {raw!r}")
+        checked += 1
+    # 状态重试：结构化结论优先；流内 200 只认明确可重试，HTTP 错误看状态码集合。
+    def info(**kwargs: object) -> ModelErrorInfo:
+        return ModelErrorInfo(provider="anthropic", source="http_error", **kwargs)
+
+    for error_info, status, expected in (
+        (None, 429, False),
+        (None, 200, False),
+        (info(code="CONTEXT_OVERFLOW", retryable=True), 200, False),
+        (info(retryable=False), 503, False),
+        (info(retryable=True), 200, True),
+        (info(retryable=None), 200, False),
+        (info(retryable=True), 400, False),
+        (info(retryable=None), 429, True),
+        (info(retryable=None), 529, True),
+        (info(retryable=None), 408, True),
+        (info(retryable=None), 400, False),
+        (info(retryable=None), "429", False),
+    ):
+        _expect_value(_status_retryable(error_info, status), expected, f"状态重试 {error_info} {status!r}")
+        checked += 1
+    # 工具结果：JSON 保持中文，序列化失败回退字符串，统一按字符截断到 20000。
+    class LongText:
+        def __str__(self) -> str:
+            return "y" * 30000
+
+    for result, expected in (
+        ({"ok": True}, '{"ok": true}'),
+        ({"text": "你好"}, '{"text": "你好"}'),
+        ("x", '"x"'),
+        ([1, 2], "[1, 2]"),
+        ({1}, "{1}"),
+        ("x" * 25000, '"' + "x" * 19999),
+        (LongText(), "y" * 20000),
+    ):
+        _expect_value(tool_result_payload(result), expected, f"工具结果 {result!r}")
+        checked += 1
+    # 消息翻译：工具结果合并为一条 user；空 assistant 不产出；思考块按签名与加密状态保留。
+    for messages, expected in (
+        ([UserMessage("hi")], [{"role": "user", "content": "hi"}]),
+        (
+            [ToolResultsMessage((ToolResultItem("t1", "ok"), ToolResultItem("t2", "bad", True)))],
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "t1", "content": "ok"},
+                        {"type": "tool_result", "tool_use_id": "t2", "content": "bad", "is_error": True},
+                    ],
+                }
+            ],
+        ),
+        (
+            [AssistantMessage((TextBlock("a"), TextBlock("b")))],
+            [{"role": "assistant", "content": [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]}],
+        ),
+        (
+            [AssistantMessage((ToolCallBlock("t1", "boss_hr_greet", {"a": 1}),))],
+            [{"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "boss_hr_greet", "input": {"a": 1}}]}],
+        ),
+        (
+            [AssistantMessage((ThinkingBlock(thinking="x", signature="sig"),))],
+            [{"role": "assistant", "content": [{"type": "thinking", "thinking": "x", "signature": "sig"}]}],
+        ),
+        (
+            [AssistantMessage((ThinkingBlock(thinking="x", signature="sig", redacted_data="enc"),))],
+            [{"role": "assistant", "content": [{"type": "redacted_thinking", "data": "enc"}]}],
+        ),
+        ([AssistantMessage((ThinkingBlock(thinking="x"),))], []),
+        ([AssistantMessage(())], []),
+        ([UserMessage("a"), AssistantMessage(()), UserMessage("b")], [{"role": "user", "content": "a"}, {"role": "user", "content": "b"}]),
+    ):
+        _expect_value(to_sdk_messages(messages), expected, f"消息翻译 {messages!r}")
+        checked += 1
+    # 前缀摘要：匹配才回放思考；无系统提示不计算摘要，因而不过滤。
+    prefix = anthropic_prefix_digest("sys", [], [{"role": "user", "content": "hi"}])
+    base = [UserMessage("hi")]
+    _expect_value(
+        to_sdk_messages(
+            base + [AssistantMessage((ThinkingBlock(thinking="t", signature="s", prefix_digest=prefix),))], system="sys"
+        ),
+        [
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": [{"type": "thinking", "thinking": "t", "signature": "s"}]},
+        ],
+        "前缀匹配保留思考",
+    )
+    checked += 1
+    _expect_value(
+        to_sdk_messages(
+            base + [AssistantMessage((ThinkingBlock(thinking="t", signature="s", prefix_digest="0" * 64),))], system="sys"
+        ),
+        [{"role": "user", "content": "hi"}],
+        "前缀不符丢弃思考",
+    )
+    checked += 1
+    _expect_value(
+        to_sdk_messages(
+            base + [AssistantMessage((ThinkingBlock(thinking="t", signature="s", prefix_digest="0" * 64),))], system=None
+        ),
+        [
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": [{"type": "thinking", "thinking": "t", "signature": "s"}]},
+        ],
+        "无系统提示不过滤",
+    )
+    checked += 1
+    _expect_value(
+        to_sdk_messages(
+            base
+            + [
+                AssistantMessage(
+                    (
+                        ThinkingBlock(thinking="t", redacted_data="enc", prefix_digest="0" * 64),
+                        TextBlock("answer"),
+                    )
+                )
+            ],
+            system="sys",
+        ),
+        [{"role": "user", "content": "hi"}, {"role": "assistant", "content": [{"type": "text", "text": "answer"}]}],
+        "前缀不符只丢思考",
+    )
+    checked += 1
+    return checked
+
+
 def check_anthropic_provider() -> int:
     module = _read(MODULE)
     checked = 0
     for fragments in (CONSTANT_FRAGMENTS, STATUS_FRAGMENTS, MESSAGE_FRAGMENTS,
-                      CREDENTIAL_FRAGMENTS, REQUEST_FRAGMENTS, STREAM_ONCE_FRAGMENTS):
+                      TRANSFORM_FRAGMENTS, CREDENTIAL_FRAGMENTS, REQUEST_FRAGMENTS, STREAM_ONCE_FRAGMENTS):
         checked += _expect(fragments, module, MODULE)
     # 签名预算必须同时限制单块与总量。
     if "MAX_ANTHROPIC_SIGNATURE_BYTES" not in module or "MAX_ANTHROPIC_SIGNATURE_TOTAL_BYTES" not in module:
@@ -167,6 +358,7 @@ def check_anthropic_provider() -> int:
         raise ValueError(f"{MODULE} 的中断兜底不得把异常抛给调用方")
     if "json.loads(raw)" in module:
         raise ValueError(f"{MODULE} 的参数解析必须拒绝非法常量")
+    checked += _behavior_checks()
     return checked + 1
 
 
@@ -176,7 +368,7 @@ def main() -> int:
     except ValueError as error:
         print(f"Anthropic 适配器核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"Anthropic 适配器一致：{checked} 项续接、重试与凭据防护")
+    print(f"Anthropic 适配器一致：{checked} 项续接、重试、凭据与翻译防护")
     return 0
 
 
