@@ -3,7 +3,7 @@
 
 静态部分固定常量、关键字集合与源码顺序；行为部分直接调用 `canonical_schema`
 与 `validated_arguments`，覆盖受限方言注册、类型精确匹配、结构化字符串解码、
-不可传递字符的错误文案与参数快照边界。
+anyOf 分支选择、规整缓存与预算、不可传递字符的错误文案与参数快照边界。
 """
 
 from __future__ import annotations
@@ -17,7 +17,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "harness/src/boss_harness/tool_schema.py"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
-from boss_harness.tool_schema import canonical_schema, validated_arguments  # noqa: E402
+from boss_harness.tool_schema import (  # noqa: E402
+    _MAX_NORMALIZATION_VISITS,
+    _MAX_SCHEMA_DEPTH,
+    _normalize_structured_value,
+    canonical_schema,
+    validated_arguments,
+)
 BUNDLE = "harness/src/boss_harness/tool_bundle.py"
 TYPES = "harness/src/boss_harness/models/types.py"
 EXPECTED_CONSTANTS = {
@@ -50,6 +56,22 @@ SCHEMA_FRAGMENTS = (
     "copied = json.loads(_json_snapshot(arguments, maximum=_MAX_ARGUMENT_BYTES))",
     "validated = json.loads(_json_snapshot(normalized, maximum=_MAX_ARGUMENT_BYTES))",
     "if not _matches(schema, validated):",
+)
+NORMALIZE_FRAGMENTS = (
+    "_INVALID_STRUCTURED_JSON = object()",
+    'branches = rule.get("anyOf")',
+    "for branch in branches:",
+    "text = value.strip()",
+    'parsed_values = state["parsed_values"]',
+    "if text not in parsed_values:",
+    "parsed_values[text] = parsed",
+    "parsed_values[text] = _INVALID_STRUCTURED_JSON",
+    "if parsed is _INVALID_STRUCTURED_JSON:",
+    "if key in properties else child",
+    'if type(value) is list and "items" in rule:',
+    'state["visits"] += 1',
+    'if state["visits"] > _MAX_NORMALIZATION_VISITS:',
+    "if schema_depth > _MAX_SCHEMA_DEPTH:",
 )
 BUNDLE_FRAGMENTS = (
     're.fullmatch(r"[A-Za-z0-9_-]{1,64}", name) is None',
@@ -288,6 +310,102 @@ def _behavior_checks() -> int:
     structured = {"a": '{"b": 2}'}
     validated_arguments(nested_json, structured)
     checked += _expect_value(structured, {"a": '{"b": 2}'}, "输入不被修改")
+    # 规整分支：anyOf 只在现有值不匹配时逐支尝试，已匹配的字符串保持原样。
+    any_json = canonical_schema({"type": "object", "properties": {"a": {"anyOf": [
+        {"type": "object", "properties": {"b": {"type": "integer"}},
+         "required": ["b"]},
+        {"type": "array", "items": {"type": "integer"}}]}}})
+    checked += _expect_value(
+        validated_arguments(any_json, {"a": '{"b": 2}'}), {"a": {"b": 2}},
+        "anyOf 对象分支解码")
+    checked += _expect_value(
+        validated_arguments(any_json, {"a": "[1, 2]"}), {"a": [1, 2]},
+        "anyOf 数组分支解码")
+    checked += _expect_error(
+        lambda: validated_arguments(any_json, {"a": "3"}), ARGUMENT_ERROR,
+        "anyOf 无匹配拒绝")
+    any_string = canonical_schema({"type": "object", "properties": {"a": {"anyOf": [
+        {"type": "string"},
+        {"type": "object", "properties": {"b": {"type": "integer"}},
+         "required": ["b"]}]}}})
+    checked += _expect_value(
+        validated_arguments(any_string, {"a": '{"b": 2}'}), {"a": '{"b": 2}'},
+        "anyOf 已匹配不解码")
+    # 空白包裹可解码；尾随内容、非法常量与容器类型不符都保留原文并最终拒绝。
+    checked += _expect_value(
+        validated_arguments(nested_json, {"a": '  {"b": 2}  '}),
+        {"a": {"b": 2}}, "空白包裹解码")
+    for label, text in (("尾随垃圾", '{"b": 2} x'), ("非法常量", '{"b": NaN}'),
+                        ("数组文本", "[1]"), ("null 文本", "null")):
+        checked += _expect_error(
+            lambda text=text: validated_arguments(nested_json, {"a": text}),
+            ARGUMENT_ERROR, f"对象规则拒绝{label}")
+    checked += _expect_error(
+        lambda: validated_arguments(
+            canonical_schema({"type": "object", "properties": {
+                "xs": {"type": "array", "items": {"type": "integer"}}}}),
+            {"xs": '{"b": 1}'}),
+        ARGUMENT_ERROR, "数组规则拒绝对象文本")
+    # 数组元素递归解码，嵌套数组同样适用。
+    array_object = {"type": "object", "properties": {"xs": {
+        "type": "array", "items": {"type": "object", "properties": {
+            "b": {"type": "integer"}}, "required": ["b"]}}}}
+    checked += _expect_value(
+        validated_arguments(canonical_schema(array_object), {"xs": ['{"b": 1}', {"b": 2}]}),
+        {"xs": [{"b": 1}, {"b": 2}]}, "数组元素字符串解码")
+    checked += _expect_value(
+        validated_arguments(
+            canonical_schema({"type": "object", "properties": {"xs": {
+                "type": "array", "items": {"type": "array", "items": {
+                    "type": "integer"}}}}}),
+            {"xs": ["[1,2]"]}),
+        {"xs": [[1, 2]]}, "嵌套数组字符串解码")
+    # 未声明的字段不做推测解码：根额外键与对象额外键都保留原文。
+    checked += _expect_value(
+        validated_arguments(nested_json, {"a": '{"b": 1}', "z": '{"y": 2}'}),
+        {"a": {"b": 1}, "z": '{"y": 2}'}, "根未声明字段不解码")
+    checked += _expect_value(
+        validated_arguments(
+            canonical_schema({"type": "object", "properties": {"a": {
+                "type": "object", "properties": {"b": {"type": "integer"}}}}}),
+            {"a": {"b": 1, "c": '{"x": 1}'}}),
+        {"a": {"b": 1, "c": '{"x": 1}'}}, "对象未声明字段不解码")
+    # 相同 JSON 文本只解析一次；非法文本也按文本缓存。
+    state = {"decoded_nodes": 0, "parsed_values": {}, "visits": 0}
+    shared = {"a": '{"b": 1}', "b": '{"b": 1}'}
+    shared_rule = {"type": "object", "properties": {
+        "a": {"type": "object", "properties": {"b": {"type": "integer"}}},
+        "b": {"type": "object", "properties": {"b": {"type": "integer"}}}},
+        "required": ["a", "b"]}
+    decoded = _normalize_structured_value(shared_rule, shared, state)
+    checked += _expect_value(
+        (decoded, sorted(state["parsed_values"])),
+        ({"a": {"b": 1}, "b": {"b": 1}}, ['{"b": 1}']), "相同文本只解析一次")
+    bad_state = {"decoded_nodes": 0, "parsed_values": {}, "visits": 0}
+    bad = _normalize_structured_value(
+        {"type": "object", "properties": {"a": {"type": "object"}}},
+        {"a": "{bad"}, bad_state)
+    checked += _expect_value(
+        (bad, list(bad_state["parsed_values"])), ({"a": "{bad"}, ["{bad"]),
+        "非法文本缓存")
+    # 规整预算：访问次数与 schema 深度超限时直接拒绝；标量原样透传。
+    checked += _expect_error(
+        lambda: _normalize_structured_value(
+            {"type": "object"}, {},
+            {"visits": _MAX_NORMALIZATION_VISITS + 1, "decoded_nodes": 0,
+             "parsed_values": {}}),
+        "", "访问预算")
+    checked += _expect_error(
+        lambda: _normalize_structured_value(
+            {"type": "object"}, {},
+            {"visits": 0, "decoded_nodes": 0, "parsed_values": {}},
+            schema_depth=_MAX_SCHEMA_DEPTH + 1),
+        "", "schema 深度预算")
+    flat_state = {"decoded_nodes": 0, "parsed_values": {}, "visits": 0}
+    checked += _expect_value(
+        [_normalize_structured_value({"type": "string"}, "x", flat_state),
+         _normalize_structured_value({"type": "boolean"}, True, flat_state)],
+        ["x", True], "标量原样透传")
     return checked
 
 
@@ -375,12 +493,16 @@ def check_tool_schema() -> tuple[int, int]:
     missing = [fragment for fragment in BUNDLE_FRAGMENTS if fragment not in bundle_source]
     if missing:
         raise ValueError("tool_bundle.py 的注册表边界缺少：" + "、".join(missing))
+    missing = [fragment for fragment in NORMALIZE_FRAGMENTS if fragment not in schema_source]
+    if missing:
+        raise ValueError("tool_schema.py 的结构化规整边界缺少：" + "、".join(missing))
     if "not isinstance(schema, Mapping)" not in schema_source:
         raise ValueError("canonical_schema 必须拒绝非 Mapping 根")
     if "except Exception:" not in schema_source or "raise ValueError(_ARGUMENT_ERROR)" not in schema_source:
         raise ValueError("参数校验失败必须统一转为受限参数错误")
     return (len(EXPECTED_CONSTANTS) + 2,
-            len(SCHEMA_FRAGMENTS) + len(BUNDLE_FRAGMENTS) + 2 + _behavior_checks())
+            len(SCHEMA_FRAGMENTS) + len(BUNDLE_FRAGMENTS) + len(NORMALIZE_FRAGMENTS)
+            + 2 + _behavior_checks())
 
 
 def main() -> int:
@@ -389,7 +511,7 @@ def main() -> int:
     except ValueError as error:
         print(f"工具参数 schema 边界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"工具参数边界一致：{constants} 个常量 / 集合、{guards} 项校验与投影防护")
+    print(f"工具参数边界一致：{constants} 个常量 / 集合、{guards} 项校验、规整与投影防护")
     return 0
 
 
