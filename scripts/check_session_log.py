@@ -208,6 +208,24 @@ def _behavior_checks() -> int:
         ),
         "会话日志第 1 行格式无效，读取已停止", "payload 类型",
     )
+    checked += _expect_error(
+        lambda: _decode_session_record(
+            '{"type":1,"id":"e1","timestamp":"t","payload":{}}', line_number=1
+        ),
+        "会话日志第 1 行格式无效，读取已停止", "type 类型",
+    )
+    checked += _expect_error(
+        lambda: _decode_session_record(
+            '{"type":"item","id":1,"timestamp":"t","payload":{}}', line_number=1
+        ),
+        "会话日志第 1 行格式无效，读取已停止", "id 类型",
+    )
+    checked += _expect_error(
+        lambda: _decode_session_record(
+            '{"type":"item","id":"e1","timestamp":1,"payload":{}}', line_number=1
+        ),
+        "会话日志第 1 行格式无效，读取已停止", "timestamp 类型",
+    )
 
     with TemporaryDirectory() as directory:
         root = Path(directory)
@@ -252,6 +270,36 @@ def _behavior_checks() -> int:
                 io.BytesIO(b'{"a":1}\r\n{"b":2}\r'), maximum=1_024, universal_newlines=True)),
             [b'{"a":1}', b'{"b":2}'], "CRLF 分隔",
         )
+        checked += _expect_value(
+            list(_iter_bounded_raw_lines_from_handle(
+                io.BytesIO(b'{"a":1}\n'), maximum=1_024, byte_limit=0)),
+            [], "零长度快照",
+        )
+        checked += _expect_error(
+            lambda: list(_iter_bounded_raw_lines_from_handle(
+                io.BytesIO(b'{"a":1}\n'), maximum=1_024, byte_limit=-1)),
+            "JSONL 快照长度无效", "负快照长度",
+        )
+        long_line = b'{"blob":"' + b"a" * 70_000 + b'"}\n'
+        checked += _expect_value(
+            list(_iter_bounded_raw_lines_from_handle(io.BytesIO(long_line), maximum=100_000)),
+            [long_line[:-1]], "跨块长行",
+        )
+        checked += _expect_value(
+            list(_iter_bounded_raw_lines_from_handle(
+                io.BytesIO(long_line), maximum=100_000, byte_limit=len(long_line) - 10)),
+            [], "快照残段丢弃",
+        )
+        checked += _expect_value(
+            list(_iter_bounded_raw_lines_from_handle(io.BytesIO(b"a\rb\n"), maximum=1_024)),
+            [b"a\rb"], "裸回车保留",
+        )
+        cjk = root / "cjk.jsonl"
+        cjk.write_bytes('{"消息":"中文"}\n\n{"b":2}\n'.encode("utf-8"))
+        checked += _expect_value(
+            list(_iter_bounded_lines(cjk, maximum=1_024)),
+            ['{"消息":"中文"}', "", '{"b":2}'], "UTF-8 文件与空行",
+        )
         invalid = root / "invalid.jsonl"
         invalid.write_bytes(b"\xff\n")
         checked += _expect_error(
@@ -262,6 +310,7 @@ def _behavior_checks() -> int:
         checked += _expect_value(
             _complete_record_limit(io.BytesIO(b'{"a":1}\n'), 8), 8, "完整记录边界"
         )
+        checked += _expect_value(_complete_record_limit(io.BytesIO(b"\n"), 1), 1, "首字节边界")
         checked += _expect_value(
             _complete_record_limit(io.BytesIO(b'{"a":1}\n{"b":'), 13), 8, "残段边界收敛"
         )
