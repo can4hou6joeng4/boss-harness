@@ -1,3 +1,8 @@
+## 0.2.0-rc.563 - 2026-11-23
+
+- 技能上下文检查从 41 项扩展到 63 项，新增 22 项行为对照：临时目录构造 `SkillCatalog` 后，`load(None)` 与空数组早退；非列表、11 项、含重复的 12 项与非字符串元素返回「skillIds 必须是最多 10 项的字符串数组」，空字符串与未知 id 按不存在拒绝；恰好 10 项被接受，重复 id 只注入一次并保留输入顺序，单双技能正文按固定包装与空行连接，选中名称来自目录；覆写 `list()` 的摘要不一致与绝对 id 分别命中「技能文件已变化；请重新选择」与「技能路径越界」。`bounded_skill_ids` 覆盖非列表回落、非法项先跳过再计数、200 字符上限、去重保序与 10 项截断。隔离变异探针结构与行为分别检出 4/8、8/8，合计 8/8。[Issue #3251](https://github.com/can4hou6joeng4/boss-harness/issues/3251)
+- 源码候选更新为 npm `0.2.0-rc.563` 和 Python `0.2.0rc563`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.562 - 2026-11-23
 
 - 新增 `scripts/check_execution_status.py`（37 项）：直接调用 `tool_execution_status` 与 `_annotate_tool_execution`，覆盖六种已知状态的标签与 `executed` 三态、写工具与 `approval` 字段的外部写操作判定、写操作 `outcome_unknown` 的专用文案、非字符串 / 空串 / 超 40 字符状态降级、`executionState` 优先与空串回退、工具调用派生标注不改写输入。新脚本接入 Source build，检查脚本总数从 169 增至 170。隔离变异探针结构与行为分别检出 6/8、7/8，合计 8/8。[Issue #3249](https://github.com/can4hou6joeng4/boss-harness/issues/3249)
