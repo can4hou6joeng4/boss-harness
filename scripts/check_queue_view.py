@@ -18,6 +18,7 @@ USER_GUIDE = "docs/USER_GUIDE.md"
 sys.path.insert(0, str(ROOT / "harness/src"))
 
 from boss_harness.queue_view import (  # noqa: E402
+    _queue_view_auto_compaction,
     project_queue,
     queue_record,
     queue_view_record,
@@ -54,6 +55,12 @@ VIEW_FRAGMENTS = (
     "value = {key: record[key] for key in _QUEUE_VIEW_FIELDS if key in record}",
     "not isinstance(value[key], str) or len(value[key]) > _MAX_QUEUE_VIEW_STRING_CHARS):",
     'value["skillIds"] = list(dict.fromkeys(ids))',
+    "cleaned = _queue_view_auto_compaction(raw)",
+    "if cleaned or (isinstance(raw, dict) and not raw):",
+    'if type(value.get("enabled")) is bool:',
+    'cleaned["enabled"] = value["enabled"]',
+    'for key in ("triggerPercent", "keepRecentTokens"):',
+    "if type(item) is int and 0 <= item <= _MAX_SAFE_INTEGER:",
     'if "failureCode" in value and value["failureCode"] != "TURN_START_FAILED":',
     "or paused_reason not in _QUEUE_PAUSE_REASONS",
     'if "executionStarted" in value and value["executionStarted"] is not False:',
@@ -162,6 +169,31 @@ def _behavior_checks() -> int:
     checked += _expect_value(
         queue_view_record(_record(autoCompaction={}))["autoCompaction"], {}, "自动压缩空字典"
     )
+    # 自动压缩只保留协议声明且类型正确的字段：布尔、安全整数区间与未知字段。
+    for raw in (None, "x", [], 0):
+        checked += _expect_value(
+            _queue_view_auto_compaction(raw), {}, f"自动压缩 {raw!r} 清理")
+    checked += _expect_value(
+        _queue_view_auto_compaction({"enabled": True, "triggerPercent": 0,
+                                     "keepRecentTokens": 2 ** 53 - 1, "extra": 1}),
+        {"enabled": True, "triggerPercent": 0, "keepRecentTokens": 2 ** 53 - 1},
+        "自动压缩边界内保留")
+    for label, raw in (
+        ("布尔整数", {"enabled": 1, "triggerPercent": True, "keepRecentTokens": False}),
+        ("负数与越界", {"triggerPercent": -1, "keepRecentTokens": 2 ** 53}),
+        ("浮点与字符串", {"triggerPercent": 1.5, "keepRecentTokens": "7"}),
+    ):
+        checked += _expect_value(_queue_view_auto_compaction(raw), {}, f"自动压缩{label}丢弃")
+    checked += _expect_value(
+        _queue_view_auto_compaction({"enabled": False}), {"enabled": False},
+        "自动压缩关闭保留")
+    checked += _expect_value(
+        "autoCompaction" in queue_view_record(_record(autoCompaction={"triggerPercent": -1})),
+        False, "自动压缩空清理丢弃字段")
+    for raw in (None, 0, [1]):
+        checked += _expect_value(
+            "autoCompaction" in queue_view_record(_record(autoCompaction=raw)), False,
+            f"自动压缩 {raw!r} 丢弃字段")
     checked += _expect_value(
         queue_view_record(_record(failureCode="TURN_START_FAILED"))["failureCode"],
         "TURN_START_FAILED", "失败码保留",
