@@ -80,6 +80,8 @@ jobs:
         run: python scripts/check_export_markdown.py
       - name: Verify session export JSON
         run: python scripts/check_export_json.py
+      - name: Verify session export timestamps
+        run: python scripts/check_export_timestamps.py
       - name: Verify local Markdown export
         run: python scripts/check_local_export.py
       - name: Verify export dialog
@@ -479,6 +481,8 @@ jobs:
         run: python scripts/check_application_helpers.py
       - name: Verify tool bundle boundaries
         run: python scripts/check_tool_bundle.py
+      - name: Verify session export timestamps
+        run: python scripts/check_export_timestamps.py
       - name: Verify process io
         run: python scripts/check_process_io.py
       - name: Compile kernel and scripts
