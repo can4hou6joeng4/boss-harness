@@ -606,7 +606,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_turn_page.py`
 
-`scripts/check_turn_page.py` 在临时目录构造 `SessionStore`，核对回合分页：按 `first_ordinal` 升序、相同序号按回合编号升序，续页与 `nextCursor` 只在确有多取一行时返回，空回合返回空页；游标绑定 `{"threadId"}` 范围，键必须是整数序号加合法回合标识符，十类非法键分别以「回合分页游标无效」或「turnId 格式无效」拒绝，跨会话与跨种类游标被拒绝，前缀、编码与超长按「分页游标无效」拒绝；`limit` 上限 200、布尔与浮点被拒绝，会话格式与不存在会话各自报错。`first_ordinal` / `turn_id` 被外部改写为 BLOB、`metadata_json` 被改写为非对象时，分页按会话重建后恢复返回，而不是把内部错误送给调用方。脚本同时扫描 `list_turns` 的游标种类、双列比较、多取一行、索引刷新与两处类型守卫，以及 `_turn_metadata` 的两处损坏信号；反向断言单会话读取不带跳过集合、损坏信号读取 `thread_id` 而不是条目 id。它在 Source build 与 Python 3.10–3.14 矩阵中分别运行，只使用临时目录。
+`scripts/check_turn_page.py` 在临时目录构造 `SessionStore`，核对回合分页：按 `first_ordinal` 升序、相同序号按回合编号升序，续页与 `nextCursor` 只在确有多取一行时返回，空回合返回空页；游标绑定 `{"threadId"}` 范围，键必须是整数序号加合法回合标识符，十类非法键分别以「回合分页游标无效」或「turnId 格式无效」拒绝，跨会话与跨种类游标被拒绝，前缀、编码与超长按「分页游标无效」拒绝；相同序号的游标续页跳过游标回合、序号超过全部回合时返回空页，`limit` 恰好 200 被接受，上限 201、布尔与浮点被拒绝，会话格式与不存在会话各自报错。`first_ordinal` / `turn_id` 被外部改写为 BLOB、`metadata_json` 被改写为非对象、非 JSON 文本或 `null` 时，分页按会话重建后恢复返回，而不是把内部错误送给调用方；`first_ordinal` 为负或 `turn_id` 为空串属于合法列值，不触发重建并按列值排序。脚本同时扫描 `list_turns` 的游标种类、双列比较、多取一行、索引刷新与两处类型守卫，以及 `_turn_metadata` 的两处损坏信号；反向断言单会话读取不带跳过集合、损坏信号读取 `thread_id` 而不是条目 id。它在 Source build 与 Python 3.10–3.14 矩阵中分别运行，只使用临时目录。
 
 ### `check_summary_issue.py`
 

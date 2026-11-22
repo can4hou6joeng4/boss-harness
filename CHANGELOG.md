@@ -1,3 +1,8 @@
+## 0.2.0-rc.557 - 2026-11-23
+
+- 回合分页检查从 69 项扩展到 76 项，新增 7 个行为场景：相同 `first_ordinal` 的游标续页只返回游标之后的回合、序号超过全部回合时返回空页、`limit` 恰好 200 被接受；`first_ordinal=-5` 与 `turn_id=''` 属于合法列值，不触发重建并按列值排序；`metadata_json` 为非对象数组、非 JSON 文本与 `null` 三类损坏都按会话重建并返回对象。隔离变异探针结构与行为分别检出 5/6、6/6，合计 6/6。[Issue #3239](https://github.com/can4hou6joeng4/boss-harness/issues/3239)
+- 源码候选更新为 npm `0.2.0-rc.557` 和 Python `0.2.0rc557`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.556 - 2026-11-23
 
 - 回合记录检查从 76 项扩展到 83 项，新增 7 个行为场景：多个回合交错出现时各回合以「上一条已结束回合」为起点（`[0, 0, 3]`）且只有已终态回合带 `boundaryOrdinal`；running 回合不推进起点；两个回合连续终态后第三个回合起点逐个递增；终态后到达的阶段记录仍合并、持久载荷可覆盖 `startedAt` 但不改写 `updatedAt`；`_public_turn` 过滤 `firstOrdinal` / `lastOrdinal` / `boundaryOrdinal` 并保留 `turnId` / `status` / `completedAt`。隔离变异探针结构与行为分别检出 6/8、8/8，合计 8/8。[Issue #3237](https://github.com/can4hou6joeng4/boss-harness/issues/3237)

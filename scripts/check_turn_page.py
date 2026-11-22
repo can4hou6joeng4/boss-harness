@@ -7,8 +7,9 @@
 索引行的 `first_ordinal` 必须是整数、`turn_id` 必须是字符串，损坏时按
 会话重建而不是把内部错误送给调用方。`_turn_metadata` 只解码投影 JSON，
 非对象按索引损坏处理，且损坏信号携带的是会话 id（turns 表没有条目 id 列）。
-本脚本在临时目录构造 `SessionStore` 做行为对照并扫描源码；不访问网络、
-模型或招聘平台。
+行为对照覆盖同序号续页、越界游标、`limit` 恰好 200、负序号与空编号不触发重建，
+以及 `metadata_json` 为非对象、非 JSON 与 `null` 三类损坏的重建。本脚本在临时
+目录构造 `SessionStore` 做行为对照并扫描源码；不访问网络、模型或招聘平台。
 """
 
 from __future__ import annotations
@@ -171,6 +172,19 @@ def check_turn_page() -> int:
             if [item.get("turnId") for item in tied["turns"]] != ["turn-a", "turn-b"]:
                 raise ValueError("相同起始序号必须按回合编号升序")
             checked += 1
+            tied_cursor = _page_cursor("turns", {"threadId": thread_id}, [7, "turn-a"])
+            rest = store.list_turns(thread_id, cursor=tied_cursor)
+            if [item.get("turnId") for item in rest["turns"]] != ["turn-b"] or rest["nextCursor"] is not None:
+                raise ValueError("相同起始序号的续页必须跳过游标回合")
+            checked += 1
+            beyond = store.list_turns(thread_id, cursor=_page_cursor(
+                "turns", {"threadId": thread_id}, [2**63 - 1, "zzz"]))
+            if beyond != {"turns": [], "nextCursor": None}:
+                raise ValueError("越界游标必须返回空页")
+            checked += 1
+            if len(store.list_turns(thread_id, limit=200)["turns"]) != 2:
+                raise ValueError("limit 恰好 200 必须被接受")
+            checked += 1
             empty = SessionStore(Path(temporary) / "empty" / "sessions")
             try:
                 empty_thread = empty.create("空回合")["id"]
@@ -238,31 +252,50 @@ def check_turn_page() -> int:
             checked += 1
         finally:
             store.close()
-    # 行为：索引列损坏必须重建而不是报内部错误。
+    # 行为：索引合法边界与列损坏重建。
     with tempfile.TemporaryDirectory() as temporary:
         store = SessionStore(Path(temporary) / "sessions")
         try:
             thread_id = store.create("损坏")["id"]
             store.record_turn(thread_id, "turn-a", "completed")
+            store.record_turn(thread_id, "turn-b", "completed")
+            # 负序号与空编号是合法列值：不重建，按列值排序。
+            with store._index.transaction() as connection:
+                connection.execute("UPDATE turns SET first_ordinal=? WHERE thread_id=? AND turn_id=?",
+                                   (-5, thread_id, "turn-b"))
+            page = store.list_turns(thread_id)
+            if [item.get("turnId") for item in page["turns"]] != ["turn-b", "turn-a"]:
+                raise ValueError("负起始序号不得触发重建且必须按列值排序")
+            checked += 1
+            with store._index.transaction() as connection:
+                connection.execute("UPDATE turns SET first_ordinal=7 WHERE thread_id=?", (thread_id,))
+                connection.execute("UPDATE turns SET turn_id='' WHERE thread_id=? AND turn_id=?",
+                                   (thread_id, "turn-b"))
+            page = store.list_turns(thread_id)
+            if [item.get("turnId") for item in page["turns"]] != ["turn-b", "turn-a"]:
+                raise ValueError("空回合编号不得触发重建且必须排在前面")
+            checked += 1
             with store._index.transaction() as connection:
                 connection.execute("UPDATE turns SET first_ordinal=? WHERE thread_id=?",
                                    (b"\x00", thread_id))
             page = store.list_turns(thread_id)
-            if [item.get("turnId") for item in page["turns"]] != ["turn-a"]:
+            if [item.get("turnId") for item in page["turns"]] != ["turn-a", "turn-b"]:
                 raise ValueError("起始序号损坏后必须重建并返回回合")
             checked += 1
+            for label, payload in (("非对象", "[]"), ("非 JSON", "not-json"), ("null", "null")):
+                with store._index.transaction() as connection:
+                    connection.execute("UPDATE turns SET metadata_json=? WHERE thread_id=?",
+                                       (payload, thread_id))
+                page = store.list_turns(thread_id)
+                if (not page["turns"] or not isinstance(page["turns"][0], dict)
+                        or page["turns"][0].get("turnId") != "turn-a"):
+                    raise ValueError(f"{label}投影损坏后必须重建并返回对象")
+                checked += 1
             with store._index.transaction() as connection:
-                connection.execute("UPDATE turns SET metadata_json=? WHERE thread_id=?",
-                                   ("[]", thread_id))
+                connection.execute("UPDATE turns SET turn_id=? WHERE thread_id=? AND turn_id=?",
+                                   (b"\x00", thread_id, "turn-a"))
             page = store.list_turns(thread_id)
-            if (not page["turns"] or not isinstance(page["turns"][0], dict)
-                    or page["turns"][0].get("turnId") != "turn-a"):
-                raise ValueError("回合投影损坏后必须重建并返回对象")
-            checked += 1
-            with store._index.transaction() as connection:
-                connection.execute("UPDATE turns SET turn_id=? WHERE thread_id=?", (b"\x00", thread_id))
-            page = store.list_turns(thread_id)
-            if [item.get("turnId") for item in page["turns"]] != ["turn-a"]:
+            if [item.get("turnId") for item in page["turns"]] != ["turn-a", "turn-b"]:
                 raise ValueError("回合编号损坏后必须重建并返回")
             checked += 1
         finally:
