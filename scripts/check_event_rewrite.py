@@ -7,14 +7,16 @@
 匹配恢复标记的删除事件必须形态正确，缺失时按高水位加一补齐；临时文件独占
 创建，最后以硬链接或替换发布并刷新目录。`_event_high_water` 取索引最大游标
 与自增序列的较大者；`_previous_deletion_event` 从索引查找已完成的删除事件，
-损坏行跳过而不阻断删除。本脚本在临时目录构造 `SessionStore` 做行为对照并
-扫描源码；不访问网络、模型或招聘平台。
+损坏行跳过而不阻断删除。本脚本在临时目录构造 `SessionStore`，覆盖正常重写、
+预置删除事件复用、冲突形态、损坏与重复帧、游标耗尽、硬链接、空行
+与缺尾残段、自增序列高水位，并扫描源码；不访问网络、模型或招聘平台。
 """
 
 from __future__ import annotations
 
 import ast
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -165,6 +167,10 @@ def _intent(thread_id: str, event_id: str) -> dict:
 def _lines(store: SessionStore) -> list[dict]:
     return [json.loads(line) for line in store.events_path.read_text(encoding="utf-8").splitlines()
             if line.strip()]
+
+
+def _temp_leftovers(store: SessionStore) -> list[str]:
+    return sorted(path.name for path in store.root.parent.glob(".events.jsonl.delete-*"))
 
 
 def check_event_rewrite() -> int:
@@ -394,6 +400,114 @@ def check_event_rewrite() -> int:
                 checked += 1
                 if store._previous_deletion_event(connection, "000000000000") is not None:
                     raise ValueError("其他会话不得匹配删除事件")
+                checked += 1
+        finally:
+            store.close()
+    # 行为：删除标记事件的另外两种冲突形态必须拒绝。
+    with tempfile.TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        try:
+            thread_id = store.create("冲突形态")["id"]
+            other = store.create("其他")["id"]
+            event_id = "c" * 32
+            for label, params in (
+                ("会话不一致", {"deletedThreadId": other, "eventId": event_id, "eventCursor": "1"}),
+                ("多余会话", {"deletedThreadId": thread_id, "threadId": thread_id,
+                              "eventId": event_id, "eventCursor": "1"}),
+            ):
+                record = {"type": "event", "timestamp": "t", "method": "thread/deleted", "params": params}
+                store.events_path.write_bytes((json.dumps(record) + "\n").encode("utf-8"))
+                with store._index.transaction() as connection:
+                    _expect_error(lambda: store._rewrite_events_for_deletion(connection, _intent(thread_id, event_id)),
+                                  "会话删除事件与恢复标记冲突", label)
+                    checked += 1
+            if _temp_leftovers(store):
+                raise ValueError("冲突拒绝不得留下临时文件")
+            checked += 1
+        finally:
+            store.close()
+    # 行为：游标耗尽必须拒绝。
+    with tempfile.TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        try:
+            thread_id = store.create("游标耗尽")["id"]
+            store.append_event("turn/stream", {"threadId": thread_id})
+            _append_record(store, "turn/stream",
+                           {"threadId": thread_id, "eventId": "a" * 32, "eventCursor": str(2**63 - 1)})
+            with store._index.transaction() as connection:
+                _expect_error(lambda: store._rewrite_events_for_deletion(connection, _intent(thread_id, "b" * 32)),
+                              "事件游标已耗尽，无法完成会话删除", "游标耗尽")
+                checked += 1
+            raw = store.events_path.read_text(encoding="utf-8")
+            if "thread/deleted" in raw or _temp_leftovers(store):
+                raise ValueError("游标耗尽被拒绝时不得写入删除事件或留下临时文件")
+            checked += 1
+        finally:
+            store.close()
+    # 行为：硬链接日志必须拒绝。
+    with tempfile.TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        try:
+            thread_id = store.create("硬链接")["id"]
+            store.append_event("turn/stream", {"threadId": thread_id})
+            link = Path(temporary) / "events-link.jsonl"
+            os.link(store.events_path, link)
+            with store._index.transaction() as connection:
+                _expect_error(lambda: store._rewrite_events_for_deletion(connection, _intent(thread_id, "a" * 32)),
+                              "事件日志不是普通私有文件，清理已暂停", "硬链接")
+                checked += 1
+            if link.stat().st_nlink != 2 or store.events_path.stat().st_nlink != 2:
+                raise ValueError("硬链接被拒绝时不得改动链接")
+            checked += 1
+            records = _lines(store)
+            if len(records) != 1 or records[0].get("params", {}).get("threadId") != thread_id:
+                raise ValueError("硬链接被拒绝时不得重写日志")
+            checked += 1
+        finally:
+            store.close()
+    # 行为：空行保留与缺尾残段丢弃。
+    with tempfile.TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        try:
+            removed = store.create("删除")["id"]
+            kept = store.create("保留")["id"]
+            store.append_event("turn/stream", {"threadId": removed})
+            with store.events_path.open("ab") as handle:
+                handle.write(b"\n")
+            with store.events_path.open("ab") as handle:
+                record = {"type": "event", "timestamp": "t", "method": "turn/stream",
+                          "params": {"threadId": kept, "eventId": "a" * 32, "eventCursor": "2"}}
+                handle.write(json.dumps(record).encode("utf-8"))
+            if store.events_path.read_bytes().endswith(b"\n"):
+                raise ValueError("测试前置条件必须缺少结尾换行")
+            with store._index.transaction() as connection:
+                event = store._rewrite_events_for_deletion(connection, _intent(removed, "b" * 32))
+            raw = store.events_path.read_bytes()
+            if not raw.endswith(b"\n"):
+                raise ValueError("重写后的事件日志必须以换行结尾")
+            checked += 1
+            if len([line for line in raw.splitlines() if not line.strip()]) != 1:
+                raise ValueError("重写必须保留空行")
+            checked += 1
+            records = [json.loads(line) for line in raw.splitlines() if line.strip()]
+            if [record["method"] for record in records] != ["thread/deleted"]:
+                raise ValueError("缺尾残段必须被丢弃且只写入删除事件")
+            checked += 1
+            if event["params"].get("eventCursor") != "2":
+                raise ValueError("缺尾残段不得推进删除事件游标")
+            checked += 1
+        finally:
+            store.close()
+    # 行为：索引行清空后高水位仍取自增序列。
+    with tempfile.TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        try:
+            for _ in range(3):
+                store.append_event("sequence/event")
+            with store._index.transaction() as connection:
+                connection.execute("DELETE FROM events")
+                if store._event_high_water(connection) != 3:
+                    raise ValueError("索引行清空后高水位必须取自增序列")
                 checked += 1
         finally:
             store.close()

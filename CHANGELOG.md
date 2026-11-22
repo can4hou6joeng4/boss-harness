@@ -1,3 +1,8 @@
+## 0.2.0-rc.550 - 2026-11-23
+
+- 事件日志重写检查新增 13 个行为场景，用临时目录与合成事件实际执行 `_rewrite_events_for_deletion` 与 `_event_high_water`：删除标记事件在 `deletedThreadId` 不一致或额外携带 `threadId` 时拒绝且不留临时文件；日志含 `eventCursor` 为 `2**63 - 1` 的记录时以游标耗尽拒绝并保留原文件；硬链接日志拒绝且链接与内容不变；空行保留、缺尾残段丢弃且不推进删除事件游标；索引行清空后高水位仍取自增序列。隔离变异探针结构与行为分别检出 11/13、12/13，合计 13/13。[Issue #3225](https://github.com/can4hou6joeng4/boss-harness/issues/3225)
+- 源码候选更新为 npm `0.2.0-rc.550` 和 Python `0.2.0rc550`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.549 - 2026-11-23
 
 - 事件分页检查新增字节预算与索引损坏行为场景，用临时目录与合成 `SessionStore` 实际执行 `events_after`：3 MiB + 2 MiB 参数累计超预算时一页只返回首条并给出 `hasMore` 与推进后的游标、续页继续第二条，单条 5 MiB 参数首行超预算仍返回且正常收尾；方法筛选恰好 16 个通过；`params_json` 为非对象数组、`method` 为空串两类损坏均触发索引重建，并逐条校对重建后的 `eventCursor` 与游标列。隔离变异探针结构与行为分别检出 11/13、12/13，合计 13/13。[Issue #3223](https://github.com/can4hou6joeng4/boss-harness/issues/3223)
