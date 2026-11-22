@@ -690,7 +690,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_branch_projection.py`
 
-`scripts/check_branch_projection.py` 核对分支投影 `_active_entries` 的条目归属规则：没有任何 leaf 记录时原样返回输入，不复制或重排；有 leaf 时逐条记下追加时的投影尾部，路径只由该尾部回溯推导，绝不读取写入方 `parentId`；leaf 目标缺失、不是字符串、未知或不是回合时按缺失处理并沿用上一个有效叶，不整段失败；条目编号重复必须立即拒绝。迟到修订按 owner 跟随所属回合，其余条目按是否在路径上保留；`attachment` / `thread_info` / `queue` 属于会话级状态跨分支保留，回合、阶段与工具批次按 `turnId` / `taskId` 归属筛选，上下文编辑按目标条目 owner、摘要检查点按 `throughTurnId` 筛选，未知类型丢弃。检查是源码字面量与顺序扫描，不执行投影。
+`scripts/check_branch_projection.py` 核对分支投影 `_active_entries` 的条目归属规则：没有任何 leaf 记录时原样返回输入，不复制或重排；有 leaf 时逐条记下追加时的投影尾部，路径只由该尾部回溯推导，绝不读取写入方 `parentId`；leaf 目标缺失、不是字符串、未知或不是回合时按缺失处理并沿用上一个有效叶，不整段失败；条目编号重复必须立即拒绝。迟到修订按 owner 跟随所属回合，其余条目按是否在路径上保留；`attachment` / `thread_info` / `queue` 属于会话级状态跨分支保留，回合、阶段与工具批次按 `turnId` / `taskId` 归属筛选，上下文编辑按目标条目 owner、摘要检查点按 `throughTurnId` 筛选，未知类型丢弃。脚本另用合成条目实际执行分支投影（15 项行为场景）：无叶原样返回同一对象、按追加尾部回溯而不使用伪造 `parentId`、被放弃回合的各类型条目与迟到修订按 owner 保留或丢弃、会话级状态跨分支保留、未知类型丢弃、损坏 / 缺失叶目标沿用有效叶或回到空路径，以及重复编号拒绝。检查不读取或写入本机真实状态目录。
 
 ### `check_item_ownership.py`
 

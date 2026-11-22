@@ -1,3 +1,8 @@
+## 0.2.0-rc.531 - 2026-11-23
+
+- 分支投影检查新增 15 个合成条目场景，实际执行 `_active_entries`：首 / 次分支回溯、伪造 `parentId` 忽略、跨分支保留、回合 / 阶段 / 工具批次 / 上下文编辑 / 摘要检查点归属、迟到修订、无归属条目、损坏叶沿用、缺目标空路径与重复编号拒绝。隔离变异探针合计检出 12/12。[Issue #3187](https://github.com/can4hou6joeng4/boss-harness/issues/3187)
+- 源码候选更新为 npm `0.2.0-rc.531` 和 Python `0.2.0rc531`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.530 - 2026-11-23
 
 - 会话缓存检查新增 25 个临时场景，实际执行 `read_entries` 与快照读取：完整边界写缓存、命中返回副本、追加与外部追增接续、截断 / 同尺寸 / 旧前缀非换行 / inode 替换不返回过期条目、尾残段与损坏行不推进缓存、边界判定、最近使用淘汰与快照副本。隔离变异探针合计检出 16/16。[Issue #3185](https://github.com/can4hou6joeng4/boss-harness/issues/3185)
