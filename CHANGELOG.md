@@ -1,3 +1,8 @@
+## 0.2.0-rc.515 - 2026-11-23
+
+- 队列状态检查新增 29 项行为对照。检查在临时会话存储上直接调用 `TurnQueue`，覆盖新增与客户端幂等、技能去重、编辑与转移表、steering 回合匹配、暂停范围与原因保留、作用域清理及条目上限。隔离变异探针检出 17/17，技术参考同步更新。[Issue #3155](https://github.com/can4hou6joeng4/boss-harness/issues/3155)
+- 源码候选更新为 npm `0.2.0-rc.515` 和 Python `0.2.0rc515`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.514 - 2026-11-23
 
 - 回合流检查新增 10 项结果摘要与来源行为对照。`summarize_result` 的分页元数据先于正文，成功与失败路径都受 `limit` 截断，错误字段缺省与凭据脱敏保持稳定；`tool_source` 的引用格式与查询时间固定。隔离变异探针检出 11/11，技术参考同步更新。[Issue #3153](https://github.com/can4hou6joeng4/boss-harness/issues/3153)

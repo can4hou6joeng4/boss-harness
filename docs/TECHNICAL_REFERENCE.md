@@ -244,7 +244,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_queue_state.py`
 
-`scripts/check_queue_state.py` 核对 `TurnQueue` 的新增、编辑、状态转移与暂停结算口径：`_pending_usage` 只统计 `queued` / `delivering` 并按 UTF-8 字节求和；`add` 校验 kind、1–100000 字符正文、1–128 位客户端消息 id、最多 10 项非空技能并先去重，转向消息不得携带技能，同一客户端 id 只接受完全相同的输入、类型、技能与自动压缩覆盖，条目上限用 `>=`、字节上限用 `>`，超限返回 `QUEUE_LIMIT`，新记录固定为 `queued` 并保留 `expectedTurnId`。`update_input` 只编辑 `queued` 项，按替换后的字节重算上限且只改正文。`transition` 的转移表固定为 `queued → delivering / delivered / paused / cancelled`、`delivering → delivered / paused`、`paused → cancelled`。`claim` 只领取 `queued`，steering 还要求字符串 `expectedTurnId` 与当前回合相等。`pause` 保留已有的具体来源；`settle_pauses` 让 kind 来源优先于无作用域兜底，只处理排队 / 投递中项，有原因才写 `pausedReason`，一次 `append_many` 写回后清理作用域并返回实际暂停的 id。检查是源码片段与顺序扫描，不执行队列操作。
+`scripts/check_queue_state.py` 核对 `TurnQueue` 的新增、编辑、状态转移与暂停结算口径：`_pending_usage` 只统计 `queued` / `delivering` 并按 UTF-8 字节求和；`add` 校验 kind、1–100000 字符正文、1–128 位客户端消息 id、最多 10 项非空技能并先去重，转向消息不得携带技能，同一客户端 id 只接受完全相同的输入、类型、技能与自动压缩覆盖，条目上限用 `>=`、字节上限用 `>`，超限返回 `QUEUE_LIMIT`，新记录固定为 `queued` 并保留 `expectedTurnId`。`update_input` 只编辑 `queued` 项，按替换后的字节重算上限且只改正文。`transition` 的转移表固定为 `queued → delivering / delivered / paused / cancelled`、`delivering → delivered / paused`、`paused → cancelled`。`claim` 只领取 `queued`，steering 还要求字符串 `expectedTurnId` 与当前回合相等。`pause` 保留已有的具体来源；`settle_pauses` 让 kind 来源优先于无作用域兜底，只处理排队 / 投递中项，有原因才写 `pausedReason`，一次 `append_many` 写回后清理作用域并返回实际暂停的 id。源码侧固定片段与顺序。检查还在临时会话存储上直接调用 `TurnQueue` 做行为对照（29 项）：技能去重保序、空白正文与非法 kind / 技能上限被拒绝、同输入幂等与不同输入冲突、转向消息拒绝技能、编辑只改正文且投递中不可编辑、转移表与已投递 / 暂停项不可回退、steering 领取要求回合匹配且重复领取为空、followUp 领取忽略回合、按 kind 与无来源暂停的范围和原因保留、作用域清理后新项不受影响，以及 129 个待处理项触发 `QUEUE_LIMIT`、暂停项不占容量。
 
 ### `check_catchup_boundary.py`
 
