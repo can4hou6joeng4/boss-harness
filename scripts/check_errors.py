@@ -22,6 +22,7 @@ TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
 from boss_harness.models.errors import (  # noqa: E402
+    _error_payload,
     _is_overflow_source,
     _is_zhipu_usage_limit,
     _llama_context_exhausted,
@@ -51,6 +52,10 @@ CONSTANT_FRAGMENTS = (
     r'r"^litellm\.ContextWindowExceededError:.*?Context Window exceeded for given call\."',
     r'r".*?\bMax Input Tokens=([0-9]{1,12}),\s*Got=([0-9]{1,12})\b"',
     r'r"(?:request body|payload) too large\.?"',
+)
+PAYLOAD_FRAGMENTS = (
+    'nested = _field(value, "error")',
+    "return nested if nested is not None else value",
 )
 TRANSPORT_FRAGMENTS = (
     'for name in ("httpx", "httpx2"):',
@@ -434,9 +439,25 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _payload_checks() -> int:
+    # 载荷投影：只有 error 为 None 时回退外层；假值与非字典载体都原样保留。
+    checked = _expect_value(_error_payload({"error": {"code": "x"}}), {"code": "x"}, "嵌套字典")
+    checked += _expect_value(
+        _error_payload(SimpleNamespace(error=SimpleNamespace(code="x"))).code, "x", "嵌套对象")
+    checked += _expect_value(_error_payload({"code": "x"}), {"code": "x"}, "扁平字典")
+    flat = {"error": None, "code": "c"}
+    checked += _expect_value(_error_payload(flat) is flat, True, "None 回退外层")
+    checked += _expect_value(_error_payload({"error": 0}), 0, "零载荷")
+    checked += _expect_value(_error_payload({"error": ""}), "", "空串载荷")
+    checked += _expect_value((_error_payload("boom"), _error_payload(5), _error_payload(None)),
+                             ("boom", 5, None), "标量与 None")
+    return checked
+
+
 def check_errors() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
+    checked += _expect(PAYLOAD_FRAGMENTS, module, MODULE)
     checked += _expect(TRANSPORT_FRAGMENTS, module, MODULE)
     checked += _expect(SOURCE_FRAGMENTS, module, MODULE)
     checked += _expect(CODE_FRAGMENTS, module, MODULE)
@@ -505,7 +526,7 @@ def check_errors() -> int:
         raise ValueError(f"{MODULE} 不得把异常原文写入诊断")
     for relative, fragment in DOC_FRAGMENTS:
         checked += _expect((fragment,), _read(relative), relative)
-    return checked + 1 + _behavior_checks()
+    return checked + 1 + _behavior_checks() + _payload_checks()
 
 
 def main() -> int:
