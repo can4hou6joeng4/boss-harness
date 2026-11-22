@@ -574,7 +574,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_delete_intent.py`
 
-`scripts/check_delete_intent.py` 在临时目录构造 `SessionStore`，核对 `.delete-<threadId>.json` 删除标记：写入返回 `version` / `threadId` / `attachmentDigests` / `eventId` 四键，摘要去重排序并忽略非法项，事件编号为 32 位十六进制，标记为 `0600` 私有文件且不残留临时文件；已存在时读回而不覆盖；阻塞列表只来自标记名称。损坏标记（非 JSON、非对象、版本或会话不符、额外字段、摘要或事件编号非法、超大文件）全部以固定说明拒绝，重启后保留并继续阻塞，合法标记重启后完成删除且保留其他会话。脚本同时扫描源码固定 `_read_delete_intent` 的两处拒绝与排序去重、`_write_delete_intent` 的独占临时文件与 `os.link` 发布、`_pending_deletion_ids` 只按名称、`_recover_deletions` 的保留语义，以及初始化收紧标记权限与完成删除时的删除顺序；反向断言写入不使用 `os.replace`、阻塞列表不读取内容、移除标记后才刷新目录。它在 Source build 与 Python 3.10–3.14 矩阵中分别运行，只使用临时目录，不读取用户状态目录。
+`scripts/check_delete_intent.py` 在临时目录构造 `SessionStore`，核对 `.delete-<threadId>.json` 删除标记：写入返回 `version` / `threadId` / `attachmentDigests` / `eventId` 四键，摘要去重排序并忽略非法项，事件编号为 32 位十六进制，标记为 `0600` 私有文件且不残留临时文件；已存在时读回而不覆盖；阻塞列表只来自标记名称并忽略非法名称。损坏标记（非 JSON、非对象、版本或会话不符、额外字段、摘要或事件编号非法、超大文件）全部以固定说明拒绝，重启后保留并继续阻塞，合法标记重启后完成删除且保留其他会话；恰好 1 MiB 的标记可读而超出一字节被拒绝，乱序重复摘要读回为排序去重结果，损坏标记不被覆盖且字节不变，重开存储把未读取的 0644 标记收紧为 0600，两个合法标记中一个目标文件为硬链接时该标记保留而另一个完成删除。脚本同时扫描源码固定 `_read_delete_intent` 的两处拒绝与排序去重、`_write_delete_intent` 的独占临时文件与 `os.link` 发布、`_pending_deletion_ids` 只按名称、`_recover_deletions` 的保留语义，以及初始化收紧标记权限与完成删除时的删除顺序；反向断言写入不使用 `os.replace`、阻塞列表不读取内容、移除标记后才刷新目录。它在 Source build 与 Python 3.10–3.14 矩阵中分别运行，只使用临时目录，不读取用户状态目录。
 
 ### `check_delete_cleanup.py`
 

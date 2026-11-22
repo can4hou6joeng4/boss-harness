@@ -1,3 +1,8 @@
+## 0.2.0-rc.551 - 2026-11-23
+
+- 删除标记检查新增 12 个行为场景，用临时目录与合成标记实际执行 `_read_delete_intent`、`_write_delete_intent`、`_pending_deletion_ids` 与重启恢复：阻塞列表忽略非法名称；恰好 1 MiB 的标记可读、超出一字节拒绝；乱序重复摘要读回为排序去重结果；损坏标记拒绝覆盖且字节不变；重开存储把未读取的 0644 标记收紧为 0600；两个合法标记中一个目标文件为硬链接时该标记保留、另一个完成删除且存储正常打开。隔离变异探针结构与行为分别检出 7/10、9/10，合计 10/10。[Issue #3227](https://github.com/can4hou6joeng4/boss-harness/issues/3227)
+- 源码候选更新为 npm `0.2.0-rc.551` 和 Python `0.2.0rc551`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.550 - 2026-11-23
 
 - 事件日志重写检查新增 13 个行为场景，用临时目录与合成事件实际执行 `_rewrite_events_for_deletion` 与 `_event_high_water`：删除标记事件在 `deletedThreadId` 不一致或额外携带 `threadId` 时拒绝且不留临时文件；日志含 `eventCursor` 为 `2**63 - 1` 的记录时以游标耗尽拒绝并保留原文件；硬链接日志拒绝且链接与内容不变；空行保留、缺尾残段丢弃且不推进删除事件游标；索引行清空后高水位仍取自增序列。隔离变异探针结构与行为分别检出 11/13、12/13，合计 13/13。[Issue #3225](https://github.com/can4hou6joeng4/boss-harness/issues/3225)
