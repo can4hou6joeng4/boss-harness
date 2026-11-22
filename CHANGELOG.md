@@ -1,3 +1,8 @@
+## 0.2.0-rc.588 - 2026-11-23
+
+- 模型配置检查从 87 项扩展到 122 项：静态固定 `resolve_config` 的线路归一与 `_openai_config` 的跳过文件分支，并直接行为对照线路优先级（显式参数 > `BOSS_HARNESS_PROVIDER` > 凭据自动选择）、`codex` / `auto` 别名、未知线路固定错误码、模型覆盖顺序（命令行 > 通用变量 > 线路专属 > 默认）、Anthropic 端点与开关严格性，以及 OpenAI 完整显式配置跳过 Codex 文件、缺端点 / 缺凭据错误码、模型缺省与凭据不进入 `repr`。优先级或别名若改变，命令行与环境变量会静默解析到错误线路。隔离变异探针结构与行为均检出 11/11。[Issue #3301](https://github.com/can4hou6joeng4/boss-harness/issues/3301)
+- 源码候选更新为 npm `0.2.0-rc.588` 和 Python `0.2.0rc588`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.587 - 2026-11-23
 
 - 模型配置检查从 51 项扩展到 87 项：静态固定请求时限与输出上限的解析分支，并直接调用 `_request_timeout_seconds` / `_max_tokens` 对照缺省、纯空白、去空白、1 / 3600 边界与正整数边界，非法取值收敛到 `MODEL_REQUEST_TIMEOUT_INVALID` / `MODEL_MAX_TOKENS_INVALID` 且不回显原文；另直接对照 `_configured_model`、`_has_configured_value` 与 `has_anthropic_credential` 的空白遮蔽与空键回退规则。纯空白占位值若被当成已配置，会让模型目录列出实际不可用的线路。隔离变异探针结构检出 9/10、行为检出 9/10，合计 10/10。[Issue #3299](https://github.com/can4hou6joeng4/boss-harness/issues/3299)
