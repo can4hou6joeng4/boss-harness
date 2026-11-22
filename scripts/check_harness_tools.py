@@ -32,6 +32,9 @@ from boss_harness.tools.boss_cli import (  # noqa: E402
     tool_handlers,
     validate_arguments,
 )
+from boss_harness.tools.bundle import create_boss_bundle  # noqa: E402
+from boss_harness.tools.commands import offline_reply  # noqa: E402
+from boss_harness.tools.recruitment import compose_system_prompt  # noqa: E402
 SHELL_APIS = (
     ("shell=True", "不得以 shell=True 启动子进程"),
     ("create_subprocess_shell(", "不得使用 create_subprocess_shell"),
@@ -375,6 +378,58 @@ def _result(ok: bool, code: str | None = None) -> ToolResult:
     return ToolResult(ok=ok, command="probe", error=None if code is None else {"code": code})
 
 
+class _StubBridge:
+    def __init__(self, available: bool, binary: str, source: str) -> None:
+        self._available = available
+        self.binary = binary
+        self.source = source
+
+    def available(self) -> bool:
+        return self._available
+
+
+def _bundle_checks() -> int:
+    # 实际组装一次 ToolBundle：定义顺序、schema 快照、审批标记、校验闭包与回调
+    # 都必须在组合阶段就固定，而不是只靠 bundle.py 的静态片段。
+    handlers = tool_handlers()
+    bundle = create_boss_bundle()
+    checked = _expect_value(bundle.id, "boss", "组合 id")
+    checked += _expect_value([tool.name for tool in bundle.tools], [spec["name"] for spec in TOOLS],
+                             "工具顺序与名称")
+    checked += _expect_value([tool.description for tool in bundle.tools],
+                             [spec["description"] for spec in TOOLS], "工具描述")
+    checked += _expect_value([tool.input_schema for tool in bundle.tools],
+                             [spec["input_schema"] for spec in TOOLS], "schema 快照")
+    checked += _expect_value(frozenset(tool.name for tool in bundle.tools if tool.requires_approval),
+                             WRITE_TOOLS, "审批标记")
+    checked += _expect_value([tool.name for tool in bundle.tools if tool.validate_arguments is not None],
+                             [spec["name"] for spec in TOOLS], "参数校验绑定")
+    checked += _expect_value(all(tool.handler is handlers[spec["name"]]
+                                 for tool, spec in zip(bundle.tools, TOOLS)), True, "处理函数绑定")
+    # 校验闭包必须绑定自身工具名：空参数工具接受空对象，检索工具接受合法关键词并拒绝错类型。
+    status = next(tool for tool in bundle.tools if tool.name == "boss_status")
+    checked += _expect_value(status.validate({}), {}, "空参数工具校验")
+    search = next(tool for tool in bundle.tools if tool.name == "boss_search")
+    checked += _expect_value(search.validate({"keyword": "Python"}), {"keyword": "Python"},
+                             "检索工具校验")
+    checked += _expect_error(lambda: search.validate({"keyword": 1}),
+                             "工具参数不符合已注册的 schema", "检索工具拒绝类型")
+    checked += _expect_value(bundle.system_prompt, compose_system_prompt(None), "默认系统提示")
+    preamble = "自定义提示前缀"
+    prefixed = create_boss_bundle(prompt_preamble=preamble)
+    checked += _expect_value(prefixed.system_prompt, compose_system_prompt(preamble), "提示前缀透传")
+    checked += _expect_value(preamble in prefixed.system_prompt, True, "系统提示包含前缀")
+    checked += _expect_value(bundle.pause_on_result is should_pause, True, "暂停回调")
+    checked += _expect_value(bundle.offline_reply is offline_reply, True, "离线回复回调")
+    checked += _expect_value(bundle.describe_bridge(_StubBridge(True, "boss", "explicit")),
+                             {"available": True, "binary": "boss", "binarySource": "explicit"},
+                             "bridge 可用投影")
+    checked += _expect_value(bundle.describe_bridge(_StubBridge(False, "/opt/boss", "path")),
+                             {"available": False, "binary": "/opt/boss", "binarySource": "path"},
+                             "bridge 不可用投影")
+    return checked
+
+
 def _behavior_checks() -> int:
     checked = 0
     checked += _expect_value(_decode_cli_envelope('{"a": 1, "b": [true, null, "x"], "c": 1.5}'),
@@ -493,6 +548,7 @@ def _behavior_checks() -> int:
     checked += _expect_value(should_pause(_result(False, "UNKNOWN_CODE")), False,
                              "未知错误不暂停")
     checked += _expect_value(should_pause(_result(False)), False, "无错误码不暂停")
+    checked += _bundle_checks()
     return checked
 
 

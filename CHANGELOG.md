@@ -1,3 +1,8 @@
+## 0.2.0-rc.583 - 2026-11-23
+
+- 内核工具检查的行为场景从 56 项扩展到 73 项，直接调用 `create_boss_bundle` 组装一次 `ToolBundle`：bundle id 固定为 `boss`，14 个定义按 `TOOLS` 顺序携带名称、描述与 schema 快照，仅 `boss_hr_greet` 需要审批，处理函数身份与参数校验闭包绑定逐项一致；空参数工具接受空对象、检索工具接受合法关键词并拒绝错类型；默认与带前缀的系统提示走同一 `compose_system_prompt`，`pause_on_result` / `offline_reply` 指向固定实现，`describe_bridge` 的可用 / 不可用投影字段齐全。隔离变异探针行为检出 12/12（结构片段仅覆盖审批与 schema 透传，检出 4/12，其余由组装对照拦截）。[Issue #3291](https://github.com/can4hou6joeng4/boss-harness/issues/3291)
+- 源码候选更新为 npm `0.2.0-rc.583` 和 Python `0.2.0rc583`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.582 - 2026-11-23
 
 - 生命周期 hook 检查从 112 项结构、32 个行为场景扩展到 123 项结构、65 个行为场景，新增 `_signal_mode` 的 7 条分类片段、4 条分发片段与 33 项行为对照：仅位置参数按位置传信令，普通 / 仅关键字 / `**kwargs` 按关键字传，名为 `signal` 的 `*signal` / `**signal` 与无可解析签名回退为单参数调用；经 `LifecycleHooks` 分发时回调收到跟随取消事件的 `HookCancellationSignal`，无取消事件不注入信令，`after_tool_call` 始终提供信令，缺少必需参数的写法 fail closed 为 `HOOK_ERROR`，已取消的回合不再启动回调。隔离变异探针结构与行为均检出 9/9。[Issue #3289](https://github.com/can4hou6joeng4/boss-harness/issues/3289)
