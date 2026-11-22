@@ -1,3 +1,8 @@
+## 0.2.0-rc.575 - 2026-11-23
+
+- 新增 `scripts/check_export_timestamps.py`，固化会话导出的时间戳解析、耗时与审批期限展示（55 项，含 39 项行为对照）：`_parse_timestamp` 只接受非空字符串，`Z` 后缀改写为 `+00:00`，解析结果必须带时区，非法值与朴素时间返回 `None`；`_timestamp_duration` 两端都必须可解析且不倒序，正常差值按毫秒四舍五入；`_deadline_text` 只接受 `int` / `float`（布尔按类型排除），非有限、非正与 `10**400` / `1e300` 溢出按无期限处理，正常值输出 UTC 秒级 ISO 时间；回合头部只在耗时可用时写入 `durationMs`，审批记录只在期限可用时写入 `deadline`。工作流在 Source build 与 Python 矩阵注册该检查，`check_workflows.py` 的脚本覆盖同步为 173。[Issue #3275](https://github.com/can4hou6joeng4/boss-harness/issues/3275)
+- 源码候选更新为 npm `0.2.0-rc.575` 和 Python `0.2.0rc575`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.574 - 2026-11-23
 
 - 新增 `scripts/check_tool_bundle.py`，固化工具定义、组合与注册表的校验边界（109 项，含 78 项行为对照）：名称 1–64 字符的 `[A-Za-z0-9_-]`、描述非空白、handler 可调用、审批标记精确布尔、执行模式仅 `sequential` / `parallel` 且并行不得要求审批；结果预算只接受 8192 到 1 MiB 的精确整数；schema 注册时规范化且 `input_schema` 每次返回新副本；参数校验回调收到深拷贝，异常与非 `None` 返回统一为固定文案；组合 id 非空、不超过 128 字符且无空白，成员必须是 `ToolDefinition` 元组且不重名；注册表保留顺序、处理器只读、`read_only` 投影按精确布尔筛选，描述字段与执行模式映射一致。工作流在 Source build 与 Python 矩阵注册该检查，`check_workflows.py` 的脚本覆盖同步为 172。[Issue #3273](https://github.com/can4hou6joeng4/boss-harness/issues/3273)
