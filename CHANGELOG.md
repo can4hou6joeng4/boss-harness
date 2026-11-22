@@ -1,3 +1,8 @@
+## 0.2.0-rc.546 - 2026-11-23
+
+- 会话写入检查新增 40 个行为场景，用临时目录与合成 `SessionStore` 实际执行 `append_many` / `append` / `_write_new` / `append_attachment`：批次与上限校验、空批次早退、严格字节边界与超限文件不变、缺失结尾换行的 1 字节前缀与残段截断、单条追加、新建冲突不覆盖且清理临时名、NaN 载荷、条目与会话头单行上限、附件类型 / 摘要 / 发布器校验、发布先于引用行、发布失败不留引用、历史损坏时发布器不被调用。隔离变异探针结构与行为分别检出 12/14、14/14，合计 14/14。[Issue #3217](https://github.com/can4hou6joeng4/boss-harness/issues/3217)
+- 源码候选更新为 npm `0.2.0-rc.546` 和 Python `0.2.0rc546`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.545 - 2026-11-23
 
 - `_purge_unreferenced_attachments` 在读取目录与扫描会话前把候选收敛为 64 位小写十六进制摘要：相对越界、绝对路径、大写、短摘要、非字符串、不可哈希与非序列候选以固定文案「附件清理候选摘要格式无效」拒绝；合法候选与空清单行为不变。附件边界检查同步新增 9 个行为场景（合计 36 个），并确认附件目录外的状态库不受影响。对照 Pi 固定提交的会话管理无对应机制，差异记入 `UPSTREAM.md`。[Issue #3215](https://github.com/can4hou6joeng4/boss-harness/issues/3215)
