@@ -1,3 +1,8 @@
+## 0.2.0-rc.553 - 2026-11-23
+
+- 会话日志检查新增 10 个行为场景，用临时文件与内存流实际执行 `_iter_bounded_raw_lines_from_handle`、`_iter_bounded_lines`、`_complete_record_limit` 与 `_decode_session_record`：`byte_limit` 为零返回空列表、为负以「JSONL 快照长度无效」拒绝；约 70 KiB 的单行跨 64 KiB 读取块完整产出；快照截在长行中间时残段丢弃；裸 `\r` 在默认模式保留在行内；真实 UTF-8 文件中的中文与空行按行解码；首字节换行边界返回 1；非字符串 `type` / `id` / `timestamp` 均以「格式无效」拒绝。隔离变异探针结构与行为分别检出 5/9、8/9，合计 9/9。[Issue #3231](https://github.com/can4hou6joeng4/boss-harness/issues/3231)
+- 源码候选更新为 npm `0.2.0-rc.553` 和 Python `0.2.0rc553`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.552 - 2026-11-23
 
 - 删除清理检查新增 7 个行为场景，用临时目录与合成硬链接实际执行 `_remove_private_temporaries` 与 `_remove_thread_files`：空列表不读取目标；目标为符号链接时以「无法确认的硬链接临时文件」拒绝且文件保留；列表中前一个普通文件删除成功、后一个悬空硬链接被拒绝时保持各自实际状态；会话主体、删除标记与事件日志三类临时文件分别与主文件组成硬链接对时全部清理且主文件保留。隔离变异探针结构与行为分别检出 9/9、7/9，合计 9/9。[Issue #3229](https://github.com/can4hou6joeng4/boss-harness/issues/3229)
