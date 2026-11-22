@@ -3,11 +3,13 @@
 
 task_ownership.py 决定 task/read 的归属判定与恢复策略：标识符必须整串匹配，
 快照有界，任务阶段只接受固定枚举，队列身份字段变化视为冲突，关系判定需要多重
-独立证据，未知状态一律人工核对。放宽任一校验不会触发构建失败，因此静态固定。
+独立证据，未知状态一律人工核对。检查固定源码结构，并用临时合成记录执行优先级、
+关系与投影场景。
 """
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 import sys
 
@@ -15,6 +17,17 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/task_ownership.py"
 TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 USER_GUIDE = "docs/USER_GUIDE.md"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.task_ownership import (  # noqa: E402
+    _input_digest,
+    queue_snapshot,
+    recovery_policy,
+    resolve_compaction_relation,
+    resolve_queue_relation,
+    turn_snapshot,
+    user_message_refs,
+)
 
 CONSTANT_FRAGMENTS = (
     # 数值与枚举按整行锚定：257 改成 2570 之类的后缀扩展不能因前缀相同而通过。
@@ -125,6 +138,302 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"任务读取所有权行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _follow_up(**overrides) -> dict:
+    value = {"id": "q1", "kind": "followUp", "status": "delivered", "turnId": "t1"}
+    value.update(overrides)
+    return value
+
+
+def _relation(result: dict, ownership: str, turn_id, relation, label: str) -> int:
+    return _expect_value(
+        (result["ownership"], result["turnId"], result["relation"]),
+        (ownership, turn_id, relation), label,
+    )
+
+
+def _behavior_checks() -> int:
+    checked = _expect_value(
+        recovery_policy("turn", "unknown", runtime_owned=False), "manual_review", "未知状态"
+    )
+    checked += _expect_value(
+        recovery_policy("turn", None, runtime_owned=False), "manual_review", "非字符串状态"
+    )
+    checked += _expect_value(
+        recovery_policy("turn", "completed", runtime_owned=True), "process_owned", "进程持有"
+    )
+    checked += _expect_value(
+        recovery_policy("turn", "unknown", runtime_owned=True), "manual_review", "未知优先"
+    )
+    checked += _expect_value(
+        recovery_policy("turn", "interrupted", runtime_owned=False, persisted_policy="manual"),
+        "manual_review", "手动策略",
+    )
+    checked += _expect_value(
+        recovery_policy("turn", "completed", runtime_owned=False, persisted_policy="closed"),
+        "closed", "关闭策略",
+    )
+    checked += _expect_value(
+        recovery_policy("turn", "interrupted", runtime_owned=False, persisted_policy="closed"),
+        "manual_review", "关闭不覆盖中断",
+    )
+    checked += _expect_value(
+        recovery_policy("turn", "running", runtime_owned=False), "manual_review", "运行中回合"
+    )
+    checked += _expect_value(
+        recovery_policy("turn", "completed", runtime_owned=False), "closed", "无持久终态"
+    )
+    checked += _expect_value(
+        recovery_policy("queue", "queued", runtime_owned=False), "queue_pending", "排队待投递"
+    )
+    checked += _expect_value(
+        recovery_policy("queue", "delivering", runtime_owned=False), "manual_review", "投递中"
+    )
+    checked += _expect_value(
+        recovery_policy("queue", "delivered", runtime_owned=False), "closed", "队列终态"
+    )
+    checked += _expect_value(
+        recovery_policy("task", "failed", runtime_owned=False), "manual_review", "任务失败"
+    )
+    checked += _expect_value(
+        recovery_policy("task", "completed", runtime_owned=False), "closed", "任务完成"
+    )
+
+    checked += _expect_value(
+        _input_digest("演示文本"), hashlib.sha256("演示文本".encode("utf-8")).hexdigest(), "输入摘要"
+    )
+    long_text = "甲" * 10_000
+    checked += _expect_value(
+        _input_digest(long_text), hashlib.sha256(long_text.encode("utf-8")).hexdigest(), "分块摘要"
+    )
+
+    job = {"threadId": "th1", "turnId": "t1", "reason": "threshold"}
+    turns = [{"turnId": "t1"}]
+    checked += _expect_value(
+        resolve_compaction_relation(job, "other", turns),
+        {"ownership": "conflict", "turnId": None}, "压缩线程冲突",
+    )
+    checked += _expect_value(
+        resolve_compaction_relation({"threadId": "th1"}, "th1", turns),
+        {"ownership": "independent", "turnId": None}, "压缩独立",
+    )
+    checked += _expect_value(
+        resolve_compaction_relation({"threadId": "th1"}, "th1", turns, checkpoint_turn_id="t1"),
+        {"ownership": "conflict", "turnId": None}, "压缩未知归属",
+    )
+    checked += _expect_value(
+        resolve_compaction_relation({"threadId": "th1", "turnId": "t1", "reason": "other"}, "th1", turns),
+        {"ownership": "unresolved", "turnId": None}, "压缩非法归属",
+    )
+    checked += _expect_value(
+        resolve_compaction_relation(job, "th1", turns, checkpoint_turn_id="t2"),
+        {"ownership": "conflict", "turnId": None}, "压缩检查点冲突",
+    )
+    checked += _expect_value(
+        resolve_compaction_relation(job, "th1", turns, duplicate_turns={"t1"}),
+        {"ownership": "conflict", "turnId": None}, "压缩重复回合",
+    )
+    checked += _expect_value(
+        resolve_compaction_relation(job, "th1", []),
+        {"ownership": "unresolved", "turnId": None}, "压缩回合缺失",
+    )
+    checked += _expect_value(
+        resolve_compaction_relation(job, "th1", turns),
+        {"ownership": "resolved", "turnId": "t1"}, "压缩已归属",
+    )
+
+    user_link = {"kind": "userMessage", "queueId": "q1", "turnId": "t1", "inferredTurnId": "t1"}
+    delivered = _follow_up()
+    checked += _relation(
+        resolve_queue_relation(delivered, [{"turnId": "t1", "queueId": "q1"}], [user_link]),
+        "resolved", "t1", "delivered_as", "投递一致",
+    )
+    checked += _relation(
+        resolve_queue_relation(delivered, [{"turnId": "t1", "queueId": "q1"}], []),
+        "unresolved", None, None, "投递缺用户消息",
+    )
+    checked += _relation(
+        resolve_queue_relation({"id": "q1", "kind": "followUp", "status": "queued"}, [], []),
+        "unassigned", None, None, "排队未绑定",
+    )
+    checked += _relation(
+        resolve_queue_relation({"id": "q1", "kind": "followUp", "status": "delivered"}, [], []),
+        "root", None, None, "投递根消息",
+    )
+    steering = {"id": "q1", "kind": "steering", "status": "delivering", "expectedTurnId": "t1"}
+    checked += _relation(
+        resolve_queue_relation(steering, [{"turnId": "t1"}], []),
+        "resolved", "t1", "targets", "steering 目标",
+    )
+    delivered_steering = {**steering, "status": "delivered"}
+    checked += _relation(
+        resolve_queue_relation(delivered_steering, [{"turnId": "t1"}], []),
+        "unresolved", None, None, "steering 缺用户链接",
+    )
+    steering_link = {
+        "kind": "userMessage", "queueId": "q1", "turnId": "t1",
+        "inferredTurnId": "t1", "source": "steering",
+    }
+    checked += _relation(
+        resolve_queue_relation(delivered_steering, [{"turnId": "t1"}], [steering_link]),
+        "resolved", "t1", "targets", "steering 已投递",
+    )
+    other_link = {**steering_link, "turnId": "t2", "inferredTurnId": "t2"}
+    checked += _relation(
+        resolve_queue_relation(delivered_steering, [{"turnId": "t1"}, {"turnId": "t2"}], [other_link]),
+        "conflict", None, None, "steering 链接不一致",
+    )
+    checked += _relation(
+        resolve_queue_relation({**steering, "expectedTurnId": "t9"}, [{"turnId": "t1"}], []),
+        "unresolved", None, None, "steering 目标缺失",
+    )
+    checked += _relation(
+        resolve_queue_relation(delivered, [{"turnId": "t1", "queueId": "q1"}], [steering_link]),
+        "conflict", None, None, "followUp 携带 steering",
+    )
+    checked += _relation(
+        resolve_queue_relation(
+            delivered,
+            [{"turnId": "t1", "queueId": "q1"}, {"turnId": "t2", "queueId": "q1"}], [],
+        ),
+        "conflict", None, None, "多链接",
+    )
+    checked += _relation(
+        resolve_queue_relation(
+            delivered, [{"turnId": "t1", "queueId": "q1"}], [user_link], duplicate_turns={"t1"}
+        ),
+        "conflict", None, None, "重复候选",
+    )
+    invalid_receipt = resolve_queue_relation({**delivered, "turnId": "bad id!"}, [], [])
+    checked += _relation(invalid_receipt, "conflict", None, None, "非法回执")
+    checked += _expect_value(invalid_receipt["candidates"], set(), "非法回执候选")
+    checked += _relation(
+        resolve_queue_relation(
+            delivered, [{"turnId": "t1", "queueId": "q1"}], [user_link], identity_conflict=True
+        ),
+        "conflict", None, None, "身份冲突",
+    )
+    checked += _relation(
+        resolve_queue_relation({**delivered, "turnId": "t2"}, [{"turnId": "t1", "queueId": "q1"}], [user_link]),
+        "conflict", None, None, "回执不一致",
+    )
+
+    snapshot, duplicates, overflow = turn_snapshot(
+        [{"type": "turn", "payload": {"turnId": "t1", "status": "running"}}]
+    )
+    checked += _expect_value(
+        (snapshot, duplicates, overflow),
+        ([{"turnId": "t1", "status": "running"}], set(), False), "回合快照",
+    )
+    snapshot, _, _ = turn_snapshot(
+        [{"type": "turn", "payload": {"turnId": "t1", "status": "completed", "queueId": "q1"}}],
+        turn_ids={"other"}, queue_ids={"q1"},
+    )
+    checked += _expect_value([item["turnId"] for item in snapshot], ["t1"], "队列过滤")
+    snapshot, duplicates, _ = turn_snapshot([
+        {"type": "turn", "payload": {"turnId": "t1", "status": "completed"}},
+        {"type": "turn", "payload": {"turnId": "t1", "status": "running"}},
+    ])
+    checked += _expect_value((snapshot[0]["status"], duplicates), ("running", {"t1"}), "终态后运行")
+    snapshot, duplicates, _ = turn_snapshot([
+        {"type": "turn", "payload": {"turnId": "t1", "status": "running", "queueId": "q1"}},
+        {"type": "turn", "payload": {"turnId": "t1", "status": "running", "queueId": "q2"}},
+    ])
+    checked += _expect_value(duplicates, {"t1"}, "队列标识变化")
+    snapshot, _, overflow = turn_snapshot(
+        [{"type": "turn", "payload": {"turnId": f"t{index}", "status": "running"}} for index in range(3)],
+        limit=2,
+    )
+    checked += _expect_value((len(snapshot), overflow), (2, True), "回合溢出")
+    snapshot, _, _ = turn_snapshot([
+        {"type": "turn", "payload": {"turnId": "t1", "status": "completed"}},
+        {"type": "task_phase", "payload": {
+            "ownerKind": "turn", "taskId": "t1", "phase": "finish", "status": "completed",
+            "attempt": 2, "restartLimit": 3, "recoveryReason": "processExit", "resumePolicy": "closed",
+        }},
+    ])
+    checked += _expect_value(
+        (snapshot[0].get("taskPhase"), snapshot[0].get("taskAttempt"), snapshot[0].get("taskRestartLimit"),
+         snapshot[0].get("taskRecoveryReason"), snapshot[0].get("taskResumePolicy")),
+        ("finish", 2, 3, "processExit", "closed"), "阶段绑定",
+    )
+
+    states, conflicts, overflow = queue_snapshot([
+        {"type": "queue", "payload": {"id": "q1", "kind": "steering", "status": "queued", "input": "消息"}},
+        {"type": "queue", "payload": {"id": "q2", "kind": "followUp", "status": "delivered", "input": "x"}},
+    ], queue_ids={"q1"})
+    checked += _expect_value(
+        (sorted(states), conflicts, overflow, states["q1"]["inputDigest"]),
+        (["q1"], set(), False, hashlib.sha256("消息".encode("utf-8")).hexdigest()), "队列快照选择",
+    )
+    states, _, _ = queue_snapshot(
+        [{"type": "queue", "payload": {"id": "q3", "kind": "steering", "status": "queued",
+                                       "expectedTurnId": "t1", "input": "x"}}],
+        queue_ids=set(), target_turn_id="t1",
+    )
+    checked += _expect_value(sorted(states), ["q3"], "steering 目标选择")
+    states, _, _ = queue_snapshot(
+        [{"type": "queue", "payload": {"id": "q4", "kind": "followUp", "status": "delivered",
+                                       "turnId": "t1", "input": "x"}}],
+        queue_ids=set(), receipt_turn_id="t1",
+    )
+    checked += _expect_value(sorted(states), ["q4"], "回执选择")
+    states, conflicts, _ = queue_snapshot([
+        {"type": "queue", "payload": {"id": "q1", "kind": "followUp", "status": "delivered", "input": "a"}},
+        {"type": "queue", "payload": {"id": "q1", "kind": "followUp", "status": "delivered", "input": "b"}},
+    ], queue_ids={"q1"})
+    checked += _expect_value(conflicts, {"q1"}, "队列身份冲突")
+    states, conflicts, _ = queue_snapshot(
+        [{"type": "queue", "payload": {"id": "q1", "kind": "other", "status": "unknown", "input": "x"}}],
+        queue_ids={"q1"},
+    )
+    checked += _expect_value(conflicts, {"q1"}, "队列字段冲突")
+    states, _, overflow = queue_snapshot(
+        [{"type": "queue", "payload": {"id": f"q{index}", "kind": "followUp",
+                                       "status": "delivered", "input": "x"}} for index in range(3)],
+        queue_ids={"q0", "q1", "q2"}, limit=2,
+    )
+    checked += _expect_value((len(states), overflow), (2, True), "队列溢出")
+    states, conflicts, _ = queue_snapshot(
+        [{"type": "queue", "payload": {"id": "q1", "kind": "followUp", "status": "delivered",
+                                       "input": "甲\ud800"}}],
+        queue_ids={"q1"},
+    )
+    checked += _expect_value((states["q1"]["inputDigest"], conflicts), (None, {"q1"}), "输入非 UTF-8")
+
+    refs, duplicates, conflicts = user_message_refs([
+        {"type": "item", "id": "m1", "payload": {
+            "kind": "userMessage", "queueId": "q1", "turnId": "t1", "source": "steering", "input": "秘密",
+        }},
+    ], {"q1"})
+    checked += _expect_value(
+        (refs[0]["inferredTurnId"], "input" in refs[0], refs[0]["revisionOverflow"]),
+        ("t1", False, False), "用户消息引用",
+    )
+    refs, duplicates, _ = user_message_refs([
+        {"type": "item", "id": f"m{index}", "payload": {
+            "kind": "userMessage", "queueId": "q1", "turnId": "t1",
+        }} for index in range(3)
+    ], {"q1"}, per_queue_limit=2)
+    checked += _expect_value((len(refs), duplicates), (2, {"q1"}), "每队列上限")
+    refs, _, conflicts = user_message_refs([
+        {"type": "item", "id": "m1", "payload": {"kind": "userMessage", "queueId": "q1", "turnId": "t1"}},
+        {"type": "item", "id": "m2", "payload": {"kind": "userMessage", "queueId": "q2", "turnId": "t2"}},
+    ], {"q1", "q2"}, revision_id_limit=1)
+    checked += _expect_value((refs[1]["revisionOverflow"], "q2" in conflicts), (True, True), "修订上限")
+    refs, _, _ = user_message_refs([
+        {"type": "item", "id": "m1", "payload": {"kind": "userMessage", "queueId": "q1"}},
+        {"type": "turn", "payload": {"turnId": "t1", "status": "running"}},
+    ], {"q1"})
+    checked += _expect_value(refs[0]["inferredTurnId"], "t1", "推断回合")
+    return checked
+
+
 def check_task_ownership() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
@@ -158,10 +467,11 @@ def check_task_ownership() -> int:
 def main() -> int:
     try:
         checked = check_task_ownership()
-    except ValueError as error:
+        scenarios = _behavior_checks()
+    except (ValueError, OSError) as error:
         print(f"任务读取所有权核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"任务读取所有权一致：{checked} 项归属、阶段与恢复防护")
+    print(f"任务读取所有权一致：{checked} 项归属、阶段与恢复防护、{scenarios} 个行为场景")
     return 0
 
 

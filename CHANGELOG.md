@@ -1,3 +1,8 @@
+## 0.2.0-rc.527 - 2026-11-23
+
+- 任务归属检查新增 57 个临时合成记录场景，实际执行恢复策略、自动压缩归属、队列关系、回合 / 队列快照与用户消息引用：unknown 优先、进程持有、delivered_as / targets、重复与身份冲突、阶段绑定、超限溢出与不投影正文。隔离变异探针合计检出 20/20。[Issue #3179](https://github.com/can4hou6joeng4/boss-harness/issues/3179)
+- 源码候选更新为 npm `0.2.0-rc.527` 和 Python `0.2.0rc527`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.526 - 2026-11-23
 
 - 排队投影检查新增 40 个临时合成记录场景，实际执行 `queue_record`、`queue_view_record` 与 `project_queue`：坏记录跳过、代理项降级、白名单、技能与自动压缩收敛、暂停来源、输入截断、暂停优先、终结窗口与显式计数。隔离变异探针合计检出 15/15。[Issue #3177](https://github.com/can4hou6joeng4/boss-harness/issues/3177)
