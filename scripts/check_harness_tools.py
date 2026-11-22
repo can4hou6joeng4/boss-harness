@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""核对内核默认工具允许清单的静态边界。"""
+"""核对内核默认工具允许清单的静态边界，并实际执行参数与信封校验。"""
 
 from __future__ import annotations
 
 import ast
+import json
+import os
 from pathlib import Path
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS_SOURCE = ROOT / "harness/src/boss_harness/tools/boss_cli.py"
@@ -14,6 +17,21 @@ CONTEXT_SOURCE = ROOT / "harness/src/boss_harness/context.py"
 TOOL_RESULTS_SOURCE = ROOT / "harness/src/boss_harness/tool_results.py"
 BUNDLE_SOURCE = ROOT / "harness/src/boss_harness/tools/bundle.py"
 HARNESS_PACKAGE = ROOT / "harness/src/boss_harness"
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness.toolkit import ToolResult  # noqa: E402
+from boss_harness.tools.boss_cli import (  # noqa: E402
+    BROWSER_SOURCE_ENV,
+    TOOLS,
+    _decode_cli_envelope,
+    _executable_path,
+    approval_required_tools,
+    resolve_binary,
+    resolve_browser_source_override,
+    should_pause,
+    tool_handlers,
+    validate_arguments,
+)
 SHELL_APIS = (
     ("shell=True", "不得以 shell=True 启动子进程"),
     ("create_subprocess_shell(", "不得使用 create_subprocess_shell"),
@@ -308,9 +326,180 @@ def check_harness_tools() -> tuple[int, int, int, int, int, int, int, int]:
     )
 
 
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"内核工具行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _expect_error(call, message: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != message:
+            raise ValueError(
+                f"内核工具行为变化 {label}：期望 {message!r}，实际 {str(error)!r}") from None
+        return 1
+    except Exception as error:
+        raise ValueError(
+            f"内核工具行为变化 {label}：期望 ValueError，实际 {type(error).__name__}") from None
+    raise ValueError(f"内核工具行为变化 {label}：未抛出错误")
+
+
+def _expect_raises(call, kind: type, label: str) -> int:
+    try:
+        call()
+    except Exception as error:
+        if not isinstance(error, kind):
+            raise ValueError(
+                f"内核工具行为变化 {label}：期望 {kind.__name__}，实际 "
+                f"{type(error).__name__}") from None
+        return 1
+    raise ValueError(f"内核工具行为变化 {label}：未抛出错误")
+
+
+def _no_error(call, label: str) -> int:
+    try:
+        call()
+    except Exception as error:
+        raise ValueError(
+            f"内核工具行为变化 {label}：不应抛出 {type(error).__name__}: {error}") from None
+    return 1
+
+
+def _nested(depth: int) -> str:
+    return "[" * depth + "]" * depth
+
+
+def _result(ok: bool, code: str | None = None) -> ToolResult:
+    return ToolResult(ok=ok, command="probe", error=None if code is None else {"code": code})
+
+
+def _behavior_checks() -> int:
+    checked = 0
+    checked += _expect_value(_decode_cli_envelope('{"a": 1, "b": [true, null, "x"], "c": 1.5}'),
+                             {"a": 1, "b": [True, None, "x"], "c": 1.5}, "合法信封")
+    for label, raw in (("NaN", '{"a": NaN}'), ("Infinity", '{"a": Infinity}'),
+                       ("-Infinity", '{"a": -Infinity}'), ("溢出浮点", '{"a": 1e400}')):
+        checked += _expect_error(lambda: _decode_cli_envelope(raw), "JSON 数值必须有限",
+                                 f"信封 {label}")
+    checked += _expect_error(lambda: _decode_cli_envelope('{"a": 1, "a": 2}'),
+                             "JSON 对象包含重复键", "信封重复键")
+    checked += _expect_error(lambda: _decode_cli_envelope('{"a": "\\ud800"}'),
+                             "JSON 字符串包含无效 Unicode 代理项", "信封孤立代理项")
+    checked += _no_error(lambda: _decode_cli_envelope(_nested(65)), "信封深度边界")
+    checked += _expect_error(lambda: _decode_cli_envelope(_nested(66)),
+                             "JSON 嵌套层级超过限制", "信封超深嵌套")
+    checked += _expect_raises(lambda: _decode_cli_envelope("not json"),
+                              json.JSONDecodeError, "信封非法 JSON")
+
+    previous = os.environ.pop(BROWSER_SOURCE_ENV, None)
+    try:
+        checked += _expect_value(resolve_browser_source_override(), None, "来源未设置")
+        os.environ[BROWSER_SOURCE_ENV] = ""
+        checked += _expect_value(resolve_browser_source_override(), None, "来源空串")
+        os.environ[BROWSER_SOURCE_ENV] = "   "
+        checked += _expect_value(resolve_browser_source_override(), None, "来源纯空白")
+        os.environ[BROWSER_SOURCE_ENV] = " AUTO "
+        checked += _expect_value(resolve_browser_source_override(), "auto", "来源大小写与空白")
+        os.environ[BROWSER_SOURCE_ENV] = "auto"
+        checked += _expect_value(resolve_browser_source_override("Stored-Cookie"),
+                                 "stored-cookie", "显式来源覆盖环境变量")
+        for value in ("auto", "existing-browser", "stored-cookie"):
+            checked += _expect_value(resolve_browser_source_override(value), value,
+                                     f"来源 {value}")
+        checked += _expect_error(
+            lambda: resolve_browser_source_override("cdp"),
+            f"{BROWSER_SOURCE_ENV} 必须是以下值之一：auto, existing-browser, stored-cookie",
+            "来源非法值")
+    finally:
+        if previous is None:
+            os.environ.pop(BROWSER_SOURCE_ENV, None)
+        else:
+            os.environ[BROWSER_SOURCE_ENV] = previous
+
+    with tempfile.TemporaryDirectory() as directory:
+        base = Path(directory)
+        executable = base / "boss"
+        executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        executable.chmod(0o755)
+        plain = base / "plain"
+        plain.write_text("x", encoding="utf-8")
+        plain.chmod(0o644)
+        checked += _expect_value(_executable_path(str(executable)), True, "可执行文件")
+        checked += _expect_value(_executable_path(str(plain)), False, "普通文件")
+        checked += _expect_value(_executable_path(str(base)), False, "目录")
+        linked = base / "linked"
+        linked.symlink_to(executable)
+        checked += _expect_value(_executable_path(str(linked)), True, "符号链接可执行")
+        broken = base / "broken"
+        broken.symlink_to(base / "missing")
+        checked += _expect_value(_executable_path(str(broken)), False, "断链")
+        choice = resolve_binary(f"  {executable}  ")
+        checked += _expect_value((choice.path, choice.source), (str(executable), "explicit"),
+                                 "显式二进制路径规范化")
+        choice = resolve_binary("   ")
+        checked += _expect_value(choice.source != "explicit", True, "空白显式路径不生效")
+
+    for label, arguments in (
+        ("未知工具", ("unknown_tool", {"x": 1})),
+        ("合法检索", ("boss_search", {"keyword": "Python"})),
+        ("合法筛选", ("boss_search", {"keyword": "Python", "city": "北京", "page": 2,
+                                      "experience": ["应届"]})),
+        ("空参数工具", ("boss_status", {})),
+        ("合法推荐页", ("boss_recommend", {"page": 2})),
+    ):
+        checked += _expect_value(validate_arguments(*arguments), None, label)
+    for label, arguments, message in (
+        ("必填缺失", ("boss_search", {}), "缺少有效参数：keyword"),
+        ("必填空白", ("boss_search", {"keyword": "   "}), "缺少有效参数：keyword"),
+        ("额外字段", ("boss_search", {"keyword": "a", "x": 1}),
+         "工具参数包含未知字段或不是对象"),
+        ("非对象", ("boss_search", []), "工具参数包含未知字段或不是对象"),
+        ("关键词类型", ("boss_search", {"keyword": 123}), "参数类型无效：keyword"),
+        ("页码为零", ("boss_search", {"keyword": "a", "page": 0}),
+         "参数小于最小值：page"),
+        ("布尔页码", ("boss_search", {"keyword": "a", "page": True}),
+         "参数类型无效：page"),
+        ("非法城市", ("boss_search", {"keyword": "a", "city": "火星"}),
+         "参数取值无效：city"),
+        ("非法经验", ("boss_search", {"keyword": "a", "experience": "火星"}),
+         "参数类型或取值无效：experience"),
+        ("空经验数组", ("boss_search", {"keyword": "a", "experience": []}),
+         "参数类型或取值无效：experience"),
+        ("重复经验数组", ("boss_search", {"keyword": "a", "experience": ["应届", "应届"]}),
+         "参数类型或取值无效：experience"),
+        ("空工具额外字段", ("boss_status", {"x": 1}),
+         "工具参数包含未知字段或不是对象"),
+        ("推荐页码为零", ("boss_recommend", {"page": 0}), "参数小于最小值：page"),
+    ):
+        checked += _expect_error(lambda: validate_arguments(*arguments), message, label)
+
+    names = [tool["name"] for tool in TOOLS]
+    handlers = tool_handlers()
+    checked += _expect_value(len(names), 14, "工具数量")
+    checked += _expect_value(len(set(names)), len(names), "工具名唯一")
+    checked += _expect_value(set(handlers), set(names), "处理函数覆盖")
+    checked += _expect_value(all(callable(handler) for handler in handlers.values()), True,
+                             "处理函数可调用")
+    checked += _expect_value(approval_required_tools(), frozenset({"boss_hr_greet"}),
+                             "审批工具集")
+
+    checked += _expect_value(should_pause(_result(True, "RATE_LIMITED")), False,
+                             "成功结果不暂停")
+    for code in ("RATE_LIMITED", "CLI_OUTPUT_LIMIT", "CLI_CONTRACT_ERROR",
+                 "ENVIRONMENT_RISK"):
+        checked += _expect_value(should_pause(_result(False, code)), True, f"暂停代码 {code}")
+    checked += _expect_value(should_pause(_result(False, "UNKNOWN_CODE")), False,
+                             "未知错误不暂停")
+    checked += _expect_value(should_pause(_result(False)), False, "无错误码不暂停")
+    return checked
+
+
 def main() -> int:
     try:
         total, read_only, write_sets, bundle, shell, data_dir, binary, output_limits = check_harness_tools()
+        scenarios = _behavior_checks()
     except (OSError, SyntaxError, ValueError) as error:
         print(f"内核工具允许清单核对失败，{error}", file=sys.stderr)
         return 2
@@ -320,7 +509,7 @@ def main() -> int:
         f"schema 边界完整、{write_sets} 处写工具集合一致、"
         f"bundle 保留 {bundle} 项审批投影、工具子进程 {shell} 项 shell 边界、"
         f"{data_dir} 项数据目录规范化与 {binary} 项业务 CLI 路径规范化、"
-        f"{output_limits} 项输出上限与有界读取防护完整"
+        f"{output_limits} 项输出上限与有界读取防护完整、{scenarios} 个行为场景"
     )
     return 0
 
