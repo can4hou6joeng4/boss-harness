@@ -1,3 +1,8 @@
+## 0.2.0-rc.581 - 2026-11-23
+
+- 模型错误检查从 199 项扩展到 208 项，新增 2 条函数片段与 7 项行为对照，直接调用 `_error_payload`：嵌套 `error` 为字典或对象时取内层载荷；缺少 `error` 或显式 `None` 时回退外层且保持对象身份；`0`、空串与标量载荷按原值返回，不被真值判断吞掉。隔离变异探针结构与行为均检出 5/5。[Issue #3287](https://github.com/can4hou6joeng4/boss-harness/issues/3287)
+- 源码候选更新为 npm `0.2.0-rc.581` 和 Python `0.2.0rc581`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.580 - 2026-11-23
 
 - 新增 `scripts/check_provider_config.py`，固化模型端点判定与服务端回退开关（51 项，含 33 项行为对照）：`_is_first_party_base_url` 对空值与纯空白返回官方默认，缺少 scheme 时按网络位置补全，主机名精确比较并剥掉尾根点，大小写 / 端口 / 路径 / 查询不影响结果，前缀伪装、userinfo 与畸形 IPv6 判为非官方；`_server_side_fallback` 未设置取默认、空白关闭、开关集合固定，未知取值在严格模式抛出 `MODEL_SERVER_FALLBACK_INVALID` 且不回显原文，非严格模式回退默认。工作流在 Source build 与 Python 矩阵注册该检查，`check_workflows.py` 的脚本覆盖同步为 174。隔离变异探针结构与行为分别检出 12/14、14/14，合计 14/14。[Issue #3285](https://github.com/can4hou6joeng4/boss-harness/issues/3285)
