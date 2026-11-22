@@ -86,20 +86,22 @@ uv pip install --python .venv/bin/python boss_harness-*.whl
 
 ### 从源码启动桌面
 
-桌面需要 Node.js 24+ 与本仓库依赖。只验证桌面能否连接本地内核，不需要安装招聘 CLI 或登录；使用招聘工具前再按[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)配置 [`boss-agent-cli`](https://github.com/can4hou6joeng4/boss-agent-cli)（其 README 提供安装命令）。
+桌面需要 Node.js 24+ 与本仓库依赖。只验证桌面能否连接本地内核，不需要安装招聘 CLI 或登录；使用招聘工具前再按[上游 CLI 设置](docs/USER_GUIDE.md#上游-cli-设置)配置 [`boss-agent-cli`](https://github.com/can4hou6joeng4/boss-agent-cli)（其 README 提供安装命令）。先退出正在运行的桌面实例，再在仓库根目录执行：
 
 ```sh
 uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python -e ./harness
 npm ci
 npx install-electron --no
-.venv/bin/boss-harness --check --provider none --format text
-BOSS_HARNESS_PROVIDER=none npm run dev
+
+trial_dir="$(mktemp -d "${TMPDIR:-/tmp}/boss-harness-first-run.XXXXXX")"
+BOSS_HARNESS_DIR="$trial_dir/state" .venv/bin/boss-harness --check --provider none --format text
+BOSS_HARNESS_DIR="$trial_dir/state" BOSS_HARNESS_PROVIDER=none npm run dev
 ```
 
-`BOSS_HARNESS_PROVIDER=none` 只禁用模型，不禁用招聘 CLI。Electron 需要从源码启动；`npm run build` 只生成桌面源码产物，不是独立安装包。首次运行建议使用临时工作区与只读工具，不要在此阶段输入真实凭据。
+在同一终端执行自检与启动，首次验证使用同一个临时内核状态目录。`BOSS_HARNESS_DIR` 只作用于内核会话和附件等状态。退出桌面后，后续启动可省略这次的目录覆盖，恢复平时的状态路径。
 
-首次自检与桌面启动都显式选择 `none`，不受当前 shell 的模型线路影响。自检不调用模型、不执行招聘 CLI；`MODEL_DISABLED` 是预期结果，其他检查仍会运行。配置模型后，可将自检的 `--provider none` 换成计划启用的线路再核对一次。也可以让编码 Agent 按 [SETUP.md](SETUP.md) 协助安装、自检与首次启动；凭据与平台登录仍由你本人完成。
+自检出现 `MODEL_DISABLED` 属于预期结果。确认报告没有错误后再启动桌面，看到已连接本地 Harness 即完成验证。`none` 只禁用模型，招聘 CLI 仍可运行，首次验证到连接成功为止。也可以让编码 Agent 按 [SETUP.md](SETUP.md) 协助安装、自检与首次启动。
 
 ## 试跑一条任务
 

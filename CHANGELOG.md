@@ -1,3 +1,8 @@
+## 0.2.0-rc.520 - 2026-11-23
+
+- README 与安装指南为首次桌面验证给出共用的临时内核状态路径，自检通过后再用同一路径启动，并说明如何恢复平时的启动方式。[Issue #3165](https://github.com/can4hou6joeng4/boss-harness/issues/3165)
+- 源码候选更新为 npm `0.2.0-rc.520` 和 Python `0.2.0rc520`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.519 - 2026-11-23
 
 - 启动自检新增 19 个离线行为场景，覆盖运行参数的错误顺序、空白、回退警告、无效配置脱敏和终端报告结论。隔离探针检出 10/10 个模拟回归。[Issue #3163](https://github.com/can4hou6joeng4/boss-harness/issues/3163)

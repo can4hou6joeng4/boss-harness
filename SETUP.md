@@ -9,7 +9,7 @@
 - 一次只问一个问题；执行每条命令前先用一句话说明它会做什么、是否联网，得到用户确认后再运行。
 - 不读取、不回显、不写入任何凭据。模型密钥与平台登录只由用户在自己的 shell 或桌面界面完成；发现凭据出现在配置、日志或工作树中时立即停止并提醒用户。
 - 不执行招聘平台写操作，不打开真实浏览器登录，不调用真实模型做试探。本指南只用 `BOSS_HARNESS_PROVIDER=none` 与本地自检。
-- 只在仓库内创建 `.venv`、`node_modules` 与构建产物；不修改用户的 shell 配置，不提交、不推送任何改动。
+- 安装在仓库内创建 `.venv`、`node_modules` 与构建产物，首次验证在临时目录使用独立的内核状态。不修改用户的 shell 配置，不提交、不推送任何改动。
 - 失败时先运行自检并按固定检查码排查；不要用重装或放宽目录权限来「绕过」自检。
 
 ## 1. 核对工具链
@@ -38,10 +38,11 @@ npx install-electron --no
 ## 3. 运行本地配置自检
 
 ```sh
-.venv/bin/boss-harness --check --provider none --format text
+trial_dir="$(mktemp -d "${TMPDIR:-/tmp}/boss-harness-first-run.XXXXXX")"
+BOSS_HARNESS_DIR="$trial_dir/state" .venv/bin/boss-harness --check --provider none --format text
 ```
 
-显式选择 `none`，与第 4 步的桌面启动一致，不继承 shell 的模型线路。自检不调用模型、不执行招聘 CLI、不访问招聘平台；目录、运行参数等其他检查仍会执行。`通过` 或 `通过，N 项警告` 可以继续；`发现 N 个错误` 先按报告里的固定检查码处理，再重新运行。常见结果：
+保留这个终端，在第 4 步复用同一个 `trial_dir`。自检显式选择 `none`，并检查桌面将使用的临时内核状态路径。自检不创建该状态目录，不调用模型、执行招聘 CLI 或访问招聘平台。`通过` 或 `通过，N 项警告` 可以继续。若报告发现错误，先按检查码处理，再用同一路径重试。
 
 | 检查结果 | 让用户做什么 |
 | --- | --- |
@@ -57,18 +58,20 @@ npx install-electron --no
 
 ## 4. 先用禁用模型的桌面验证链路
 
+先退出已运行的桌面实例，再在第 3 步的终端启动，让新的进程读取本次配置。
+
 ```sh
-BOSS_HARNESS_PROVIDER=none npm run dev
+BOSS_HARNESS_DIR="$trial_dir/state" BOSS_HARNESS_PROVIDER=none npm run dev
 ```
 
-桌面能打开并显示已连接本地 Harness，即完成安装验证。此时新会话固定只读、模型不参与；`none` 不会禁用招聘 CLI。
+桌面显示已连接本地 Harness，即完成安装验证。临时目录存放本次验证的内核会话和附件，Electron 窗口设置由桌面应用管理。`none` 只禁用模型，招聘 CLI 仍可运行，验证到连接成功为止。
 
 ## 5. 交给用户：模型线路与平台登录
 
 停止自动操作，让用户自己完成：
 
 1. 按[模型配置来源](docs/USER_GUIDE.md#模型配置来源)在自己的 shell 设置 `ANTHROPIC_*` 或 `BOSS_HARNESS_OPENAI_*`；不要把密钥写进仓库、文档或日志。
-2. 可先用第 3 步的命令，把 `--provider none` 改为目标线路（例如 `--provider openai`）再自检一次。然后关闭第 4 步的进程，用同一线路的 `BOSS_HARNESS_PROVIDER` 重新启动桌面；解释器与环境变量在应用启动时确定。
+2. 先关闭第 4 步的桌面进程。后续使用平时的内核状态路径时，在自检和启动命令中省略临时的 `BOSS_HARNESS_DIR="$trial_dir/state"`。自检用 `--provider` 指定目标线路（例如 `--provider openai`），通过后用同一线路的 `BOSS_HARNESS_PROVIDER` 启动桌面。
 3. 需要招聘工具时，先安装并配置 `boss-agent-cli`，再由用户完成平台登录与浏览器来源配置；登录、验证码与风控步骤不要代劳。
 
 ## 6. 收尾
