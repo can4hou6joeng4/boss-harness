@@ -1,3 +1,8 @@
+## 0.2.0-rc.518 - 2026-11-23
+
+- 模型禁用检查新增 5 个离线启动自检场景，覆盖显式 `none`、自动回退、严格模式退出码及 OpenAI 备用线路的配置与 SDK 提示。隔离探针检出 10/10 个模拟回归。[Issue #3161](https://github.com/can4hou6joeng4/boss-harness/issues/3161)
+- 源码候选更新为 npm `0.2.0-rc.518` 和 Python `0.2.0rc518`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.517 - 2026-11-23
 
 - 工具结果信封新增 27 项离线行为检查，涵盖嵌套字段深拷贝、Unicode、恢复动作规范化、深度边界和非法输入的统一错误。隔离探针检出 12/12 个模拟回归。[Issue #3159](https://github.com/can4hou6joeng4/boss-harness/issues/3159)

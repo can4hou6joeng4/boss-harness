@@ -4,10 +4,22 @@
 from __future__ import annotations
 
 import ast
+from contextlib import redirect_stdout
+from io import StringIO
+import json
+import os
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "harness/src"))
+
+from boss_harness import __main__ as entrypoint, startup_check  # noqa: E402
+from boss_harness.models import ModelConfig  # noqa: E402
+from boss_harness.tools.boss_cli import BinaryChoice  # noqa: E402
+
 KERNEL = ROOT / "harness" / "src" / "boss_harness"
 APPLICATION = "harness/src/boss_harness/application.py"
 MAIN_ENTRY = "harness/src/boss_harness/__main__.py"
@@ -366,13 +378,72 @@ def check_model_disable() -> tuple[int, int]:
     return sites, guards
 
 
+def _expect_value(actual: object, expected: object, label: str) -> None:
+    if actual != expected:
+        raise ValueError(f"自检行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
+
+
+def _check_startup_behavior() -> int:
+    # 开关优先级和回退判断走真实入口。备用线路与 CLI 只用本地替身，避免读取机器配置。
+    cases = (
+        ("命令行覆盖环境", {"BOSS_HARNESS_PROVIDER": "openai"}, ("--provider", "none"),
+         "disabled", 0, "本进程不使用任何模型线路"),
+        ("环境变量归一化", {"BOSS_HARNESS_PROVIDER": " NoNe "}, ("--strict",),
+         "disabled", 1, "none 不会禁止招聘 CLI 或平台网络"),
+        ("未指定线路", {}, (), "unconfigured", 0, "配置 provider 及对应凭据"),
+        ("自动回退且未安装 SDK", {"BOSS_HARNESS_PROVIDER": " AuTo "}, ("--strict",),
+         "missing-sdk", 1, "缺少内核运行依赖 openai"),
+        ("空白凭据且备用线路可用", {"ANTHROPIC_API_KEY": " \t", "ANTHROPIC_AUTH_TOKEN": "\n"},
+         ("--provider", "auto"), "available", 0, "核对这条线路使用 --check --provider openai"),
+    )
+    model = "diagnostic-demo"
+    for label, environment, flags, state, expected_exit, hint in cases:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            backup_config = ModelConfig(provider="openai", model=model)
+            config_error = ValueError("模拟配置解析失败") if state == "unconfigured" else None
+            choice = BinaryChoice(str(root / "missing-boss"), "path")
+            output = StringIO()
+            args = ["--check", "--state-dir", str(root / "state"), "--model", model, *flags]
+            with (patch.dict(os.environ, environment, clear=True),
+                  patch.object(entrypoint, "build_provider", side_effect=AssertionError("自检不应创建模型供应商")),
+                  patch.object(startup_check, "resolve_binary", return_value=choice),
+                  patch.object(startup_check, "resolve_config", return_value=backup_config,
+                               side_effect=config_error) as resolve,
+                  patch.object(startup_check, "_module_available", return_value=state == "available") as sdk,
+                  patch.object(startup_check, "startup_report", wraps=startup_check.startup_report) as report_call,
+                  redirect_stdout(output)):
+                exit_code = entrypoint.main(args)
+
+            _expect_value(exit_code, expected_exit, f"{label}退出码")
+            _expect_value(report_call.call_count, 1, f"{label}自检次数")
+            requested = "none" if state == "disabled" else ""
+            _expect_value(report_call.call_args.kwargs["requested_provider"], requested, f"{label}入口归一化")
+            report = json.loads(output.getvalue())
+            _expect_value(report["ok"], True, f"{label}报告状态")
+            check = next(item for item in report["checks"] if item["name"] == "model")
+            expected_code = "MODEL_DISABLED" if state == "disabled" else "MODEL_NOT_CONFIGURED"
+            _expect_value((check["status"], check["code"]), ("warning", expected_code), f"{label}模型诊断")
+            _expect_value(hint in check["hint"], True, f"{label}提示")
+            if state == "disabled":
+                resolve.assert_not_called()
+            else:
+                resolve.assert_called_once_with(provider="openai", model_override=model)
+            if state in {"disabled", "unconfigured"}:
+                sdk.assert_not_called()
+            else:
+                sdk.assert_called_once_with("openai")
+    return len(cases)
+
+
 def main() -> int:
     try:
         sites, guards = check_model_disable()
-    except (ValueError, SyntaxError) as error:
+        scenarios = _check_startup_behavior()
+    except (ValueError, SyntaxError, AssertionError) as error:
         print(f"显式禁用模型边界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"显式禁用模型边界一致：{sites} 个工厂调用点、{guards} 项目录、摘要、续接、连接、排队、自动回退提示与入口防护")
+    print(f"显式禁用模型边界一致：{sites} 个工厂调用点、{guards} 项结构防护、{scenarios} 个启动自检场景")
     return 0
 
 
