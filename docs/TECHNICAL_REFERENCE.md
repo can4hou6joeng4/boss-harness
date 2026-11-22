@@ -703,7 +703,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_provider_config.py`
 
-`scripts/check_provider_config.py` 核对模型端点判定与服务端回退开关：`_is_first_party_base_url` 在空值与纯空白时视为官方默认，缺少 scheme 时按网络位置补全，用 `urlparse` 的主机名精确比较并剥掉尾根点；大小写、端口、路径与查询都不影响结果，`api.anthropic.com.evil.example`、`api.anthropic.com@proxy.example`、畸形 IPv6 与非官方主机都判为非官方。`_server_side_fallback` 未设置时取端点默认；空白视为关闭；只接受 `1` / `true` / `yes` / `on` 与 `0` / `false` / `no` / `off`（大小写与首尾空白不敏感）；未知取值在严格模式抛出 `MODEL_SERVER_FALLBACK_INVALID` 且不回显原文，非严格模式回退默认。检查共 51 项，其中 33 项行为对照直接调用两个函数，不访问网络。
+`scripts/check_provider_config.py` 核对模型端点判定、请求时限、输出上限与凭据解析：`_is_first_party_base_url` 在空值与纯空白时视为官方默认，缺少 scheme 时按网络位置补全，用 `urlparse` 的主机名精确比较并剥掉尾根点；大小写、端口、路径与查询都不影响结果，`api.anthropic.com.evil.example`、`api.anthropic.com@proxy.example`、畸形 IPv6 与非官方主机都判为非官方。`_server_side_fallback` 未设置时取端点默认；空白视为关闭；只接受 `1` / `true` / `yes` / `on` 与 `0` / `false` / `no` / `off`（大小写与首尾空白不敏感）；未知取值在严格模式抛出 `MODEL_SERVER_FALLBACK_INVALID` 且不回显原文，非严格模式回退默认。`_request_timeout_seconds` 未设置或纯空白取默认 600 秒，去掉首尾空白后按整数解析，1 与 3600 都在界内，越界或非整数统一抛出 `MODEL_REQUEST_TIMEOUT_INVALID`；`_max_tokens` 未设置或纯空白取默认 64000，其余须为正整数，否则抛出 `MODEL_MAX_TOKENS_INVALID`；两者都不回显原始取值。`_configured_model` 按顺序取第一个去空白后非空的模型变量，`_has_configured_value` 与 `has_anthropic_credential` 同规则判定凭据：纯空白占位值视为未设置，不遮蔽后续变量，空键也不遮蔽 `ANTHROPIC_AUTH_TOKEN`。检查共 87 项，其中 58 项行为对照直接调用这些函数，不访问网络。
 
 ### `check_session_fork.py`
 

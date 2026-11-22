@@ -1,3 +1,8 @@
+## 0.2.0-rc.587 - 2026-11-23
+
+- 模型配置检查从 51 项扩展到 87 项：静态固定请求时限与输出上限的解析分支，并直接调用 `_request_timeout_seconds` / `_max_tokens` 对照缺省、纯空白、去空白、1 / 3600 边界与正整数边界，非法取值收敛到 `MODEL_REQUEST_TIMEOUT_INVALID` / `MODEL_MAX_TOKENS_INVALID` 且不回显原文；另直接对照 `_configured_model`、`_has_configured_value` 与 `has_anthropic_credential` 的空白遮蔽与空键回退规则。纯空白占位值若被当成已配置，会让模型目录列出实际不可用的线路。隔离变异探针结构检出 9/10、行为检出 9/10，合计 10/10。[Issue #3299](https://github.com/can4hou6joeng4/boss-harness/issues/3299)
+- 源码候选更新为 npm `0.2.0-rc.587` 和 Python `0.2.0rc587`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.586 - 2026-11-23
 
 - 会话导出隐私检查从 153 项扩展到 155 项：静态固定 `_wire_bytes` 的 `wire_text` 降级与 `ensure_ascii=False` 计量，并直接对照 ASCII、中文、引号、反斜杠、孤立代理项与表情符号的传输字节数。代理项不降级会让整次导出抛 `UnicodeEncodeError`，改为 ASCII 转义或非 JSON 计量则会让预算与写出字节不一致。隔离变异探针结构与行为均检出 5/5。[Issue #3297](https://github.com/can4hou6joeng4/boss-harness/issues/3297)
