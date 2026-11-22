@@ -1,3 +1,8 @@
+## 0.2.0-rc.529 - 2026-11-23
+
+- 请求身份检查新增 47 个临时合成场景，实际执行 `valid_client_id`、`RequestIdentity.receipt` 与 `resolve_request`：编号整串匹配、空身份短路、外部 `queue-<id>` 不能认领队列、队列 / 输入 / 回合身份冲突、转向拒绝、两轮链接收敛、重复身份歧义、持久事实冲突与失败回执字段。隔离变异探针合计检出 18/18。[Issue #3183](https://github.com/can4hou6joeng4/boss-harness/issues/3183)
+- 源码候选更新为 npm `0.2.0-rc.529` 和 Python `0.2.0rc529`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.528 - 2026-11-23
 
 - 待审批检查新增 41 个临时合成场景，实际执行共享过滤、列表分页与分组计数：已裁决 / 过期 / 未运行回合 / 归档会话排除、中断回合计入、会话过滤与跨会话分组、`limit` 边界与截断、条目 id 倒序、删除标记会话与占位超限放弃，以及直接写入索引的畸形行排除。隔离变异探针合计检出 20/20。[Issue #3181](https://github.com/can4hou6joeng4/boss-harness/issues/3181)
