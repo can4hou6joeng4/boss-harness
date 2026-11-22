@@ -1,3 +1,8 @@
+## 0.2.0-rc.556 - 2026-11-23
+
+- 回合记录检查从 76 项扩展到 83 项，新增 7 个行为场景：多个回合交错出现时各回合以「上一条已结束回合」为起点（`[0, 0, 3]`）且只有已终态回合带 `boundaryOrdinal`；running 回合不推进起点；两个回合连续终态后第三个回合起点逐个递增；终态后到达的阶段记录仍合并、持久载荷可覆盖 `startedAt` 但不改写 `updatedAt`；`_public_turn` 过滤 `firstOrdinal` / `lastOrdinal` / `boundaryOrdinal` 并保留 `turnId` / `status` / `completedAt`。隔离变异探针结构与行为分别检出 6/8、8/8，合计 8/8。[Issue #3237](https://github.com/can4hou6joeng4/boss-harness/issues/3237)
+- 源码候选更新为 npm `0.2.0-rc.556` 和 Python `0.2.0rc556`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.555 - 2026-11-23
 
 - 回合阶段检查从 135 项扩展到 147 项，新增 12 个行为场景：`attempt` 恰好 1 与 1000、`restartLimit` 恰好 0 与 32 被接受并原样写入，`recoveryReason="terminalStateRecovered"` 与 `resumePolicy="closed"` 被接受；`settle_abandoned_turn` 的归属除显式 `turnId` 外还认 running 回合上下文与首个同名回合的回溯，上下文归属的消息与待审批工具条目分别按失败与未执行结算，回合终态后新增的无归属条目不结算且保持 `running`，显式 `turnId` 优先于上下文。隔离变异探针结构与行为分别检出 6/8、8/8，合计 8/8。[Issue #3235](https://github.com/can4hou6joeng4/boss-harness/issues/3235)
