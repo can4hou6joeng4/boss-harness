@@ -560,9 +560,9 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_persistence.py`
 
-`scripts/check_persistence.py` 核对 SQLite 投影索引的迁移、私有权限与连接边界：`persistence.py` 的 `SCHEMA_VERSION = 2`、文本列 `utf-8` 宽容解码（非法字节替换为 U+FFFD，避免损坏行变成内部错误）、私有目录与索引文件 / WAL / SHM 的权限收紧、`version > SCHEMA_VERSION` 拒绝、1 → 2 迁移顺序与 `user_version` 写入、`UPDATE threads SET indexed_size=-1` 的旧索引失效标记；表结构必须保留会话、回合、事件、审批与 checkpoint 的主键及 `ON DELETE CASCADE`；每个操作独占连接并启用 `foreign_keys`、`busy_timeout=10000`、`synchronous=FULL`，事务以 `BEGIN IMMEDIATE` 开始并在异常时回滚；事件索引 `events_method_cursor` 必须存在。脚本反向断言不得使用严格 `decode("utf-8")`，并核对技术参考与使用指南的「日志是事实源、SQLite 是可重建索引」口径。
+`scripts/check_persistence.py` 核对 SQLite 投影索引的迁移、私有权限与连接边界：`persistence.py` 的 `SCHEMA_VERSION = 2`、文本列 `utf-8` 宽容解码（非法字节替换为 U+FFFD，避免损坏行变成内部错误）、私有目录与索引文件 / WAL / SHM 的权限收紧、`version > SCHEMA_VERSION` 拒绝、1 → 2 迁移顺序与 `user_version` 写入、`UPDATE threads SET indexed_size=-1` 的旧索引失效标记；表结构必须保留会话、回合、事件、审批与 checkpoint 的主键及 `ON DELETE CASCADE`；每个操作独占连接并启用 `foreign_keys`、`busy_timeout=10000`、`synchronous=FULL`，事务以 `BEGIN IMMEDIATE` 开始并在异常时回滚；事件索引 `events_method_cursor` 必须存在。脚本反向断言不得使用严格 `decode("utf-8")`，并核对技术参考与使用指南的「日志是事实源、SQLite 是可重建索引」口径。脚本另在临时状态目录创建真实索引执行行为场景：新建索引为用户版本 2、必需表与索引齐全、文件权限 0600 与目录权限 0700；连接启用外键、忙等 10 秒、同步 FULL 与 WAL，逐操作连接相互独立；事务正常提交、异常回滚，外键级联删除回合，事件与会话唯一约束拒绝重复，非法 UTF-8 文本列经 `text_factory` 降级为 U+FFFD；版本 1 索引迁移后批准表存在、旧索引失效为 -1、数据保留且重复打开幂等；未来版本索引按固定说明拒绝打开。
 
-同一脚本固定投影内容版本：会话投影只在会话文件的大小或修改时间变化后重建，投影新增派生字段时已有会话不会自动获得。`session.py` 的 `THREAD_PROJECTION_VERSION` 记在 `checkpoints` 表的 `threadProjection` 行，不并入 `SCHEMA_VERSION`（结构没有变化，旧版本仍能打开同一状态目录）。启动时在恢复未完成的删除之后、刷新会话之前比对一次：记录缺失或不同就按字节查找位置记录的类型标记（紧凑与带空格两种写法，1 MiB 分块并保留跨块尾部，不解析日志），只让命中的已索引会话失效，再在同一事务写回版本；文件已不存在的行跳过，读取失败的行按需要重建处理。失效函数只在构造时调用一次，失效语句必须限定到具体会话，不得整库失效。工具数据里出现同样片段只会多重建一次，重建结果仍由解析后的条目决定。重建中途退出时这些行保持失效，下次启动继续。检查是常量与顺序扫描，实际索引行为仍需按用户指南核对。
+同一脚本固定投影内容版本：会话投影只在会话文件的大小或修改时间变化后重建，投影新增派生字段时已有会话不会自动获得。`session.py` 的 `THREAD_PROJECTION_VERSION` 记在 `checkpoints` 表的 `threadProjection` 行，不并入 `SCHEMA_VERSION`（结构没有变化，旧版本仍能打开同一状态目录）。启动时在恢复未完成的删除之后、刷新会话之前比对一次：记录缺失或不同就按字节查找位置记录的类型标记（紧凑与带空格两种写法，1 MiB 分块并保留跨块尾部，不解析日志），只让命中的已索引会话失效，再在同一事务写回版本；文件已不存在的行跳过，读取失败的行按需要重建处理。失效函数只在构造时调用一次，失效语句必须限定到具体会话，不得整库失效。工具数据里出现同样片段只会多重建一次，重建结果仍由解析后的条目决定。重建中途退出时这些行保持失效，下次启动继续。检查在临时状态目录执行迁移与连接场景，不读取或写入本机真实索引，真实启动顺序仍按用户指南核对。
 
 ### `check_session_log.py`
 
