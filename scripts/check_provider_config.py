@@ -7,14 +7,17 @@
 默认，空白视为关闭，只接受固定开关写法，未知取值在严格模式失败且不回显原文。
 `_request_timeout_seconds` 与 `_max_tokens` 把空白视为未设置，按整数解析并收敛到
 固定错误码；`_configured_model`、`_has_configured_value` 与 `has_anthropic_credential`
-让纯空白占位值不遮蔽后续变量。这里静态固定解析分支，并直接调用这些函数核对边界。
-不访问网络或模型。
+让纯空白占位值不遮蔽后续变量。`resolve_config` 按显式参数 > `BOSS_HARNESS_PROVIDER` >
+凭据自动选择的顺序解析线路，模型按命令行 > 通用变量 > 线路专属变量 > 默认取值；
+`_openai_config` 只在缺项时读取 Codex 文件，缺端点与缺凭据返回固定错误码。这里静态固定
+解析分支，并直接调用这些函数核对边界。不访问网络或模型。
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/models/provider.py"
@@ -23,8 +26,10 @@ sys.path.insert(0, str(ROOT / "harness/src"))
 from boss_harness.models.config_errors import ModelConfigError  # noqa: E402
 from boss_harness.models.provider import (  # noqa: E402
     DEFAULT_MAX_TOKENS,
+    DEFAULT_MODEL,
     DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS,
     MAX_MODEL_REQUEST_TIMEOUT_SECONDS,
+    _EXPLICIT_PROVIDERS,
     _FIRST_PARTY_HOST,
     _SWITCH_OFF,
     _SWITCH_ON,
@@ -32,9 +37,11 @@ from boss_harness.models.provider import (  # noqa: E402
     _has_configured_value,
     _is_first_party_base_url,
     _max_tokens,
+    _openai_config,
     _request_timeout_seconds,
     _server_side_fallback,
     has_anthropic_credential,
+    resolve_config,
 )
 
 HOST_FRAGMENTS = (
@@ -75,6 +82,27 @@ MODEL_HELPER_FRAGMENTS = (
     "if value:\n            return value",
     'return any((env.get(name) or "").strip() for name in names)',
     'return _has_configured_value(env, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")',
+)
+PROVIDER_FRAGMENTS = (
+    'if override:\n        env["BOSS_HARNESS_MODEL"] = override',
+    'requested = (\n        provider if provider is not None else env.get("BOSS_HARNESS_PROVIDER") or ""\n    ).strip().lower()',
+    'if requested == "codex":\n        requested = "openai"',
+    'if requested == "auto":\n        requested = ""',
+    "if requested and requested not in _EXPLICIT_PROVIDERS:",
+    'raise ModelConfigError("MODEL_PROVIDER_UNKNOWN")',
+    'resolved = "anthropic" if has_anthropic_credential(env) else "none"',
+    'model=_configured_model(env, "BOSS_HARNESS_MODEL", "BOSS_HARNESS_ANTHROPIC_MODEL") '
+    "or DEFAULT_MODEL",
+    "return _openai_config(env)",
+)
+OPENAI_FRAGMENTS = (
+    'explicit_model = _configured_model(env, "BOSS_HARNESS_MODEL", "BOSS_HARNESS_OPENAI_MODEL")',
+    "profile = None if all((explicit_model, explicit_url, explicit_key)) "
+    "else load_profile(environ=env, strict=True)",
+    "if not file_key and profile and profile.env_key:",
+    'if not base_url:\n        raise ModelConfigError("MODEL_ENDPOINT_MISSING")',
+    'if not raw_key:\n        raise ModelConfigError("MODEL_CREDENTIAL_MISSING")',
+    "api_key=Secret(raw_key)",
 )
 
 
@@ -210,6 +238,86 @@ def _model_env_checks() -> int:
     return checked
 
 
+def _resolve_checks() -> int:
+    checked = _expect_value(sorted(_EXPLICIT_PROVIDERS),
+                            ["anthropic", "codex", "none", "openai"], "显式线路集合")
+    anthropic_env = {"ANTHROPIC_API_KEY": "sk-test"}
+    # 线路优先级：显式参数 > 环境变量 > 按凭据自动选择；空白凭据不算已配置。
+    checked += _expect_value(
+        resolve_config({**anthropic_env, "BOSS_HARNESS_PROVIDER": "anthropic"}, "none").provider,
+        "none", "显式参数优先")
+    checked += _expect_value(
+        resolve_config({**anthropic_env, "BOSS_HARNESS_PROVIDER": "none"}).provider,
+        "none", "环境变量线路")
+    checked += _expect_value(resolve_config(anthropic_env).provider, "anthropic", "凭据自动选择")
+    checked += _expect_value((resolve_config({}).provider,
+                              resolve_config({"ANTHROPIC_API_KEY": "  ",
+                                              "ANTHROPIC_AUTH_TOKEN": ""}).provider),
+                             ("none", "none"), "无凭据退回 none")
+    checked += _expect_value(resolve_config({"BOSS_HARNESS_PROVIDER": "auto"}).provider,
+                             "none", "auto 按自动选择")
+    openai_env = {
+        "BOSS_HARNESS_MODEL": "gpt-x",
+        "BOSS_HARNESS_OPENAI_BASE_URL": "https://openai.example/v1",
+        "BOSS_HARNESS_OPENAI_API_KEY": "sk-openai-9",
+    }
+    codex_config = resolve_config({**openai_env, "BOSS_HARNESS_PROVIDER": "codex"})
+    checked += _expect_value((codex_config.provider, codex_config.base_url),
+                             ("openai", "https://openai.example/v1"), "codex 别名")
+    checked += _expect_code(lambda: resolve_config({"BOSS_HARNESS_PROVIDER": "bogus-line"}),
+                            "MODEL_PROVIDER_UNKNOWN", "未知线路", absent="bogus-line")
+    # 模型覆盖顺序：命令行 > 通用环境变量 > 线路专属变量 > 默认。
+    checked += _expect_value(
+        resolve_config(anthropic_env, model_override="cmd-model").model,
+        "cmd-model", "命令行模型优先")
+    checked += _expect_value(
+        resolve_config({**anthropic_env, "BOSS_HARNESS_MODEL": "env-model",
+                        "BOSS_HARNESS_ANTHROPIC_MODEL": "line-model"}).model,
+        "env-model", "通用模型变量")
+    checked += _expect_value(
+        resolve_config({**anthropic_env, "BOSS_HARNESS_ANTHROPIC_MODEL": " line-model "}).model,
+        "line-model", "线路专属模型变量")
+    checked += _expect_value(resolve_config(anthropic_env).model, DEFAULT_MODEL, "模型默认值")
+    # Anthropic 线路：端点去空白，思考开关与回退开关按线路严格性生效。
+    config = resolve_config({**anthropic_env, "ANTHROPIC_BASE_URL": " https://proxy.example/v1 ",
+                             "BOSS_HARNESS_THINKING": "summarized",
+                             "BOSS_HARNESS_SERVER_FALLBACK": " 0 "})
+    checked += _expect_value(
+        (config.base_url, config.thinking, config.server_side_fallback),
+        ("https://proxy.example/v1", {"type": "adaptive", "display": "summarized"}, False),
+        "Anthropic 线路字段")
+    checked += _expect_value(resolve_config(anthropic_env).server_side_fallback,
+                             True, "官方端点回退默认")
+    checked += _expect_value(
+        resolve_config({"BOSS_HARNESS_PROVIDER": "none",
+                        "BOSS_HARNESS_SERVER_FALLBACK": "mystery"}).server_side_fallback,
+        True, "none 线路不因开关失败")
+    checked += _expect_code(
+        lambda: resolve_config({**anthropic_env, "BOSS_HARNESS_SERVER_FALLBACK": "mystery"}),
+        "MODEL_SERVER_FALLBACK_INVALID", "anthropic 线路严格失败")
+    # OpenAI：完整显式配置跳过 Codex 文件；缺项时缺失文件按未配置处理。
+    with TemporaryDirectory() as directory:
+        full = {**openai_env, "BOSS_HARNESS_CODEX_CONFIG": directory}
+        openai_config = resolve_config(full, "openai")
+        checked += _expect_value(
+            (openai_config.provider, openai_config.model, openai_config.api_key.get(),
+             "sk-openai-9" in repr(openai_config)),
+            ("openai", "gpt-x", "sk-openai-9", False), "OpenAI 完整显式配置")
+        missing = {"BOSS_HARNESS_CODEX_CONFIG": str(Path(directory) / "missing.toml")}
+        checked += _expect_code(lambda: resolve_config(missing, "openai"),
+                                "MODEL_ENDPOINT_MISSING", "OpenAI 缺端点")
+        checked += _expect_code(
+            lambda: resolve_config({**missing,
+                                    "BOSS_HARNESS_OPENAI_BASE_URL": "https://openai.example/v1"},
+                                   "openai"),
+            "MODEL_CREDENTIAL_MISSING", "OpenAI 缺凭据")
+        default_model = resolve_config(
+            {**missing, "BOSS_HARNESS_OPENAI_BASE_URL": "https://openai.example/v1",
+             "BOSS_HARNESS_OPENAI_API_KEY": "sk-openai-9"}, "openai")
+        checked += _expect_value(default_model.model, DEFAULT_MODEL, "OpenAI 模型默认值")
+    return checked
+
+
 def check_provider_config() -> int:
     module = _read(MODULE)
     checked = _expect(HOST_FRAGMENTS, module, MODULE)
@@ -217,8 +325,11 @@ def check_provider_config() -> int:
     checked += _expect(TIMEOUT_FRAGMENTS, module, MODULE)
     checked += _expect(TOKENS_FRAGMENTS, module, MODULE)
     checked += _expect(MODEL_HELPER_FRAGMENTS, module, MODULE)
+    checked += _expect(PROVIDER_FRAGMENTS, module, MODULE)
+    checked += _expect(OPENAI_FRAGMENTS, module, MODULE)
     checked += _behavior_checks()
     checked += _model_env_checks()
+    checked += _resolve_checks()
     return checked + 1
 
 
@@ -228,7 +339,7 @@ def main() -> int:
     except ValueError as error:
         print(f"模型配置边界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"模型配置边界一致：{checked} 项端点、回退、时限、上限与凭据解析防护")
+    print(f"模型配置边界一致：{checked} 项端点、回退、时限、上限、凭据与线路解析防护")
     return 0
 
 
