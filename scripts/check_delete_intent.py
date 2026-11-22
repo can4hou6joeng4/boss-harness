@@ -5,7 +5,8 @@
 `_read_delete_intent` 校验文件名、大小、JSON 形状与四个字段；`_write_delete_intent`
 用独占临时文件加硬链接发布，已存在时读回而不覆盖；`_pending_deletion_ids`
 只按名称列出阻塞会话；`_recover_deletions` 在启动时完成合法标记、保留损坏标记。
-本脚本在临时目录构造 `SessionStore` 做行为对照，并扫描源码固定这条链路；
+本脚本在临时目录构造 `SessionStore` 做行为对照，覆盖标记名过滤、大小边界、
+摘要归一、损坏标记不覆盖、重开收紧权限与恢复隔离，并扫描源码固定这条链路；
 它不访问网络、模型、招聘平台或用户状态目录。
 """
 
@@ -13,6 +14,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 from pathlib import Path
 import stat
 import sys
@@ -22,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
-from boss_harness.session import SessionStore  # noqa: E402
+from boss_harness.session import MAX_DELETE_INTENT_BYTES, SessionStore  # noqa: E402
 
 READ_ORDER = (
     "def _read_delete_intent(self, path: Path) -> dict[str, Any]:",
@@ -320,6 +322,97 @@ def check_delete_intent() -> int:
                 raise ValueError("不存在的删除标记必须抛 FileNotFoundError")
             _expect_error(lambda: restarted._delete_intent_path("ZZZ"),
                           "threadId 格式无效", "非法会话编号")
+            checked += 1
+        finally:
+            restarted.close()
+    # 行为：标记名称过滤、大小边界、摘要归一与损坏标记不覆盖。
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary) / "sessions"
+        store = SessionStore(root)
+        try:
+            thread_id = "0123456789ad"
+            marker = store._delete_intent_path(thread_id)
+            marker.write_bytes(_marker(thread_id, digests=["c" * 64, "a" * 64, "a" * 64]))
+            invalid_name = root / ".delete-zzz.json"
+            invalid_name.write_bytes(_marker(thread_id))
+            ids = store._pending_deletion_ids()
+            if thread_id not in ids or "zzz" in ids:
+                raise ValueError("阻塞列表必须忽略非法名称并保留合法标记")
+            checked += 1
+            intent = store._read_delete_intent(marker)
+            if intent["attachmentDigests"] != ["a" * 64, "c" * 64]:
+                raise ValueError("读回摘要必须排序去重")
+            checked += 1
+            payload = _marker(thread_id)
+            marker.write_bytes(payload + b" " * (MAX_DELETE_INTENT_BYTES - len(payload)))
+            if store._read_delete_intent(marker)["threadId"] != thread_id:
+                raise ValueError("恰好达到大小上限的标记必须可读")
+            checked += 1
+            marker.write_bytes(payload + b" " * (MAX_DELETE_INTENT_BYTES - len(payload) + 1))
+            _expect_error(lambda: store._read_delete_intent(marker), MISSING, "超出大小限制")
+            checked += 1
+            marker.write_bytes(b"{}\n")
+            before = marker.read_bytes()
+            _expect_error(lambda: store._write_delete_intent(thread_id, []), MISSING, "损坏标记覆盖")
+            checked += 1
+            if marker.read_bytes() != before:
+                raise ValueError("损坏标记被拒绝时不得改写")
+            checked += 1
+        finally:
+            store.close()
+    # 行为：重开存储时收紧未读取的标记权限。
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary) / "sessions"
+        thread_id = "0123456789ae"
+        store = SessionStore(root)
+        try:
+            marker = root / ".delete-zzz.json"
+            marker.write_bytes(b"{}\n")
+            marker.chmod(0o644)
+        finally:
+            store.close()
+        restarted = SessionStore(root)
+        try:
+            if stat.S_IMODE(marker.stat().st_mode) != 0o600:
+                raise ValueError("重开存储必须收紧未读取的标记权限")
+            checked += 1
+            if "zzz" in restarted._pending_deletion_ids() or restarted.has_pending_deletion(thread_id):
+                raise ValueError("名称非法的标记不得进入阻塞列表")
+            checked += 1
+        finally:
+            restarted.close()
+    # 行为：单个删除失败不得阻断其他标记完成。
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary) / "sessions"
+        blocked = "0123456789af"
+        cleared = "fedcba987655"
+        store = SessionStore(root)
+        try:
+            (root / f"{blocked}.jsonl").write_text("{}\n", encoding="utf-8")
+            (root / f"{cleared}.jsonl").write_text("{}\n", encoding="utf-8")
+            blocked_marker = store._delete_intent_path(blocked)
+            cleared_marker = store._delete_intent_path(cleared)
+            blocked_marker.write_bytes(_marker(blocked, event_id="a" * 32))
+            cleared_marker.write_bytes(_marker(cleared, event_id="c" * 32))
+        finally:
+            store.close()
+        (root / f"{blocked}.jsonl").unlink()
+        link_target = Path(temporary) / "blocked-backup.jsonl"
+        link_target.write_text("{}\n", encoding="utf-8")
+        os.link(link_target, root / f"{blocked}.jsonl")
+        restarted = SessionStore(root)
+        try:
+            if not blocked_marker.exists():
+                raise ValueError("无法完成的删除标记必须保留")
+            checked += 1
+            if (root / f"{blocked}.jsonl").stat().st_nlink != 2:
+                raise ValueError("无法完成的删除不得改动目标")
+            checked += 1
+            if cleared_marker.exists() or (root / f"{cleared}.jsonl").exists():
+                raise ValueError("其他合法标记必须继续完成删除")
+            checked += 1
+            if not restarted.has_pending_deletion(blocked) or restarted.has_pending_deletion(cleared):
+                raise ValueError("恢复隔离后阻塞状态必须只保留失败会话")
             checked += 1
         finally:
             restarted.close()
