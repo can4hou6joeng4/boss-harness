@@ -746,7 +746,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_runtime_capacity.py`
 
-`scripts/check_runtime_capacity.py` 核对运行时容量准入、回合归属与关闭中断口径：`owner_capacity` 必须为 `2 * capacity`，`has_capacity` 同时检查关闭标志、会话上限与 owner 上限；`check_admission` 按关闭（`-32003`）、同会话已有回合（`-32004` 带 `turnId`）、会话上限（`TURN_CONCURRENCY_LIMIT`）、owner 上限（`TURN_OWNER_LIMIT`）的顺序拒绝；`reserve` 在锁内重复准入并同时登记 `active` 与 `jobs`，`release` 与 `_retire_locked` 都用对象身份比较，回收还要求 worker 结束且 abort 完成。中断与关闭共享一次幂等 abort 认领，`prepare_interrupt` 只做取消与认领，派发由 `interrupt` 完成；`request_stop_aborts` 与 `wait_for_stop` 在锁外启动与等待，`stop` 默认两秒窗口并按取消、派发、等待顺序执行。容量通知 worker 必须是守护线程，启动失败复位状态，关闭后不再回调，回调异常不结束循环。脚本含缩进敏感断言，要求派发与等待确实位于锁外。检查是源码扫描，不启动线程或验证运行时并发行为。
+`scripts/check_runtime_capacity.py` 核对运行时容量准入、回合归属与关闭中断口径：`owner_capacity` 必须为 `2 * capacity`，`has_capacity` 同时检查关闭标志、会话上限与 owner 上限；`check_admission` 按关闭（`-32003`）、同会话已有回合（`-32004` 带 `turnId`）、会话上限（`TURN_CONCURRENCY_LIMIT`）、owner 上限（`TURN_OWNER_LIMIT`）的顺序拒绝；`reserve` 在锁内重复准入并同时登记 `active` 与 `jobs`，`release` 与 `_retire_locked` 都用对象身份比较，回收还要求 worker 结束且 abort 完成。中断与关闭共享一次幂等 abort 认领，`prepare_interrupt` 只做取消与认领，派发由 `interrupt` 完成；`request_stop_aborts` 与 `wait_for_stop` 在锁外启动与等待，`stop` 默认两秒窗口并按取消、派发、等待顺序执行。容量通知 worker 必须是守护线程，启动失败复位状态，关闭后不再回调，回调异常不结束循环。脚本含缩进敏感断言，要求派发与等待确实位于锁外。脚本另用合成 runner 与内存线程执行 62 个行为场景：双上限拒绝与关闭拒绝、预留登记、同对象释放与旧回合不释放新槽位、无 abort / abort 未完成 / abort 完成三种回收、idle 通知、中断回合不符拒绝、幂等认领与回调绑定、关闭时认领但不绑定中断、停止派发幂等、容量 worker 启动 / 重复启动拒绝 / 唤醒一次 / 关闭后停止且不再回调、`stop` 收尾与 `wait_for_stop` 截止返回；不访问网络、模型、招聘平台或本机状态目录。
 
 ### `check_shutdown.py`
 

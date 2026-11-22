@@ -1,3 +1,8 @@
+## 0.2.0-rc.535 - 2026-11-23
+
+- 运行时容量检查新增 62 个合成行为场景，实际执行 `RuntimeManager`：双上限与关闭拒绝、预留登记、同对象释放与旧回合不释放新槽位、三种回收路径、idle 通知、回合不符拒绝、幂等中止认领与回调绑定、关闭时认领但不绑定中断、停止派发幂等、容量 worker 启动 / 唤醒 / 关闭停止，以及 `stop` 与 `wait_for_stop` 截止返回。隔离变异探针结构与行为分别检出 12/12、11/12，合计 12/12。[Issue #3195](https://github.com/can4hou6joeng4/boss-harness/issues/3195)
+- 源码候选更新为 npm `0.2.0-rc.535` 和 Python `0.2.0rc535`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.534 - 2026-11-23
 
 - 关闭检查新增 25 个真实线程场景，实际执行 `TrackedAbort` 与 `join_until`：回调优先、provider 回退、缺少钩子、回调 / 收尾异常收敛、`done` 与 `on_done` 单次、重复与并发启动只派发一次、工作线程 daemon 与名称，以及跳过 `None` / 当前线程 / 未启动 / 重复线程、按截止时间返回且不等待存活 worker。隔离变异探针结构与行为均检出 9/9。[Issue #3193](https://github.com/can4hou6joeng4/boss-harness/issues/3193)
