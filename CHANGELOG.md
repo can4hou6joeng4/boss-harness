@@ -1,3 +1,8 @@
+## 0.2.0-rc.542 - 2026-11-23
+
+- 内核工具检查新增 56 个行为场景，实际执行 `validate_arguments`、`_decode_cli_envelope`、`resolve_browser_source_override`、`_executable_path`、`resolve_binary`、`tool_handlers`、`approval_required_tools` 与 `should_pause`：信封非有限数字 / 重复键 / 代理项 / 深度边界、浏览器来源规范化、可执行文件与符号链接判定、参数类型 / 枚举 / 数组 / 额外字段、审批集与暂停代码。隔离变异探针结构与行为分别检出 1/15、15/15，合计 15/15。[Issue #3209](https://github.com/can4hou6joeng4/boss-harness/issues/3209)
+- 源码候选更新为 npm `0.2.0-rc.542` 和 Python `0.2.0rc542`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.541 - 2026-11-23
 
 - 冻结快照检查新增 76 个行为场景，实际执行解码、投影、分页与存储生命周期：宽容 UTF-8、条目载荷 / id 损坏映射、行切分与残段丢弃、源读取上限与回绕、投影字段裁剪、并发构建上限、TTL 清理、分支失效墓碑、按快照 / 会话删除与关闭清理。隔离变异探针结构与行为分别检出 10/14、14/14，合计 14/14。[Issue #3207](https://github.com/can4hou6joeng4/boss-harness/issues/3207)
