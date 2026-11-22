@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 import sys
+import threading
 from types import MappingProxyType
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +23,9 @@ from boss_harness.hooks import (  # noqa: E402
     MAX_POLICY_CONTEXT_BYTES,
     MAX_POLICY_CONTEXT_DEPTH,
     MAX_POLICY_CONTEXT_NODES,
+    HookCancellationSignal,
+    LifecycleHooks,
+    _signal_mode,
     freeze_context,
     freeze_policy_context,
 )
@@ -126,6 +130,23 @@ INVOKE_FRAGMENTS = (
     '"HOOK_TIMEOUT", "生命周期 hook 超时", timed_out=True',
     "finished.wait(min(0.025, remaining))",
     "return result[0] if result else None",
+)
+SIGNAL_FRAGMENTS = (
+    # 只有可解析签名的回调才可能收到信令；无签名时按旧式单参数调用。
+    "def _signal_mode(callback: Callable[..., Any]) -> str | None:",
+    "parameters = inspect.signature(callback).parameters",
+    "except (TypeError, ValueError):\n        return None",
+    'signal = parameters.get("signal")',
+    'if signal.kind == inspect.Parameter.POSITIONAL_ONLY:\n            return "positional"',
+    'if signal.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY):\n            return "keyword"',
+    'return "keyword" if any(item.kind == inspect.Parameter.VAR_KEYWORD for item in parameters.values()) else None',
+)
+DISPATCH_FRAGMENTS = (
+    # 仅在策略 / 观察阶段且确有信令对象时分类；close 与事件观察保持单参数。
+    'signal_mode = (_signal_mode(callback)\n                       if method in {"before_tool_call", "before_request", "transform_context", "after_tool_call"}\n                       and signal is not None else None)',
+    'elif signal_mode == "positional":\n                    result.append(callback(callback_context, signal))',
+    'elif signal_mode == "keyword":\n                    result.append(callback(callback_context, signal=signal))',
+    "result.append(callback(callback_context))",
 )
 POLICY_RESULT_FRAGMENTS = (
     'return HookDecision(False, "HOOK_CLOSED", "内核策略 hook 正在关闭或已关闭；工具调用已暂停")',
@@ -285,6 +306,166 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _plain_callback(context):
+    return None
+
+
+def _keyword_callback(context, signal):
+    return None
+
+
+def _keyword_only_callback(context, *, signal):
+    return None
+
+
+def _positional_callback(context, signal, /):
+    return None
+
+
+def _var_kwargs_callback(context, **kwargs):
+    return None
+
+
+def _var_args_callback(context, *args):
+    return None
+
+
+def _named_var_params_callback(context, *signal):
+    return None
+
+
+def _named_var_kwargs_callback(context, **signal):
+    return None
+
+
+class _PlainHook:
+    def __init__(self) -> None:
+        self.contexts: list[dict] = []
+
+    def before_tool_call(self, context):
+        self.contexts.append(dict(context))
+
+
+class _KeywordHook:
+    def __init__(self) -> None:
+        self.signals: list[object] = []
+
+    def before_tool_call(self, context, *, signal=None):
+        self.signals.append(signal)
+
+
+class _PositionalHook:
+    def __init__(self) -> None:
+        self.signals: list[object] = []
+
+    def before_tool_call(self, context, signal, /):
+        self.signals.append(signal)
+
+
+class _VarKwargsHook:
+    def __init__(self) -> None:
+        self.kwargs: list[dict] = []
+
+    def before_tool_call(self, context, **kwargs):
+        self.kwargs.append(dict(kwargs))
+
+
+class _BareSignalHook:
+    def __init__(self) -> None:
+        self.called = 0
+
+    def before_tool_call(self, **signal):
+        self.called += 1
+
+
+class _AfterHook:
+    def __init__(self) -> None:
+        self.signals: list[object] = []
+
+    def after_tool_call(self, context, *, signal=None):
+        self.signals.append(signal)
+
+
+class _CallableInstance:
+    def __call__(self, context, signal):
+        return None
+
+
+def _signal_checks() -> int:
+    # 信令分类只依赖参数名与参数种类：仅位置按位置传，普通 / 仅关键字 / 可变关键字
+    # 按关键字传；名为 signal 的可变参数与无可解析签名都回退为单参数调用。
+    checked = _expect_value(_signal_mode(_plain_callback), None, "单参数回调")
+    checked += _expect_value(_signal_mode(lambda context: None), None, "匿名回调")
+    checked += _expect_value(_signal_mode(_keyword_callback), "keyword", "普通信令参数")
+    checked += _expect_value(_signal_mode(_keyword_only_callback), "keyword", "仅关键字信令")
+    checked += _expect_value(_signal_mode(_positional_callback), "positional", "仅位置信令")
+    checked += _expect_value(_signal_mode(_var_kwargs_callback), "keyword", "可变关键字兜底")
+    checked += _expect_value(_signal_mode(_var_args_callback), None, "可变位置参数不接收信令")
+    checked += _expect_value(_signal_mode(_named_var_params_callback), None, "名为 signal 的可变位置参数")
+    checked += _expect_value(_signal_mode(_named_var_kwargs_callback), None, "名为 signal 的可变关键字参数")
+    checked += _expect_value(_signal_mode(_CallableInstance()), "keyword", "可调用对象")
+    checked += _expect_value(_signal_mode(type), None, "无可解析签名")
+
+    event = threading.Event()
+    positional = _PositionalHook()
+    hooks = LifecycleHooks([positional], timeout=1.0)
+    checked += _expect_value(hooks.before_tool_call({"tool": "boss_status"}, cancel_event=event), None,
+                             "仅位置回调放行")
+    checked += _expect_value(len(positional.signals), 1, "仅位置回调执行一次")
+    signal = positional.signals[0]
+    checked += _expect_value(type(signal), HookCancellationSignal, "仅位置回调收到信令")
+    checked += _expect_value(signal.aborted, False, "信令初始未中止")
+    event.set()
+    checked += _expect_value(signal.aborted, True, "信令跟随取消事件")
+    checked += _expect_value(hooks.before_tool_call({"tool": "boss_status"}, cancel_event=event), None,
+                             "已取消不回退为拒绝")
+    checked += _expect_value(len(positional.signals), 1, "已取消不再启动回调")
+
+    keyword = _KeywordHook()
+    hooks = LifecycleHooks([keyword], timeout=1.0)
+    checked += _expect_value(hooks.before_tool_call({"tool": "boss_status"}), None, "无取消事件放行")
+    checked += _expect_value(keyword.signals, [None], "无取消事件信令为空")
+    event = threading.Event()
+    checked += _expect_value(hooks.before_tool_call({"tool": "boss_status"}, cancel_event=event), None,
+                             "关键字回调放行")
+    checked += _expect_value(type(keyword.signals[-1]), HookCancellationSignal, "关键字回调收到信令")
+
+    var_kwargs = _VarKwargsHook()
+    hooks = LifecycleHooks([var_kwargs], timeout=1.0)
+    checked += _expect_value(hooks.before_tool_call({"tool": "boss_status"}), None, "可变关键字回调放行")
+    checked += _expect_value(var_kwargs.kwargs, [{}], "无取消事件不注入信令关键字")
+    event = threading.Event()
+    checked += _expect_value(hooks.before_tool_call({"tool": "boss_status"}, cancel_event=event), None,
+                             "可变关键字回调带信令放行")
+    checked += _expect_value(type(var_kwargs.kwargs[-1].get("signal")), HookCancellationSignal,
+                             "可变关键字回调收到信令")
+
+    plain = _PlainHook()
+    hooks = LifecycleHooks([plain], timeout=1.0)
+    checked += _expect_value(hooks.before_tool_call({"tool": "boss_status"}), None, "单参数回调放行")
+    checked += _expect_value(plain.contexts[0].get("phase"), "before_tool_call", "单参数回调收到上下文")
+
+    after = _AfterHook()
+    hooks = LifecycleHooks([after], timeout=1.0)
+    hooks.after_tool_call({"tool": "boss_status"}, {})
+    checked += _expect_value(type(after.signals[-1]), HookCancellationSignal, "观察阶段始终提供信令")
+
+    bare = _BareSignalHook()
+    hooks = LifecycleHooks([bare], timeout=1.0)
+    decision = hooks.before_tool_call({"tool": "boss_status"}, cancel_event=threading.Event())
+    checked += _expect_value((decision.allow, decision.code), (False, "HOOK_ERROR"),
+                             "仅可变关键字回调失败关闭")
+    checked += _expect_value(bare.called, 0, "仅可变关键字回调未执行")
+
+    positional_bare = _PositionalHook()
+    hooks = LifecycleHooks([positional_bare], timeout=1.0)
+    decision = hooks.before_tool_call({"tool": "boss_status"})
+    checked += _expect_value((decision.allow, decision.code), (False, "HOOK_ERROR"),
+                             "无取消事件的仅位置回调失败关闭")
+    checked += _expect_value(positional_bare.signals, [], "无信令时不调用仅位置回调")
+    return checked
+
+
 def check_hooks() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
@@ -295,6 +476,8 @@ def check_hooks() -> int:
     checked += _expect(LIFECYCLE_FRAGMENTS, module, MODULE)
     checked += _expect(EVENT_FRAGMENTS, module, MODULE)
     checked += _expect(INVOKE_FRAGMENTS, module, MODULE)
+    checked += _expect(SIGNAL_FRAGMENTS, module, MODULE)
+    checked += _expect(DISPATCH_FRAGMENTS, module, MODULE)
     checked += _expect(POLICY_RESULT_FRAGMENTS, module, MODULE)
     checked += _expect(REQUEST_RESULT_FRAGMENTS, module, MODULE)
     checked += _expect(TRANSFORM_FRAGMENTS, module, MODULE)
@@ -319,7 +502,7 @@ def check_hooks() -> int:
 def main() -> int:
     try:
         checked = check_hooks()
-        scenarios = _behavior_checks()
+        scenarios = _behavior_checks() + _signal_checks()
     except (ValueError, OSError) as error:
         print(f"生命周期 hook 核对失败，{error}", file=sys.stderr)
         return 2
