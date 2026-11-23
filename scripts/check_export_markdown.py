@@ -18,10 +18,15 @@ EXPORT = "harness/src/boss_harness/session_export.py"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
 from boss_harness.session_export import (  # noqa: E402
+    _approval_label,
     _code_text,
+    _compaction_facts,
     _fence,
     _inline_code,
     _inline_text,
+    _suggested_file_name,
+    _turn_status_label,
+    _usage_line,
 )
 
 EXPORT_FRAGMENTS = (
@@ -91,6 +96,29 @@ EXPORT_FRAGMENTS = (
     "facts.extend(_inline_text(fact) if code else fact",
     'parts += [_fence(item["input"] or "（空）"), ""]',
 )
+LABEL_FRAGMENTS = (
+    '_TURN_STATUS = {"completed": "已完成", "interrupted": "已中断", "blocked": "已阻断", "error": "出错",',
+    '"running": "进行中（导出时尚未结束）"}',
+    '_APPROVAL_DECISIONS = {"approve": "用户批准", "deny": "用户拒绝", "expired": "审批已失效"}',
+    'return _TURN_STATUS.get(value, "状态不明") if isinstance(value, str) else "状态不明"',
+    'return "等待审批"',
+    'return _APPROVAL_DECISIONS.get(value, "状态不明") if isinstance(value, str) else "状态不明"',
+    'return "无模型请求记录" if bucket is None else _tokens(bucket)',
+    'if bucket["requests"] == 0:\n        return "无模型请求记录"',
+    "parts.append(f\"输入 {bucket['promptTokens']:,} / 输出 {bucket['outputTokens']:,} token\")",
+    'parts.append(f"provider 未上报用量 {unreported} 次（不按 0 计）")',
+    'return f"boss-harness-session-{thread_id}-{view}.{extension}"',
+    'if "enabled" in policy:',
+    'details.append("开启" if policy["enabled"] else "关闭")',
+    'if "triggerPercent" in policy:',
+    "details.append(f\"阈值 {policy['triggerPercent']}%\")",
+    'if "keepRecentTokens" in policy:',
+    "details.append(f\"保留最近 {policy['keepRecentTokens']} token\")",
+    'facts = ["自动压缩：" + " · ".join(details)] if details else []',
+    'if any(key in policy for key in ("provider", "model", "effort")):',
+    "line = f\"摘要线路：{policy.get('provider') or '—'} / {policy.get('model') or '—'}\"",
+    "line += f\" · {policy['effort']}\"",
+)
 
 
 def _read(relative: str) -> str:
@@ -153,6 +181,62 @@ def _behavior_checks() -> int:
         _fence("````\n~~~~"), "`````text\n````\n~~~~\n`````", "混合围栏取最长")
     checked += _expect_value(_fence(""), "```text\n\n```", "空正文围栏")
     checked += _expect_value(_fence("a\nb"), "```text\na\nb\n```", "围栏保留换行")
+    checked += _label_checks()
+    return checked
+
+
+def _label_checks() -> int:
+    # 标签降级：已知取值写固定文案，未知字符串与非字符串一律「状态不明」。
+    checked = 0
+    for value, expected in (("completed", "已完成"), ("interrupted", "已中断"),
+                            ("blocked", "已阻断"), ("error", "出错"),
+                            ("running", "进行中（导出时尚未结束）")):
+        checked += _expect_value(_turn_status_label(value), expected, f"回合状态 {value}")
+    for value in ("mystery", None, 42):
+        checked += _expect_value(_turn_status_label(value), "状态不明", f"未知回合状态 {value!r}")
+    checked += _expect_value(_approval_label(None), "等待审批", "审批等待")
+    for value, expected in (("approve", "用户批准"), ("deny", "用户拒绝"),
+                            ("expired", "审批已失效")):
+        checked += _expect_value(_approval_label(value), expected, f"审批结论 {value}")
+    for value in ("unknown", 0, ["approve"]):
+        checked += _expect_value(_approval_label(value), "状态不明", f"未知审批结论 {value!r}")
+    # 用量行：缺省与零请求同一句式；已上报、未上报与无可验证分支按固定顺序拼接。
+    checked += _expect_value(_usage_line(None), "无模型请求记录", "用量缺省")
+    empty = {"requests": 0, "verifiedRequests": 0, "promptTokens": 0, "outputTokens": 0,
+             "unverifiedRequests": 0, "unverifiedReasons": {}}
+    checked += _expect_value(_usage_line(empty), "无模型请求记录", "零请求用量")
+    verified = {"requests": 2, "verifiedRequests": 1, "promptTokens": 1500,
+                "outputTokens": 200, "unverifiedRequests": 0, "unverifiedReasons": {}}
+    checked += _expect_value(_usage_line(verified),
+                             "模型请求 2 次；输入 1,500 / 输出 200 token", "已验证用量行")
+    unreported = {"requests": 3, "verifiedRequests": 1, "promptTokens": 10, "outputTokens": 5,
+                  "unverifiedRequests": 2, "unreportedRequests": 2, "unverifiedReasons": {}}
+    checked += _expect_value(
+        _usage_line(unreported),
+        "模型请求 3 次；输入 10 / 输出 5 token；provider 未上报用量 2 次（不按 0 计）",
+        "未上报用量行")
+    unverified = {"requests": 1, "verifiedRequests": 0, "promptTokens": 0, "outputTokens": 0,
+                  "unverifiedRequests": 0, "unverifiedReasons": {}}
+    checked += _expect_value(_usage_line(unverified),
+                             "模型请求 1 次；无可验证的 provider 用量", "无可验证用量行")
+    # 默认文件名：只含固定前缀、会话 id、视图与扩展名。
+    checked += _expect_value(_suggested_file_name("abc", "full", "md"),
+                             "boss-harness-session-abc-full.md", "导出文件名")
+    checked += _expect_value(_suggested_file_name("id-9", "branch", "html"),
+                             "boss-harness-session-id-9-branch.html", "分支导出文件名")
+    # 自动压缩事实：开关、阈值、保留量合成一行，线路与 effort 单独一行。
+    for policy, expected in (
+        ({}, []),
+        ({"enabled": True}, ["自动压缩：开启"]),
+        ({"enabled": False, "triggerPercent": 80, "keepRecentTokens": 1000},
+         ["自动压缩：关闭 · 阈值 80% · 保留最近 1000 token"]),
+        ({"provider": "anthropic", "model": "claude", "effort": "high"},
+         ["摘要线路：anthropic / claude · high"]),
+        ({"model": "m"}, ["摘要线路：— / m"]),
+        ({"enabled": True, "provider": "openai"},
+         ["自动压缩：开启", "摘要线路：openai / —"]),
+    ):
+        checked += _expect_value(_compaction_facts(policy), expected, f"压缩事实 {policy}")
     return checked
 
 
@@ -160,6 +244,7 @@ def check_export_markdown() -> int:
     export = _read(EXPORT)
     checked = 0
     checked += _expect(EXPORT_FRAGMENTS, export, EXPORT)
+    checked += _expect(LABEL_FRAGMENTS, export, EXPORT)
     # 辅助函数：先归一代码文本，再为正文转义行内定界符，最后按最长反引号计算围栏长度。
     checked += _ordered(
         (
@@ -241,7 +326,7 @@ def main() -> int:
     except ValueError as error:
         print(f"导出 Markdown 定界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"导出 Markdown 定界一致：{checked} 项中和入口、围栏算法、队列事实与纯函数行为")
+    print(f"导出 Markdown 定界一致：{checked} 项中和入口、围栏算法、队列事实、导出标签与纯函数行为")
     return 0
 
 
