@@ -1,3 +1,8 @@
+## 0.2.0-rc.599 - 2026-11-23
+
+- 新增 `scripts/check_event_hub.py`（72 项），覆盖此前没有脚本引用的 `EventHub` 事件出口：静态固定 `_emit_locked` 的持久化 → live 投影 → publish → observe 顺序、增量键与 `item/completed` 清除、只吞 `ConnectionError` / `BrokenPipeError`，`publish_persisted` 只重播不追加，`items` 仅叠加运行中条目，`emit_until` 的截止判断与锁释放。假 server、假 hooks 与临时 `SessionStore` 行为对照（23 项）覆盖游标递增、文本 / 思考增量归并、运行条目叠加、发布字段、观察顺序、`publish` / `observe` 开关、完成事件清除与持久投影、重播不追加、连接错误吞掉与运行时错误传播、过期与有效截止。事件顺序或开关若漂移，客户端会收到乱序 / 重复事件，或观察者断开时打断回合。隔离变异探针结构与行为均检出 11/11、9/9。脚本注册进构建作业与技术参考。[Issue #3323](https://github.com/can4hou6joeng4/boss-harness/issues/3323)
+- 源码候选更新为 npm `0.2.0-rc.599` 和 Python `0.2.0rc599`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.598 - 2026-11-23
 
 - 上下文编辑检查从 135 项扩展到 159 项，新增 `ContextService.active_summary_job_id` 覆盖：静态固定读取、`_validated_checkpoint` 校验、`ValueError` 回退、空检查点回退与 `bounded_identifier` 返回，反向断言校验与有界标识各一处且不得直接索引未校验标识。临时会话行为对照（13 项）覆盖：无检查点与最新检查点缺省标识返回 `None`，有效检查点返回任务标识，固定条目快照在后续检查点变化后保持原结果；空串、129 字符与非字符串标识返回 `None`，128 字符原样返回；损坏来源摘要、空摘要、未知会话与非法会话 id 返回 `None`。任务标记若绕过校验或不再限制长度，只读用量报告会把失效摘要标成生效中任务，或把超长标识送进客户端。隔离变异探针结构与行为均检出 6/6、7/7。[Issue #3321](https://github.com/can4hou6joeng4/boss-harness/issues/3321)
