@@ -1,3 +1,8 @@
+## 0.2.0-rc.719 - 2026-11-24
+
+- 新增 `scripts/check_delete_cleanup_summary.py`（8 项结构、11 项行为），为删除会话前的本机内容清单补上回归保护：空白正文不计数，附件 / 技能 / 读取中按真实数量拼接，类别顺序固定，消息反馈只统计当前会话且无效键跳过。真实 `uiStorage.ts` 与 `messageFeedback.ts` 复制到临时目录并改写相对导入后，由 Node 直接加载真实 `deleteCleanup.ts` 执行 11 个用例。[Issue #3563](https://github.com/can4hou6joeng4/boss-harness/issues/3563)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 280 → 281。源码候选更新为 npm `0.2.0-rc.719` 和 Python `0.2.0rc719`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.718 - 2026-11-24
 
 - 新增 `scripts/check_confirmation_failure.py`（6 项结构、11 项行为），为「主操作回执未知 + 重新核对也失败」的组合说明补上回归保护：主因在前、核对失败在后，两条原因都保留，RPC 码追加，非字符串错误与缺失错误回退为通用描述，后续建议与标签空白原样保留。脚本核对真实 `harnessBridge.ts` 导出，桥接依赖以固定桩替代后由 Node 直接加载真实 `confirmationFailure.ts` 执行 11 个用例。[Issue #3561](https://github.com/can4hou6joeng4/boss-harness/issues/3561)
