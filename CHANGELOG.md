@@ -1,3 +1,8 @@
+## 0.2.0-rc.678 - 2026-11-23
+
+- 新增 `scripts/check_reasoning_control.py`（24 项结构、25 项行为），为推理设置补上回归保护：断连与无会话时的可见提示、操作目标回传、`thread/reasoning/read` 的会话归属、可空档位与布尔字段类型、档位数组元素校验、输出字段白名单。Node 直接加载真实 `reasoningControl.ts` 执行 25 个用例（操作目标 6、回执校验 19）。[Issue #3481](https://github.com/can4hou6joeng4/boss-harness/issues/3481)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 239 → 240。源码候选更新为 npm `0.2.0-rc.678` 和 Python `0.2.0rc678`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.677 - 2026-11-23
 
 - 新增 `scripts/check_queue_action.py`（37 项结构、26 项行为），为队列撤回与重新排队的本地收敛补上回归保护：部分完成提示、RPC 拒绝与未确认结果区分、本地列表去重与旧项保留、总数只随新增记录增加、活动计数与分类对账、截断投影增量。Node 在临时目录改写错误文案导入并复用真实 `queueMapping.ts` 后加载真实 `queueAction.ts` 执行 26 个用例（提示 8、拒绝分类 6、本地列表 5、计数投影 7）。[Issue #3479](https://github.com/can4hou6joeng4/boss-harness/issues/3479)
