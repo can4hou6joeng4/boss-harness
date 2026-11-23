@@ -751,7 +751,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_entries_snapshot.py`
 
-`scripts/check_entries_snapshot.py` 核对会话条目快照：`open_entries_snapshot` 在写锁内确认会话存在、以二进制打开日志、`fstat` 后把可读前缀裁到最后一条完整记录（`_complete_record_limit`），任何异常都先关闭文件；`SessionEntriesSnapshot` 保存 source / size / mtime / inode 与行号，`stamp` 按 size / mtime / inode 顺序返回前缀身份；进入与迭代都拒绝已关闭快照；每次迭代回到开头、行号复位、按 `MAX_SESSION_LINE_BYTES` 与钉住的前缀字节上限逐行读取、跳过空行并解码。反向断言：前缀必须来自 `_complete_record_limit`；关闭错误出现两次；`stamp` 必须携带三项。检查同时做行为对照（75 项）：用 `io.BytesIO` 直接实例化 `SessionEntriesSnapshot`，覆盖空前缀、仅会话头、空行跳过计入行号、CRLF、前缀字节上限、重入迭代、`stamp`、关闭后进入 / 迭代拒绝、上下文管理器退出即关闭、格式无效 / 重复会话头 / 坏 JSON / 非 UTF-8 错误；并用真实临时日志与轻量替身直接调用 `SessionStore.open_entries_snapshot`，覆盖完整记录、末尾残段裁剪、空文件、纯残段、超长无边界拒绝、取长度失败时关闭文件、打开失败直接报错，以及写锁内先核对会话再打开的顺序。
+`scripts/check_entries_snapshot.py` 核对会话条目快照：`open_entries_snapshot` 在写锁内确认会话存在、以二进制打开日志、`fstat` 后把可读前缀裁到最后一条完整记录（`_complete_record_limit`），任何异常都先关闭文件；`SessionEntriesSnapshot` 保存 source / size / mtime / inode 与行号，`stamp` 按 size / mtime / inode 顺序返回前缀身份；进入与迭代都拒绝已关闭快照；每次迭代回到开头、行号复位、按 `MAX_SESSION_LINE_BYTES` 与钉住的前缀字节上限逐行读取、跳过空行并解码。反向断言：前缀必须来自 `_complete_record_limit`；关闭错误出现两次；`stamp` 必须携带三项。检查同时做行为对照（115 项）：用 `io.BytesIO` 直接实例化 `SessionEntriesSnapshot`，覆盖空前缀、仅会话头、空行跳过计入行号、CRLF、前缀字节上限、重入迭代、`stamp`、关闭后进入 / 迭代拒绝、上下文管理器退出即关闭、格式无效 / 重复会话头 / 坏 JSON / 非 UTF-8 错误；并用真实临时日志与轻量替身直接调用 `SessionStore.open_entries_snapshot`，覆盖完整记录、末尾残段裁剪、空文件、纯残段、超长无边界拒绝、取长度失败时关闭文件、打开失败直接报错，以及写锁内先核对会话再打开的顺序。冻结快照读取源另作固定与对照：`snapshot_projection` 的删除意图、索引同源、最多 50 回合、逐回合 UTF-8 字节累计与截断标注、损坏重建，行为覆盖默认投影、`include_turns=False`、极小预算截断、51 回合只投影 50、损坏投影重建、删除意图 / 未知会话 / 源文件变化拒绝；`open_snapshot_source` 的事件检查点同源、事件游标、完整记录前缀与失败关闭，行为覆盖游标从 `0` 递增到 `1`、末尾半写记录只读到完整边界、损坏检查点与未知会话拒绝。
 
 ### `check_compaction.py`
 

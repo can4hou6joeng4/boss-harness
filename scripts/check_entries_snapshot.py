@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""核对会话条目快照的生命周期与读取边界。
+"""核对会话条目快照的生命周期、读取边界与冻结快照读取源。
 
 `open_entries_snapshot` 在写锁内打开日志、用 `_complete_record_limit` 把可读前缀
 钉在最后一条完整记录上，再交出 `SessionEntriesSnapshot`；打不开或取长度失败时必须
 关闭文件。快照对象可重入读取：每次迭代回到开头、行号从零计数、按钉住的前缀字节
 上限逐行读取、跳过空行、解码失败由解码器报错；已关闭的快照在进入与迭代时都拒绝。
-这里固定这些规则，避免重构后读到半写记录、重复读取从中间继续或泄漏文件描述符，并直接实例化快照、打开真实临时日志核对运行行为。
+冻结快照还依赖 `snapshot_projection`（删除意图、索引同源、最多 50 回合、逐回合
+UTF-8 字节预算与截断）与 `open_snapshot_source`（事件检查点同源、事件游标、完整
+记录前缀）；这里固定这些规则，避免重构后读到半写记录、重复读取从中间继续或泄漏
+文件描述符，并直接实例化快照、打开真实临时日志核对运行行为。
 """
 
 from __future__ import annotations
@@ -69,6 +72,39 @@ CLASS_ORDER = (
     "continue",
     "data = _decode_session_record(raw_line, line_number=line_number)",
     "yield data",
+)
+# 快照投影：删除意图 → 索引读取与同源校验 → 可跳过回合 → 上限 50 → 逐回合字节
+# 预算与截断 → 损坏重建。
+PROJECTION_ORDER = (
+    "def snapshot_projection(self, thread_id: str, *, include_turns: bool = True,",
+    "if self._delete_intent_path(thread_id).exists():",
+    'raise ValueError("会话正在删除，暂不可读取")',
+    '"SELECT id,metadata_json,indexed_size,indexed_mtime_ns FROM threads WHERE id=?"',
+    'raise ValueError("会话不存在")',
+    'raise ValueError("会话索引与日志不同步，请重试冻结快照")',
+    'if not include_turns:\n                        return metadata, turns, False',
+    'WHERE thread_id=? ORDER BY first_ordinal,turn_id LIMIT 50"',
+    'turn_bytes += len(raw.encode("utf-8"))',
+    "if turn_bytes > max_turn_bytes:\n                            return metadata, turns, True",
+    "\n                return metadata, turns, False",
+    "return self._with_repaired_index(read)",
+)
+# 快照源：写锁 → 会话存在 → 事件检查点与日志同源 → 事件游标 → 二进制打开 →
+# 完整记录前缀 → 读回起点；失败时关闭文件。
+SNAPSHOT_SOURCE_ORDER = (
+    "def open_snapshot_source(self, thread_id: str) -> tuple[io.BufferedReader, int, str]:",
+    "with self._lock:",
+    "self.require_thread(thread_id)",
+    "\"SELECT value FROM checkpoints WHERE name='events'\"",
+    "if self.events_path.exists():",
+    "if event_checkpoint is None or event_checkpoint[\"value\"] != fingerprint:",
+    'raise ValueError("事件索引与日志不同步，请重试冻结快照")',
+    '"SELECT COALESCE(MAX(cursor),0) FROM events"',
+    'source = self.path_for(thread_id).open("rb")',
+    "size = _complete_record_limit(source, os.fstat(source.fileno()).st_size)",
+    "source.seek(0)",
+    "return source, size, cursor",
+    "source.close()",
 )
 
 
@@ -301,6 +337,110 @@ def _open_behavior_checks() -> int:
     return checked
 
 
+def _snapshot_source_checks() -> int:
+    # 冻结快照读取源：投影的预算 / 上限 / 同源与快照源的游标 / 完整记录边界。
+    checked = 0
+    with tempfile.TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        try:
+            thread_id = store.create("快照投影")["id"]
+            store.record_turn(thread_id, "turn-a", "completed")
+            store.record_turn(thread_id, "turn-b", "completed")
+            metadata, turns, truncated = store.snapshot_projection(thread_id)
+            checked += _expect_value(
+                (metadata.get("id"), metadata.get("title"),
+                 [turn.get("turnId") for turn in turns], truncated),
+                (thread_id, "快照投影", ["turn-a", "turn-b"], False), "投影缺省")
+            checked += _expect_value(
+                store.snapshot_projection(thread_id, include_turns=False)[1:],
+                ([], False), "跳过回合")
+            checked += _expect_value(
+                store.snapshot_projection(thread_id, max_turn_bytes=10)[1:],
+                ([], True), "预算截断")
+            # 损坏的回合投影按会话重建后返回。
+            with store._index.transaction() as connection:
+                connection.execute(
+                    "UPDATE turns SET metadata_json='not-json'"
+                    " WHERE thread_id=? AND turn_id='turn-a'", (thread_id,))
+            repaired = store.snapshot_projection(thread_id)[1]
+            checked += _expect_value(
+                [turn.get("turnId") for turn in repaired], ["turn-a", "turn-b"], "损坏重建")
+            intent = store._delete_intent_path(thread_id)
+            intent.write_text("deleting", encoding="utf-8")
+            checked += _expect_error(
+                lambda: store.snapshot_projection(thread_id),
+                "会话正在删除，暂不可读取", "删除意图")
+            intent.unlink()
+            checked += _expect_error(
+                lambda: store.snapshot_projection("000000000000"),
+                "会话不存在", "未知会话")
+            # 源文件大小变化使索引不同步。
+            with store.path_for(thread_id).open("ab") as handle:
+                handle.write(b"{}\n")
+            checked += _expect_error(
+                lambda: store.snapshot_projection(thread_id),
+                "会话索引与日志不同步，请重试冻结快照", "索引不同步")
+        finally:
+            store.close()
+    # 50 回合上限单独用新会话，避免上面的损坏与追加影响。
+    with tempfile.TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        try:
+            thread_id = store.create("回合上限")["id"]
+            for index in range(51):
+                store.record_turn(thread_id, f"turn-{index:02d}", "completed")
+            projection = store.snapshot_projection(thread_id)
+            checked += _expect_value(
+                ([turn.get("turnId") for turn in projection[1]][:2],
+                 len(projection[1]), projection[2]),
+                (["turn-00", "turn-01"], 50, False), "回合上限")
+        finally:
+            store.close()
+    # 快照源：完整记录前缀、事件游标递增、残段边界、损坏检查点与未知会话。
+    with tempfile.TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        try:
+            thread_id = store.create("快照源")["id"]
+            store.record_turn(thread_id, "turn-a", "completed")
+            path = store.path_for(thread_id)
+            expected = path.read_bytes()
+            source, size, cursor = store.open_snapshot_source(thread_id)
+            try:
+                data = source.read()
+            finally:
+                source.close()
+            checked += _expect_value(
+                (size, len(data), data == expected, cursor),
+                (len(expected), len(expected), True, "0"), "快照源")
+            store.append_event("probe/event", {"x": 1})
+            source, size, cursor = store.open_snapshot_source(thread_id)
+            source.close()
+            checked += _expect_value(cursor, "1", "事件游标")
+            # 末尾半写记录只固定到最后一个完整换行。
+            with path.open("ab") as handle:
+                handle.write(b'{"partial"')
+            source, size, cursor = store.open_snapshot_source(thread_id)
+            try:
+                clipped = source.read()
+            finally:
+                source.close()
+            checked += _expect_value(
+                (size, clipped[:size] == expected, size <= path.stat().st_size),
+                (len(expected), True, True), "残段边界")
+            with store._index.transaction() as connection:
+                connection.execute(
+                    "UPDATE checkpoints SET value='999' WHERE name='events'")
+            checked += _expect_error(
+                lambda: store.open_snapshot_source(thread_id),
+                "事件索引与日志不同步，请重试冻结快照", "检查点不同步")
+            checked += _expect_error(
+                lambda: store.open_snapshot_source("000000000000"),
+                "会话不存在", "未知会话源")
+        finally:
+            store.close()
+    return checked
+
+
 def check_entries_snapshot() -> int:
     source = _read(SESSION)
     start = source.index("def open_entries_snapshot(")
@@ -309,8 +449,27 @@ def check_entries_snapshot() -> int:
     class_start = source.index("class SessionEntriesSnapshot:")
     class_end = source.find("\n\ndef ", class_start + 1)
     snapshot = source[class_start:] if class_end < 0 else source[class_start:class_end]
+    projection_start = source.index("def snapshot_projection(")
+    projection_end = source.find("\n    def ", projection_start + 1)
+    projection = (source[projection_start:] if projection_end < 0
+                  else source[projection_start:projection_end])
+    source_start = source.index("def open_snapshot_source(")
+    source_end = source.find("\n    def ", source_start + 1)
+    snapshot_source = (source[source_start:] if source_end < 0
+                       else source[source_start:source_end])
     checked = _ordered(OPEN_ORDER, opener, SESSION)
     checked += _ordered(CLASS_ORDER, snapshot, SESSION)
+    checked += _ordered(PROJECTION_ORDER, projection, SESSION)
+    checked += _ordered(SNAPSHOT_SOURCE_ORDER, snapshot_source, SESSION)
+    # 投影回合上限必须唯一，损坏投影必须交给单会话重建重试。
+    if projection.count('LIMIT 50"') != 1 or projection.count("_with_repaired_index(read)") != 1:
+        raise ValueError(f"{SESSION} 的快照投影必须固定 50 回合上限并重建重试")
+    checked += 1
+    # 快照源失败路径必须在 BaseException 上关闭已打开文件。
+    if (snapshot_source.count("except BaseException:") != 1
+            or snapshot_source.count("source.close()") != 1):
+        raise ValueError(f"{SESSION} 的快照源失败路径必须关闭文件")
+    checked += 1
     # 可读前缀必须钉在最后一条完整记录上，不能直接使用文件大小。
     if "stat_result.st_size)" not in opener or "size = stat_result.st_size" in opener:
         raise ValueError(f"{SESSION} 的快照前缀必须裁到完整记录")
@@ -327,7 +486,8 @@ def check_entries_snapshot() -> int:
     if "return self._size, self.mtime_ns, self.inode" not in snapshot:
         raise ValueError(f"{SESSION} 的快照 stamp 必须携带 size / mtime / inode")
     checked += 1
-    return checked + _snapshot_behavior_checks() + _open_behavior_checks()
+    return (checked + _snapshot_behavior_checks() + _open_behavior_checks()
+            + _snapshot_source_checks())
 
 
 def main() -> int:
@@ -336,7 +496,7 @@ def main() -> int:
     except ValueError as error:
         print(f"条目快照核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"条目快照一致：{checked} 项前缀、生命周期与重入读取校验")
+    print(f"条目快照一致：{checked} 项前缀、生命周期、冻结读取源与重入读取校验")
     return 0
 
 
