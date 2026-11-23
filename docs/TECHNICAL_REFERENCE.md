@@ -81,7 +81,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_versions.py`
 
-`scripts/check_versions.py` 核对版本一致性：npm 根包 / 工作区 / 锁文件、Python 包版本、`CHANGELOG.md` 首条、全部版本条目严格递减与日期合法非递增、使用指南版本行以及 npm 实际发现的工作区列表。同一脚本还核对许可证与包元数据：根包与全部 npm 工作区的 `license` 必须为 `MIT`，`harness/pyproject.toml` 的 `project.license` 为 `MIT` 且 `license-files` 恰为 `["LICENSE"]`，`LICENSE` 以 `MIT License` 开头并包含 MIT 许可正文；根包的 description / private / repository / homepage / bugs / engines.node，全部工作区的 private 与非空 description，以及 Python 的 readme / requires-python / keywords / project.urls / boss-harness 入口 / hatchling 构建与 wheel 包路径也必须保持。`harness/pyproject.toml` 的 Python classifiers 还必须与 `.github/workflows/build.yml` 的 Python 版本矩阵完全一致，PyPI 页面展示的支持版本不会与 CI 实际运行的版本漂移。它需要 Node.js 24+ 与 Python 3.11+；成功时向 stdout 输出 Python 版本，Source build 复用该结果生成资产清单并核对隔离安装。
+`scripts/check_versions.py` 核对版本一致性：npm 根包 / 工作区 / 锁文件、Python 包版本、`CHANGELOG.md` 首条、全部版本条目严格递减与日期合法非递增、`docs/STATUS.md` 记录的最近实际预发布 tag 之后各候选条目的 Issue / PR 链接（已发布及更早条目豁免）、使用指南版本行以及 npm 实际发现的工作区列表。同一脚本还核对许可证与包元数据：根包与全部 npm 工作区的 `license` 必须为 `MIT`，`harness/pyproject.toml` 的 `project.license` 为 `MIT` 且 `license-files` 恰为 `["LICENSE"]`，`LICENSE` 以 `MIT License` 开头并包含 MIT 许可正文；根包的 description / private / repository / homepage / bugs / engines.node，全部工作区的 private 与非空 description，以及 Python 的 readme / requires-python / keywords / project.urls / boss-harness 入口 / hatchling 构建与 wheel 包路径也必须保持。`harness/pyproject.toml` 的 Python classifiers 还必须与 `.github/workflows/build.yml` 的 Python 版本矩阵完全一致，PyPI 页面展示的支持版本不会与 CI 实际运行的版本漂移。它需要 Node.js 24+ 与 Python 3.11+；成功时向 stdout 输出 Python 版本，Source build 复用该结果生成资产清单并核对隔离安装。
 
 ### `check_release_assets.py`
 

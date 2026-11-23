@@ -1,3 +1,8 @@
+## 0.2.0-rc.637 - 2026-11-23
+
+- 扩展 `scripts/check_versions.py`：从 `docs/STATUS.md` 读取最近实际预发布的 tag，要求 `CHANGELOG.md` 中版本高于该 tag 的每个条目都含本仓库 Issue 或 PR 链接，缺失时列出具体版本号；已发布及更早条目豁免，候选变更的 Issue-first 追溯不再只靠人工遵守。[Issue #3399](https://github.com/can4hou6joeng4/boss-harness/issues/3399)
+- 隔离变异探针覆盖最新 / 较早候选条目缺链、状态页缺 tag、边界条目豁免与措辞调整；技术参考同步。源码候选更新为 npm `0.2.0-rc.637` 和 Python `0.2.0rc637`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.636 - 2026-11-23
 
 - 扩展 `scripts/check_readme_stability.py`（22 项结构、9 项行为）：首页除中文稳定事实外，还必须保留 `## English overview` 章节，且章节内保留 shell 不 import 内核代码、`main` 是开发分支且源码候选不是发布、桌面从源码构建且没有独立安装包、14 个 allowlist 工具中 13 个只读加一个逐次审批动作四条英文稳定表述。中英文对发布状态与安全边界的描述不再可能单侧漂移。[Issue #3397](https://github.com/can4hou6joeng4/boss-harness/issues/3397)
