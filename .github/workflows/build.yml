@@ -533,5 +533,7 @@ jobs:
         run: python scripts/check_application_compaction.py
       - name: Verify application edit
         run: python scripts/check_application_edit.py
+      - name: Verify application leaf
+        run: python scripts/check_application_leaf.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts

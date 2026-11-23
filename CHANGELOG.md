@@ -1,3 +1,8 @@
+## 0.2.0-rc.622 - 2026-11-23
+
+- 新增 `scripts/check_application_leaf.py`（39 项结构、29 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`（`provider=none`），覆盖分支指针入口：`thread/leaf/read` 的参数与未知线程拒绝及六项投影；`thread/leaf/set` 的参数集合、`turnId` 与 `summarize` 类型、未知线程、未知回合、未结束回合与归档会话（-32004）拒绝；移到已结束回合的 `changed=true` 投影与 `thread/leafChanged` 广播载荷、幂等移动不发事件、`summarize=true` 预检失败返回 -32013 且指针保持不动、回到起点的投影与广播。分支指针若在拒绝条件下移动或在幂等重复时广播，桌面会显示错误的分支位置或触发多余重载。[Issue #3369](https://github.com/can4hou6joeng4/boss-harness/issues/3369)
+- 源码候选更新为 npm `0.2.0-rc.622` 和 Python `0.2.0rc622`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.621 - 2026-11-23
 
 - 新增 `scripts/check_application_edit.py`（32 项结构、23 项行为），在临时工作区与状态目录中真实构造 `ApplicationService` 与 `userMessage` 条目，覆盖上下文编辑入口：`context/edit/read` 的参数 / 未知线程 / 未知条目拒绝与八项投影、归档 `canEdit=false`；`context/edit` 的参数集合与 `replacementText` 类型 / `sourceDigest` 格式校验、成功替换后的摘要变化与回读一致、旧摘要重放的乐观并发拒绝、`null` 恢复原文的排除投影与 `context/edited` 广播。编辑入口若放宽摘要比对或恢复语义，会基于过期视图覆写消息或把「恢复原文」变成空文本。[Issue #3367](https://github.com/can4hou6joeng4/boss-harness/issues/3367)
