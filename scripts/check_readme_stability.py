@@ -3,10 +3,11 @@
 
 `CONTRIBUTING.md` 约定 README 只检查定位、启动方式、发布状态、许可证与安装范围是否准确，
 近期进展与版本更新说明留在 CHANGELOG；版本候选频繁推进时，首页很容易被追加候选号、
-逐版本变化或「更新日志」小节。这里扫描 README：禁止 `rc.N` / `0.2.0-rc` 候选号、
-版本号或更新说明类标题、本机绝对路径；要求保留 CHANGELOG / 项目状态 / 发布约定 /
-许可证 / 安全 / 支持 / 贡献 / 安装 / 用户与桌面指南等稳定链接，以及「`main` 是开发分支」
-「桌面从源码构建」「MIT License」与 Releases 链接。行为侧用合成 Markdown 核对每条规则。
+逐版本变化或「更新日志」小节。这里扫描 README：禁止 `rc.N` / `X.Y.Z-rc` /
+Python 包写法 `X.Y.ZrcN` 候选号、版本号或更新说明类标题、本机绝对路径；要求保留
+CHANGELOG / 项目状态 / 发布约定 / 许可证 / 安全 / 支持 / 贡献 / 安装 / 用户与桌面指南
+等稳定链接，以及「`main` 是开发分支」「桌面从源码构建」「MIT License」与 Releases 链接。
+行为侧用合成 Markdown 核对每条规则。
 """
 
 from __future__ import annotations
@@ -18,7 +19,8 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 README = "README.md"
 TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
-RC_PATTERN = re.compile(r"\brc\.\d+\b|0\.2\.0-rc", re.IGNORECASE)
+RC_PATTERN = re.compile(
+    r"\brc\.\d+\b|\d+\.\d+\.\d+-rc|\d+\.\d+\.\d+rc\d+", re.IGNORECASE)
 HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)[ \t]*$", re.MULTILINE)
 VERSION_HEADING = re.compile(
     r"\d+\.\d+\.\d+|rc\.\d+|更新日志|更新说明|版本更新|近期进展|发布说明|What's new|Release notes",
@@ -111,6 +113,8 @@ def _check_behaviors() -> int:
     checked = 0
     checked += _expect_count(_clean_sample(), 0, "干净首页")
     checked += _expect_count(_clean_sample() + "\n当前候选 0.2.0-rc.9。\n", 1, "候选版本号")
+    checked += _expect_count(_clean_sample() + "\n当前候选 1.4.2-rc.7。\n", 1, "任意候选版本号")
+    checked += _expect_count(_clean_sample() + "\n当前候选 0.2.0rc9。\n", 1, "Python 候选版本号")
     checked += _expect_count(_clean_sample() + "\n## 更新日志\n", 1, "更新日志标题")
     checked += _expect_count(_clean_sample() + "\n## 0.2.0\n", 1, "版本标题")
     checked += _expect_count(_clean_sample() + "\n路径 /Users/example/project。\n", 1, "本机路径")

@@ -1,3 +1,8 @@
+## 0.2.0-rc.638 - 2026-11-23
+
+- 扩展 `scripts/check_readme_stability.py`（22 项结构、11 项行为）：首页候选号规则不再只认 `rc.N` 与固定的 `0.2.0-rc` 前缀，任意 `X.Y.Z-rc` 与 Python 包写法 `X.Y.ZrcN`（如 `0.2.0rc638`）都会被检出；纯 `X.Y.Z` 协议版本不受影响。此前 Python 候选写法可以绕过首页「只写稳定事实」的约定。[Issue #3401](https://github.com/can4hou6joeng4/boss-harness/issues/3401)
+- 隔离变异探针覆盖两种候选写法、任意版本前缀与纯三段版本负例；技术参考同步。源码候选更新为 npm `0.2.0-rc.638` 和 Python `0.2.0rc638`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.637 - 2026-11-23
 
 - 扩展 `scripts/check_versions.py`：从 `docs/STATUS.md` 读取最近实际预发布的 tag，要求 `CHANGELOG.md` 中版本高于该 tag 的每个条目都含本仓库 Issue 或 PR 链接，缺失时列出具体版本号；已发布及更早条目豁免，候选变更的 Issue-first 追溯不再只靠人工遵守。[Issue #3399](https://github.com/can4hou6joeng4/boss-harness/issues/3399)
