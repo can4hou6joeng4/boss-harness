@@ -1,3 +1,8 @@
+## 0.2.0-rc.686 - 2026-11-23
+
+- 新增 `scripts/check_skill_chips.py`（28 项结构、22 项行为），为输入区技能标签补上回归保护：id 原样保留、重复与空 id 去重、最多 10 项、目录未命中仅在已确认时标失效、名称与描述折叠空白并安全截断。Node 加载真实 `skillChips.ts` 与真实 `safeSlice` 执行 22 个用例。[Issue #3497](https://github.com/can4hou6joeng4/boss-harness/issues/3497)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 247 → 248。源码候选更新为 npm `0.2.0-rc.686` 和 Python `0.2.0rc686`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.685 - 2026-11-23
 
 - 新增 `scripts/check_skill_editor_close.py`（9 项结构、8 项行为），为技能编辑器关闭请求补上回归保护：进行中一律忽略，空闲且有未保存内容时先确认，确认后或干净状态直接关闭；Node 直接加载真实 `skillEditorClose.ts` 覆盖三枚布尔输入的全部 8 种组合。[Issue #3495](https://github.com/can4hou6joeng4/boss-harness/issues/3495)
