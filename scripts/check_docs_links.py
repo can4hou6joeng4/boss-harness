@@ -17,6 +17,7 @@ SOURCES = (
     "harness/README.md", ".github/PULL_REQUEST_TEMPLATE.md",
 )
 INDEX = "docs/README.md"
+INDEX_DOCUMENTS = ("harness/README.md",)
 ROOT_DOCUMENTS = ("SETUP.md",)
 REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 SCRIPT_HEADING = re.compile(r"^### `(check_[A-Za-z0-9_]+\.py)`[ \t]*$", re.MULTILINE)
@@ -72,6 +73,13 @@ def _links_from(text: str, name: str) -> list[str]:
     return LINK.findall(text) + DEFINITION.findall(text)
 
 
+def _read(relative: str) -> str:
+    try:
+        return (ROOT / relative).read_text(encoding="utf-8")
+    except OSError:
+        raise ValueError(f"无法读取 {relative}") from None
+
+
 def _links(path: Path) -> list[str]:
     try:
         text = path.read_text(encoding="utf-8")
@@ -124,7 +132,7 @@ def _headings(path: Path) -> set[str]:
 def _check_index() -> int:
     path = ROOT / INDEX
     linked = set()
-    for raw in _links(path):
+    for raw in _links_from(_read(INDEX), INDEX):
         if raw.startswith(EXTERNAL):
             continue
         target = unquote(raw.split("#", 1)[0])
@@ -133,6 +141,8 @@ def _check_index() -> int:
     documents = sorted((ROOT / "docs").glob("*.md"))
     missing = [document.name for document in documents
                if document.name != "README.md" and document.resolve() not in linked]
+    missing.extend(relative for relative in INDEX_DOCUMENTS
+                   if (ROOT / relative).resolve() not in linked)
     if missing:
         raise ValueError(f"{INDEX} 未索引：" + "、".join(missing))
     return len(documents) - 1
@@ -143,10 +153,7 @@ def _check_root_navigation() -> int:
     missing = []
     for page in ("README.md", INDEX):
         path = ROOT / page
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            raise ValueError(f"无法读取 {page}") from None
+        text = _read(page)
         scope = _section(text, "## 项目导航", page) if page == "README.md" else text
         linked = set()
         for raw in _links_from(scope, page):

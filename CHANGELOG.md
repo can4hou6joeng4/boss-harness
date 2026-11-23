@@ -1,3 +1,8 @@
+## 0.2.0-rc.633 - 2026-11-23
+
+- `docs/README.md` 补充内核包说明入口 `harness/README.md`；`scripts/check_docs_links.py` 的索引规则从 `docs/*.md` 扩展到 `harness/README.md`（内核包说明，wheel 元数据正文），缺失时失败并点名具体文件。此前内核包说明在仓库内不可达，只能靠全文搜索发现；索引入口被删也不会有检查失败。[Issue #3391](https://github.com/can4hou6joeng4/boss-harness/issues/3391)
+- 源码候选更新为 npm `0.2.0-rc.633` 和 Python `0.2.0rc633`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.632 - 2026-11-23
 
 - 新增 `scripts/check_issue_forms.py`（20 项结构、16 项行为），锁定 `.github` 公开入口：两张 Issue 表单的控件类型、`id` / `attributes` 与必填校验，`config.yml` 的 `blank_issues_enabled` 与 `contact_links`（指向本仓库 `blob/main/<path>` 的链接必须能在本地找到对应文件），以及 PR 模板的 `Closes #` 与 `type(scope): 中文描述` 提示。文档改名导致联系入口腐烂或表单被改坏时，`npm run check` 与 CI 会直接失败。[Issue #3389](https://github.com/can4hou6joeng4/boss-harness/issues/3389)
