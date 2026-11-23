@@ -1,3 +1,8 @@
+## 0.2.0-rc.700 - 2026-11-24
+
+- 新增 `scripts/check_about_info.py`（18 项结构、17 项行为），为关于页补上回归保护：空值与非字符串回退、平台名称映射、固定条目顺序与内核连接状态、诊断文本拼接。Node 直接加载真实 `aboutInfo.ts` 执行 17 个用例。[Issue #3525](https://github.com/can4hou6joeng4/boss-harness/issues/3525)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 261 → 262。源码候选更新为 npm `0.2.0-rc.700` 和 Python `0.2.0rc700`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.699 - 2026-11-24
 
 - 新增 `scripts/check_context_edit.py`（26 项结构、27 项行为），为上下文编辑回执补上回归保护：身份匹配与长度、来源摘要格式、正文上限、布尔标记、原因归一化与安全截断。在临时目录加载真实 `contextEdit.ts` 执行 27 个用例。[Issue #3523](https://github.com/can4hou6joeng4/boss-harness/issues/3523)
