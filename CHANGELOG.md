@@ -1,3 +1,8 @@
+## 0.2.0-rc.706 - 2026-11-24
+
+- 新增 `scripts/check_cursor_chain.py`（6 项结构、10 项行为），为分页游标环检测补上回归保护：首次登记、相邻重复、A → B → A、抛出前不写入集合、标签拼接、集合隔离与字符串游标区分。Node 直接加载真实 `cursorChain.ts` 执行 10 个用例。[Issue #3537](https://github.com/can4hou6joeng4/boss-harness/issues/3537)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 267 → 268。源码候选更新为 npm `0.2.0-rc.706` 和 Python `0.2.0rc706`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.705 - 2026-11-24
 
 - 新增 `scripts/check_compaction_draft.py`（12 项结构、9 项行为），为压缩设置草稿补上回归保护：占位值、数字转字符串与零值、默认值来源、每次重置的副本隔离。Node 直接加载真实 `compactionDraft.ts` 执行 9 个用例。[Issue #3535](https://github.com/can4hou6joeng4/boss-harness/issues/3535)
