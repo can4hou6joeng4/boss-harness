@@ -1,3 +1,8 @@
+## 0.2.0-rc.641 - 2026-11-23
+
+- 桌面渲染层全局尊重「减少动效」偏好：`tokens.css` 新增 `prefers-reduced-motion: reduce` 块，过渡令牌降为近零，动画与过渡时长、迭代次数与滚动行为一并收敛；popover / 登录侧栏 / tooltip 的局部媒体查询保持不变。近零时长而不是 `none`，`transitionend` / `animationend` 仍会触发。[Issue #3407](https://github.com/can4hou6joeng4/boss-harness/issues/3407)
+- 新增 `scripts/check_motion_preferences.py`（10 项结构、11 项行为）锁定全局块与三处局部媒体查询；工作流注册、技术参考小节与索引行同步；隔离变异探针覆盖媒体查询、四项属性、令牌降级与局部规则。源码候选更新为 npm `0.2.0-rc.641` 和 Python `0.2.0rc641`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.640 - 2026-11-23
 
 - 新增 `scripts/check_release_docs.py`（13 项结构、15 项行为），锁定发布文档的授权边界：`RELEASING.md` 必须保留「发布仍需要对应授权」、四项需单独授权的动作（annotated tag / GitHub Release / 资产上传 / npm、PyPI 注册表）、完整 40 位 head SHA 绑定、待执行口径与「工作流产物不等于 Release 资产」；`UPSTREAM.md` 必须保留 Pi 固定提交 `b4899f59…`；两个文件不得含本机绝对路径。源码 PR 授权不自动覆盖发布动作的书面边界不再可能被静默放宽。[Issue #3405](https://github.com/can4hou6joeng4/boss-harness/issues/3405)

@@ -55,3 +55,17 @@ html:not(.dark) {
   --shadow-popup: 0 8px 32px #24261f1f, 0 0 0 1px #24261f0f;
   --scrollbar-thumb: #24261f26; --scrollbar-thumb-hover: #24261f45;
 }
+/*
+ * 系统开启「减少动效」时，全局压低动画与过渡；popover / 登录侧栏 / tooltip 的局部
+ * 媒体查询继续按组件单独处理。用近零时长而不是 none，transitionend / animationend
+ * 仍会触发，依赖这些事件的逻辑不受影响。
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root { --transition-fast: 0.01s; --transition-normal: 0.01s; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
