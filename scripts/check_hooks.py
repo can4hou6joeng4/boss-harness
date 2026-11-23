@@ -24,6 +24,7 @@ from boss_harness.hooks import (  # noqa: E402
     MAX_POLICY_CONTEXT_DEPTH,
     MAX_POLICY_CONTEXT_NODES,
     HookCancellationSignal,
+    HookFailure,
     LifecycleHooks,
     _signal_mode,
     freeze_context,
@@ -183,6 +184,32 @@ CLOSE_FRAGMENTS = (
     "while (self._active or not self._event_queue.empty()) and time.monotonic() < end:",
     'self._invoke(hook, "close", None, event="kernel/shutdown", deadline=end)',
     "self._closed = True",
+)
+LIFECYCLE_STATE_FRAGMENTS = (
+    "def enabled(self) -> bool:",
+    "return bool(self._hooks)",
+    "def observes_events(self) -> bool:",
+    "return self._event_worker is not None",
+    "def closed(self) -> bool:",
+    "return self._closed",
+    "def set_error_sink(self, sink: Callable[[HookFailure], None] | None) -> None:",
+    "self._error_sink = sink",
+)
+FAILURE_FRAGMENTS = (
+    "failure = HookFailure(self._name(hook), phase, event, code, redact_secrets(message)[:1_024], timed_out)",
+    "sink = None",
+    "        with self._lock:\n            sink = self._error_sink\n        if sink is not None:",
+    "sink(failure)",
+    "except Exception:",
+)
+AS_DICT_FRAGMENTS = (
+    "def as_dict(self) -> dict[str, Any]:",
+    '"hook": self.hook,',
+    '"phase": self.phase,',
+    '"event": self.event,',
+    '"code": self.code,',
+    '"message": self.message,',
+    '"timedOut": self.timed_out,',
 )
 DOC_FRAGMENTS = (
     (TECHNICAL_REFERENCE, "队列容量为 256，拥塞会记录 `kernel/hookError`"),
@@ -466,6 +493,85 @@ def _signal_checks() -> int:
     return checked
 
 
+class _EventHook:
+    def __init__(self) -> None:
+        self.ready = threading.Event()
+        self.contexts: list[dict] = []
+
+    def on_event(self, context):
+        self.contexts.append(dict(context))
+        self.ready.set()
+
+
+def _observer_checks() -> int:
+    empty = LifecycleHooks([], timeout=1.0)
+    checked = _expect_value((empty.enabled, empty.observes_events, empty.closed),
+                            (False, False, False), "空 hooks 状态")
+    plain = _PlainHook()
+    hooks = LifecycleHooks([plain], timeout=1.0)
+    checked += _expect_value((hooks.enabled, hooks.observes_events), (True, False),
+                             "无 on_event hook 状态")
+    observer = _EventHook()
+    watching = LifecycleHooks([observer], timeout=1.0)
+    checked += _expect_value((watching.enabled, watching.observes_events, watching.closed),
+                             (True, True, False), "on_event hook 启动观察")
+    watching.observe_event("turn/started", {"threadId": "thread-1", "turnId": "turn-1",
+                                            "text": "正文", "toolName": "boss_status",
+                                            "args": {"secret": "参数"}})
+    if not observer.ready.wait(2.0):
+        raise ValueError("生命周期 hook 行为变化 事件未送达")
+    context = observer.contexts[0]
+    params = context["params"]
+    checked += _expect_value(
+        (context["phase"], context["event"], params["threadId"], params["turnId"],
+         params["toolName"]),
+        ("event", "turn/started", "thread-1", "turn-1", "boss_status"), "事件白名单投影送达")
+    checked += _expect_value(("text" in params, "args" in params), (False, False),
+                             "事件正文与参数不进入观察")
+    watching.observe_event("turn/started", None)
+    watching.close()
+    checked += _expect_value(watching.closed, True, "关闭后状态")
+    checked += _expect_value(watching.observes_events, True, "关闭保留观察标记")
+    checked += _expect_value(
+        (len(observer.contexts), dict(observer.contexts[-1]["params"])), (2, {}),
+        "空参数投影为空且关闭前排空")
+    watching.observe_event("turn/started", {"threadId": "late"})
+    checked += _expect_value(len(observer.contexts), 2, "关闭后不再送达")
+    watching.close()
+    checked += _expect_value(watching.closed, True, "重复关闭安全")
+
+    failures: list[HookFailure] = []
+    broken = _BareSignalHook()
+    failing = LifecycleHooks([broken], timeout=1.0)
+    failing.set_error_sink(failures.append)
+    decision = failing.before_tool_call({"tool": "boss_status"})
+    checked += _expect_value((decision.allow, decision.code), (False, "HOOK_ERROR"),
+                             "失败仍关闭")
+    checked += _expect_value(len(failures), 1, "错误 sink 收到失败")
+    failure = failures[0]
+    checked += _expect_value((failure.phase, failure.code, failure.timed_out),
+                             ("before_tool_call", "HOOK_ERROR", False), "失败对象字段")
+    checked += _expect_value(("BareSignalHook" in failure.hook, failure.as_dict()["timedOut"]),
+                             (True, False), "失败对象含 hook 名称与投影")
+
+    def _raising_sink(failure: HookFailure) -> None:
+        raise RuntimeError("sink 故障")
+
+    failing.set_error_sink(_raising_sink)
+    decision = failing.before_tool_call({"tool": "boss_status"})
+    checked += _expect_value((decision.allow, decision.code), (False, "HOOK_ERROR"),
+                             "sink 抛错被吞")
+    failing.set_error_sink(None)
+    failing.before_tool_call({"tool": "boss_status"})
+    checked += _expect_value(len(failures), 1, "清空 sink 后不再调用")
+    direct = HookFailure("hook.x", "before_request", "turn/started",
+                         "HOOK_TIMEOUT", "超时", timed_out=True)
+    checked += _expect_value(direct.as_dict(), {
+        "hook": "hook.x", "phase": "before_request", "event": "turn/started",
+        "code": "HOOK_TIMEOUT", "message": "超时", "timedOut": True}, "失败对象完整投影")
+    return checked
+
+
 def check_hooks() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
@@ -483,6 +589,22 @@ def check_hooks() -> int:
     checked += _expect(TRANSFORM_FRAGMENTS, module, MODULE)
     checked += _expect(AFTER_FRAGMENTS, module, MODULE)
     checked += _expect(CLOSE_FRAGMENTS, module, MODULE)
+    checked += _expect(LIFECYCLE_STATE_FRAGMENTS, module, MODULE)
+    checked += _expect(FAILURE_FRAGMENTS, module, MODULE)
+    checked += _expect(AS_DICT_FRAGMENTS, module, MODULE)
+    # 失败诊断：先脱敏截断，锁内只取 sink，锁外调用并吞掉 sink 异常。
+    failure_body = module[module.find("def _failure"):module.find("def _invoke")]
+    for fragment in ('sink = self._error_sink', "sink(failure)",
+                     "redact_secrets(message)[:1_024]"):
+        if failure_body.count(fragment) != 1:
+            raise ValueError(f"{MODULE} 的失败诊断必须各执行一次：{fragment}")
+    checked += 1
+    projection_body = module[module.find("def as_dict"):module.find("class LifecycleHooks")]
+    for field in ('"hook": self.hook', '"phase": self.phase', '"event": self.event',
+                  '"code": self.code', '"message": self.message', '"timedOut": self.timed_out'):
+        if projection_body.count(field) != 1:
+            raise ValueError(f"{MODULE} 的失败投影必须唯一包含 {field}")
+    checked += 1
     # 取消检查必须先于关闭与容量分支：取消中的回合不得启动新的策略回调。
     cancelled = module.find("if policy and cancel_event is not None and cancel_event.is_set():")
     closed = module.find("if policy and (self._closing or self._closed):")
@@ -502,11 +624,11 @@ def check_hooks() -> int:
 def main() -> int:
     try:
         checked = check_hooks()
-        scenarios = _behavior_checks() + _signal_checks()
+        scenarios = _behavior_checks() + _signal_checks() + _observer_checks()
     except (ValueError, OSError) as error:
         print(f"生命周期 hook 核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"生命周期 hook 一致：{checked} 项上限、脱敏与拒绝防护、{scenarios} 个行为场景")
+    print(f"生命周期 hook 一致：{checked} 项上限、脱敏、拒绝防护与观察送达、{scenarios} 个行为场景")
     return 0
 
 
