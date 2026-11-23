@@ -31,6 +31,13 @@ REQUIRED_LINKS = (
 )
 REQUIRED_PHRASES = ("`main` 是开发分支", "桌面从源码构建", "MIT License")
 REQUIRED_URL = "https://github.com/can4hou6joeng4/boss-harness/releases"
+ENGLISH_HEADING = "## English overview"
+ENGLISH_PHRASES = (
+    "The shell does not import kernel code.",
+    "`main` is the development branch and source candidates are not releases",
+    "The desktop is built from source and has no standalone installer yet.",
+    "14 allowlisted tools (13 read-only plus one greeting action that requires approval on every call)",
+)
 
 
 def _read(relative: str) -> str:
@@ -60,6 +67,16 @@ def _violations(text: str, label: str = "README.md") -> list[str]:
             found.append(f"{label} 缺少稳定表述 {phrase}")
     if REQUIRED_URL not in text:
         found.append(f"{label} 缺少 Releases 链接")
+    start = text.find(ENGLISH_HEADING)
+    if start < 0:
+        found.append(f"{label} 缺少英文概览章节")
+    else:
+        section = text[start + len(ENGLISH_HEADING):]
+        end = section.find("\n## ")
+        english = section if end < 0 else section[:end]
+        for phrase in ENGLISH_PHRASES:
+            if phrase not in english:
+                found.append(f"{label} 英文概览缺少稳定表述 {phrase}")
     return found
 
 
@@ -73,13 +90,16 @@ def _check_structures() -> int:
     violations = _violations(_read(README))
     if violations:
         raise ValueError("首页稳定事实变化：" + "；".join(violations))
-    return 3 + len(REQUIRED_LINKS) + len(REQUIRED_PHRASES) + 1
+    return (3 + len(REQUIRED_LINKS) + len(REQUIRED_PHRASES) + 1
+            + len(ENGLISH_PHRASES) + 1)
 
 
 def _clean_sample() -> str:
     links = " ".join(f"[{link}]({link})" for link in REQUIRED_LINKS)
     phrases = " ".join(REQUIRED_PHRASES)
-    return f"# 项目\n\n{phrases}\n\n{links}\n\n已发布版本以 [Releases]({REQUIRED_URL}) 为准。\n"
+    english = "\n".join(f"- **要点**：{phrase}" for phrase in ENGLISH_PHRASES)
+    return (f"# 项目\n\n{phrases}\n\n{links}\n\n已发布版本以 [Releases]({REQUIRED_URL}) 为准。\n"
+            f"\n{ENGLISH_HEADING}\n\n{english}\n")
 
 
 def _expect_count(source: str, expected: int, label: str) -> int:
@@ -97,6 +117,10 @@ def _check_behaviors() -> int:
     checked += _expect_count(_clean_sample().replace("[SUPPORT.md](SUPPORT.md) ", ""), 1,
                              "缺少稳定链接")
     checked += _expect_count(_clean_sample().replace("桌面从源码构建", ""), 1, "缺少稳定表述")
+    checked += _expect_count(_clean_sample().replace(ENGLISH_HEADING, "## English summary"), 1,
+                             "缺少英文概览章节")
+    checked += _expect_count(_clean_sample().replace(ENGLISH_PHRASES[0], ""), 1,
+                             "英文概览缺少稳定表述")
     return checked
 
 
