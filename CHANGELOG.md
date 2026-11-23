@@ -1,3 +1,8 @@
+## 0.2.0-rc.635 - 2026-11-23
+
+- 新增 `scripts/check_status_stability.py`（22 项结构、10 项行为），把「状态页只写稳定事实」变成 CI 不变量：读取 `package.json` 当前版本，禁止 `docs/STATUS.md` 出现当前候选号（npm / Python 两种写法与 `rc.N`）或本机绝对路径；要求保留发布状态、已具备、待完成与待验收、非目标、参与方式五个章节，README / CHANGELOG / 发布约定 / 支持 / 安全 / 贡献 / 技术参考的相对链接，Issue #2351 / #2312 与 Releases 入口，已发布 tag 链接，以及「`main` 是开发分支」「不等同于已发布」「尚未发布到 npm 或 PyPI」三条稳定表述。[Issue #3395](https://github.com/can4hou6joeng4/boss-harness/issues/3395)
+- 源码候选更新为 npm `0.2.0-rc.635` 和 Python `0.2.0rc635`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.634 - 2026-11-23
 
 - 扩展 `scripts/check_docs_links.py`：指向本仓库 `blob/main/<path>` 的绝对链接不再按外链跳过，而是按仓库内路径核对存在性，带 `#片段` 的 Markdown 目标同时校验页内锚点；错误文案与相对链接统一为「文档链接不存在 / 页内锚点不存在」，输出统计新增自仓库绝对链接数量。此前 `harness/README.md` 与 PR 模板里的发布约定链接腐烂时不会被发现。[Issue #3393](https://github.com/can4hou6joeng4/boss-harness/issues/3393)

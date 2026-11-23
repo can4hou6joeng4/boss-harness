@@ -553,5 +553,7 @@ jobs:
         run: python scripts/check_readme_stability.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
+      - name: Verify status page stability
+        run: python scripts/check_status_stability.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
