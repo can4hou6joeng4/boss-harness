@@ -449,7 +449,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_session_title.py`
 
-`scripts/check_session_title.py` 核对新建会话标题的生成顺序：先剥离首页固定格式的「招聘项目：<名称>」前缀（不匹配时原样返回），再折叠连续空白、`trim()`，按 Unicode 码点判定是否超过 `SESSION_TITLE_LIMIT`（32），超限时按码点截断，空内容回退「新会话」。`compactTitle` 在空值或非正上限时回退，只有真正超限才截断并保留省略号；`trimEnd()` 去掉截断点前的空格。检查还确认默认上限不超过内核的 `MAX_THREAD_TITLE_CHARS`，并反向断言不得用 `slice` / `substring` 直接截断或把超限判断写成 `>=`。检查是源码字面量扫描，不执行界面。
+`scripts/check_session_title.py` 核对新建会话标题的生成顺序：先剥离首页固定格式的「招聘项目：<名称>」前缀（不匹配时原样返回），再折叠连续空白、`trim()`，按 Unicode 码点判定是否超过 `SESSION_TITLE_LIMIT`（32），超限时按码点截断，空内容回退「新会话」。`compactTitle` 在空值或非正上限时回退，只有真正超限才截断并保留省略号；`trimEnd()` 去掉截断点前的空格。检查还确认默认上限不超过内核的 `MAX_THREAD_TITLE_CHARS`，并反向断言不得用 `slice` / `substring` 直接截断或把超限判断写成 `>=`。行为侧用 Node 直接调用真实模块核对 16 个用例：前缀剥离三处边界（开头、正文中出现、无空行与单换行不剥离）、空白折叠与 trim、空回退、前缀加空正文、33 / 32 字符边界、33 / 32 emoji 码点边界、`compactTitle` 的空与 `limit <= 0` 回退、省略号、`trimEnd`、未超限 emoji 与默认空 fallback。共 22 项结构、17 项行为。
 
 ### `check_search_rows.py`
 
