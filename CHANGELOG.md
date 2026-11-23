@@ -1,3 +1,8 @@
+## 0.2.0-rc.684 - 2026-11-23
+
+- 新增 `scripts/check_queue_refresh.py`（14 项结构、20 项行为），为队列手动刷新结果补上回归保护：不可读返回值给出保守提示、成功优先返回 null、失败原因折叠空白并按 240 个 UTF-16 码元安全截断，覆盖补充平面字符代理对边界。Node 加载真实 `queueRefresh.ts` 与真实 `safeSlice` 执行 20 个用例。[Issue #3493](https://github.com/can4hou6joeng4/boss-harness/issues/3493)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 245 → 246。源码候选更新为 npm `0.2.0-rc.684` 和 Python `0.2.0rc684`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.683 - 2026-11-23
 
 - 新增 `scripts/check_skill_detail.py`（12 项结构、19 项行为），为桌面技能详情补上回归保护：详情只在选中条目与回执标识一致时返回，目录刷新期间不因空数组清除选中项，终态按同标识条目决定保留；入参不被改写。Node 直接加载真实 `skillDetail.ts` 执行 19 个用例（详情归属 7、原样返回 1、选中态 9、入参不变 2）。[Issue #3491](https://github.com/can4hou6joeng4/boss-harness/issues/3491)
