@@ -1,3 +1,8 @@
+## 0.2.0-rc.632 - 2026-11-23
+
+- 新增 `scripts/check_issue_forms.py`（20 项结构、16 项行为），锁定 `.github` 公开入口：两张 Issue 表单的控件类型、`id` / `attributes` 与必填校验，`config.yml` 的 `blank_issues_enabled` 与 `contact_links`（指向本仓库 `blob/main/<path>` 的链接必须能在本地找到对应文件），以及 PR 模板的 `Closes #` 与 `type(scope): 中文描述` 提示。文档改名导致联系入口腐烂或表单被改坏时，`npm run check` 与 CI 会直接失败。[Issue #3389](https://github.com/can4hou6joeng4/boss-harness/issues/3389)
+- 源码候选更新为 npm `0.2.0-rc.632` 和 Python `0.2.0rc632`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.631 - 2026-11-23
 
 - 扩展 `scripts/check_docs_links.py`：除「每个脚本恰有一个说明小节」外，还核对「构建前检查」索引表，要求表内脚本集合与 `scripts/check_*.py` 完全一致；缺项、列出不存在的脚本与重复条目分别失败并列出具体脚本名，表外正文中的脚本链接不计入，合成表格覆盖缺项 / 未知 / 重复 / 完整四种情形。新增脚本只写小节、忘记补索引时，索引表悄悄缺项的问题从此会被 `npm run check` 与 CI 拦下。[Issue #3387](https://github.com/can4hou6joeng4/boss-harness/issues/3387)
