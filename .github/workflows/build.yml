@@ -657,6 +657,8 @@ jobs:
         run: python scripts/check_branch_summaries.py
       - name: Verify context breakdown
         run: python scripts/check_context_breakdown.py
+      - name: Verify context edit
+        run: python scripts/check_context_edit.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
