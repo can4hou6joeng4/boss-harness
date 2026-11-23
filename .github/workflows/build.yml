@@ -571,6 +571,8 @@ jobs:
         run: python scripts/check_composer_history.py
       - name: Verify quick ask route
         run: python scripts/check_quick_ask.py
+      - name: Verify message retry
+        run: python scripts/check_message_retry.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
