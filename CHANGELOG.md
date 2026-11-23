@@ -1,3 +1,8 @@
+## 0.2.0-rc.612 - 2026-11-23
+
+- 新增 `scripts/check_application_writes.py`（49 项结构、41 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖应用写入入口：`config/autoCompaction/set` 的字段集合、布尔 / 比例 / 保留额度校验、default / stored 来源写盘与 `autoCompactionSource=stored`、`config/read` 反映新策略、重建服务后设置仍生效，以及 environment / explicit 来源的 `-32004` 拒绝；`skills/create` 的 id 规则、正文类型 / 空白 / 65536 字节上限 / 同名拒绝，`skills/read` 的八键与正文，`skills/write` 的参数集合、摘要格式与不一致拒绝、合法更新，`skills/delete` 的参数、摘要、目录含额外文件拒绝与合法删除；`context/instructions/write` 的参数集合、非字符串、8192 字节上限、写入 `.boss-harness/CONTEXT.md` 后读回与系统错误映射。写入入口若放宽来源保护或摘要比对，会覆盖启动参数或用户手改内容且无本地告警。[Issue #3349](https://github.com/can4hou6joeng4/boss-harness/issues/3349)
+- 源码候选更新为 npm `0.2.0-rc.612` 和 Python `0.2.0rc612`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.611 - 2026-11-23
 
 - 新增 `scripts/check_application_reads.py`（57 项结构、64 项行为），在真实构造的 `ApplicationService` 上覆盖握手之后的只读查询入口：`thread/start` 的默认投影、只读策略、标题 / 策略 / 线路 / 模型拒绝与 `thread/created` 事件；`thread/list` 的归档过滤；`thread/read` 的十个响应键、`excludeTurns` 空回合、`snapshot=true` 快照标识与 `itemCount`、布尔参数拒绝与未知线程文案；`items/list` 的空页、`limit` 边界、`snapshotId` 与游标解码 / 越界、日志与快照两页回读；`event/list` 的游标、线程过滤与 `hasMore`；`config/read` 的 20 项字段与默认上限；`tool/list` 的 14 项工具与审批标记；`model/list` 的 `none` 线路；`skills/list` 的空目录报告。只读入口若放宽参数校验或投影漂移，桌面列表、会话恢复与配置页会收到错误数据且无本地告警。[Issue #3347](https://github.com/can4hou6joeng4/boss-harness/issues/3347)
