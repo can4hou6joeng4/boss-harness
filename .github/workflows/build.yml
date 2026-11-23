@@ -551,5 +551,7 @@ jobs:
         run: python scripts/check_offline_checks.py
       - name: Verify README stability
         run: python scripts/check_readme_stability.py
+      - name: Verify issue forms
+        run: python scripts/check_issue_forms.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
