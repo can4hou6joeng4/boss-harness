@@ -577,6 +577,8 @@ jobs:
         run: python scripts/check_skill_filter.py
       - name: Verify message feedback
         run: python scripts/check_message_feedback.py
+      - name: Verify composer drafts
+        run: python scripts/check_composer_drafts.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
