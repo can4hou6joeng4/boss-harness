@@ -1,3 +1,8 @@
+## 0.2.0-rc.697 - 2026-11-24
+
+- 新增 `scripts/check_branch_summaries.py`（21 项结构、26 项行为），为分支摘要条目补上回归保护：对象与标识上限、同响应唯一性、可选引用兼容、废弃回合数组上限与元素校验、字符数安全整数，以及合法条目顺序保留与数组复制。Node 直接加载真实 `branchSummaries.ts` 执行 26 个用例。[Issue #3519](https://github.com/can4hou6joeng4/boss-harness/issues/3519)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 258 → 259。源码候选更新为 npm `0.2.0-rc.697` 和 Python `0.2.0rc697`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.696 - 2026-11-24
 
 - 新增 `scripts/check_model_retry.py`（23 项结构、33 项行为），为模型自动重试状态补上回归保护：载荷校验与字段上限、错误文案归一化与截断、recovered / aborted / failed 分支、回合收尾收敛与倒计时。Node 直接加载真实 `modelRetry.ts` 执行 33 个用例。[Issue #3517](https://github.com/can4hou6joeng4/boss-harness/issues/3517)
@@ -90,7 +95,7 @@
 
 ## 0.2.0-rc.678 - 2026-11-23
 
-- 新增 `scripts/check_reasoning_control.py`（24 项结构、25 项行为），为推理设置补上回归保护：断连与无会话时的可见提示、操作目标回传、`thread/reasoning/read` 的会话归属、可空档位与布尔字段类型、档位数组元素校验、输出字段白名单。Node 直接加载真实 `reasoningControl.ts` 执行 25 个用例（操作目标 6、回执校验 19）。[Issue #3481](https://github.com/can4hou6joeng4/boss-harness/issues/3481)
+- 新增 `scripts/check_reasoning_control.py`（24 项结构、25 项行为），为推理设置补上回归保护：断连与无会话时的可见提示、操作目标回传、`thread/reasoning/read` 的会话归属、可空档位与布尔字段类型、档位数组元素校验、输出字段白名单。Node 直接加载真实 `reasoningControl.ts` 执行 26 个用例（操作目标 6、回执校验 19）。[Issue #3481](https://github.com/can4hou6joeng4/boss-harness/issues/3481)
 - 工作流注册、技术参考小节与索引行同步；脚本总数 239 → 240。源码候选更新为 npm `0.2.0-rc.678` 和 Python `0.2.0rc678`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
 
 ## 0.2.0-rc.677 - 2026-11-23
