@@ -1,3 +1,8 @@
+## 0.2.0-rc.657 - 2026-11-23
+
+- 新增 `scripts/check_skill_filter.py`（8 项结构、13 项行为），为技能菜单与「未加载技能」筛选补上回归保护：NFKC + zh-CN 小写归一化、空查询保持同一数组引用、技能按 id / 名称 / 描述跨字段匹配、问题项按 id / 原因匹配、全角与大小写不敏感。Node 直接调用真实 `filterSkills` / `filterSkillProblems` 执行 13 个用例。[Issue #3439](https://github.com/can4hou6joeng4/boss-harness/issues/3439)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 218 → 219。源码候选更新为 npm `0.2.0-rc.657` 和 Python `0.2.0rc657`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.656 - 2026-11-23
 
 - 新增 `scripts/check_message_retry.py`（20 项结构、16 项行为），为「重试此轮对话」补上回归保护：运行中 / 任务阻断的可用性判定、用户消息 trim 与代理消息回溯到该回合最近一条用户消息（空文本不跳过）、重试请求只携带当前目录仍存在的技能（去重、上限 10），以及缺失 turnId 与原型键不命中。Node 在临时目录加载真实模块执行 16 个用例。[Issue #3437](https://github.com/can4hou6joeng4/boss-harness/issues/3437)
