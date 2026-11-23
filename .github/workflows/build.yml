@@ -170,6 +170,8 @@ jobs:
         run: python scripts/check_branch_list.py
       - name: Verify turn record assembly
         run: python scripts/check_turn_records.py
+      - name: Verify turn item append and tool settlement
+        run: python scripts/check_turn_append.py
       - name: Verify branch pointer writes
         run: python scripts/check_set_leaf.py
       - name: Verify abandoned branch summaries

@@ -1,3 +1,8 @@
+## 0.2.0-rc.604 - 2026-11-23
+
+- 新增 `scripts/check_turn_append.py`（62 项），覆盖此前没有脚本引用的 `TurnRunner.append_user` / `append_agent` / `finish_tool_call`：静态固定消息条目的父链与 `turnId` / 元数据合并、助手完成通知的 `emit` 分支、工具结算的状态与执行事实、来源、错误码与恢复建议、重试安全推导、模型投影预算、先 `append_tool_revision` 落库再通知与通知失败包装。临时 `SessionStore` 与真实 `TurnRunner` 的行为对照（22 项）覆盖用户 / 助手条目投影、元数据覆盖回合、`emit` 开关与通知字段、成功结算、结果与模型投影、来源与时长、只读失败与写工具失败的 `disposition`、结果未知、缺省调用编号、审批持久化、通知失败上报且结果已落库。结算若按错误码猜测重试安全或通知先于落库，界面会给出错误的重试建议或丢失已执行结果。隔离变异探针结构 14/14、行为 11/11（其中「通知失败不包装」以未包装异常使检查失败）。脚本注册进构建作业与技术参考。[Issue #3333](https://github.com/can4hou6joeng4/boss-harness/issues/3333)
+- 源码候选更新为 npm `0.2.0-rc.604` 和 Python `0.2.0rc604`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.603 - 2026-11-23
 
 - 生命周期 hook 检查从 123 项结构、65 个行为场景扩展到 145 项结构、82 个行为场景，新增 `LifecycleHooks` 状态与观察送达覆盖：静态固定 `enabled` / `observes_events` / `closed` / `set_error_sink` 的读取与赋值、`HookFailure.as_dict` 六字段与失败诊断的「脱敏截断 → 锁内取 sink → 锁外调用 → 吞掉 sink 异常」顺序，反向断言失败诊断各执行一次且投影字段唯一。行为对照新增空 hooks 与无 `on_event` hook 的状态、`on_event` hook 实际收到白名单投影事件（正文与工具参数不进入）、空参数投影、关闭排空与关闭后不再送达、重复关闭安全；错误 sink 收到失败对象的字段与 `timedOut` 投影、sink 抛错不改变失败关闭结果、清空 sink 后不再调用。观察状态若与 worker 脱节或错误诊断在锁内调用宿主代码，宿主诊断会丢失或卡住内核。隔离变异探针结构 9/9、行为 8/8（其中「sink 异常不吞」与「as_dict 字段改名」以未包装异常使检查失败）。[Issue #3331](https://github.com/can4hou6joeng4/boss-harness/issues/3331)
