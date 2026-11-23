@@ -1,3 +1,8 @@
+## 0.2.0-rc.689 - 2026-11-23
+
+- 新增 `scripts/check_queue_skill_notice.py`（7 项结构、9 项行为），为运行中队列技能提示补上回归保护：仅队列开启、转向意图且携带技能时返回固定提示，后续回合队列不再被误报不支持技能。Node 直接加载真实 `queueSkillNotice.ts` 执行 9 个用例。[Issue #3503](https://github.com/can4hou6joeng4/boss-harness/issues/3503)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 250 → 251。源码候选更新为 npm `0.2.0-rc.689` 和 Python `0.2.0rc689`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.688 - 2026-11-23
 
 - 新增 `scripts/check_skill_focus.py`（9 项结构、12 项行为），为回合技能标签跳转补上回归保护：空焦点立即结束，目录命中立即返回目标，未命中时仅 loading 等待、其余四种目录状态结束等待。Node 直接加载真实 `skillFocus.ts` 执行 12 个用例。[Issue #3501](https://github.com/can4hou6joeng4/boss-harness/issues/3501)
