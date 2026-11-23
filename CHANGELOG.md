@@ -1,3 +1,8 @@
+## 0.2.0-rc.640 - 2026-11-23
+
+- 新增 `scripts/check_release_docs.py`（13 项结构、15 项行为），锁定发布文档的授权边界：`RELEASING.md` 必须保留「发布仍需要对应授权」、四项需单独授权的动作（annotated tag / GitHub Release / 资产上传 / npm、PyPI 注册表）、完整 40 位 head SHA 绑定、待执行口径与「工作流产物不等于 Release 资产」；`UPSTREAM.md` 必须保留 Pi 固定提交 `b4899f59…`；两个文件不得含本机绝对路径。源码 PR 授权不自动覆盖发布动作的书面边界不再可能被静默放宽。[Issue #3405](https://github.com/can4hou6joeng4/boss-harness/issues/3405)
+- 工作流新增 Verify release docs 步骤；技术参考增加同名小节与索引行；隔离变异探针覆盖四项授权动作、提交绑定、固定提交与措辞调整。源码候选更新为 npm `0.2.0-rc.640` 和 Python `0.2.0rc640`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.639 - 2026-11-23
 
 - 新增 `scripts/check_community_files.py`（18 项结构、12 项行为），把社区入口的稳定事实变成 CI 不变量：`SUPPORT.md` 必须恰好各引用一次 `bug_report.yml` 与 `feature_request.yml`（引用不存在的模板或重复引用都会失败），`SECURITY.md` 保留私密报告入口、「需要单独授权」的仓库设置边界与上游职责划分，`CONTRIBUTING.md` 保留提交格式与「测试材料仅保留本地」，`CODE_OF_CONDUCT.md` 引用安全政策与贡献约定；四个文件都不得含本机绝对路径。模板重命名后支持页链接 404 不再可能。[Issue #3403](https://github.com/can4hou6joeng4/boss-harness/issues/3403)
