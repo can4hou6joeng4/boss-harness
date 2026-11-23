@@ -527,5 +527,7 @@ jobs:
         run: python scripts/check_application_continuation.py
       - name: Verify application queue
         run: python scripts/check_application_queue.py
+      - name: Verify application turn
+        run: python scripts/check_application_turn.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
