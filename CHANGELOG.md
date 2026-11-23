@@ -1,3 +1,8 @@
+## 0.2.0-rc.703 - 2026-11-24
+
+- 新增 `scripts/check_context_edit_drafts.py`（10 项结构、19 项行为），为上下文编辑草稿缓存补上回归保护：覆盖写入与空串区分、会话 / 消息双向隔离、单条清除范围、清除后重写与拼接碰撞。Node 直接加载真实 `contextEditDrafts.ts` 执行 19 个用例。[Issue #3531](https://github.com/can4hou6joeng4/boss-harness/issues/3531)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 264 → 265。源码候选更新为 npm `0.2.0-rc.703` 和 Python `0.2.0rc703`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.702 - 2026-11-24
 
 - 新增 `scripts/check_context_edit_state.py`（15 项结构、16 项行为），为上下文编辑弹窗补上回归保护：加载 / 保存 / 快照过期三态提交闸门、32000 码点正文上限、`null` 排除消息豁免、表情按单码点计数与旧快照提示。Node 直接加载真实 `contextEditState.ts` 执行 16 个用例。[Issue #3529](https://github.com/can4hou6joeng4/boss-harness/issues/3529)
