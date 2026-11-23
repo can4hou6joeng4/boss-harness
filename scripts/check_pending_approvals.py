@@ -17,6 +17,7 @@ import ast
 import hashlib
 import json
 from pathlib import Path
+import sqlite3
 import sys
 import time
 from tempfile import TemporaryDirectory
@@ -100,6 +101,21 @@ COUNT_ORDER = (
     "return {}",
     '"SELECT a.thread_id,COUNT(*)" + where + " GROUP BY a.thread_id",',
     "return {str(row[0]): int(row[1]) for row in rows}",
+)
+# 可恢复期限：全局锁 → 待删除枚举与上限 → 排除占位参数 → 中断回合的最小期限
+# 查询 → 空结果回退。
+DEADLINE_ORDER = (
+    "def next_recoverable_approval_deadline(self) -> float | None:",
+    "with self._lock, self._index.connection() as connection:",
+    "pending_deletions = sorted(self._pending_deletion_ids())",
+    "if len(pending_deletions) > 800:\n                return None",
+    'exclusion = " AND a.thread_id NOT IN (" + ",".join("?" for _ in pending_deletions) + ")"',
+    "parameters.extend(pending_deletions)",
+    "SELECT MIN(a.deadline) FROM approvals a",
+    "JOIN turns r ON r.thread_id=a.thread_id AND r.turn_id=a.turn_id",
+    "AND r.status='interrupted'",
+    "AND typeof(a.deadline) IN ('integer','real')",
+    "return row[0] if row and row[0] is not None else None",
 )
 
 
@@ -366,15 +382,93 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _deadline_checks() -> int:
+    checked = 0
+    with TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "main" / "sessions")
+        checked += _expect_value(store.next_recoverable_approval_deadline(), None,
+                                 "空状态可恢复期限")
+        thread = store.create("恢复期限")["id"]
+        _add_turn(store, thread, "turn-live")
+        _add_approval(store, thread, "item-live", "turn-live", deadline=900)
+        checked += _expect_value(store.next_recoverable_approval_deadline(), None,
+                                 "运行中回合不参与期限扫描")
+        _add_turn(store, thread, "turn-stop", "interrupted")
+        _add_approval(store, thread, "item-stop", "turn-stop", deadline=500)
+        checked += _expect_value(store.next_recoverable_approval_deadline(), 500.0,
+                                 "中断回合最小期限")
+        _add_turn(store, thread, "turn-stop-2", "interrupted")
+        _add_approval(store, thread, "item-stop-2", "turn-stop-2", deadline=900)
+        checked += _expect_value(store.next_recoverable_approval_deadline(), 500.0,
+                                 "多个中断回合取最小期限")
+        _add_turn(store, thread, "turn-done", "completed")
+        _add_approval(store, thread, "item-done", "turn-done", deadline=100)
+        checked += _expect_value(store.next_recoverable_approval_deadline(), 500.0,
+                                 "已完成回合排除期限")
+        _add_approval(store, thread, "item-decided", "turn-stop", deadline=50,
+                      decision="approve", execution_state="approved")
+        checked += _expect_value(store.next_recoverable_approval_deadline(), 500.0,
+                                 "已裁决审批排除期限")
+        store.append(thread, Entry(type="thread_info", payload={"archived": True}))
+        checked += _expect_value(store.next_recoverable_approval_deadline(), None,
+                                 "归档会话排除期限")
+        store.append(thread, Entry(type="thread_info", payload={"archived": False}))
+        checked += _expect_value(store.next_recoverable_approval_deadline(), 500.0,
+                                 "取消归档恢复期限")
+        marker = store.root / f".delete-{thread}.json"
+        marker.write_text("{}", encoding="utf-8")
+        checked += _expect_value(store.next_recoverable_approval_deadline(), None,
+                                 "待删除会话排除期限")
+        marker.unlink()
+        checked += _expect_value(store.next_recoverable_approval_deadline(), 500.0,
+                                 "移除待删除标记恢复期限")
+        markers = [store.root / f".delete-{index:012x}.json" for index in range(801)]
+        for path in markers:
+            path.write_text("{}", encoding="utf-8")
+        checked += _expect_value(store.next_recoverable_approval_deadline(), None,
+                                 "待删除占位超过上限放弃期限")
+        for path in markers:
+            path.unlink()
+        checked += _expect_value(store.next_recoverable_approval_deadline(), 500.0,
+                                 "清理占位后恢复期限")
+        # 索引外部写入的已裁决行与文本期限必须被查询条件挡掉。
+        stale = SessionStore(Path(temporary) / "stale" / "sessions")
+        stale_thread = stale.create("陈旧裁决")["id"]
+        _add_turn(stale, stale_thread, "turn-stale", "interrupted")
+        _add_approval(stale, stale_thread, "item-stale", "turn-stale", deadline=500)
+        checked += _expect_value(stale.next_recoverable_approval_deadline(), 500.0,
+                                 "已裁决索引行基线")
+        with sqlite3.connect(stale.database_path) as connection:
+            connection.execute(
+                "UPDATE approvals SET decision='approve' WHERE item_id='item-stale'")
+        checked += _expect_value(stale.next_recoverable_approval_deadline(), None,
+                                 "已裁决索引行不参与期限扫描")
+        typed = SessionStore(Path(temporary) / "typed" / "sessions")
+        typed_thread = typed.create("损坏期限")["id"]
+        _add_turn(typed, typed_thread, "turn-typed", "interrupted")
+        _add_approval(typed, typed_thread, "item-typed", "turn-typed", deadline=500)
+        _add_approval(typed, typed_thread, "item-typed-2", "turn-typed", deadline=900)
+        checked += _expect_value(typed.next_recoverable_approval_deadline(), 500.0,
+                                 "数值期限基线")
+        with sqlite3.connect(typed.database_path) as connection:
+            connection.execute(
+                "UPDATE approvals SET deadline='soon' WHERE thread_id=?", (typed_thread,))
+        checked += _expect_value(typed.next_recoverable_approval_deadline(), None,
+                                 "文本期限列被类型守卫忽略")
+    return checked
+
+
 def check_pending_approvals() -> int:
     source = _read(SESSION)
     tree = ast.parse(source)
     where = _function(tree, source, "_pending_approvals_where")
     listing = _function(tree, source, "pending_approvals")
     counts = _function(tree, source, "pending_approval_counts")
+    deadline = _function(tree, source, "next_recoverable_approval_deadline")
     checked = _ordered(WHERE_ORDER, where, SESSION)
     checked += _ordered(LIST_ORDER, listing, SESSION)
     checked += _ordered(COUNT_ORDER, counts, SESSION)
+    checked += _ordered(DEADLINE_ORDER, deadline, SESSION)
     # 列表与计数必须共用同一条件，恰好两处调用。
     if source.count("self._pending_approvals_where(thread_id)") != 2:
         raise ValueError(f"{SESSION} 的待审批列表与计数必须共用同一过滤条件")
@@ -422,6 +516,25 @@ def check_pending_approvals() -> int:
     if listing.count('"summary"') != 1 or "{row['tool_name']}" not in listing:
         raise ValueError(f"{SESSION} 的待审批摘要必须只回显工具名")
     checked += 1
+    # 可恢复期限必须取最小值，不能取最大值。
+    if deadline.count("MIN(a.deadline)") != 1 or "MAX(a.deadline)" in deadline:
+        raise ValueError(f"{SESSION} 的可恢复期限必须取最小期限")
+    checked += 1
+    # 待删除会话超过 800 个时，期限扫描必须与列表一样整次放弃。
+    if deadline.count("len(pending_deletions) > 800") != 1:
+        raise ValueError(f"{SESSION} 的可恢复期限删除占位上限必须唯一")
+    checked += 1
+    # 期限扫描只覆盖未归档会话的中断回合，不得放宽到运行中回合。
+    if deadline.count("t.archived=0") != 1 or deadline.count("r.status='interrupted'") != 1:
+        raise ValueError(f"{SESSION} 的可恢复期限必须只扫描未归档会话的中断回合")
+    checked += 1
+    if "r.status IN (" in deadline:
+        raise ValueError(f"{SESSION} 的可恢复期限不得放宽到运行中回合")
+    checked += 1
+    # 已裁决审批不参与恢复调度。
+    if deadline.count("a.decision IS NULL") != 1:
+        raise ValueError(f"{SESSION} 的可恢复期限必须排除已裁决审批")
+    checked += 1
     return checked
 
 
@@ -429,10 +542,12 @@ def main() -> int:
     try:
         checked = check_pending_approvals()
         scenarios = _behavior_checks()
+        deadlines = _deadline_checks()
     except (ValueError, SyntaxError, OSError) as error:
         print(f"待审批分页与计数核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"待审批分页与计数一致：{checked} 项过滤、分页与分组校验、{scenarios} 个行为场景")
+    print(f"待审批分页与计数一致：{checked} 项过滤、分页与分组校验、"
+          f"{scenarios} 个行为场景、{deadlines} 项可恢复期限场景")
     return 0
 
 
