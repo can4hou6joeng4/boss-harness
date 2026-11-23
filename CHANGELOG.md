@@ -1,3 +1,8 @@
+## 0.2.0-rc.616 - 2026-11-23
+
+- 新增 `scripts/check_application_attachments.py`（36 项结构、25 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖附件与运行资源入口：`attachment/add` 的五项投影与工作区外 / 不存在 / 缺失路径拒绝；`attachment/read` 的整份读取、显式摘要的分块读取、未知附件 / 摘要格式 / 分块上限 / 参数集合拒绝；`runtime/resources/read` 的十项空投影与参数拒绝；`approval/list` 的空投影、线程过滤与参数 / 标识上限拒绝。附件入口若放宽工作区路径或分块摘要校验，内核可能读取工作区外文件或返回与引用不一致的内容。[Issue #3357](https://github.com/can4hou6joeng4/boss-harness/issues/3357)
+- 源码候选更新为 npm `0.2.0-rc.616` 和 Python `0.2.0rc616`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.615 - 2026-11-23
 
 - 新增 `scripts/check_application_context.py`（27 项结构、26 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖上下文与导出入口：`context/read` 的 26 项键与预算 / 来源投影、带 `input` 的预览标记与消息数、未知线程；`context/instructions/read` 的空状态、写入后回读与参数拒绝；`thread/export` 的 Markdown / JSON / HTML 元数据、`redactions` 四类计数、凭据替换、`includeToolResults` 对比、`view=branch` 与格式 / 上限 / 参数集合拒绝。上下文与导出入口若放宽来源标记或脱敏计数，桌面会展示错误的预算状态，导出文件可能带出凭据或明文工具结果。[Issue #3355](https://github.com/can4hou6joeng4/boss-harness/issues/3355)
