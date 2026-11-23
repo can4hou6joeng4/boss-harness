@@ -597,6 +597,8 @@ jobs:
         run: python scripts/check_context_job.py
       - name: Verify tool timing
         run: python scripts/check_tool_timing.py
+      - name: Verify context read
+        run: python scripts/check_context_read.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability

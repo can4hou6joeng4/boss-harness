@@ -1,3 +1,8 @@
+## 0.2.0-rc.669 - 2026-11-23
+
+- 新增 `scripts/check_context_read.py`（54 项结构、28 项行为），为上下文面板的回执校验补上回归保护：核心计数 / 文本 / 布尔与会话归属、可选标识与可空文本、记录字段复制、摘要任务引用、分支摘要形状、问题清单过滤 / 截断 / 总数自洽、工作区说明与系统提示词分节过滤。Node 在临时目录加载真实 `contextRead.ts` / `contextJob.ts`（改写导入）执行 28 个用例（核心 2、可选标识 2、布尔 1、诊断文本 1、记录 2、可空文本 3、摘要引用 2、分支摘要 2、问题清单 6、工作区说明 3、系统提示词 3、用量与检查点 1）。[Issue #3463](https://github.com/can4hou6joeng4/boss-harness/issues/3463)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 230 → 231。源码候选更新为 npm `0.2.0-rc.669` 和 Python `0.2.0rc669`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.668 - 2026-11-23
 
 - 新增 `scripts/check_tool_timing.py`（24 项结构、27 项行为），为工具卡的耗时文案补上回归保护：非负有限数校验、内核 `durationMs` 优先与时钟回退、非终态状态拦截、等待审批 / 未获批准 / 未执行 / 运行中 / 排队的文案、结束时间非法或倒序、`now` 非法与优先级。Node 在临时目录加载真实 `toolTiming.ts` / `turnTiming.ts`（改写导入）执行 27 个用例（时长 1、完成 8、等待 4、未执行 2、运行 5、排队 4、优先级 3）。[Issue #3461](https://github.com/can4hou6joeng4/boss-harness/issues/3461)
