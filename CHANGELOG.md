@@ -1,3 +1,8 @@
+## 0.2.0-rc.642 - 2026-11-23
+
+- 新增 `scripts/check_setup_guide.py`（15 项结构、17 项行为），锁定 `SETUP.md` 的安装指引：工具链核对、内核与桌面依赖安装、`--check` 自检与禁用模型的桌面启动共 9 条命令；两条安全约定（不碰凭据、不执行平台写操作）与 macOS 12 最低版本；Node / Python 最低版本从 `package.json` engines 与 `harness/pyproject.toml` requires-python 推导，文档中的「需要 X 或更高」不再与包元数据漂移。[Issue #3409](https://github.com/can4hou6joeng4/boss-harness/issues/3409)
+- 工作流新增 Verify setup guide 步骤；技术参考增加同名小节与索引行；隔离变异探针覆盖每条命令、版本漂移、安全约定与措辞调整。源码候选更新为 npm `0.2.0-rc.642` 和 Python `0.2.0rc642`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.641 - 2026-11-23
 
 - 桌面渲染层全局尊重「减少动效」偏好：`tokens.css` 新增 `prefers-reduced-motion: reduce` 块，过渡令牌降为近零，动画与过渡时长、迭代次数与滚动行为一并收敛；popover / 登录侧栏 / tooltip 的局部媒体查询保持不变。近零时长而不是 `none`，`transitionend` / `animationend` 仍会触发。[Issue #3407](https://github.com/can4hou6joeng4/boss-harness/issues/3407)

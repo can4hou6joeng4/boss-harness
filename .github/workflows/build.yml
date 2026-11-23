@@ -557,6 +557,8 @@ jobs:
         run: python scripts/check_release_docs.py
       - name: Verify motion preferences
         run: python scripts/check_motion_preferences.py
+      - name: Verify setup guide
+        run: python scripts/check_setup_guide.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability

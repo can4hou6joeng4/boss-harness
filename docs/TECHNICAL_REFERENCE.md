@@ -77,7 +77,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connections.py`](#check_connectionspy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy)、[`check_login_flow.py`](#check_login_flowpy) |
 | 关闭与中止 | [`check_shutdown.py`](#check_shutdownpy)、[`check_runtime_capacity.py`](#check_runtime_capacitypy)、[`check_bridge_lifecycle.py`](#check_bridge_lifecyclepy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_clusters.py`](#check_search_clusterspy)、[`check_search_index.py`](#check_search_indexpy)、[`check_search_scan.py`](#check_search_scanpy)、[`check_search_snippet.py`](#check_search_snippetpy) |
-| 工作流与文档 | [`check_workflows.py`](#check_workflowspy)、[`check_docs_links.py`](#check_docs_linkspy)、[`check_handler_coverage.py`](#check_handler_coveragepy)、[`check_offline_checks.py`](#check_offline_checkspy)、[`check_readme_stability.py`](#check_readme_stabilitypy)、[`check_issue_forms.py`](#check_issue_formspy)、[`check_status_stability.py`](#check_status_stabilitypy)、[`check_community_files.py`](#check_community_filespy)、[`check_release_docs.py`](#check_release_docspy)、[`check_motion_preferences.py`](#check_motion_preferencespy) |
+| 工作流与文档 | [`check_workflows.py`](#check_workflowspy)、[`check_docs_links.py`](#check_docs_linkspy)、[`check_handler_coverage.py`](#check_handler_coveragepy)、[`check_offline_checks.py`](#check_offline_checkspy)、[`check_readme_stability.py`](#check_readme_stabilitypy)、[`check_issue_forms.py`](#check_issue_formspy)、[`check_status_stability.py`](#check_status_stabilitypy)、[`check_community_files.py`](#check_community_filespy)、[`check_release_docs.py`](#check_release_docspy)、[`check_motion_preferences.py`](#check_motion_preferencespy)、[`check_setup_guide.py`](#check_setup_guidepy) |
 
 ### `check_versions.py`
 
@@ -960,6 +960,10 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 ### `check_motion_preferences.py`
 
 `scripts/check_motion_preferences.py` 核对桌面动效偏好：`tokens.css` 必须保留 `prefers-reduced-motion: reduce` 全局块，块内把 `--transition-fast` / `--transition-normal` 降为近零，并包含 `animation-duration: 0.01ms`、`animation-iteration-count: 1`、`transition-duration: 0.01ms` 与 `scroll-behavior: auto`；popover、登录侧栏与 tooltip 三处局部媒体查询必须保留。近零时长而不是 `none`，依赖 `transitionend` / `animationend` 的逻辑不受影响。行为侧用合成 CSS 核对每条规则都会检出、干净样本不误报。共 10 项结构、11 项行为。
+
+### `check_setup_guide.py`
+
+`scripts/check_setup_guide.py` 核对安装指南：`SETUP.md` 必须保留 9 条命令（Node / Python / uv 版本核对、`uv venv --python 3.12 .venv`、`uv pip install --python .venv/bin/python -e ./harness`、`npm ci`、`npx install-electron --no`、`--provider none` 的自检命令与 `BOSS_HARNESS_DIR` / `BOSS_HARNESS_PROVIDER=none` 的桌面启动命令），两条安全约定（不读取 / 回显 / 写入凭据、不执行招聘平台写操作）、macOS 12 最低版本，以及「需要 24 或更高」「需要 3.10 或更高」两条版本要求；Node / Python 最低版本从根 `package.json` 的 engines.node 与 `harness/pyproject.toml` 的 requires-python 推导，元数据变化而未更新文档会直接失败。文件不得含本机绝对路径。行为侧用合成 Markdown 核对每条规则都会检出、干净样本不误报。共 15 项结构、17 项行为。
 
 ### `check_docs_links.py`
 
