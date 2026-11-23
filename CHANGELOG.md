@@ -1,3 +1,8 @@
+## 0.2.0-rc.609 - 2026-11-23
+
+- 新增 `scripts/check_boss_cli_call.py`（51 项结构、39 项行为），在临时目录写入假 CLI 脚本驱动真实 `BossCliTool.call`，把上游进程边界纳入行为对照：参数拼接与 stdin、开始前与中途取消、总时限、16 MiB 输出上限、非 UTF-8 / 空输出 / 坏 JSON / 严格 JSON、七键信封与退出码契约、合法失败信封、`hr chat` 暂停码投影、后代持有管道的排空与不可执行二进制。取消或超时若未收敛会让回合挂起；信封契约放宽会把上游错误当数据落库；暂停码不投影会让摘要补取失败被当成列表成功。[Issue #3343](https://github.com/can4hou6joeng4/boss-harness/issues/3343)
+- 源码候选更新为 npm `0.2.0-rc.609` 和 Python `0.2.0rc609`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.608 - 2026-11-23
 
 - 新增 `scripts/check_model_types.py`（62 项结构、46 项行为），直接构造模型层类型契约并执行带逻辑的部分：`token_count` 对缺失、布尔、非整数浮点与非 ASCII 数字视为未上报；`Usage.total` 只计输入与输出；`AssistantMessage` 按块类型投影文本与工具调用；`ModelErrorInfo.event_payload()` 只保留已知事实并保留零值 / 假值；`ModelRecoveryBudget` 的 0–64 边界、预留 / 提交 / 释放、取消与耗尽语义，以及 8 / 16 线程并发下的额度不超发、不丢还。恢复额度若超发会让执行循环无限重试，归还丢失会让后续请求提前失去恢复机会。[Issue #3341](https://github.com/can4hou6joeng4/boss-harness/issues/3341)
