@@ -1,3 +1,8 @@
+## 0.2.0-rc.639 - 2026-11-23
+
+- 新增 `scripts/check_community_files.py`（18 项结构、12 项行为），把社区入口的稳定事实变成 CI 不变量：`SUPPORT.md` 必须恰好各引用一次 `bug_report.yml` 与 `feature_request.yml`（引用不存在的模板或重复引用都会失败），`SECURITY.md` 保留私密报告入口、「需要单独授权」的仓库设置边界与上游职责划分，`CONTRIBUTING.md` 保留提交格式与「测试材料仅保留本地」，`CODE_OF_CONDUCT.md` 引用安全政策与贡献约定；四个文件都不得含本机绝对路径。模板重命名后支持页链接 404 不再可能。[Issue #3403](https://github.com/can4hou6joeng4/boss-harness/issues/3403)
+- 工作流新增 Verify community files 步骤；技术参考增加同名小节与索引行；隔离变异探针覆盖模板缺失 / 未知 / 重复、报告渠道缺失与措辞调整。源码候选更新为 npm `0.2.0-rc.639` 和 Python `0.2.0rc639`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.638 - 2026-11-23
 
 - 扩展 `scripts/check_readme_stability.py`（22 项结构、11 项行为）：首页候选号规则不再只认 `rc.N` 与固定的 `0.2.0-rc` 前缀，任意 `X.Y.Z-rc` 与 Python 包写法 `X.Y.ZrcN`（如 `0.2.0rc638`）都会被检出；纯 `X.Y.Z` 协议版本不受影响。此前 Python 候选写法可以绕过首页「只写稳定事实」的约定。[Issue #3401](https://github.com/can4hou6joeng4/boss-harness/issues/3401)
