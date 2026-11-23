@@ -1,3 +1,8 @@
+## 0.2.0-rc.672 - 2026-11-23
+
+- 新增 `scripts/check_approval_failure.py`（34 项结构、48 项行为），为审批回执补上回归保护：回执未知的「尚未确认」文案、审批卡按钮不可提交原因的判定顺序、七种拒绝码在手动与自动批准路径上的提示、已有结论时不重新开放操作、仅六种拒绝码重读会话而 `APPROVAL_BUSY` 不刷新。Node 直接加载真实 `approvalFailure.ts` 执行 48 个用例（未确认文案 4、按钮可用性 10、拒绝文案 9、无原因拒绝文案 3、自动批准拒绝文案 9、自动批准边界 4、刷新判定 9）。[Issue #3469](https://github.com/can4hou6joeng4/boss-harness/issues/3469)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 233 → 234。源码候选更新为 npm `0.2.0-rc.672` 和 Python `0.2.0rc672`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.671 - 2026-11-23
 
 - 新增 `scripts/check_markdown_blocks.py`（34 项结构、31 项行为），为智能体消息的代码围栏切分补上回归保护：反引号围栏的前缀正文与语言标记、波浪号围栏仅行首识别、结束围栏独占一行且同类且不短于起始围栏、未闭合围栏按到文末的代码处理、代码块保留缩进并归一 CRLF、长反引号串线性扫描。Node 直接加载真实 `markdownBlocks.ts` 执行 31 个用例（普通文本 5、起始围栏 7、结束围栏 6、波浪号围栏 3、未闭合围栏 3、代码正文 5、线性扫描 2）。[Issue #3467](https://github.com/can4hou6joeng4/boss-harness/issues/3467)
