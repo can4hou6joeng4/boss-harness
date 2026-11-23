@@ -1,3 +1,8 @@
+## 0.2.0-rc.619 - 2026-11-23
+
+- 新增 `scripts/check_application_turn.py`（34 项结构、22 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖回合启动与续接入口：`turn/start` 的未知线程 / 空正文 / 请求编号格式 / 线路与模型不匹配 / 未知技能 / 未知附件 / 请求上限 / 压缩覆盖 / 归档会话拒绝，成功启动的返回投影、`turn/started` 广播与回合记录落库，同一请求编号的 `deduplicated` 重试与不同输入的 `CLIENT_REQUEST_CONFLICT`；`turn/continue` 的参数集合 / 格式 / 未知线程拒绝与已完成回合的 `CONTINUATION_NOT_INTERRUPTED`。启动入口若放宽线路、归档或幂等校验，会产生跨线路请求、空白回合或重复消息。[Issue #3363](https://github.com/can4hou6joeng4/boss-harness/issues/3363)
+- 源码候选更新为 npm `0.2.0-rc.619` 和 Python `0.2.0rc619`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.618 - 2026-11-23
 
 - 新增 `scripts/check_application_queue.py`（93 项结构、45 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖队列写入、回合中断与审批入口：`queue/add` 的未知线程 / 空正文 / 未知技能 / 归档会话拒绝、`clientUserMessageId` 幂等重试、不同输入与技能组合的 `CLIENT_REQUEST_CONFLICT`；`queue/update` 对排队项生效、对已投递项拒绝；`queue/remove` 取消并回读 `cancelled`；`turn/interrupt` 无回合返回 `{"interrupted": false}`；`turn/steer` / `queue/steer` 无回合的同步拒绝；`approval/list` 的空投影与参数契约；`approval/respond` 的参数集合、布尔校验与 `APPROVAL_INVALID` / `APPROVAL_NOT_FOUND` 区分。队列写入若放宽幂等、状态或审批参数校验，会产生重复消息、改写已投递条目或误裁决。[Issue #3361](https://github.com/can4hou6joeng4/boss-harness/issues/3361)
