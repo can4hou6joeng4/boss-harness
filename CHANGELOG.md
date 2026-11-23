@@ -1,3 +1,8 @@
+## 0.2.0-rc.698 - 2026-11-24
+
+- 新增 `scripts/check_context_breakdown.py`（21 项结构、22 项行为），为上下文构成拆分补上回归保护：非对象与数组拒绝、计数字段安全整数校验、校准后两段与旧内核四段分支、零总和回退与额外字段忽略。Node 直接加载真实 `contextBreakdown.ts` 执行 22 个用例。[Issue #3521](https://github.com/can4hou6joeng4/boss-harness/issues/3521)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 259 → 260。源码候选更新为 npm `0.2.0-rc.698` 和 Python `0.2.0rc698`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.697 - 2026-11-24
 
 - 新增 `scripts/check_branch_summaries.py`（21 项结构、26 项行为），为分支摘要条目补上回归保护：对象与标识上限、同响应唯一性、可选引用兼容、废弃回合数组上限与元素校验、字符数安全整数，以及合法条目顺序保留与数组复制。Node 直接加载真实 `branchSummaries.ts` 执行 26 个用例。[Issue #3519](https://github.com/can4hou6joeng4/boss-harness/issues/3519)
