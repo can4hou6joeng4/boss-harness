@@ -1,3 +1,8 @@
+## 0.2.0-rc.605 - 2026-11-23
+
+- 新增 `scripts/check_connections.py`（54 项结构、94 项行为），首次实际构造 `ConnectionChecks`：静态固定 `is_idle` 持锁判定、`read()` 深拷贝与禁用覆盖、`_error()` 公开码白名单与暂停码、`_new_bridge` 弱引用身份校验、`model_calls_disabled` 约束、空闲通知在锁外与关闭默认两秒截止。行为对照用假桥与假 provider 覆盖禁用报告与强制覆盖、浏览器来源投影、登录等待标识复用、九类登录态格式校验与 64 KiB 上限、保存成功 / 读回失败 / 登录态不完整 / 保存中取消、平台风险锁与未登录阻断、本地契约与在线验证、`_error` 白名单、关闭取消与模型检查标记、非协作 worker 按截止时间返回并保留所有权，以及模型检查的成功、空响应、工具调用、错误事件、缺少 provider、请求被拒绝、准备顺序与检查中重复启动。连接检查若放宽错误码白名单或在校验前保存登录态，会把上游细节写进报告或覆盖错误身份。隔离变异探针结构 12/12、行为 16/16（其中「拒绝标记丢失」以未包装异常使检查失败）。脚本注册进构建作业与技术参考。[Issue #3335](https://github.com/can4hou6joeng4/boss-harness/issues/3335)
+- 源码候选更新为 npm `0.2.0-rc.605` 和 Python `0.2.0rc605`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.604 - 2026-11-23
 
 - 新增 `scripts/check_turn_append.py`（62 项），覆盖此前没有脚本引用的 `TurnRunner.append_user` / `append_agent` / `finish_tool_call`：静态固定消息条目的父链与 `turnId` / 元数据合并、助手完成通知的 `emit` 分支、工具结算的状态与执行事实、来源、错误码与恢复建议、重试安全推导、模型投影预算、先 `append_tool_revision` 落库再通知与通知失败包装。临时 `SessionStore` 与真实 `TurnRunner` 的行为对照（22 项）覆盖用户 / 助手条目投影、元数据覆盖回合、`emit` 开关与通知字段、成功结算、结果与模型投影、来源与时长、只读失败与写工具失败的 `disposition`、结果未知、缺省调用编号、审批持久化、通知失败上报且结果已落库。结算若按错误码猜测重试安全或通知先于落库，界面会给出错误的重试建议或丢失已执行结果。隔离变异探针结构 14/14、行为 11/11（其中「通知失败不包装」以未包装异常使检查失败）。脚本注册进构建作业与技术参考。[Issue #3333](https://github.com/can4hou6joeng4/boss-harness/issues/3333)
