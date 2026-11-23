@@ -545,5 +545,7 @@ jobs:
         run: python scripts/check_application_search_export.py
       - name: Verify application item read
         run: python scripts/check_application_item_read.py
+      - name: Verify notification dispatch
+        run: python scripts/check_notification_dispatch.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
