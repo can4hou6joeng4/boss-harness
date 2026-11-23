@@ -635,6 +635,8 @@ jobs:
         run: python scripts/check_skill_chips.py
       - name: Verify modal focus
         run: python scripts/check_modal_focus.py
+      - name: Verify skill focus
+        run: python scripts/check_skill_focus.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
