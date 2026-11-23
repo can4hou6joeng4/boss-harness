@@ -1,3 +1,8 @@
+## 0.2.0-rc.607 - 2026-11-23
+
+- 新增 `scripts/check_anthropic_stream.py`（128 项结构、85 项行为），用假 `anthropic` 客户端驱动真实 `AnthropicProvider._stream_once`，把 Messages 事件到 `StreamEvent` 的流状态机纳入行为对照：文本流与初始块文本拼接、思考增量与签名差分预算、加密思考块、工具参数分片与初始快照二选一、空参数与坏 JSON、未关闭工具、用量合并与停止原因、`refusal` 固定错误、开始前与中途取消、总时限前缀、529 / 400 / 429 / 连接失败 / 未知异常与文本 / 工具字节预算的错误收敛、`messages.create` 与 `beta.messages.create` 请求路径及请求头过滤，以及重复索引 / 关闭、增量错置、无活动块、空签名增量、空加密块、服务端 fallback 块、非法工具标识与名称、签名与加密块超预算、`message_stop` 后事件、缺少 `message_stop`、工具缺思考签名等协议错误必须以「模型流处理异常（ValueError）」收敛而非抛异常。流状态机若接受错配增量或把未闭合工具写进历史，续接与工具批次匹配会永久失败。[Issue #3339](https://github.com/can4hou6joeng4/boss-harness/issues/3339)
+- 源码候选更新为 npm `0.2.0-rc.607` 和 Python `0.2.0rc607`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.606 - 2026-11-23
 
 - 新增 `scripts/check_openai_stream.py`（79 项结构、48 项行为），用假 `openai` 客户端驱动真实 `OpenAIResponsesProvider._stream_once`，把 Responses 事件到 `StreamEvent` 的流状态机纳入行为对照：文本流与完成项文本优先、撤回块过滤、空文本与拒答片段、思考分段延后分隔符、工具调用 `call_id` 标识与参数增量、`arguments.done` 权威与只补后缀、坏 JSON 与来源冲突收敛为「工具调用参数不完整」、截断与用量、缺终态 / 中止 / `response.failed` / 流内 `error` 的固定错误事件，以及身份不一致、重复标识与索引、关闭后起始、增量错置、参数事件越界、重复关闭、终态缺字段与类型不一致等协议错误必须以「模型流处理异常（ValueError）」收敛而非抛异常。流状态机若接受错配的工具身份或把撤回块写进终态消息，执行器会把结果配给错误调用或执行已撤回的工具。[Issue #3337](https://github.com/can4hou6joeng4/boss-harness/issues/3337)
