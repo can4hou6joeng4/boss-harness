@@ -1,3 +1,8 @@
+## 0.2.0-rc.688 - 2026-11-23
+
+- 新增 `scripts/check_skill_focus.py`（9 项结构、12 项行为），为回合技能标签跳转补上回归保护：空焦点立即结束，目录命中立即返回目标，未命中时仅 loading 等待、其余四种目录状态结束等待。Node 直接加载真实 `skillFocus.ts` 执行 12 个用例。[Issue #3501](https://github.com/can4hou6joeng4/boss-harness/issues/3501)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 249 → 250。源码候选更新为 npm `0.2.0-rc.688` 和 Python `0.2.0rc688`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.687 - 2026-11-23
 
 - 新增 `scripts/check_modal_focus.py`（8 项结构、11 项行为），为弹窗初始焦点补上回归保护：单行输入优先于多行文本域，文本域优先于首个控件，同优先级取首次命中，空列表返回 undefined。Node 直接加载真实 `modalFocus.ts` 执行 11 个用例。[Issue #3499](https://github.com/can4hou6joeng4/boss-harness/issues/3499)
