@@ -1,3 +1,8 @@
+## 0.2.0-rc.618 - 2026-11-23
+
+- 新增 `scripts/check_application_queue.py`（93 项结构、45 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖队列写入、回合中断与审批入口：`queue/add` 的未知线程 / 空正文 / 未知技能 / 归档会话拒绝、`clientUserMessageId` 幂等重试、不同输入与技能组合的 `CLIENT_REQUEST_CONFLICT`；`queue/update` 对排队项生效、对已投递项拒绝；`queue/remove` 取消并回读 `cancelled`；`turn/interrupt` 无回合返回 `{"interrupted": false}`；`turn/steer` / `queue/steer` 无回合的同步拒绝；`approval/list` 的空投影与参数契约；`approval/respond` 的参数集合、布尔校验与 `APPROVAL_INVALID` / `APPROVAL_NOT_FOUND` 区分。队列写入若放宽幂等、状态或审批参数校验，会产生重复消息、改写已投递条目或误裁决。[Issue #3361](https://github.com/can4hou6joeng4/boss-harness/issues/3361)
+- 源码候选更新为 npm `0.2.0-rc.618` 和 Python `0.2.0rc618`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.617 - 2026-11-23
 
 - 新增 `scripts/check_application_continuation.py`（19 项结构、22 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖续接、队列与关闭入口：`turn/continuation/read` 的不可续接资格、`CONTINUATION_NOT_INTERRUPTED` 与风险提示、参数 / 来源 / 未知线程拒绝；`queue/list` 的空投影、`followUp` / `steering` 条目与按状态计数；`queue/get` 的单项投影与未知标识；`thread/resume` 与 `thread/read` 逐值一致；`shutdown` 的 `stopped`、状态收敛与重复幂等。续接资格或队列计数漂移会让桌面提供不可用的续接入口或显示错误的排队状态。[Issue #3359](https://github.com/can4hou6joeng4/boss-harness/issues/3359)
