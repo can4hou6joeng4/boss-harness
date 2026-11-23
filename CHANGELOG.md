@@ -1,3 +1,8 @@
+## 0.2.0-rc.654 - 2026-11-23
+
+- 新增 `scripts/check_quick_ask.py`（17 项结构、13 项行为），为快速提问线路解析补上回归保护：会话 → 默认 → 目录的 provider 优先级、会话 model 必须与自带 provider 同线、空串与纯空白视为缺失、`none` 线路（大小写不敏感）拒绝、解析不出时返回明确失败原因。Node 直接调用真实 `resolveQuickAskRoute` 执行 13 个用例。[Issue #3433](https://github.com/can4hou6joeng4/boss-harness/issues/3433)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 216 → 217。源码候选更新为 npm `0.2.0-rc.654` 和 Python `0.2.0rc654`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.653 - 2026-11-23
 
 - 新增 `scripts/check_composer_history.py`（21 项结构、29 项行为），为输入区 ↑ / ↓ 历史调取补上回归保护：只收本会话非空且不超过 20000 字符的用户消息、最近 50 条上限、草稿保存与恢复、前缀过滤（与聊天内查找共用 NFKC + 大小写归一化）与无匹配回退、历史缩短后的游标收敛、多行编辑与修饰键 / 选区保留原生行为。Node 在临时目录加载真实模块执行 29 个用例。[Issue #3431](https://github.com/can4hou6joeng4/boss-harness/issues/3431)
