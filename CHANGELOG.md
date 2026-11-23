@@ -1,3 +1,8 @@
+## 0.2.0-rc.651 - 2026-11-23
+
+- 新增 `scripts/check_shortcuts.py`（18 项结构、23 项行为），为桌面快捷键补上回归保护：平台归一（`darwin` / `mac*`）、⌘ 与 Ctrl 互斥、字母键 Shift 精确匹配、符号键在非 US 布局放宽、Windows AltGr 放行与普通 Ctrl+Alt 拒绝、macOS Option+字母按物理键位兜底、多字符键匹配，以及按平台的键位文案替换与尾随加号清理。Node 在临时目录导入真实模块执行 23 个用例。[Issue #3427](https://github.com/can4hou6joeng4/boss-harness/issues/3427)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 213 → 214。源码候选更新为 npm `0.2.0-rc.651` 和 Python `0.2.0rc651`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.650 - 2026-11-23
 
 - 修复对话框与快速提问输入框的键盘焦点不可见：`.dialog-form input`（新建项目、重命名等对话框）与 `.sidechat-composer input`（快速提问）补 `:focus-visible` 强调色。此前两处移除默认焦点环却没有替代，rc.649 的检查也未覆盖。[Issue #3425](https://github.com/can4hou6joeng4/boss-harness/issues/3425)
