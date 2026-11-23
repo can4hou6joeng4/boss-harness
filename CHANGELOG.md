@@ -1,3 +1,8 @@
+## 0.2.0-rc.718 - 2026-11-24
+
+- 新增 `scripts/check_confirmation_failure.py`（6 项结构、11 项行为），为「主操作回执未知 + 重新核对也失败」的组合说明补上回归保护：主因在前、核对失败在后，两条原因都保留，RPC 码追加，非字符串错误与缺失错误回退为通用描述，后续建议与标签空白原样保留。脚本核对真实 `harnessBridge.ts` 导出，桥接依赖以固定桩替代后由 Node 直接加载真实 `confirmationFailure.ts` 执行 11 个用例。[Issue #3561](https://github.com/can4hou6joeng4/boss-harness/issues/3561)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 279 → 280。源码候选更新为 npm `0.2.0-rc.718` 和 Python `0.2.0rc718`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.717 - 2026-11-24
 
 - 新增 `scripts/check_stop_failure.py`（9 项结构、12 项行为），为停止失败文案补上回归保护：内核拒绝与回执未确认两类措辞互斥、RPC 错误追加内核码与原因码、组合重新核对失败去掉过渡语并保留主因。脚本核对真实 `harnessBridge.ts` 导出接口，桥接依赖以固定桩替代后由 Node 直接加载真实 `stopFailure.ts` 执行 12 个用例。[Issue #3559](https://github.com/can4hou6joeng4/boss-harness/issues/3559)
