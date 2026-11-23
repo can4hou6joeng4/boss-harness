@@ -627,7 +627,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_turn_page.py`
 
-`scripts/check_turn_page.py` 在临时目录构造 `SessionStore`，核对回合分页：按 `first_ordinal` 升序、相同序号按回合编号升序，续页与 `nextCursor` 只在确有多取一行时返回，空回合返回空页；游标绑定 `{"threadId"}` 范围，键必须是整数序号加合法回合标识符，十类非法键分别以「回合分页游标无效」或「turnId 格式无效」拒绝，跨会话与跨种类游标被拒绝，前缀、编码与超长按「分页游标无效」拒绝；相同序号的游标续页跳过游标回合、序号超过全部回合时返回空页，`limit` 恰好 200 被接受，上限 201、布尔与浮点被拒绝，会话格式与不存在会话各自报错。`first_ordinal` / `turn_id` 被外部改写为 BLOB、`metadata_json` 被改写为非对象、非 JSON 文本或 `null` 时，分页按会话重建后恢复返回，而不是把内部错误送给调用方；`first_ordinal` 为负或 `turn_id` 为空串属于合法列值，不触发重建并按列值排序。脚本同时扫描 `list_turns` 的游标种类、双列比较、多取一行、索引刷新与两处类型守卫，以及 `_turn_metadata` 的两处损坏信号；反向断言单会话读取不带跳过集合、损坏信号读取 `thread_id` 而不是条目 id。它在 Source build 与 Python 3.10–3.14 矩阵中分别运行，只使用临时目录。
+`scripts/check_turn_page.py` 在临时目录构造 `SessionStore`，核对回合分页：按 `first_ordinal` 升序、相同序号按回合编号升序，续页与 `nextCursor` 只在确有多取一行时返回，空回合返回空页；游标绑定 `{"threadId"}` 范围，键必须是整数序号加合法回合标识符，十类非法键分别以「回合分页游标无效」或「turnId 格式无效」拒绝，跨会话与跨种类游标被拒绝，前缀、编码与超长按「分页游标无效」拒绝；相同序号的游标续页跳过游标回合、序号超过全部回合时返回空页，`limit` 恰好 200 被接受，上限 201、布尔与浮点被拒绝，会话格式与不存在会话各自报错。`first_ordinal` / `turn_id` 被外部改写为 BLOB、`metadata_json` 被改写为非对象、非 JSON 文本或 `null` 时，分页按会话重建后恢复返回，而不是把内部错误送给调用方；`first_ordinal` 为负或 `turn_id` 为空串属于合法列值，不触发重建并按列值排序。脚本同时扫描 `list_turns` 的游标种类、双列比较、多取一行、索引刷新与两处类型守卫，以及 `_turn_metadata` 的两处损坏信号；反向断言单会话读取不带跳过集合、损坏信号读取 `thread_id` 而不是条目 id。单回合读取另作固定与对照：扫描 `SessionStore.get_turn` 的标识符校验、索引刷新、单行查询、缺失拒绝、滚动读取、归属过滤、投影返回与损坏重建重试，`_item_owners` 的 pending 队列、运行中 `active`、结束回合清理与先出现归属优先，以及 `turn/read` 处理器的取参、`project_item` 投影与响应预算核对；临时会话中前置条目与运行中条目归入第一个回合、显式 `turnId` 只留所属回合、结束后的游离条目与无归属条目不出现在任何回合，未知回合、非法 / 超长 / 非字符串 `turnId`、非法与不存在的会话按固定文案拒绝，`metadata_json` 损坏后重建并返回同一回合。总项数 115。它在 Source build 与 Python 3.10–3.14 矩阵中分别运行，只使用临时目录。
 
 ### `check_summary_issue.py`
 
