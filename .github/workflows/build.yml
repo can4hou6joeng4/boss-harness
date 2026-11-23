@@ -537,5 +537,7 @@ jobs:
         run: python scripts/check_application_leaf.py
       - name: Verify application branches
         run: python scripts/check_application_branches.py
+      - name: Verify handler coverage
+        run: python scripts/check_handler_coverage.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts

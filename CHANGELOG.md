@@ -1,3 +1,8 @@
+## 0.2.0-rc.624 - 2026-11-23
+
+- 新增 `scripts/check_handler_coverage.py`（13 项结构、6 项行为），把 RPC 方法表与检查覆盖变成 CI 不变量：静态解析 `ApplicationService._register` 的方法表，核对 70 个方法、64 个 handler 与六个内联路由，双向核对注册与声明一致，并要求除本脚本外每个 handler 都在 `scripts/check_*.py` 中被真实调用；行为部分构造真实服务，核对 `server._methods` 与静态表逐项一致、全部可调用，并验证握手与空线程 / 模型列表。新增 handler 忘记注册、注册了却无人覆盖，或检查脚本被删减导致覆盖回退，CI 都会失败。[Issue #3373](https://github.com/can4hou6joeng4/boss-harness/issues/3373)
+- 源码候选更新为 npm `0.2.0-rc.624` 和 Python `0.2.0rc624`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.623 - 2026-11-23
 
 - 新增 `scripts/check_application_branches.py`（29 项结构、21 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`（`provider=none`），用分支指针移动与 `append_branch_summary` 构造真实分叉，覆盖分支读取入口：`thread/branches/list` 的空投影与分叉端点投影（`isLeaf` / `containsLeaf` / `forkTurnId` / `branchTurnId` / `selectable` / 输入预览）、`limit=1` 首页与游标续读、参数 / 游标 / 上限 / 未知线程拒绝；`thread/branchSummary/read` 的 15 项投影、参数 / 多余键 / 未知线程拒绝，未知条目与普通条目都返回 -32011 与 `BRANCH_SUMMARY_NOT_FOUND`。分支端点标记或摘要读取若退化为按 id 直接查日志，桌面分支面板会显示错误位置或把普通条目当成摘要正文。[Issue #3371](https://github.com/can4hou6joeng4/boss-harness/issues/3371)

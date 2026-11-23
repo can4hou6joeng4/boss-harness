@@ -77,7 +77,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connections.py`](#check_connectionspy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy)、[`check_login_flow.py`](#check_login_flowpy) |
 | 关闭与中止 | [`check_shutdown.py`](#check_shutdownpy)、[`check_runtime_capacity.py`](#check_runtime_capacitypy)、[`check_bridge_lifecycle.py`](#check_bridge_lifecyclepy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_clusters.py`](#check_search_clusterspy)、[`check_search_index.py`](#check_search_indexpy)、[`check_search_scan.py`](#check_search_scanpy)、[`check_search_snippet.py`](#check_search_snippetpy) |
-| 工作流与文档 | [`check_workflows.py`](#check_workflowspy)、[`check_docs_links.py`](#check_docs_linkspy) |
+| 工作流与文档 | [`check_workflows.py`](#check_workflowspy)、[`check_docs_links.py`](#check_docs_linkspy)、[`check_handler_coverage.py`](#check_handler_coveragepy) |
 
 ### `check_versions.py`
 
@@ -920,6 +920,10 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 ### `check_docs_links.py`
 
 `scripts/check_docs_links.py` 扫描根目录、`docs/`、`harness/` 与 `.github/` 下的全部 Markdown（含 `harness/README.md` 与 PR 模板）：跳过代码围栏、行内代码与 HTML 注释中的示例、外链，核对相对文件路径存在；带 `#片段` 的链接同时按 ATX 标题生成 GitHub 风格锚点（小写、去标点、空格转连字符、重复标题全局追加 `-1`、`-2`），并解码百分号编码后校验同文件与跨 Markdown 文件的页内锚点。代码围栏识别 ``` 与 ~~~，最多允许 3 个前导空格，关闭标记不得短于开启标记且不得带信息串；未闭合时以文件名失败。它还要求 `docs/README.md` 索引 `docs/` 下其余 Markdown 文件，并要求上述目录中的 Markdown 全部登记在检查清单内，未登记或登记后移出约定位置都会失败。根目录引导文档（当前为 `SETUP.md`）还必须能从 README 的「项目导航」章节与 `docs/README.md` 的根文件列表到达，导航章节缺失或入口被移除都会失败。它不检查远程 URL 是否可访问，也不处理 setext 标题或运行时生成的页面锚点。它还要求 `scripts/` 下每个 `check_*.py` 在本文档恰有一个以脚本名为标题的三级小节，小节对应的脚本也必须存在；代码围栏与 HTML 注释中的标题不计入。
+
+### `check_handler_coverage.py`
+
+`scripts/check_handler_coverage.py` 把「方法表与检查覆盖」变成 CI 不变量：静态解析 `ApplicationService._register` 的方法表，核对方法数量 70、handler 数量 64 与六个内联路由（connection/read、connection/check 与 platform/login/*）；双向核对每个注册的 `self.on_*` 都已声明、每个声明的 `on_*` 都已注册，并要求除本脚本外每个 handler 名都在 `scripts/check_*.py` 中以 `.<name>(` 形式被真实调用。行为部分构造真实服务，核对 `server._methods` 键集合与静态表逐项一致、全部可调用，并验证握手与空线程 / 模型列表。它只解析方法表字面量，不解析受控 lambda 的内部实现。共 13 项结构、6 项行为。
 
 ## 业务 CLI 请求与认证边界
 
