@@ -1,3 +1,8 @@
+## 0.2.0-rc.695 - 2026-11-24
+
+- 新增 `scripts/check_notification_focus.py`（14 项结构、16 项行为），为通知定位补上回归保护：载荷类型、空白与 200 字符上限校验，列表加载中等待、加载完成放弃，命中会话立即应用。Node 直接加载真实 `threadFocus.ts` 与 `focusIntent.ts` 执行 16 个用例。[Issue #3515](https://github.com/can4hou6joeng4/boss-harness/issues/3515)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 256 → 257。源码候选更新为 npm `0.2.0-rc.695` 和 Python `0.2.0rc695`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.694 - 2026-11-23
 
 - 新增 `scripts/check_sidebar_visibility.py`（25 项结构、30 项行为），为侧栏会话可见性补上回归保护：隐藏开关过滤、归档分组互斥、隐藏计数去重，以及失败、中断、暂停队列项与待审批调用的待处理判定。Node 直接加载真实 `sidebarVisibility.ts` 执行 30 个用例。[Issue #3513](https://github.com/can4hou6joeng4/boss-harness/issues/3513)
