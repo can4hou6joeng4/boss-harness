@@ -17,6 +17,9 @@ NUMBER = r"(?:0|[1-9][0-9]*)"
 NPM_VERSION = re.compile(rf"({NUMBER}\.{NUMBER}\.{NUMBER})(?:-rc\.({NUMBER}))?")
 CHANGELOG_HEADING = re.compile(r"^## (\S+) - (\d{4}-\d{2}-\d{2})$", re.MULTILINE)
 CANDIDATE_VERSION = re.compile(rf"({NUMBER})\.({NUMBER})\.({NUMBER})-rc\.({NUMBER})")
+STATUS_RELEASE_TAG = re.compile(r"releases/tag/v(\d+\.\d+\.\d+-rc\.\d+)")
+CHANGELOG_LINK = re.compile(
+    r"https://github\.com/can4hou6joeng4/boss-harness/(?:issues|pull)/[0-9]+")
 
 
 def _read(relative: str, parse):
@@ -80,9 +83,36 @@ def _candidate_key(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in match.groups())
 
 
+def _published_version() -> str:
+    path = "docs/STATUS.md"
+    text = _read(path, lambda value: value)
+    match = STATUS_RELEASE_TAG.search(text)
+    if match is None:
+        raise ValueError(f"{path} 缺少最近实际预发布的 tag 链接")
+    return match.group(1)
+
+
+def _entry_bodies(text: str) -> list[tuple[str, str]]:
+    parts = CHANGELOG_HEADING.split(text)
+    return [(parts[index], parts[index + 2]) for index in range(1, len(parts) - 1, 3)]
+
+
+def _check_candidate_links(text: str, published: str) -> None:
+    boundary = _candidate_key(published)
+    missing = [
+        version
+        for version, body in _entry_bodies(text)
+        if _candidate_key(version) > boundary and not CHANGELOG_LINK.search(body)
+    ]
+    if missing:
+        raise ValueError(
+            "CHANGELOG.md 的候选条目缺少 Issue 或 PR 链接：" + "、".join(missing))
+
+
 def _check_changelog(npm_version: str) -> None:
     path = "CHANGELOG.md"
-    entries = CHANGELOG_HEADING.findall(_read(path, lambda text: text))
+    text = _read(path, lambda value: value)
+    entries = CHANGELOG_HEADING.findall(text)
     if not entries:
         raise ValueError(f"{path} 缺少版本条目")
     headings = [version for version, _ in entries]
@@ -106,6 +136,7 @@ def _check_changelog(npm_version: str) -> None:
                 f"{path} 的版本条目日期不得晚于上一条："
                 f"{headings[index]} 的 {entries[index][1]} 位于 {entries[index - 1][1]} 之后"
             )
+    _check_candidate_links(text, _published_version())
 
 
 def _manifest_paths(root: dict) -> list[str]:
