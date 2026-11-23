@@ -543,5 +543,7 @@ jobs:
         run: python scripts/check_application_usage.py
       - name: Verify application search and export
         run: python scripts/check_application_search_export.py
+      - name: Verify application item read
+        run: python scripts/check_application_item_read.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts

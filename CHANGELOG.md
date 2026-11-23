@@ -1,3 +1,8 @@
+## 0.2.0-rc.627 - 2026-11-23
+
+- 新增 `scripts/check_application_item_read.py`（44 项结构、23 项行为），在临时工作区真实构造 `ApplicationService`（`provider=none`），用底层引用函数算出真实摘要后覆盖条目读取入口：`thread/item/result/read` 的投影、分页与 `STALE_RESULT`（含 `currentRef`），以及未知参数 / 缺摘要 / 非工具条目拒绝；`thread/item/content/read` 的 `text` / `thinking` 读取、分页、`STALE_CONTENT`、`part` / `snapshotId` / 未知线程 / 非助手条目拒绝。引用校验若放宽，桌面会按过期视图展示「当前结果」或按自由偏移读取任意内容。[Issue #3379](https://github.com/can4hou6joeng4/boss-harness/issues/3379)
+- 源码候选更新为 npm `0.2.0-rc.627` 和 Python `0.2.0rc627`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.626 - 2026-11-23
 
 - 新增 `scripts/check_application_search_export.py`（30 项结构、34 项行为），在临时工作区真实构造 `ApplicationService`（`provider=none`），覆盖搜索与导出读取入口：`thread/search` 的命中投影、空结果、归档默认排除与 `includeArchived=true` 包含、查询 / 参数 / 布尔 / 上限拒绝；`thread/export` 的 13 项投影、Markdown / JSON / HTML 内容契约与格式 / 工具结果 / 大小 / 视图 / 未知线程 / 多余键拒绝；脱敏组验证工作区绝对路径在 markdown 与 json 导出中都被替换且 `redactions.paths >= 1`。归档过滤或导出脱敏漂移会让搜索返回已归档会话，或把本机路径写进对外分享的文档。[Issue #3377](https://github.com/can4hou6joeng4/boss-harness/issues/3377)
