@@ -1,3 +1,8 @@
+## 0.2.0-rc.625 - 2026-11-23
+
+- 新增 `scripts/check_application_usage.py`（17 项结构、18 项行为），在临时工作区真实构造 `ApplicationService`（`provider=none`），写入 `model_usage` 记录并跨分叉核对 `thread/usage/read`：空会话投影与总量键、默认视图、参数 / 视图 / 未知线程 / 坏游标 / 上限拒绝；`log` 视图包含被放弃分支请求并返回 `cacheWaste`，`branch` 视图只聚合当前分支、附叶子投影且不返回线性缓存估计；分页续读。视图参数或聚合范围漂移会让桌面把被放弃分支请求计入当前分支，或给出误导性的缓存浪费估计。[Issue #3375](https://github.com/can4hou6joeng4/boss-harness/issues/3375)
+- 源码候选更新为 npm `0.2.0-rc.625` 和 Python `0.2.0rc625`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.624 - 2026-11-23
 
 - 新增 `scripts/check_handler_coverage.py`（13 项结构、6 项行为），把 RPC 方法表与检查覆盖变成 CI 不变量：静态解析 `ApplicationService._register` 的方法表，核对 70 个方法、64 个 handler 与六个内联路由，双向核对注册与声明一致，并要求除本脚本外每个 handler 都在 `scripts/check_*.py` 中被真实调用；行为部分构造真实服务，核对 `server._methods` 与静态表逐项一致、全部可调用，并验证握手与空线程 / 模型列表。新增 handler 忘记注册、注册了却无人覆盖，或检查脚本被删减导致覆盖回退，CI 都会失败。[Issue #3373](https://github.com/can4hou6joeng4/boss-harness/issues/3373)

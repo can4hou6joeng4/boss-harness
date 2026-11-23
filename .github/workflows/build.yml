@@ -539,5 +539,7 @@ jobs:
         run: python scripts/check_application_branches.py
       - name: Verify handler coverage
         run: python scripts/check_handler_coverage.py
+      - name: Verify application usage
+        run: python scripts/check_application_usage.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
