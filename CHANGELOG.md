@@ -1,3 +1,8 @@
+## 0.2.0-rc.652 - 2026-11-23
+
+- 新增 `scripts/check_message_merge.py`（18 项结构、18 项行为），为会话区本地消息合并补上回归保护：审批卡仅在 `approvalId` 相同且新数据没有结论时保留本地 `decision` / `remember`，否则保留提交标记；问题与计划只在卡片 id / slug 相同时保留已回答与已保存状态；父级已移除的消息不复活，正文与顺序以新数据为准。Node 直接调用真实 `mergeLocalMessageState` 执行 18 个用例。[Issue #3429](https://github.com/can4hou6joeng4/boss-harness/issues/3429)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 214 → 215。源码候选更新为 npm `0.2.0-rc.652` 和 Python `0.2.0rc652`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.651 - 2026-11-23
 
 - 新增 `scripts/check_shortcuts.py`（18 项结构、23 项行为），为桌面快捷键补上回归保护：平台归一（`darwin` / `mac*`）、⌘ 与 Ctrl 互斥、字母键 Shift 精确匹配、符号键在非 US 布局放宽、Windows AltGr 放行与普通 Ctrl+Alt 拒绝、macOS Option+字母按物理键位兜底、多字符键匹配，以及按平台的键位文案替换与尾随加号清理。Node 在临时目录导入真实模块执行 23 个用例。[Issue #3427](https://github.com/can4hou6joeng4/boss-harness/issues/3427)
