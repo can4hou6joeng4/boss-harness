@@ -1,3 +1,8 @@
+## 0.2.0-rc.677 - 2026-11-23
+
+- 新增 `scripts/check_queue_action.py`（37 项结构、26 项行为），为队列撤回与重新排队的本地收敛补上回归保护：部分完成提示、RPC 拒绝与未确认结果区分、本地列表去重与旧项保留、总数只随新增记录增加、活动计数与分类对账、截断投影增量。Node 在临时目录改写错误文案导入并复用真实 `queueMapping.ts` 后加载真实 `queueAction.ts` 执行 26 个用例（提示 8、拒绝分类 6、本地列表 5、计数投影 7）。[Issue #3479](https://github.com/can4hou6joeng4/boss-harness/issues/3479)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 238 → 239。源码候选更新为 npm `0.2.0-rc.677` 和 Python `0.2.0rc677`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.676 - 2026-11-23
 
 - 新增 `scripts/check_context_panel_state.py`（54 项结构、36 项行为），为摘要面板的状态收敛补上回归保护：旧读取航班身份与刷新标记、断连易失状态复位、任务记录缺失与开始回执未知时的恢复入口、运行中任务保留、占用详情连续失败三次才解锁、终态详情不可识别时的固定提示。Node 直接加载真实 `contextPanelState.ts` 执行 36 个用例（读取航班 6、断连收敛 6、任务缺失 6、开始回执 5、占用解锁 9、终态详情 4）。[Issue #3477](https://github.com/can4hou6joeng4/boss-harness/issues/3477)
