@@ -8,8 +8,11 @@
 会话重建而不是把内部错误送给调用方。`_turn_metadata` 只解码投影 JSON，
 非对象按索引损坏处理，且损坏信号携带的是会话 id（turns 表没有条目 id 列）。
 行为对照覆盖同序号续页、越界游标、`limit` 恰好 200、负序号与空编号不触发重建，
-以及 `metadata_json` 为非对象、非 JSON 与 `null` 三类损坏的重建。本脚本在临时
-目录构造 `SessionStore` 做行为对照并扫描源码；不访问网络、模型或招聘平台。
+以及 `metadata_json` 为非对象、非 JSON 与 `null` 三类损坏的重建。本脚本还固定
+单回合读取：`SessionStore.get_turn` 的条目归属过滤（首个回合之前的条目归入第一个
+回合、已结束回合后的游离条目不出现）、错误文案与索引重建重试，以及 `turn/read`
+处理器的取参、`project_item` 投影与响应预算核对，并用临时 `SessionStore` 做
+行为对照。不访问网络、模型或招聘平台。
 """
 
 from __future__ import annotations
@@ -21,9 +24,10 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
+APPLICATION = "harness/src/boss_harness/application.py"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
-from boss_harness.session import SessionStore, _page_cursor  # noqa: E402
+from boss_harness.session import Entry, SessionStore, _page_cursor  # noqa: E402
 
 TURNS_ORDER = (
     "def list_turns(self, thread_id: str, *, cursor: str | None = None, limit: int = 50) -> dict:",
@@ -58,6 +62,35 @@ TURN_META_ORDER = (
     "if not isinstance(metadata, dict):",
     'raise _IndexedMetadataError(row["thread_id"])',
     "return metadata",
+)
+GET_TURN_ORDER = (
+    "def get_turn(self, thread_id: str, turn_id: str) -> dict:",
+    '_identifier(turn_id, "turnId")',
+    "self._sync_thread(thread_id)",
+    '"SELECT * FROM turns WHERE thread_id=? AND turn_id=?", (thread_id, turn_id)',
+    'raise ValueError("回合不存在")',
+    "rollout = self.read_entries(thread_id)",
+    "owners = self._item_owners(rollout)",
+    'entries = [entry for entry in rollout if owners.get(entry["id"]) == turn_id]',
+    'return {**self._turn_metadata(row), "items": self._project_items(thread_id, entries)}',
+    "return self._with_repaired_index(read)",
+)
+TURN_READ_ORDER = (
+    "def on_turn_read(self, params: dict | None) -> dict:",
+    'thread_id = _text(params, "threadId")',
+    'turn = self.sessions.get_turn(thread_id, _text(params, "turnId"))',
+    'result = {"turn": {**turn, "items": [project_item(thread_id, item) for item in turn["items"]]}}',
+    "self._check_response_budget(result)",
+    "return result",
+)
+ITEM_OWNERS_ORDER = (
+    "def _item_owners(entries: list[dict]) -> dict[str, str | None]:",
+    "pending: list[str] = []",
+    "owner = explicit if explicit is not None else owners.get(target) or active",
+    'if entry["id"] not in owners:',
+    'if owner is None:\n                        pending.append(entry["id"])',
+    'for entry_id in pending:\n                        owners[entry_id] = turn_id',
+    'and payload.get("status") in _TERMINAL and active == turn_id):',
 )
 
 
@@ -99,6 +132,74 @@ def _expect_error(action, message: str, label: str) -> None:
     raise ValueError(f"{label} 必须被拒绝")
 
 
+def _get_turn_checks() -> int:
+    # 单回合读取的归属规则：前置条目归入第一个回合，显式 turnId 只留在所属回合，
+    # 已结束回合后的游离条目不出现；错误与索引损坏重建也走同一入口。
+    checked = 0
+    with tempfile.TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        try:
+            thread_id = store.create("回合读取")["id"]
+            store.append(thread_id, Entry(
+                type="item", id="pre-1", payload={"kind": "userMessage", "text": "前置"}))
+            store.record_turn(thread_id, "turn-a", "running")
+            store.append(thread_id, Entry(
+                type="item", id="item-a",
+                payload={"kind": "userMessage", "turnId": "turn-a", "text": "A"}))
+            # 运行中的回合接收未标记 turnId 的条目；结束后的游离条目不归属任何回合。
+            store.append(thread_id, Entry(
+                type="item", id="active-a", payload={"kind": "userMessage", "text": "运行中"}))
+            store.record_turn(thread_id, "turn-a", "completed")
+            store.record_turn(thread_id, "turn-b", "completed")
+            store.append(thread_id, Entry(
+                type="item", id="item-b",
+                payload={"kind": "agentMessage", "turnId": "turn-b", "text": "B"}))
+            store.append(thread_id, Entry(
+                type="item", id="loose", payload={"kind": "userMessage", "text": "无归属"}))
+            first = store.get_turn(thread_id, "turn-a")
+            if (first.get("turnId"), first.get("status"), first.get("threadId")) != (
+                    "turn-a", "completed", thread_id):
+                raise ValueError("单回合读取必须返回回合元数据")
+            checked += 1
+            if [item.get("id") for item in first["items"]] != ["pre-1", "item-a", "active-a"]:
+                raise ValueError("前置与运行中条目必须归入第一个回合，游离条目不得出现")
+            checked += 1
+            if any(item.get("threadId") != thread_id for item in first["items"]):
+                raise ValueError("条目投影必须带会话 id")
+            checked += 1
+            second = store.get_turn(thread_id, "turn-b")
+            if [item.get("id") for item in second["items"]] != ["item-b"]:
+                raise ValueError("显式 turnId 条目必须只留在所属回合")
+            checked += 1
+            if second["items"][0].get("text") != "B":
+                raise ValueError("条目正文必须原样投影")
+            checked += 1
+            _expect_error(lambda: store.get_turn(thread_id, "turn-z"), "回合不存在", "未知回合")
+            checked += 1
+            for label, turn_id in (("空", ""), ("含空白", "turn a"),
+                                   ("超长", "t" * 129), ("非字符串", 3)):
+                _expect_error(lambda turn_id=turn_id: store.get_turn(thread_id, turn_id),
+                              "turnId 格式无效", label)
+                checked += 1
+            _expect_error(lambda: store.get_turn("zzz", "turn-a"), "threadId 格式无效", "会话格式")
+            checked += 1
+            _expect_error(lambda: store.get_turn("000000000000", "turn-a"), "会话不存在", "会话不存在")
+            checked += 1
+            with store._index.transaction() as connection:
+                connection.execute(
+                    "UPDATE turns SET metadata_json='not-json'"
+                    " WHERE thread_id=? AND turn_id='turn-a'", (thread_id,))
+            repaired = store.get_turn(thread_id, "turn-a")
+            if (repaired.get("turnId") != "turn-a"
+                    or [item.get("id") for item in repaired["items"]]
+                    != ["pre-1", "item-a", "active-a"]):
+                raise ValueError("回合投影损坏后必须重建并返回同一回合")
+            checked += 1
+        finally:
+            store.close()
+    return checked
+
+
 def check_turn_page() -> int:
     source = _read(SESSION)
     tree = ast.parse(source)
@@ -135,6 +236,24 @@ def check_turn_page() -> int:
     checked += 1
     if metadata.count('json.loads(row["metadata_json"])') != 1:
         raise ValueError(f"{SESSION} 的回合投影只解析一次")
+    checked += 1
+    # 单回合读取：归属过滤与损坏重建重试必须保留，处理器只做投影与预算核对。
+    application = _read(APPLICATION)
+    application_tree = ast.parse(application)
+    get_turn = _method(tree, source, "SessionStore", "get_turn")
+    checked += _ordered(GET_TURN_ORDER, get_turn, SESSION)
+    if get_turn.count('raise ValueError("回合不存在")') != 1:
+        raise ValueError(f"{SESSION} 的回合读取必须恰好一处拒绝缺失回合")
+    checked += 1
+    if get_turn.count("_item_owners(rollout)") != 1:
+        raise ValueError(f"{SESSION} 的回合读取必须恰好一次归属解析")
+    checked += 1
+    owners = _method(tree, source, "SessionStore", "_item_owners")
+    checked += _ordered(ITEM_OWNERS_ORDER, owners, SESSION)
+    handler = _method(application_tree, application, "ApplicationService", "on_turn_read")
+    checked += _ordered(TURN_READ_ORDER, handler, APPLICATION)
+    if handler.count("self._check_response_budget(result)") != 1:
+        raise ValueError(f"{APPLICATION} 的回合读取必须核对响应预算")
     checked += 1
     # 行为：分页、排序与游标。
     with tempfile.TemporaryDirectory() as temporary:
@@ -300,7 +419,7 @@ def check_turn_page() -> int:
             checked += 1
         finally:
             store.close()
-    return checked
+    return checked + _get_turn_checks()
 
 
 def main() -> int:
@@ -309,7 +428,7 @@ def main() -> int:
     except (ValueError, SyntaxError) as error:
         print(f"回合分页核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"回合分页一致：{checked} 项游标、排序与损坏守卫校验")
+    print(f"回合分页一致：{checked} 项游标、排序、单回合读取与损坏守卫校验")
     return 0
 
 
