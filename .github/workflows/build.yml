@@ -563,6 +563,8 @@ jobs:
         run: python scripts/check_workspace_empty_states.py
       - name: Verify focus visibility
         run: python scripts/check_focus_visibility.py
+      - name: Verify shortcuts
+        run: python scripts/check_shortcuts.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
