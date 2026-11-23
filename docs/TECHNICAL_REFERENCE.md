@@ -967,7 +967,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_workspace_empty_states.py`
 
-`scripts/check_workspace_empty_states.py` 核对工作区空状态与读取失败都给出可点的恢复操作：`WorkspacePages.tsx` 中「最近聊天」无会话空态（`data-recents-empty="none"`）必须保留「还没有聊天」标题、「开始一个任务」按钮与 `onClick={onNewTask}`；「最近聊天」筛选无匹配（`data-recents-empty="no-match"`）与「资料库」筛选无匹配（`data-library-empty="no-match"`）与文件段、来源段的分段无匹配（`no-file-match` / `no-source-match`）都必须保留对应提示文案、「清空筛选」按钮，并分别调用 `setQuery("")` / `setLibraryQuery("")`。「已连接工具」的读取失败态与空态必须带「重新读取」按钮并调用 `onRefreshTools`；`AppShell.tsx` 保留 `toolRefresh` 计数、`[props.harnessUp, toolRefresh]` effect 依赖与传给 `WorkspacePages` 的 `onRefreshTools` 链路，重读不需要重启应用或切换页面。`replica.css` 保留紧凑的 `recent-empty` 布局、`page-empty-action` 操作列与工具空态按钮间距。行为侧用合成 JSX 核对缺少按钮、用错设置函数、缺少开始入口、标记缺失 / 改名与工具重试缺失都会检出、干净样本不误报。共 32 项结构、11 项行为。
+`scripts/check_workspace_empty_states.py` 核对工作区空状态与读取失败都给出可点的恢复操作：`WorkspacePages.tsx` 中「最近聊天」无会话空态（`data-recents-empty="none"`）必须保留「还没有聊天」标题、「开始一个任务」按钮与 `onClick={onNewTask}`；「最近聊天」筛选无匹配（`data-recents-empty="no-match"`）与「资料库」筛选无匹配（`data-library-empty="no-match"`）与文件段、来源段的分段无匹配（`no-file-match` / `no-source-match`）都必须保留对应提示文案、「清空筛选」按钮，并分别调用 `setQuery("")` / `setLibraryQuery("")`。「已连接工具」的读取失败态与空态必须带「重新读取」按钮并调用 `onRefreshTools`；`AppShell.tsx` 保留 `toolRefresh` 计数、`[props.harnessUp, toolRefresh]` effect 依赖与传给 `WorkspacePages` 的 `onRefreshTools` 链路，重读不需要重启应用或切换页面。存在已归档会话时，最近聊天无匹配提示必须补充归档数量与侧栏「已归档」入口，归档判定为 `session.archived === true`，避免把归档误当成删除。`replica.css` 保留紧凑的 `recent-empty` 布局、`page-empty-action` 操作列与工具空态按钮间距。行为侧用合成 JSX 核对缺少按钮、用错设置函数、缺少开始入口、标记缺失 / 改名、工具重试缺失与归档提示缺入口都会检出、干净样本不误报。共 35 项结构、13 项行为。
 
 ### `check_docs_links.py`
 

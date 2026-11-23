@@ -37,6 +37,11 @@ SHELL_FRAGMENTS = (
     "[props.harnessUp, toolRefresh]",
     "onRefreshTools={() => setToolRefresh(previous => previous + 1)}",
 )
+RECENTS_ARCHIVE_FRAGMENTS = (
+    "const archivedCount = folders",
+    ".filter(session => session.archived === true).length",
+    "个已归档聊天不在最近聊天中显示，可在侧栏「已归档」查看",
+)
 STYLE_FRAGMENTS = (
     ".page-empty.recent-empty { min-height: 280px; }",
     ".page-empty-action { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }",
@@ -158,6 +163,17 @@ def _check_behaviors() -> int:
             '内核当前没有声明可用工具。<button type="button" onClick={onRefreshTools}>重新读取</button>',
             '内核当前没有声明可用工具。'))),
         1, "工具清单空态缺少重新读取")
+    archive_sample = (
+        "const archivedCount = folders.flatMap(folder => folder.sessions)"
+        ".filter(session => session.archived === true).length;\n"
+        '{archivedCount > 0 ? `没有找到匹配的聊天。${archivedCount} 个已归档聊天不在最近聊天中显示，可在侧栏「已归档」查看。` : "没有找到匹配的聊天。"}'
+    )
+    checked += _expect_value(
+        len(_fragment_problems(archive_sample, RECENTS_ARCHIVE_FRAGMENTS, "归档提示")), 0, "干净归档提示")
+    checked += _expect_value(
+        len(_fragment_problems(archive_sample.replace("个已归档聊天不在最近聊天中显示，可在侧栏「已归档」查看", "个已归档聊天"),
+                              RECENTS_ARCHIVE_FRAGMENTS, "归档提示")),
+        1, "归档提示缺少查看入口")
     return checked
 
 
@@ -165,8 +181,8 @@ def _check_documentation() -> int:
     docs = _read(DOCS)
     if "`check_workspace_empty_states.py`" not in docs:
         raise ValueError(f"{DOCS} 缺少 check_workspace_empty_states.py")
-    if "共 32 项结构、11 项行为" not in docs:
-        raise ValueError(f"{DOCS} 需说明 check_workspace_empty_states.py 检查 32 项结构、11 项行为")
+    if "共 35 项结构、13 项行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_workspace_empty_states.py 检查 35 项结构、13 项行为")
     return 2
 
 
@@ -175,11 +191,13 @@ def check_workspace_empty_states() -> tuple[int, int]:
     shell = _read(SHELL)
     styles = _read(STYLES)
     problems = _problems(pages) + _tool_problems(pages)
+    problems += _fragment_problems(pages, RECENTS_ARCHIVE_FRAGMENTS, PAGES)
     problems += _fragment_problems(shell, SHELL_FRAGMENTS, SHELL)
     problems += _fragment_problems(styles, STYLE_FRAGMENTS, STYLES)
     if problems:
         raise ValueError("工作区空状态不一致：" + "；".join(problems))
     structure = len(EMPTY_STATES) * 4 + len(STYLE_FRAGMENTS) + len(TOOL_MARKERS) * 3 + len(SHELL_FRAGMENTS)
+    structure += len(RECENTS_ARCHIVE_FRAGMENTS)
     behavior = _check_behaviors()
     _check_documentation()
     return structure, behavior

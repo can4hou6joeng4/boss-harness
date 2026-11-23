@@ -23,10 +23,12 @@ export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, o
   useEffect(() => { resetCopy(); }, [page, file, resetCopy]);
   const copyNoteText = copyNote ? (copyNote.ok ? "已复制。" : `复制失败：${copyNote.reason}`) : "";
   const recentRows = sessionRows(folders, query);
+  // 归档会话默认不出现在最近聊天；有归档时在无匹配提示里说明去处，避免误以为会话被删除。
+  const archivedCount = folders.flatMap(folder => folder.sessions).filter(session => session.archived === true).length;
   if (page === "recents") return <div className="workspace-page" data-screen-label="最近聊天"><div className="page-heading"><div><h1>最近聊天</h1><p>从上次停下的地方继续。</p></div><button className="subtle-button" onClick={onNewTask}><IconPlus size={15} />新聊天</button></div><div className="page-search"><IconSearch size={16} /><input aria-label="筛选最近聊天" placeholder="搜索聊天…" value={query} onChange={event => setQuery(event.target.value)} /></div>
     <div className="recent-table">{recentRows.map(({ session, project }) => <button className="recent-row" key={session.id} onClick={() => onSelect(session)}><span className="recent-row-icon"><IconHistory size={18} /></span><span><strong>{session.title}</strong><small>{project}</small></span><time dateTime={session.updatedAt}>{session.updatedAt ? formatRelativeTime(session.updatedAt, now) : session.timeAgo}</time><IconChevronRight size={14} /></button>)}
     {!recentRows.length && (query.trim()
-      ? <div className="page-empty-note page-empty-action" data-recents-empty="no-match"><p>没有找到匹配的聊天。</p><button type="button" className="subtle-button" onClick={() => setQuery("")}>清空筛选</button></div>
+      ? <div className="page-empty-note page-empty-action" data-recents-empty="no-match"><p>{archivedCount > 0 ? `没有找到匹配的聊天。${archivedCount} 个已归档聊天不在最近聊天中显示，可在侧栏「已归档」查看。` : "没有找到匹配的聊天。"}</p><button type="button" className="subtle-button" onClick={() => setQuery("")}>清空筛选</button></div>
       : <div className="page-empty recent-empty" data-recents-empty="none"><IconHistory size={36} /><h2>还没有聊天</h2><p>创建任务后，聊天会保存在本地并出现在这里，可以从最近的位置继续。</p><button className="subtle-button" onClick={onNewTask}><IconPlus size={15} />开始一个任务</button></div>)}</div></div>;
   if (page === "library") {
     const files = collectLibraryFiles(messages);

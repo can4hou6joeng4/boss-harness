@@ -1,3 +1,8 @@
+## 0.2.0-rc.647 - 2026-11-23
+
+- 「最近聊天」筛选无匹配且存在已归档会话时，提示补充归档数量与侧栏「已归档」入口：归档会话默认不在此列表显示，不再让人误以为会话被删除；没有归档会话时保持原提示。[Issue #3419](https://github.com/can4hou6joeng4/boss-harness/issues/3419)
+- 扩展 `scripts/check_workspace_empty_states.py`（35 项结构、13 项行为）：归档判定与提示片段纳入核对，合成自检新增归档提示缺入口用例。源码候选更新为 npm `0.2.0-rc.647` 和 Python `0.2.0rc647`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.646 - 2026-11-23
 
 - 「资料库」文件段与来源段的分段无匹配提示各提供「清空筛选」按钮：一类有匹配、另一类没有时不再只显示文字，点击直接清空资料筛选词；整体无匹配的清空入口保持不变。[Issue #3417](https://github.com/can4hou6joeng4/boss-harness/issues/3417)
