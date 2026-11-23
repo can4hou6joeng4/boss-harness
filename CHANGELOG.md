@@ -1,3 +1,8 @@
+## 0.2.0-rc.699 - 2026-11-24
+
+- 新增 `scripts/check_context_edit.py`（26 项结构、27 项行为），为上下文编辑回执补上回归保护：身份匹配与长度、来源摘要格式、正文上限、布尔标记、原因归一化与安全截断。在临时目录加载真实 `contextEdit.ts` 执行 27 个用例。[Issue #3523](https://github.com/can4hou6joeng4/boss-harness/issues/3523)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 260 → 261。源码候选更新为 npm `0.2.0-rc.699` 和 Python `0.2.0rc699`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.698 - 2026-11-24
 
 - 新增 `scripts/check_context_breakdown.py`（21 项结构、22 项行为），为上下文构成拆分补上回归保护：非对象与数组拒绝、计数字段安全整数校验、校准后两段与旧内核四段分支、零总和回退与额外字段忽略。Node 直接加载真实 `contextBreakdown.ts` 执行 22 个用例。[Issue #3521](https://github.com/can4hou6joeng4/boss-harness/issues/3521)
