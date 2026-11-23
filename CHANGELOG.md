@@ -1,3 +1,8 @@
+## 0.2.0-rc.696 - 2026-11-24
+
+- 新增 `scripts/check_model_retry.py`（23 项结构、33 项行为），为模型自动重试状态补上回归保护：载荷校验与字段上限、错误文案归一化与截断、recovered / aborted / failed 分支、回合收尾收敛与倒计时。Node 直接加载真实 `modelRetry.ts` 执行 33 个用例。[Issue #3517](https://github.com/can4hou6joeng4/boss-harness/issues/3517)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 257 → 258。源码候选更新为 npm `0.2.0-rc.696` 和 Python `0.2.0rc696`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.695 - 2026-11-24
 
 - 新增 `scripts/check_notification_focus.py`（14 项结构、16 项行为），为通知定位补上回归保护：载荷类型、空白与 200 字符上限校验，列表加载中等待、加载完成放弃，命中会话立即应用。Node 直接加载真实 `threadFocus.ts` 与 `focusIntent.ts` 执行 16 个用例。[Issue #3515](https://github.com/can4hou6joeng4/boss-harness/issues/3515)
