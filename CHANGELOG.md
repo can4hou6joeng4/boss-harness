@@ -1,3 +1,8 @@
+## 0.2.0-rc.663 - 2026-11-23
+
+- 新增 `scripts/check_route_history.py`（18 项结构、17 项行为），为会话历史路由补上回归保护：删除会话时移除全部相关路由、光标按原位置或其后最近一条调整并在末尾收敛、无匹配与非法光标返回 null、对象引用保留；后退 / 前进按方向跳过不可达路由，非法参数、零增量与全不可达返回 -1。Node 直接加载真实模块执行 17 个用例（修剪 10、可达 7）。[Issue #3451](https://github.com/can4hou6joeng4/boss-harness/issues/3451)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 224 → 225。源码候选更新为 npm `0.2.0-rc.663` 和 Python `0.2.0rc663`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.662 - 2026-11-23
 
 - 新增 `scripts/check_approval_chime.py`（22 项结构、14 项行为），为审批提示音补上回归保护：偏好只认 `"true"`、读取异常按关闭、最小间隔 1500ms 与非法上次播放时间、上下文只建一次并恢复挂起状态、两声 880 / 1318.51 Hz 调度、自动播放失败与构造失败静默返回 false。Node 在临时目录加载真实模块并注入假 `window.AudioContext` 与假 `localStorage`，执行 14 个用例（偏好 3、到期 3、预热 1、播放 7）。[Issue #3449](https://github.com/can4hou6joeng4/boss-harness/issues/3449)
