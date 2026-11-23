@@ -1,3 +1,8 @@
+## 0.2.0-rc.630 - 2026-11-23
+
+- 新增 `scripts/check_readme_stability.py`（17 项结构、7 项行为），把「首页只写稳定事实」变成 CI 不变量：README 不得出现候选号、版本号或更新说明类标题与本机绝对路径，必须保留 CHANGELOG、项目状态、发布约定、许可证、安全、支持、贡献、安装、用户指南与桌面指南等稳定链接，以及开发分支、源码构建、MIT License 与 Releases 的稳定表述。逐版本变化继续只留在 CHANGELOG 与 Release。[Issue #3385](https://github.com/can4hou6joeng4/boss-harness/issues/3385)
+- 源码候选更新为 npm `0.2.0-rc.630` 和 Python `0.2.0rc630`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.629 - 2026-11-23
 
 - 新增 `scripts/check_offline_checks.py`（28 项结构、11 项行为），用 AST 扫描全部检查脚本，禁止导入网络客户端模块、套接字连接调用与动态加载，守住「运行检查无需网络、模型凭据或招聘平台账号」的承诺；`socket.gaierror` 等错误类型与 `urllib.parse` 保持允许，行为侧用合成源码核对每条禁令都会检出。检查脚本一旦引入 `requests` 或 `socket.create_connection`，`npm run check` 与 CI 会立即失败，而不是在离线环境里超时。[Issue #3383](https://github.com/can4hou6joeng4/boss-harness/issues/3383)

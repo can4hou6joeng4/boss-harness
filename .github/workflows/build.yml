@@ -549,5 +549,7 @@ jobs:
         run: python scripts/check_notification_dispatch.py
       - name: Verify offline checks
         run: python scripts/check_offline_checks.py
+      - name: Verify README stability
+        run: python scripts/check_readme_stability.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
