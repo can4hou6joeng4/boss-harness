@@ -1,3 +1,8 @@
+## 0.2.0-rc.681 - 2026-11-23
+
+- 新增 `scripts/check_snapshot_shape.py`（22 项结构、24 项行为），为会话恢复快照补上回归保护：会话对象形状、线路字段类型与长度、快照身份、32 位小写十六进制标识、条目数组要求与成功收窄。Node 直接加载真实 `snapshotShape.ts` 执行 24 个用例（线路字段 10、快照形状 11、类型收窄 3）。[Issue #3487](https://github.com/can4hou6joeng4/boss-harness/issues/3487)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 242 → 243。源码候选更新为 npm `0.2.0-rc.681` 和 Python `0.2.0rc681`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.680 - 2026-11-23
 
 - 新增 `scripts/check_workspace_instruction_receipts.py`（17 项结构、37 项行为），为工作区说明回执补上回归保护：四种状态白名单、字节数允许 `null` 与非负安全整数、保存回执的成功状态约束、字节 / 上限 / 路径边界和输出字段白名单。Node 直接加载真实 `workspaceInstructions.ts` 执行 37 个用例（状态枚举 9、字节数 10、保存回执 18）。[Issue #3485](https://github.com/can4hou6joeng4/boss-harness/issues/3485)
