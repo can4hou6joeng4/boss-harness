@@ -1,3 +1,8 @@
+## 0.2.0-rc.646 - 2026-11-23
+
+- 「资料库」文件段与来源段的分段无匹配提示各提供「清空筛选」按钮：一类有匹配、另一类没有时不再只显示文字，点击直接清空资料筛选词；整体无匹配的清空入口保持不变。[Issue #3417](https://github.com/can4hou6joeng4/boss-harness/issues/3417)
+- 扩展 `scripts/check_workspace_empty_states.py`（32 项结构、11 项行为）：两处分段空态纳入数据标记、提示文案与设置函数核对；合成自检新增缺少清空按钮与用错设置函数两例。源码候选更新为 npm `0.2.0-rc.646` 和 Python `0.2.0rc646`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.645 - 2026-11-23
 
 - 「技能与工具」页的工具清单在读取失败或为空时提供「重新读取」按钮：复用现有加载 effect，新增 `toolRefresh` 计数与 `onRefreshTools` 链路，不必重启应用或切换页面；预览模式不显示该按钮，与技能清单的重试入口保持一致。[Issue #3415](https://github.com/can4hou6joeng4/boss-harness/issues/3415)

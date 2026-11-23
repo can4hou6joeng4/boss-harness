@@ -24,6 +24,8 @@ EMPTY_STATES = (
     ("recents-none", "最近聊天无会话", ("还没有聊天", "开始一个任务", "onClick={onNewTask}")),
     ("recents-no-match", "最近聊天无匹配", ("没有找到匹配的聊天", "清空筛选", 'onClick={() => setQuery("")}')),
     ("library-no-match", "资料库无匹配", ("没有匹配的文件或来源", "清空筛选", 'onClick={() => setLibraryQuery("")}')),
+    ("library-no-file-match", "资料库文件无匹配", ("没有匹配的文件", "清空筛选", 'onClick={() => setLibraryQuery("")}')),
+    ("library-no-source-match", "资料库来源无匹配", ("没有匹配的来源", "清空筛选", 'onClick={() => setLibraryQuery("")}')),
 )
 TOOL_MARKERS = (
     ('toolCatalogState === "error" ? <div', "工具清单读取失败态", ("重新读取", "onClick={onRefreshTools}")),
@@ -105,6 +107,12 @@ def _check_behaviors() -> int:
         '<div className="page-empty-note page-empty-action" data-library-empty="no-match">'
         '<p>没有匹配的文件或来源。</p>'
         '<button type="button" onClick={() => setLibraryQuery("")}>清空筛选</button></div>\n'
+        '<div className="page-empty-note page-empty-action" data-library-empty="no-file-match">'
+        '<p>没有匹配的文件。</p>'
+        '<button type="button" onClick={() => setLibraryQuery("")}>清空筛选</button></div>\n'
+        '<div className="page-empty-note page-empty-action" data-library-empty="no-source-match">'
+        '<p>没有匹配的来源。</p>'
+        '<button type="button" onClick={() => setLibraryQuery("")}>清空筛选</button></div>\n'
     )
     tool_sample = (
         '{toolCatalogState === "error" ? <div>工具清单读取失败。'
@@ -129,6 +137,16 @@ def _check_behaviors() -> int:
         1, "缺少资料库空状态标记")
     checked += _expect_value(
         len(_problems(sample.replace(' data-library-empty="no-match"', ''))), 1, "资料库标记被删除")
+    checked += _expect_value(
+        len(_problems(sample.replace(
+            '<p>没有匹配的文件。</p><button type="button" onClick={() => setLibraryQuery("")}>清空筛选</button>',
+            '<p>没有匹配的文件。</p>'))),
+        1, "资料库文件无匹配缺少清空筛选")
+    checked += _expect_value(
+        len(_problems(sample.replace(
+            '<p>没有匹配的来源。</p><button type="button" onClick={() => setLibraryQuery("")}>清空筛选</button>',
+            '<p>没有匹配的来源。</p><button type="button" onClick={() => setQuery("")}>清空筛选</button>'))),
+        1, "资料库来源无匹配用错设置函数")
     checked += _expect_value(len(_tool_problems(tool_sample)), 0, "干净工具样本")
     checked += _expect_value(
         len(_tool_problems(tool_sample.replace(
@@ -147,8 +165,8 @@ def _check_documentation() -> int:
     docs = _read(DOCS)
     if "`check_workspace_empty_states.py`" not in docs:
         raise ValueError(f"{DOCS} 缺少 check_workspace_empty_states.py")
-    if "共 24 项结构、9 项行为" not in docs:
-        raise ValueError(f"{DOCS} 需说明 check_workspace_empty_states.py 检查 24 项结构、9 项行为")
+    if "共 32 项结构、11 项行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_workspace_empty_states.py 检查 32 项结构、11 项行为")
     return 2
 
 

@@ -47,7 +47,7 @@ export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, o
               <div className="library-file-preview"><IconFolder size={32} /><span>{item.kind}</span></div>
               <strong>{item.name}</strong>
               <small>{item.directory || "会话根目录"} · +{item.additions} −{item.deletions}{item.occurrences > 1 ? ` · ${item.occurrences} 次` : ""}</small>
-            </button>)}</div> : <p className="page-empty-note">没有匹配的文件。</p>}
+            </button>)}</div> : <div className="page-empty-note page-empty-action" data-library-empty="no-file-match"><p>没有匹配的文件。</p><button type="button" className="subtle-button" onClick={() => setLibraryQuery("")}>清空筛选</button></div>}
           </>}
           {sources.length > 0 && <><h2 className="page-section-title">工具来源 <span>{visibleSources.length} / {sources.length}</span></h2>
             {visibleSources.length ? <ul className="library-source-list">{visibleSources.map(source => <li key={source.ref}>
@@ -55,7 +55,7 @@ export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, o
               <span><code>{source.ref}</code><small>{source.tool} · {formatSourceQueriedAt(source.queriedAt)}{source.turnId ? ` · 回合 ${shortLibraryId(source.turnId)}` : ""}</small></span>
               <button type="button" className="subtle-button" onClick={() => { void copyLibraryText(source.ref, `source:${source.ref}`); }} aria-label={`复制来源 ${source.ref}`}>复制</button>
               {copyNote?.key === `source:${source.ref}` && <em className="library-copy-note" role="status">{copyNoteText}</em>}
-            </li>)}</ul> : <p className="page-empty-note">没有匹配的来源。</p>}
+            </li>)}</ul> : <div className="page-empty-note page-empty-action" data-library-empty="no-source-match"><p>没有匹配的来源。</p><button type="button" className="subtle-button" onClick={() => setLibraryQuery("")}>清空筛选</button></div>}
           </>}
         </>}
       {selected && <ModalSurface title={selected.name || selected.path} onClose={() => setFile(null)}><div className="file-reference-detail">
