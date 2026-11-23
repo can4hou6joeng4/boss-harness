@@ -1,3 +1,8 @@
+## 0.2.0-rc.610 - 2026-11-23
+
+- 新增 `scripts/check_application_handshake.py`（74 项结构、100 项行为），首次在检查中真实构造 `ApplicationService`（`provider=none`，不启动上游），把内核握手状态机纳入行为对照：`_check_ready` 的放行顺序与冷启动 / 初始化阶段 / 就绪后的固定拒绝，`0.2.0` 两步就绪与 `0.1.0` 单步就绪、缺省版本、六类非字符串版本、不兼容版本的数据字段、双向声明仅在 `0.2.0` 生效；`clientInfo` 与 `capabilities` 的缺失 / 类型 / 空白 / 超长拒绝，`optOutNotificationMethods` 的列表 / 数量 / 元素校验与去重写回；26 项能力全真投影、工具桥 14 个工具与组合标识、模型桥、审批工具与期限、事件游标；`autoCompactionConfig` 按 default / stored / environment / explicit 四种来源区分；`_bridge_description` 的回调异常、非对象、可用性非布尔、不可序列化、NaN、循环引用、16 KiB 上限与深拷贝。握手若放宽顺序或把显式空版本当成不兼容，桌面会在错误的阶段发送请求；能力投影漂移会让界面与内核的可用功能不一致。[Issue #3345](https://github.com/can4hou6joeng4/boss-harness/issues/3345)
+- 源码候选更新为 npm `0.2.0-rc.610` 和 Python `0.2.0rc610`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.609 - 2026-11-23
 
 - 新增 `scripts/check_boss_cli_call.py`（51 项结构、39 项行为），在临时目录写入假 CLI 脚本驱动真实 `BossCliTool.call`，把上游进程边界纳入行为对照：参数拼接与 stdin、开始前与中途取消、总时限、16 MiB 输出上限、非 UTF-8 / 空输出 / 坏 JSON / 严格 JSON、七键信封与退出码契约、合法失败信封、`hr chat` 暂停码投影、后代持有管道的排空与不可执行二进制。取消或超时若未收敛会让回合挂起；信封契约放宽会把上游错误当数据落库；暂停码不投影会让摘要补取失败被当成列表成功。[Issue #3343](https://github.com/can4hou6joeng4/boss-harness/issues/3343)
