@@ -1,3 +1,8 @@
+## 0.2.0-rc.692 - 2026-11-23
+
+- 新增 `scripts/check_queue_selection.py`（17 项结构、13 项行为），为折叠队列面板补上回归保护：展开原样返回，折叠最多 20 项且暂停项优先、待处理项次之、终态项最后，返回顺序保持持久化顺序。Node 直接加载真实 `queueSelection.ts` 执行 13 个用例。[Issue #3509](https://github.com/can4hou6joeng4/boss-harness/issues/3509)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 253 → 254。源码候选更新为 npm `0.2.0-rc.692` 和 Python `0.2.0rc692`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.691 - 2026-11-23
 
 - 新增 `scripts/check_queue_dialogs.py`（19 项结构、16 项行为），为队列对话框补上回归保护：命中实时条目时替换快照并保留其他字段，未命中时普通对话框关闭，编辑对话框仅在确有未保存修改时保留原对象。Node 直接加载真实 `queueDialogs.ts` 执行 16 个用例。[Issue #3507](https://github.com/can4hou6joeng4/boss-harness/issues/3507)

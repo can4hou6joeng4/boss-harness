@@ -643,6 +643,8 @@ jobs:
         run: python scripts/check_queue_skill_labels.py
       - name: Verify queue dialogs
         run: python scripts/check_queue_dialogs.py
+      - name: Verify queue selection
+        run: python scripts/check_queue_selection.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
