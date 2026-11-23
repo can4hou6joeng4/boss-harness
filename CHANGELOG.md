@@ -1,3 +1,8 @@
+## 0.2.0-rc.716 - 2026-11-24
+
+- 新增 `scripts/check_queue_compaction.py`（6 项结构、18 项行为），为队列项的自动压缩覆盖标签补上回归保护：关闭优先于阈值与开启、`triggerPercent: 0` 仍算已设置，说明行按启用 / 阈值 / 保留量 / 摘要线路拼接，线路缺失使用默认占位。Node 直接加载真实 `queueCompaction.ts` 执行 18 个用例。[Issue #3557](https://github.com/can4hou6joeng4/boss-harness/issues/3557)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 277 → 278。源码候选更新为 npm `0.2.0-rc.716` 和 Python `0.2.0rc716`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.715 - 2026-11-24
 
 - 新增 `scripts/check_mock_data.py`（15 项结构、17 项行为），为桌面仿真数据补上回归保护：策略域与模型选项列表、会话归属与状态、差异合计与明细、消息角色与工具 / 计划 / 审批卡引用、目标状态边界，以及仿真审批不带内核 id。Node 直接加载真实 `mockData.ts` 执行 17 个用例。[Issue #3555](https://github.com/can4hou6joeng4/boss-harness/issues/3555)
