@@ -1,3 +1,8 @@
+## 0.2.0-rc.634 - 2026-11-23
+
+- 扩展 `scripts/check_docs_links.py`：指向本仓库 `blob/main/<path>` 的绝对链接不再按外链跳过，而是按仓库内路径核对存在性，带 `#片段` 的 Markdown 目标同时校验页内锚点；错误文案与相对链接统一为「文档链接不存在 / 页内锚点不存在」，输出统计新增自仓库绝对链接数量。此前 `harness/README.md` 与 PR 模板里的发布约定链接腐烂时不会被发现。[Issue #3393](https://github.com/can4hou6joeng4/boss-harness/issues/3393)
+- 源码候选更新为 npm `0.2.0-rc.634` 和 Python `0.2.0rc634`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.633 - 2026-11-23
 
 - `docs/README.md` 补充内核包说明入口 `harness/README.md`；`scripts/check_docs_links.py` 的索引规则从 `docs/*.md` 扩展到 `harness/README.md`（内核包说明，wheel 元数据正文），缺失时失败并点名具体文件。此前内核包说明在仓库内不可达，只能靠全文搜索发现；索引入口被删也不会有检查失败。[Issue #3391](https://github.com/can4hou6joeng4/boss-harness/issues/3391)

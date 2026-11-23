@@ -28,6 +28,7 @@ MARKDOWN_DIRS = ("", "docs", "harness", ".github")
 LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 DEFINITION = re.compile(r"^\[[^\]]+\]:\s*(\S+)", re.MULTILINE)
 EXTERNAL = ("http://", "https://", "mailto:", "tel:")
+SELF_BLOB = "https://github.com/can4hou6joeng4/boss-harness/blob/main/"
 HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)[ \t]*$", re.MULTILINE)
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 CLOSING_HASHES = re.compile(r"[ \t]+#+$")
@@ -81,11 +82,8 @@ def _read(relative: str) -> str:
 
 
 def _links(path: Path) -> list[str]:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
-        raise ValueError(f"无法读取 {path.relative_to(ROOT).as_posix()}") from None
-    return _links_from(text, path.relative_to(ROOT).as_posix())
+    relative = path.relative_to(ROOT).as_posix()
+    return _links_from(_read(relative), relative)
 
 
 def _section(text: str, heading: str, name: str) -> str:
@@ -288,13 +286,29 @@ def check_docs_links() -> tuple[int, int, int, int, int, int, int]:
     bad_anchors: list[str] = []
     checked = 0
     anchors = 0
+    self_links = 0
     for relative in SOURCES:
         path = ROOT / relative
         if not path.is_file():
             raise ValueError(f"缺少文档 {relative}")
         for raw in _links(path):
             target = raw.strip()
-            if not target or target.startswith(EXTERNAL):
+            if not target:
+                continue
+            if target.startswith(SELF_BLOB):
+                self_links += 1
+                path_part, _, fragment = unquote(target[len(SELF_BLOB):]).partition("#")
+                destination = ROOT / path_part
+                if not destination.is_file():
+                    broken.append(f"{relative} -> {target}")
+                    continue
+                if not fragment:
+                    continue
+                anchors += 1
+                if destination.suffix.lower() == ".md" and fragment not in _headings(destination):
+                    bad_anchors.append(f"{relative} -> {target}")
+                continue
+            if target.startswith(EXTERNAL):
                 continue
             path_part, _, fragment = unquote(target).partition("#")
             checked += 1
@@ -310,23 +324,24 @@ def check_docs_links() -> tuple[int, int, int, int, int, int, int]:
             if fragment not in _headings(destination):
                 bad_anchors.append(f"{relative} -> {target}")
     if broken:
-        raise ValueError("相对链接不存在：" + "；".join(sorted(broken)))
+        raise ValueError("文档链接不存在：" + "；".join(sorted(broken)))
     if bad_anchors:
         raise ValueError("页内锚点不存在：" + "；".join(sorted(bad_anchors)))
-    return (checked, anchors, _check_index(), _check_coverage(),
+    return (checked, self_links, anchors, _check_index(), _check_coverage(),
             _check_script_reference(), _check_root_navigation(),
             _check_reference_index())
 
 
 def main() -> int:
     try:
-        (checked, anchors, indexed, covered, scripts, root_entries,
+        (checked, self_links, anchors, indexed, covered, scripts, root_entries,
          table_scripts) = check_docs_links()
     except ValueError as error:
         print(f"文档链接核对失败，{error}", file=sys.stderr)
         return 2
     print(
-        f"文档相对链接一致：{checked} 个链接、{anchors} 个页内锚点；"
+        f"文档链接一致：{checked} 个相对链接、{self_links} 个自仓库绝对链接、"
+        f"{anchors} 个页内锚点；"
         f"索引覆盖 {indexed} 篇文档，根文档入口 {root_entries} 处，"
         f"检查覆盖 {covered} 篇 Markdown，{scripts} 个检查脚本均有说明小节，"
         f"索引表覆盖 {table_scripts} 个脚本"
