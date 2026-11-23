@@ -1,3 +1,8 @@
+## 0.2.0-rc.658 - 2026-11-23
+
+- 新增 `scripts/check_message_feedback.py`（24 项结构、22 项行为），为消息反馈的本机持久化补上回归保护：JSON 数组键与 600 字符上限、只留合法键与 `up` / `down`、2000 条按插入顺序淘汰、写入先删后插、按会话查询与清理、存储异常时读空与写失败。Node 在临时目录加载真实模块并注入内存 `localStorage`，执行 22 个用例。[Issue #3441](https://github.com/can4hou6joeng4/boss-harness/issues/3441)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 219 → 220。源码候选更新为 npm `0.2.0-rc.658` 和 Python `0.2.0rc658`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.657 - 2026-11-23
 
 - 新增 `scripts/check_skill_filter.py`（8 项结构、13 项行为），为技能菜单与「未加载技能」筛选补上回归保护：NFKC + zh-CN 小写归一化、空查询保持同一数组引用、技能按 id / 名称 / 描述跨字段匹配、问题项按 id / 原因匹配、全角与大小写不敏感。Node 直接调用真实 `filterSkills` / `filterSkillProblems` 执行 13 个用例。[Issue #3439](https://github.com/can4hou6joeng4/boss-harness/issues/3439)

@@ -575,6 +575,8 @@ jobs:
         run: python scripts/check_message_retry.py
       - name: Verify skill filter
         run: python scripts/check_skill_filter.py
+      - name: Verify message feedback
+        run: python scripts/check_message_feedback.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
