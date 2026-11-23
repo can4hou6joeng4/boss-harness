@@ -1,3 +1,8 @@
+## 0.2.0-rc.711 - 2026-11-24
+
+- 新增 `scripts/check_notification_test.py`（12 项结构、19 项行为），为测试通知补上回归保护：`sent` 优先、`unsupported` / `failed` 按 `supported` 区分、非对象与非布尔值归为 `unconfirmed`、四种状态提示与未知值兜底文案。Node 直接加载真实 `notificationTest.ts` 执行 19 个用例。[Issue #3547](https://github.com/can4hou6joeng4/boss-harness/issues/3547)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 272 → 273。源码候选更新为 npm `0.2.0-rc.711` 和 Python `0.2.0rc711`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.710 - 2026-11-24
 
 - 新增 `scripts/check_tool_catalog.py`（21 项结构、32 项行为），为工具目录补上回归保护：条目形状、名称上限、描述与布尔标记、输入模式浅拷贝、可选字节预算与执行模式、多余字段忽略、精确重名判定。Node 直接加载真实 `toolCatalog.ts` 执行 32 个用例。[Issue #3545](https://github.com/can4hou6joeng4/boss-harness/issues/3545)
