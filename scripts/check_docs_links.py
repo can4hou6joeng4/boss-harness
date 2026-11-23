@@ -20,6 +20,9 @@ INDEX = "docs/README.md"
 ROOT_DOCUMENTS = ("SETUP.md",)
 REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 SCRIPT_HEADING = re.compile(r"^### `(check_[A-Za-z0-9_]+\.py)`[ \t]*$", re.MULTILINE)
+INDEX_SECTION = "## 构建前检查"
+INDEX_HEADER = "| 领域 | 脚本 |"
+INDEX_LINK = re.compile(r"\[`(check_[A-Za-z0-9_]+\.py)`\]\(#[^)]*\)")
 MARKDOWN_DIRS = ("", "docs", "harness", ".github")
 LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 DEFINITION = re.compile(r"^\[[^\]]+\]:\s*(\S+)", re.MULTILINE)
@@ -176,12 +179,87 @@ def _check_coverage() -> int:
     return len(found)
 
 
-def _check_script_reference() -> int:
-    """检查脚本的说明只在技术参考维护一份：每个脚本恰有一个同名小节。"""
+def _reference_text() -> str:
     try:
-        text = (ROOT / REFERENCE).read_text(encoding="utf-8")
+        return (ROOT / REFERENCE).read_text(encoding="utf-8")
     except OSError:
         raise ValueError(f"无法读取 {REFERENCE}") from None
+
+
+def _index_names(text: str) -> list[str]:
+    """「构建前检查」索引表列出的脚本名；表外正文里的脚本链接不计入。"""
+    section_text = _section(COMMENT.sub("", _strip_fences(text, REFERENCE)),
+                            INDEX_SECTION, REFERENCE)
+    names: list[str] = []
+    in_table = False
+    for line in section_text.splitlines():
+        if not in_table:
+            if line.strip() == INDEX_HEADER:
+                in_table = True
+            continue
+        if not line.lstrip().startswith("|"):
+            break
+        names.extend(INDEX_LINK.findall(line))
+    if not in_table:
+        raise ValueError(f"{REFERENCE} 缺少索引表：{INDEX_HEADER}")
+    return names
+
+
+def _index_problems(names: list[str], scripts: set[str]) -> list[str]:
+    """索引表与脚本集合的差异：缺项、未知脚本、重复条目分别列出。"""
+    problems: list[str] = []
+    missing = sorted(scripts - set(names))
+    unknown = sorted(set(names) - scripts)
+    repeated = sorted({name for name in names if names.count(name) > 1})
+    if missing:
+        problems.append("索引表缺少 " + "、".join(missing))
+    if unknown:
+        problems.append("索引表列出不存在的脚本 " + "、".join(unknown))
+    if repeated:
+        problems.append("索引表重复 " + "、".join(repeated))
+    return problems
+
+
+def _index_self_check() -> int:
+    """用合成表格核对缺项 / 未知 / 重复 / 完整四种情形，表外链接不计入。"""
+    alpha = "[`check_alpha.py`](#check_alphapy)"
+    beta = "[`check_beta.py`](#check_betapy)"
+    gamma = "[`check_gamma.py`](#check_gammapy)"
+    scripts = {"check_alpha.py", "check_beta.py"}
+    prose = f"\n正文提到 {beta} 不算索引。\n"
+
+    def sample(rows: str) -> str:
+        return f"{INDEX_SECTION}\n\n{INDEX_HEADER}\n| --- | --- |\n| 示例 | {rows} |\n{prose}"
+
+    cases = (
+        (sample(f"{alpha}、{beta}"), ()),
+        (sample(alpha), ("索引表缺少 check_beta.py",)),
+        (sample(f"{alpha}、{beta}、{gamma}"), ("索引表列出不存在的脚本 check_gamma.py",)),
+        (sample(f"{alpha}、{beta}、{beta}"), ("索引表重复 check_beta.py",)),
+    )
+    for text, expected in cases:
+        problems = tuple(_index_problems(_index_names(text), scripts))
+        if problems != expected:
+            raise ValueError(f"索引表自检未按预期工作：得到 {problems!r}，期望 {expected!r}")
+    return len(cases)
+
+
+def _check_reference_index() -> int:
+    """「构建前检查」索引表必须覆盖全部脚本且不列未知或重复条目。"""
+    names = _index_names(_reference_text())
+    scripts = {path.name for path in (ROOT / "scripts").glob("check_*.py")}
+    if not scripts:
+        raise ValueError("scripts 下没有 check_*.py")
+    problems = _index_problems(names, scripts)
+    if problems:
+        raise ValueError(f"{REFERENCE} 的索引表不一致：" + "；".join(problems))
+    _index_self_check()
+    return len(scripts)
+
+
+def _check_script_reference() -> int:
+    """检查脚本的说明只在技术参考维护一份：每个脚本恰有一个同名小节。"""
+    text = _reference_text()
     documented = SCRIPT_HEADING.findall(COMMENT.sub("", _strip_fences(text, REFERENCE)))
     scripts = {path.name for path in (ROOT / "scripts").glob("check_*.py")}
     if not scripts:
@@ -198,7 +276,7 @@ def _check_script_reference() -> int:
     return len(scripts)
 
 
-def check_docs_links() -> tuple[int, int, int, int, int]:
+def check_docs_links() -> tuple[int, int, int, int, int, int, int]:
     broken: list[str] = []
     bad_anchors: list[str] = []
     checked = 0
@@ -229,19 +307,22 @@ def check_docs_links() -> tuple[int, int, int, int, int]:
     if bad_anchors:
         raise ValueError("页内锚点不存在：" + "；".join(sorted(bad_anchors)))
     return (checked, anchors, _check_index(), _check_coverage(),
-            _check_script_reference(), _check_root_navigation())
+            _check_script_reference(), _check_root_navigation(),
+            _check_reference_index())
 
 
 def main() -> int:
     try:
-        checked, anchors, indexed, covered, scripts, root_entries = check_docs_links()
+        (checked, anchors, indexed, covered, scripts, root_entries,
+         table_scripts) = check_docs_links()
     except ValueError as error:
         print(f"文档链接核对失败，{error}", file=sys.stderr)
         return 2
     print(
         f"文档相对链接一致：{checked} 个链接、{anchors} 个页内锚点；"
         f"索引覆盖 {indexed} 篇文档，根文档入口 {root_entries} 处，"
-        f"检查覆盖 {covered} 篇 Markdown，{scripts} 个检查脚本均有说明小节"
+        f"检查覆盖 {covered} 篇 Markdown，{scripts} 个检查脚本均有说明小节，"
+        f"索引表覆盖 {table_scripts} 个脚本"
     )
     return 0
 
