@@ -1,3 +1,9 @@
+## 0.2.0-rc.620 - 2026-11-23
+
+- 修复 `context/compact`：未知线程先经 `sessions.require_thread` 返回稳定的「会话不存在」，不再抛带状态目录本地路径的 `FileNotFoundError`，与其他入口的错误脱敏约定一致。
+- 新增 `scripts/check_application_compaction.py`（65 项结构、30 项行为），覆盖 `context/compact/plan` 的 18 项投影与范围拒绝、`context/compact/start` 的模型格式与空闲 / 并发拒绝、`context/compact/abort` 与 `context/compact/read` 的未知任务 `COMPACTION_JOB_NOT_FOUND`、`context/compact` 的成功提交与检查点投影及重复提交拒绝。压缩入口若放宽线程存在性、参数上限或任务标识校验，会把本地路径泄漏给外壳或重复提交摘要。[Issue #3365](https://github.com/can4hou6joeng4/boss-harness/issues/3365)
+- 源码候选更新为 npm `0.2.0-rc.620` 和 Python `0.2.0rc620`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.619 - 2026-11-23
 
 - 新增 `scripts/check_application_turn.py`（34 项结构、22 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖回合启动与续接入口：`turn/start` 的未知线程 / 空正文 / 请求编号格式 / 线路与模型不匹配 / 未知技能 / 未知附件 / 请求上限 / 压缩覆盖 / 归档会话拒绝，成功启动的返回投影、`turn/started` 广播与回合记录落库，同一请求编号的 `deduplicated` 重试与不同输入的 `CLIENT_REQUEST_CONFLICT`；`turn/continue` 的参数集合 / 格式 / 未知线程拒绝与已完成回合的 `CONTINUATION_NOT_INTERRUPTED`。启动入口若放宽线路、归档或幂等校验，会产生跨线路请求、空白回合或重复消息。[Issue #3363](https://github.com/can4hou6joeng4/boss-harness/issues/3363)
