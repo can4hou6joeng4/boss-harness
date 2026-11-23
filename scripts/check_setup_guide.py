@@ -14,13 +14,13 @@ import json
 from pathlib import Path
 import re
 import sys
-import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 SETUP = "SETUP.md"
 LOCAL_PATH = re.compile(r"/Users/|/home/|[A-Za-z]:\\\\Users")
 NODE_ENGINE = re.compile(r">=(\d+)(?:\.\d+)*")
+REQUIRES_PYTHON = re.compile(r'^requires-python\s*=\s*"([^"]+)"', re.MULTILINE)
 PYTHON_ENGINE = re.compile(r">=(\d+\.\d+)")
 
 SETUP_COMMANDS = (
@@ -55,10 +55,10 @@ def _minimum_versions() -> tuple[str, str]:
     match = NODE_ENGINE.fullmatch(node) if isinstance(node, str) else None
     if match is None:
         raise ValueError("package.json 的 engines.node 必须采用 >=N 形式")
-    config = _read("harness/pyproject.toml", tomllib.loads)
-    project = config.get("project") if isinstance(config, dict) else None
-    requires = project.get("requires-python") if isinstance(project, dict) else None
-    python = PYTHON_ENGINE.fullmatch(requires) if isinstance(requires, str) else None
+    # Python 3.10 没有 tomllib；requires-python 是顶层简单赋值，按文本解析避免额外依赖。
+    text = _read("harness/pyproject.toml", lambda value: value)
+    requires = REQUIRES_PYTHON.search(text)
+    python = PYTHON_ENGINE.fullmatch(requires.group(1)) if requires else None
     if python is None:
         raise ValueError("harness/pyproject.toml 的 requires-python 必须采用 >=X.Y 形式")
     return match.group(1), python.group(1)
