@@ -1,3 +1,8 @@
+## 0.2.0-rc.662 - 2026-11-23
+
+- 新增 `scripts/check_approval_chime.py`（22 项结构、14 项行为），为审批提示音补上回归保护：偏好只认 `"true"`、读取异常按关闭、最小间隔 1500ms 与非法上次播放时间、上下文只建一次并恢复挂起状态、两声 880 / 1318.51 Hz 调度、自动播放失败与构造失败静默返回 false。Node 在临时目录加载真实模块并注入假 `window.AudioContext` 与假 `localStorage`，执行 14 个用例（偏好 3、到期 3、预热 1、播放 7）。[Issue #3449](https://github.com/can4hou6joeng4/boss-harness/issues/3449)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 223 → 224。源码候选更新为 npm `0.2.0-rc.662` 和 Python `0.2.0rc662`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.661 - 2026-11-23
 
 - 新增 `scripts/check_approval_copy.py`（24 项结构、18 项行为），为审批复制文本补上回归保护：结论只认 `approve` / `deny` / `expired` 且拒绝原型属性名，期限为有限正数且不超过 `8.64e15`、整秒省略毫秒，复制行按工具名、说明、结论或期限拼装并保持互斥，空白字段与无内容分别跳过与返回 null。Node 直接加载真实 `approvalCopy.ts` 执行 18 个用例（结论 3、期限 4、拼装 11）。[Issue #3447](https://github.com/can4hou6joeng4/boss-harness/issues/3447)
