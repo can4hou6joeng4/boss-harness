@@ -1,3 +1,8 @@
+## 0.2.0-rc.655 - 2026-11-23
+
+- 扩展 `scripts/check_session_title.py`（22 项结构、17 项行为）：在既有源码扫描之外，用 Node 直接调用真实 `sessionTitleFromPrompt` / `compactTitle`，覆盖前缀剥离边界、空白折叠、按 Unicode 码点截断（33 / 32 字符与 emoji 边界）、空回退、`limit <= 0`、省略号与 `trimEnd`。[Issue #3435](https://github.com/can4hou6joeng4/boss-harness/issues/3435)
+- 技术参考小节同步行为说明；脚本总数保持 218（未新增脚本）。源码候选更新为 npm `0.2.0-rc.655` 和 Python `0.2.0rc655`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.654 - 2026-11-23
 
 - 新增 `scripts/check_quick_ask.py`（17 项结构、13 项行为），为快速提问线路解析补上回归保护：会话 → 默认 → 目录的 provider 优先级、会话 model 必须与自带 provider 同线、空串与纯空白视为缺失、`none` 线路（大小写不敏感）拒绝、解析不出时返回明确失败原因。Node 直接调用真实 `resolveQuickAskRoute` 执行 13 个用例。[Issue #3433](https://github.com/can4hou6joeng4/boss-harness/issues/3433)
