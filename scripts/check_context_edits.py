@@ -6,13 +6,15 @@
 这里固定编辑目标、替换文本上限、`originalInput` 不得绕过编辑投影、编辑入口的
 摘要与来源摘要校验、写入锁内先构造响应再落盘，以及检查点的字段白名单、
 来源完整性、运行中条目与原始记录一致性，并直接调用编辑、检查点与来源摘要
-纯函数核对运行行为。
+纯函数核对运行行为；活动摘要任务标记另在临时会话上核对校验回退与有界标识。
 """
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/context.py"
@@ -20,6 +22,17 @@ MODULE = "harness/src/boss_harness/context.py"
 sys.path.insert(0, str(ROOT / "harness/src"))
 from boss_harness.context import (  # noqa: E402
     ContextService, _context_edit, _is_one_of, _public_checkpoint)
+from boss_harness.session import Entry, SessionStore  # noqa: E402
+
+ACTIVE_SUMMARY_ORDER = (
+    "def active_summary_job_id(self, thread_id: str, *, entries: list[dict] | None = None) -> str | None:",
+    "try:",
+    "entries = self._entries(thread_id, entries)",
+    "checkpoint = self._validated_checkpoint(thread_id, entries)",
+    "except ValueError:\n            return None",
+    "if checkpoint is None:\n            return None",
+    'return bounded_identifier(checkpoint["payload"].get("summaryJobId"))',
+)
 
 CONSTANT_FRAGMENTS = (
     '_FINISHED_TURN_STATUSES = frozenset({"completed", "interrupted", "blocked", "error"})',
@@ -135,6 +148,15 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
             raise ValueError(f"{label} 缺少或首次出现顺序变化：{fragment}")
         position = index
     return len(fragments)
+
+
+def _function(tree: ast.Module, source: str, name: str) -> str:
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+            segment = ast.get_source_segment(source, node)
+            if segment is not None:
+                return segment
+    raise ValueError(f"缺少函数 {name}")
 
 
 def _expect_value(actual, expected, label: str) -> int:
@@ -330,8 +352,69 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _summary_job_checks() -> int:
+    checked = 0
+    with TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        service = ContextService(store, window=200_000, reserve=64_000)
+        thread = store.create("摘要")["id"]
+        checked += _expect_value(service.active_summary_job_id(thread), None, "无检查点")
+        store.append(thread, Entry(type="turn", payload={"turnId": "turn-1", "status": "running"}))
+        store.append(thread, Entry(type="item", id="m1",
+                                   payload={"kind": "userMessage", "text": "hi"}))
+        store.append(thread, Entry(type="item", id="m2",
+                                   payload={"kind": "agentMessage", "text": "ok",
+                                            "status": "completed"}))
+        store.record_turn(thread, "turn-1", "completed")
+        entries = store.read_entries(thread)
+        source_ids = [item["id"] for item in service._compaction_items(thread, entries)[0]]
+        checked += _expect_value(source_ids, ["m1", "m2"], "来源条目投影")
+
+        def checkpoint(job=None, digest: str = "a") -> None:
+            payload = {"summary": "摘要", "throughTurnId": "turn-1",
+                       "sourceDigest": digest * 64, "sourceItemIds": source_ids}
+            if job is not None:
+                payload["summaryJobId"] = job
+            store.append(thread, Entry(type="context_checkpoint", payload=payload))
+
+        checkpoint("job-1")
+        checked += _expect_value(service.active_summary_job_id(thread), "job-1", "有效任务标识")
+        snapshot = store.read_entries(thread)
+        checkpoint(digest="b")
+        checked += _expect_value(service.active_summary_job_id(thread), None,
+                                 "最新检查点无任务标识")
+        checked += _expect_value(service.active_summary_job_id(thread, entries=snapshot),
+                                 "job-1", "固定条目快照")
+        checkpoint("")
+        checked += _expect_value(service.active_summary_job_id(thread), None, "空任务标识")
+        checkpoint("j" * 128)
+        checked += _expect_value(service.active_summary_job_id(thread), "j" * 128,
+                                 "128 字符任务标识")
+        checkpoint("j" * 129)
+        checked += _expect_value(service.active_summary_job_id(thread), None,
+                                 "129 字符任务标识")
+        checkpoint(123)
+        checked += _expect_value(service.active_summary_job_id(thread), None,
+                                 "非字符串任务标识")
+        store.append(thread, Entry(type="context_checkpoint", payload={
+            "summary": "摘要", "throughTurnId": "turn-1", "sourceDigest": "bad",
+            "sourceItemIds": source_ids, "summaryJobId": "job-bad"}))
+        checked += _expect_value(service.active_summary_job_id(thread), None,
+                                 "损坏来源摘要")
+        store.append(thread, Entry(type="context_checkpoint", payload={
+            "summary": "", "throughTurnId": "turn-1", "sourceDigest": "c" * 64,
+            "sourceItemIds": source_ids, "summaryJobId": "job-empty"}))
+        checked += _expect_value(service.active_summary_job_id(thread), None, "空摘要")
+        checked += _expect_value(service.active_summary_job_id("0123456789ab"), None,
+                                 "未知会话")
+        checked += _expect_value(service.active_summary_job_id("../bad"), None, "非法会话 id")
+    return checked
+
+
 def check_context_edits() -> int:
     module = _read(MODULE)
+    tree = ast.parse(module)
+    active = _function(tree, module, "active_summary_job_id")
     checked = 0
     for fragments in (CONSTANT_FRAGMENTS, PUBLIC_CHECKPOINT_FRAGMENTS, EDIT_FRAGMENTS,
                       APPLY_FRAGMENTS, DIGEST_FRAGMENTS, READ_FRAGMENTS,
@@ -362,11 +445,19 @@ def check_context_edits() -> int:
         MODULE,
     )
     # 反向断言：展示路径是唯一允许跳过损坏编辑的入口；模型投影不得复用 lenient 读取。
+    checked += _ordered(ACTIVE_SUMMARY_ORDER, active, MODULE)
+    # 活动摘要任务：校验后读取，损坏记录与未知会话回退 None，标识必须经有界规范化。
+    if active.count("_validated_checkpoint(") != 1 or active.count("bounded_identifier(") != 1:
+        raise ValueError(f"{MODULE} 的活动摘要任务必须经校验与有界标识")
+    checked += 1
+    if 'checkpoint["payload"]["summaryJobId"]' in active:
+        raise ValueError(f"{MODULE} 的活动摘要任务不得直接索引未校验标识")
+    checked += 1
     if module.count("_context_edit_entries(entries, strict=False)") != 1:
         raise ValueError(f"{MODULE} 只有 context_edit_states 可以跳过损坏编辑")
     if module.count('item.get("contextEdit")') != 1:
         raise ValueError(f"{MODULE} 的编辑标注必须经 _context_edit 映射读取")
-    return checked + 2 + _behavior_checks()
+    return checked + 2 + _behavior_checks() + _summary_job_checks()
 
 
 def main() -> int:
@@ -375,7 +466,7 @@ def main() -> int:
     except ValueError as error:
         print(f"上下文编辑核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"上下文编辑一致：{checked} 项编辑、检查点与摘要防护")
+    print(f"上下文编辑一致：{checked} 项编辑、检查点、摘要防护与活动任务校验")
     return 0
 
 

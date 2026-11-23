@@ -1,3 +1,8 @@
+## 0.2.0-rc.598 - 2026-11-23
+
+- 上下文编辑检查从 135 项扩展到 159 项，新增 `ContextService.active_summary_job_id` 覆盖：静态固定读取、`_validated_checkpoint` 校验、`ValueError` 回退、空检查点回退与 `bounded_identifier` 返回，反向断言校验与有界标识各一处且不得直接索引未校验标识。临时会话行为对照（13 项）覆盖：无检查点与最新检查点缺省标识返回 `None`，有效检查点返回任务标识，固定条目快照在后续检查点变化后保持原结果；空串、129 字符与非字符串标识返回 `None`，128 字符原样返回；损坏来源摘要、空摘要、未知会话与非法会话 id 返回 `None`。任务标记若绕过校验或不再限制长度，只读用量报告会把失效摘要标成生效中任务，或把超长标识送进客户端。隔离变异探针结构与行为均检出 6/6、7/7。[Issue #3321](https://github.com/can4hou6joeng4/boss-harness/issues/3321)
+- 源码候选更新为 npm `0.2.0-rc.598` 和 Python `0.2.0rc598`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.597 - 2026-11-23
 
 - 队列状态检查从 157 项扩展到 183 项，新增 `TurnQueue.defer_capacity` 覆盖：静态固定锁、暂停结算、读取、仅 `delivering` 回队、`turnId` / `failureCode` / `executionStarted` / `inputPersisted` 四字段剥离、状态改写与一次 `_save`，反向断言状态门槛、字段集合与写回各一处且不经 `sessions.append` 直写。临时会话行为对照（11 项）覆盖：不存在项按「队列项不存在」拒绝；排队中与已投递项原样返回且不新增持久条目；投递中项回队保留 id / 正文 / 期望回合 / 客户端幂等 id / 技能并可再次领取；直接写入的投递中记录在回队后剥离四个投递字段、保留其余字段且持久化结果一致。回队若放宽状态门槛或保留投递字段，容量重试会复用失败回合身份或在已投递项上二次投递。隔离变异探针结构 10/10、行为 9/10，剔除暂停结算一项为并发防御、行为层不可达，由结构项覆盖。[Issue #3319](https://github.com/can4hou6joeng4/boss-harness/issues/3319)
