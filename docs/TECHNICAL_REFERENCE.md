@@ -77,7 +77,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connections.py`](#check_connectionspy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy)、[`check_login_flow.py`](#check_login_flowpy) |
 | 关闭与中止 | [`check_shutdown.py`](#check_shutdownpy)、[`check_runtime_capacity.py`](#check_runtime_capacitypy)、[`check_bridge_lifecycle.py`](#check_bridge_lifecyclepy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_clusters.py`](#check_search_clusterspy)、[`check_search_index.py`](#check_search_indexpy)、[`check_search_scan.py`](#check_search_scanpy)、[`check_search_snippet.py`](#check_search_snippetpy) |
-| 工作流与文档 | [`check_workflows.py`](#check_workflowspy)、[`check_docs_links.py`](#check_docs_linkspy)、[`check_handler_coverage.py`](#check_handler_coveragepy) |
+| 工作流与文档 | [`check_workflows.py`](#check_workflowspy)、[`check_docs_links.py`](#check_docs_linkspy)、[`check_handler_coverage.py`](#check_handler_coveragepy)、[`check_offline_checks.py`](#check_offline_checkspy) |
 
 ### `check_versions.py`
 
@@ -932,6 +932,10 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 ### `check_workflows.py`
 
 `scripts/check_workflows.py` 扫描 `.github/workflows` 下的 YAML：要求顶层 `permissions` 含 `contents: read` 且不含 `write`，且顶层之外不得再声明 `permissions`（job 级或 step 级声明同样会使检查失败）；`concurrency` 启用 `cancel-in-progress: true`，每个 `actions/checkout` 步骤带 `persist-credentials: false`，并禁止 `pull_request_target` / `workflow_run` 与非 `actions/` 的 `uses`，每个作业必须声明正整数 `timeout-minutes`；每个 `uses` 引用必须匹配 `actions/<名称>@v<主版本>`，`@main` / `@master` 等可变引用失败；工作流聚合文本还必须保留两条 `npm audit` 命令（生产 moderate、全量 critical），缺失即失败。它还收集 `scripts/check_*.py` 与工作流文本中的脚本引用，要求集合完全一致；未接入 CI 的检查脚本或引用不存在的脚本都会失败。检查是文本静态扫描，不解析完整 YAML 语义；复用工作流或动态表达式仍需人工核对。
+
+### `check_offline_checks.py`
+
+`scripts/check_offline_checks.py` 核对构建前检查的离线边界，守住「运行这组脚本无需网络、模型凭据或招聘平台账号」的承诺。它用 AST 扫描全部 `scripts/check_*.py`：禁止导入 `urllib.request`、`urllib.error`、`http`、`http.client`、`requests`、`httpx`、`aiohttp`、`websocket`、`websockets`、`smtplib`、`ftplib`、`imaplib`、`poplib`、`telnetlib`、`xmlrpc`、`grpc`、`boto3`、`paramiko`、`pycurl` 与 `ssl`；允许 `import socket` 与 `socket.gaierror` 等错误类型，但禁止 `socket.socket`、`socket.create_connection`、`socket.getaddrinfo`、`socket.gethostbyname`、`socket.gethostbyaddr` 调用与 `from socket import socket`；禁止 `__import__("…")` 与 `importlib.import_module("…")` 动态加载上述模块，`urllib.parse` 保持允许。行为侧用合成源码逐条核对每条禁令都会检出、允许项不误报。共 28 项结构、11 项行为。
 
 ### `check_docs_links.py`
 

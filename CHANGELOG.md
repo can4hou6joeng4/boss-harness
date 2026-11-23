@@ -1,3 +1,8 @@
+## 0.2.0-rc.629 - 2026-11-23
+
+- 新增 `scripts/check_offline_checks.py`（28 项结构、11 项行为），用 AST 扫描全部检查脚本，禁止导入网络客户端模块、套接字连接调用与动态加载，守住「运行检查无需网络、模型凭据或招聘平台账号」的承诺；`socket.gaierror` 等错误类型与 `urllib.parse` 保持允许，行为侧用合成源码核对每条禁令都会检出。检查脚本一旦引入 `requests` 或 `socket.create_connection`，`npm run check` 与 CI 会立即失败，而不是在离线环境里超时。[Issue #3383](https://github.com/can4hou6joeng4/boss-harness/issues/3383)
+- 源码候选更新为 npm `0.2.0-rc.629` 和 Python `0.2.0rc629`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.628 - 2026-11-23
 
 - 新增 `scripts/check_notification_dispatch.py`（90 项结构、8 项行为），把内核 33 项通知与界面消费绑定为可核对的契约：内核发送集合与固定清单逐项比对，新增、消失或迁移文件都失败；每项通知必须登记精确的界面分发片段，或带源码锚点的豁免理由，并验证豁免通知确实未被渲染层引用。`item/started`、`context/edited`、`kernel/hookError`、`kernel/shutdown` 四项豁免各自以伴随事件、编辑回执、`observe=False` 发送与关闭观测为锚点。行为侧真实发送创建、重命名、归档、恢复、分支、叶移动与删除通知并核对载荷。内核新增通知会被静默丢给事件归约函数、界面停在上一次状态的问题从此有防线。[Issue #3381](https://github.com/can4hou6joeng4/boss-harness/issues/3381)
