@@ -1,3 +1,8 @@
+## 0.2.0-rc.601 - 2026-11-23
+
+- 新增 `scripts/check_branch_material.py`（48 项），覆盖此前没有脚本引用的 `ContextService.branch_summary_material`：静态固定完整记录读取、`abandoned_branch` 推导、空放弃列表 / 未收尾条目 / 无条目三处拒绝、条目投影的续接签名剥离与上下文编辑排除、只读头部、固定 JSON、元数据来源摘要与返回顺序，反向断言各处拒绝与摘要计算各一次且不得只取当前分支。临时 `SessionStore` 真实切换分支的行为对照（21 项）覆盖放弃回合与共同祖先、来源摘要格式 / 计算 / 确定性、空目标放弃链、同叶与未知目标拒绝、未收尾条目拒绝、无条目拒绝、排除编辑后仅保留未排除条目、全部排除拒绝、固定旧快照仍拒绝而固定新快照成功、续接签名剥离与工具执行注解。材料若放宽放弃集合、保留运行中条目或忽略排除，摘要请求会把当前分支或未完成记录当作历史材料。隔离变异探针结构 9/9、行为 10/10。脚本注册进构建作业与技术参考。[Issue #3327](https://github.com/can4hou6joeng4/boss-harness/issues/3327)
+- 源码候选更新为 npm `0.2.0-rc.601` 和 Python `0.2.0rc601`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.600 - 2026-11-23
 
 - 新增 `scripts/check_compaction_preview.py`（76 项），覆盖手动压缩的计划切点与材料冻结：静态固定 `compaction_plan` 的薄封装、`_compaction_snapshot` 的参数互斥 / 保留量范围 / 活动回合标识 / 收尾回合 / 条目归属 / 检查点回退 / 切点与候选 / 计划字段，`compaction_material` 的来源摘要校验、覆盖剔除、续接签名剥离、上一检查点收敛与只读头部，以及 `compaction_prompt` 的固定尾句。临时 `SessionStore` 行为对照（25 项）覆盖显式计划字段与确定摘要、默认保留量拒绝、`keepRecentTokens` 选择、互斥与范围错误、空会话、运行中回合、活动回合标识与切点拒绝、材料头部 / JSON 内容 / 固定计划一致、来源摘要不符拒绝、提示尾句，以及有效检查点后仅发送新增条目、上一检查点去掉 `sourceItemIds`、已覆盖切点拒绝、损坏检查点回退完整历史与回退后可重新压缩。切点若放宽到未收尾回合或已覆盖范围，摘要请求会包含未完成历史或重复发送旧条目。隔离变异探针结构 11/11、行为 8/8（其中「传入保留量被忽略」以未包装异常使检查失败）。脚本注册进构建作业与技术参考。[Issue #3325](https://github.com/can4hou6joeng4/boss-harness/issues/3325)
