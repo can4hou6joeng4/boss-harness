@@ -1,3 +1,8 @@
+## 0.2.0-rc.665 - 2026-11-23
+
+- 新增 `scripts/check_error_report.py`（35 项结构、19 项行为），为错误边界的摘要与详情补上回归保护：摘要 300 / 详情 4000 字符上限与代理对安全截断、连续空白折叠、只去首尾空白行、`Error` 与形似对象的 message / name / 堆栈收敛、字符串换行保留详情、JSON 与 `String()` 兜底、区域标签与组件栈拼装。Node 在临时目录加载真实 `errorReport.ts`（改写共享包 URL）执行 19 个用例（截断 1、空白 2、描述 10、摘要 1、详情 3、上限 2）。[Issue #3455](https://github.com/can4hou6joeng4/boss-harness/issues/3455)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 226 → 227。源码候选更新为 npm `0.2.0-rc.665` 和 Python `0.2.0rc665`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.664 - 2026-11-23
 
 - 新增 `scripts/check_approval_badge.py`（41 项结构、63 项行为），为待审批通知补上回归保护：条目关键字段与到期校验、`approvalId` 去重与上限、持久计数非法 / 偏小 / 偏大的降级、Unix 秒到毫秒换算、紧急度与倒计时文案、`9+` 徽标与「至少」截断文案、索引循环、点击目标校验、无原型计数与稳定分组。Node 直接加载真实 `pendingApprovals.ts` 执行 63 个用例（映射 12、徽标 3、到期 8、紧急度 8、倒计时 9、文案 3、索引 10、焦点 3、计数 5、分组 2）。[Issue #3453](https://github.com/can4hou6joeng4/boss-harness/issues/3453)
