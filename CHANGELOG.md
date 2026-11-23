@@ -1,3 +1,8 @@
+## 0.2.0-rc.667 - 2026-11-23
+
+- 新增 `scripts/check_context_job.py`（43 项结构、26 项行为），为摘要任务回执补上回归保护：引用与回执的抛错 / 返回 `null` / 丢弃差异、`jobId` 与来源摘要正则、原因与状态白名单、文本截断、标识 / 计数 / 布尔 / 弃用回合数组校验、未知字段丢弃、手动压缩与分支摘要的任务归属。Node 在临时目录加载真实 `contextJob.ts`（改写共享包 URL）执行 26 个用例（引用 3、引用字段 2、完整回执 1、最小回执 1、身份 2、原因 1、文本 1、文本非法 2、标识 1、计数 2、布尔 1、弃用回合 2、手动压缩 2、分支摘要 5）。[Issue #3459](https://github.com/can4hou6joeng4/boss-harness/issues/3459)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 228 → 229。源码候选更新为 npm `0.2.0-rc.667` 和 Python `0.2.0rc667`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.666 - 2026-11-23
 
 - 新增 `scripts/check_usage_mapping.py`（53 项结构、40 项行为），为用量页的数据收敛补上回归保护：计数与合计校验、原因表空原型 / 合计 / 20 项合并与撞名、`unreportedRequests` 对账、缓存未命中形状、回合字段与上限、技能 id 去重、压缩策略白名单、ISO 时间与状态白名单、回合标识去重与总数校验、摘要任务形状 / 计数 / 截断推断。Node 在临时目录加载真实 `usageMapping.ts`（改写共享包与 `./timeFormat` 导入）执行 40 个用例（计数 2、桶校验 8、原因 3、未上报 1、缓存 1、回合 5、技能 4、策略 3、分页校验 1、摘要任务 4、任务列表 8）。[Issue #3457](https://github.com/can4hou6joeng4/boss-harness/issues/3457)
