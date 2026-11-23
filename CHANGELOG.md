@@ -1,3 +1,8 @@
+## 0.2.0-rc.702 - 2026-11-24
+
+- 新增 `scripts/check_context_edit_state.py`（15 项结构、16 项行为），为上下文编辑弹窗补上回归保护：加载 / 保存 / 快照过期三态提交闸门、32000 码点正文上限、`null` 排除消息豁免、表情按单码点计数与旧快照提示。Node 直接加载真实 `contextEditState.ts` 执行 16 个用例。[Issue #3529](https://github.com/can4hou6joeng4/boss-harness/issues/3529)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 263 → 264。源码候选更新为 npm `0.2.0-rc.702` 和 Python `0.2.0rc702`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.701 - 2026-11-24
 
 - 新增 `scripts/check_export_receipt.py`（15 项结构、26 项行为），为导出保存回执补上回归保护：取消回执、文件名上限、计数类型与回合数自洽、枚举字段、脱敏统计、权限标记与原始对象返回。Node 直接加载真实 `exportReceipt.ts` 执行 26 个用例。[Issue #3527](https://github.com/can4hou6joeng4/boss-harness/issues/3527)

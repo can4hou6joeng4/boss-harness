@@ -663,6 +663,8 @@ jobs:
         run: python scripts/check_about_info.py
       - name: Verify export receipt
         run: python scripts/check_export_receipt.py
+      - name: Verify context edit state
+        run: python scripts/check_context_edit_state.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
