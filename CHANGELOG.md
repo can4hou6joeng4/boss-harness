@@ -1,3 +1,8 @@
+## 0.2.0-rc.600 - 2026-11-23
+
+- 新增 `scripts/check_compaction_preview.py`（76 项），覆盖手动压缩的计划切点与材料冻结：静态固定 `compaction_plan` 的薄封装、`_compaction_snapshot` 的参数互斥 / 保留量范围 / 活动回合标识 / 收尾回合 / 条目归属 / 检查点回退 / 切点与候选 / 计划字段，`compaction_material` 的来源摘要校验、覆盖剔除、续接签名剥离、上一检查点收敛与只读头部，以及 `compaction_prompt` 的固定尾句。临时 `SessionStore` 行为对照（25 项）覆盖显式计划字段与确定摘要、默认保留量拒绝、`keepRecentTokens` 选择、互斥与范围错误、空会话、运行中回合、活动回合标识与切点拒绝、材料头部 / JSON 内容 / 固定计划一致、来源摘要不符拒绝、提示尾句，以及有效检查点后仅发送新增条目、上一检查点去掉 `sourceItemIds`、已覆盖切点拒绝、损坏检查点回退完整历史与回退后可重新压缩。切点若放宽到未收尾回合或已覆盖范围，摘要请求会包含未完成历史或重复发送旧条目。隔离变异探针结构 11/11、行为 8/8（其中「传入保留量被忽略」以未包装异常使检查失败）。脚本注册进构建作业与技术参考。[Issue #3325](https://github.com/can4hou6joeng4/boss-harness/issues/3325)
+- 源码候选更新为 npm `0.2.0-rc.600` 和 Python `0.2.0rc600`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.599 - 2026-11-23
 
 - 新增 `scripts/check_event_hub.py`（72 项），覆盖此前没有脚本引用的 `EventHub` 事件出口：静态固定 `_emit_locked` 的持久化 → live 投影 → publish → observe 顺序、增量键与 `item/completed` 清除、只吞 `ConnectionError` / `BrokenPipeError`，`publish_persisted` 只重播不追加，`items` 仅叠加运行中条目，`emit_until` 的截止判断与锁释放。假 server、假 hooks 与临时 `SessionStore` 行为对照（23 项）覆盖游标递增、文本 / 思考增量归并、运行条目叠加、发布字段、观察顺序、`publish` / `observe` 开关、完成事件清除与持久投影、重播不追加、连接错误吞掉与运行时错误传播、过期与有效截止。事件顺序或开关若漂移，客户端会收到乱序 / 重复事件，或观察者断开时打断回合。隔离变异探针结构与行为均检出 11/11、9/9。脚本注册进构建作业与技术参考。[Issue #3323](https://github.com/can4hou6joeng4/boss-harness/issues/3323)
