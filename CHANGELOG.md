@@ -1,3 +1,8 @@
+## 0.2.0-rc.648 - 2026-11-23
+
+- 「最近聊天」与「资料库」的筛选框在输入非空时显示清除按钮（带明确 `aria-label`），点击清空对应筛选词，与技能搜索行为一致；有匹配结果时也有等价入口。[Issue #3421](https://github.com/can4hou6joeng4/boss-harness/issues/3421)
+- 扩展 `scripts/check_workspace_empty_states.py`（37 项结构、16 项行为）：两处清除按钮片段纳入核对，合成自检新增按钮缺失与文案不清两例。源码候选更新为 npm `0.2.0-rc.648` 和 Python `0.2.0rc648`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.647 - 2026-11-23
 
 - 「最近聊天」筛选无匹配且存在已归档会话时，提示补充归档数量与侧栏「已归档」入口：归档会话默认不在此列表显示，不再让人误以为会话被删除；没有归档会话时保持原提示。[Issue #3419](https://github.com/can4hou6joeng4/boss-harness/issues/3419)

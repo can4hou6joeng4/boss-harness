@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { IconHistory, IconFolder, IconSearch, IconPlus, IconSparkles, IconChevronRight, IconTerminal } from "../components/Icons";
+import { IconHistory, IconFolder, IconSearch, IconPlus, IconSparkles, IconChevronRight, IconTerminal, IconClose } from "../components/Icons";
 import { ModalSurface } from "../components/ModalSurface";
 import { STRATEGY_DOMAINS, type ProjectFolder, type SessionItem, type MessageItem } from "../data/mockData";
 import { sessionRows } from "../data/sessionRows";
@@ -25,7 +25,7 @@ export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, o
   const recentRows = sessionRows(folders, query);
   // 归档会话默认不出现在最近聊天；有归档时在无匹配提示里说明去处，避免误以为会话被删除。
   const archivedCount = folders.flatMap(folder => folder.sessions).filter(session => session.archived === true).length;
-  if (page === "recents") return <div className="workspace-page" data-screen-label="最近聊天"><div className="page-heading"><div><h1>最近聊天</h1><p>从上次停下的地方继续。</p></div><button className="subtle-button" onClick={onNewTask}><IconPlus size={15} />新聊天</button></div><div className="page-search"><IconSearch size={16} /><input aria-label="筛选最近聊天" placeholder="搜索聊天…" value={query} onChange={event => setQuery(event.target.value)} /></div>
+  if (page === "recents") return <div className="workspace-page" data-screen-label="最近聊天"><div className="page-heading"><div><h1>最近聊天</h1><p>从上次停下的地方继续。</p></div><button className="subtle-button" onClick={onNewTask}><IconPlus size={15} />新聊天</button></div><div className="page-search"><IconSearch size={16} /><input aria-label="筛选最近聊天" placeholder="搜索聊天…" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" className="search-clear" data-recents-search-clear aria-label="清除最近聊天筛选" onClick={() => setQuery("")}><IconClose size={14} /></button>}</div>
     <div className="recent-table">{recentRows.map(({ session, project }) => <button className="recent-row" key={session.id} onClick={() => onSelect(session)}><span className="recent-row-icon"><IconHistory size={18} /></span><span><strong>{session.title}</strong><small>{project}</small></span><time dateTime={session.updatedAt}>{session.updatedAt ? formatRelativeTime(session.updatedAt, now) : session.timeAgo}</time><IconChevronRight size={14} /></button>)}
     {!recentRows.length && (query.trim()
       ? <div className="page-empty-note page-empty-action" data-recents-empty="no-match"><p>{archivedCount > 0 ? `没有找到匹配的聊天。${archivedCount} 个已归档聊天不在最近聊天中显示，可在侧栏「已归档」查看。` : "没有找到匹配的聊天。"}</p><button type="button" className="subtle-button" onClick={() => setQuery("")}>清空筛选</button></div>
@@ -40,7 +40,7 @@ export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, o
     const selected = file === null ? null : files.find(item => item.path === file) ?? null;
     return <div className="workspace-page" data-screen-label="资料库">
       <div className="page-heading"><div><h1>资料库</h1><p>当前会话中的文件变更与工具来源{preview ? " · 示例" : ""}</p></div></div>
-      {!empty && <div className="page-search"><IconSearch size={16} /><input aria-label="筛选资料" placeholder="筛选文件或来源…" value={libraryQuery} onChange={event => setLibraryQuery(event.target.value)} /></div>}
+      {!empty && <div className="page-search"><IconSearch size={16} /><input aria-label="筛选资料" placeholder="筛选文件或来源…" value={libraryQuery} onChange={event => setLibraryQuery(event.target.value)} />{libraryQuery && <button type="button" className="search-clear" data-library-search-clear aria-label="清除资料筛选" onClick={() => setLibraryQuery("")}><IconClose size={14} /></button>}</div>}
       {empty ? <div className="page-empty"><IconFolder size={36} /><h2>资料会汇集在这里</h2><p>会话中出现的文件变更与工具来源会显示在这里。文件变更摘要目前只有示例会话提供；真实会话里调用工具后，来源会出现在下方列表。</p><button className="subtle-button" onClick={onNewTask}>开始一个任务</button></div>
         : noMatch ? <div className="page-empty-note page-empty-action" data-library-empty="no-match"><p>没有匹配的文件或来源。</p><button type="button" className="subtle-button" onClick={() => setLibraryQuery("")}>清空筛选</button></div>
         : <>
