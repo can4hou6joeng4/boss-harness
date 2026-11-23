@@ -42,6 +42,10 @@ RECENTS_ARCHIVE_FRAGMENTS = (
     ".filter(session => session.archived === true).length",
     "个已归档聊天不在最近聊天中显示，可在侧栏「已归档」查看",
 )
+SEARCH_CLEAR_FRAGMENTS = (
+    '{query && <button type="button" className="search-clear" data-recents-search-clear aria-label="清除最近聊天筛选" onClick={() => setQuery("")}',
+    '{libraryQuery && <button type="button" className="search-clear" data-library-search-clear aria-label="清除资料筛选" onClick={() => setLibraryQuery("")}',
+)
 STYLE_FRAGMENTS = (
     ".page-empty.recent-empty { min-height: 280px; }",
     ".page-empty-action { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }",
@@ -174,6 +178,24 @@ def _check_behaviors() -> int:
         len(_fragment_problems(archive_sample.replace("个已归档聊天不在最近聊天中显示，可在侧栏「已归档」查看", "个已归档聊天"),
                               RECENTS_ARCHIVE_FRAGMENTS, "归档提示")),
         1, "归档提示缺少查看入口")
+    search_sample = (
+        '<div className="page-search">{query && <button type="button" className="search-clear" '
+        'data-recents-search-clear aria-label="清除最近聊天筛选" onClick={() => setQuery("")}>'
+        '<IconClose size={14} /></button>}</div>\n'
+        '<div className="page-search">{libraryQuery && <button type="button" className="search-clear" '
+        'data-library-search-clear aria-label="清除资料筛选" onClick={() => setLibraryQuery("")}>'
+        '<IconClose size={14} /></button>}</div>'
+    )
+    checked += _expect_value(
+        len(_fragment_problems(search_sample, SEARCH_CLEAR_FRAGMENTS, "搜索清除")), 0, "干净搜索清除")
+    checked += _expect_value(
+        len(_fragment_problems(search_sample.replace("data-recents-search-clear ", ""),
+                              SEARCH_CLEAR_FRAGMENTS, "搜索清除")),
+        1, "最近聊天搜索缺少清除按钮")
+    checked += _expect_value(
+        len(_fragment_problems(search_sample.replace('aria-label="清除资料筛选"', 'aria-label="清除筛选"'),
+                              SEARCH_CLEAR_FRAGMENTS, "搜索清除")),
+        1, "资料搜索清除按钮文案不清")
     return checked
 
 
@@ -181,8 +203,8 @@ def _check_documentation() -> int:
     docs = _read(DOCS)
     if "`check_workspace_empty_states.py`" not in docs:
         raise ValueError(f"{DOCS} 缺少 check_workspace_empty_states.py")
-    if "共 35 项结构、13 项行为" not in docs:
-        raise ValueError(f"{DOCS} 需说明 check_workspace_empty_states.py 检查 35 项结构、13 项行为")
+    if "共 37 项结构、16 项行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_workspace_empty_states.py 检查 37 项结构、16 项行为")
     return 2
 
 
@@ -192,12 +214,13 @@ def check_workspace_empty_states() -> tuple[int, int]:
     styles = _read(STYLES)
     problems = _problems(pages) + _tool_problems(pages)
     problems += _fragment_problems(pages, RECENTS_ARCHIVE_FRAGMENTS, PAGES)
+    problems += _fragment_problems(pages, SEARCH_CLEAR_FRAGMENTS, PAGES)
     problems += _fragment_problems(shell, SHELL_FRAGMENTS, SHELL)
     problems += _fragment_problems(styles, STYLE_FRAGMENTS, STYLES)
     if problems:
         raise ValueError("工作区空状态不一致：" + "；".join(problems))
     structure = len(EMPTY_STATES) * 4 + len(STYLE_FRAGMENTS) + len(TOOL_MARKERS) * 3 + len(SHELL_FRAGMENTS)
-    structure += len(RECENTS_ARCHIVE_FRAGMENTS)
+    structure += len(RECENTS_ARCHIVE_FRAGMENTS) + len(SEARCH_CLEAR_FRAGMENTS)
     behavior = _check_behaviors()
     _check_documentation()
     return structure, behavior
