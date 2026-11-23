@@ -1,3 +1,8 @@
+## 0.2.0-rc.717 - 2026-11-24
+
+- 新增 `scripts/check_stop_failure.py`（9 项结构、12 项行为），为停止失败文案补上回归保护：内核拒绝与回执未确认两类措辞互斥、RPC 错误追加内核码与原因码、组合重新核对失败去掉过渡语并保留主因。脚本核对真实 `harnessBridge.ts` 导出接口，桥接依赖以固定桩替代后由 Node 直接加载真实 `stopFailure.ts` 执行 12 个用例。[Issue #3559](https://github.com/can4hou6joeng4/boss-harness/issues/3559)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 278 → 279。源码候选更新为 npm `0.2.0-rc.717` 和 Python `0.2.0rc717`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.716 - 2026-11-24
 
 - 新增 `scripts/check_queue_compaction.py`（6 项结构、18 项行为），为队列项的自动压缩覆盖标签补上回归保护：关闭优先于阈值与开启、`triggerPercent: 0` 仍算已设置，说明行按启用 / 阈值 / 保留量 / 摘要线路拼接，线路缺失使用默认占位。Node 直接加载真实 `queueCompaction.ts` 执行 18 个用例。[Issue #3557](https://github.com/can4hou6joeng4/boss-harness/issues/3557)
