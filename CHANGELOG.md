@@ -1,3 +1,8 @@
+## 0.2.0-rc.685 - 2026-11-23
+
+- 新增 `scripts/check_skill_editor_close.py`（9 项结构、8 项行为），为技能编辑器关闭请求补上回归保护：进行中一律忽略，空闲且有未保存内容时先确认，确认后或干净状态直接关闭；Node 直接加载真实 `skillEditorClose.ts` 覆盖三枚布尔输入的全部 8 种组合。[Issue #3495](https://github.com/can4hou6joeng4/boss-harness/issues/3495)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 246 → 247。源码候选更新为 npm `0.2.0-rc.685` 和 Python `0.2.0rc685`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.684 - 2026-11-23
 
 - 新增 `scripts/check_queue_refresh.py`（14 项结构、20 项行为），为队列手动刷新结果补上回归保护：不可读返回值给出保守提示、成功优先返回 null、失败原因折叠空白并按 240 个 UTF-16 码元安全截断，覆盖补充平面字符代理对边界。Node 加载真实 `queueRefresh.ts` 与真实 `safeSlice` 执行 20 个用例。[Issue #3493](https://github.com/can4hou6joeng4/boss-harness/issues/3493)
