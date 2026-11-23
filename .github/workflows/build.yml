@@ -579,6 +579,8 @@ jobs:
         run: python scripts/check_message_feedback.py
       - name: Verify composer drafts
         run: python scripts/check_composer_drafts.py
+      - name: Verify model catalog
+        run: python scripts/check_model_catalog.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability

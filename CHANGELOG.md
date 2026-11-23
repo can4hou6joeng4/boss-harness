@@ -1,3 +1,8 @@
+## 0.2.0-rc.660 - 2026-11-23
+
+- 新增 `scripts/check_model_catalog.py`（27 项结构、17 项行为），为模型目录条目与菜单文案补上回归保护：`id` / `provider` 长度上限、布尔标记、`capabilities` 数值与来源校验、`reasoningEfforts` 最多 16 项并复制、多余字段丢弃、`provider:id` 去重与分隔符冲突、空态按预览 / 目录 / 匹配 / none 线路分流。Node 直接加载真实 `modelCatalog.ts` 执行 17 个用例（条目 8、去重 1、空态 8）。[Issue #3445](https://github.com/can4hou6joeng4/boss-harness/issues/3445)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 221 → 222。源码候选更新为 npm `0.2.0-rc.660` 和 Python `0.2.0rc660`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.659 - 2026-11-23
 
 - 新增 `scripts/check_composer_drafts.py`（35 项结构、31 项行为），为未发送草稿的本地持久化补上回归保护：正文按码点限制 100000、技能 id 去重过滤并截断 50 个、`recallDraft` / `projectId` 校验、`__proto__` 防污染、按更新时间裁剪 20 条并稳定排序、未变条目沿用时间戳、全空删除存储键、存储异常静默跳过、恢复优先使用 `recallDraft`。Node 在临时目录复制 `composerDraftStorage.ts` / `composerDraft.ts` / `uiStorage.ts` 并改写共享包 URL 与显式扩展名导入，执行 31 个用例（解析 12、加载 5、保存 9、恢复 5）。[Issue #3443](https://github.com/can4hou6joeng4/boss-harness/issues/3443)
