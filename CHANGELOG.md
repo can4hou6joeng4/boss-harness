@@ -1,3 +1,8 @@
+## 0.2.0-rc.628 - 2026-11-23
+
+- 新增 `scripts/check_notification_dispatch.py`（90 项结构、8 项行为），把内核 33 项通知与界面消费绑定为可核对的契约：内核发送集合与固定清单逐项比对，新增、消失或迁移文件都失败；每项通知必须登记精确的界面分发片段，或带源码锚点的豁免理由，并验证豁免通知确实未被渲染层引用。`item/started`、`context/edited`、`kernel/hookError`、`kernel/shutdown` 四项豁免各自以伴随事件、编辑回执、`observe=False` 发送与关闭观测为锚点。行为侧真实发送创建、重命名、归档、恢复、分支、叶移动与删除通知并核对载荷。内核新增通知会被静默丢给事件归约函数、界面停在上一次状态的问题从此有防线。[Issue #3381](https://github.com/can4hou6joeng4/boss-harness/issues/3381)
+- 源码候选更新为 npm `0.2.0-rc.628` 和 Python `0.2.0rc628`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.627 - 2026-11-23
 
 - 新增 `scripts/check_application_item_read.py`（44 项结构、23 项行为），在临时工作区真实构造 `ApplicationService`（`provider=none`），用底层引用函数算出真实摘要后覆盖条目读取入口：`thread/item/result/read` 的投影、分页与 `STALE_RESULT`（含 `currentRef`），以及未知参数 / 缺摘要 / 非工具条目拒绝；`thread/item/content/read` 的 `text` / `thinking` 读取、分页、`STALE_CONTENT`、`part` / `snapshotId` / 未知线程 / 非助手条目拒绝。引用校验若放宽，桌面会按过期视图展示「当前结果」或按自由偏移读取任意内容。[Issue #3379](https://github.com/can4hou6joeng4/boss-harness/issues/3379)
