@@ -455,6 +455,7 @@ button.user-skill-chip:hover { border-color: var(--text-muted); color: var(--tex
 .dialog-form { display: flex; flex-direction: column; padding: 10px 22px 22px; gap: 15px; }
 .dialog-form label { color: var(--text-muted); font-size: 12px; display: flex; flex-direction: column; gap: 9px; }
 .dialog-form input { border: 1px solid var(--border-active); border-radius: 7px; background: var(--bg-window); color: var(--text-main); padding: 10px; width: 100%; outline: none; font-size: 13px; }
+.dialog-form input:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 1px; }
 .dialog-form p { color: var(--text-faint); font-size: 11px; line-height: 1.7; }
 .dialog-form .solid-button { align-self: flex-end; }
 .file-reference-detail code { font-size: 11px; overflow-wrap: anywhere; max-width: 100%; }
