@@ -1,3 +1,8 @@
+## 0.2.0-rc.713 - 2026-11-24
+
+- 新增 `scripts/check_project_name.py`（6 项结构、11 项行为），为项目名称码点上限补上回归保护：60 码点边界、表情按单码点计数、混合文本与全空白名称不做修剪。Node 改写共享包导入后直接加载真实 `projectName.ts` 执行 11 个用例。[Issue #3551](https://github.com/can4hou6joeng4/boss-harness/issues/3551)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 274 → 275。源码候选更新为 npm `0.2.0-rc.713` 和 Python `0.2.0rc713`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.712 - 2026-11-24
 
 - 新增 `scripts/check_attachment_read_text.py`（19 项结构、19 项行为），为渲染层附件文本读取补上回归保护：成功项顺序、失败隔离、原因类型归一化与安全截断、前三项与计数提示、单 / 复数重试文案。Node 改写共享包导入后直接加载真实 `attachmentRead.ts` 执行 19 个用例。[Issue #3549](https://github.com/can4hou6joeng4/boss-harness/issues/3549)
