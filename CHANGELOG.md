@@ -1,3 +1,8 @@
+## 0.2.0-rc.710 - 2026-11-24
+
+- 新增 `scripts/check_tool_catalog.py`（21 项结构、32 项行为），为工具目录补上回归保护：条目形状、名称上限、描述与布尔标记、输入模式浅拷贝、可选字节预算与执行模式、多余字段忽略、精确重名判定。Node 直接加载真实 `toolCatalog.ts` 执行 32 个用例。[Issue #3545](https://github.com/can4hou6joeng4/boss-harness/issues/3545)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 271 → 272。源码候选更新为 npm `0.2.0-rc.710` 和 Python `0.2.0rc710`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.709 - 2026-11-24
 
 - 新增 `scripts/check_scroll_motion.py`（11 项结构、18 项行为），为聊天区滚动动效补上回归保护：应用设置与系统偏好的组合判定、大小写敏感、缺失文档与 `matchMedia` 异常兜底、`matches` 严格布尔。Node 注入桩直接加载真实 `scrollMotion.ts` 执行 18 个用例。[Issue #3543](https://github.com/can4hou6joeng4/boss-harness/issues/3543)
