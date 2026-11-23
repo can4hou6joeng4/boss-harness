@@ -511,5 +511,7 @@ jobs:
         run: python scripts/check_boss_cli_call.py
       - name: Verify application handshake
         run: python scripts/check_application_handshake.py
+      - name: Verify application reads
+        run: python scripts/check_application_reads.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts

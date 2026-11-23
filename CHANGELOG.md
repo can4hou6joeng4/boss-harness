@@ -1,3 +1,8 @@
+## 0.2.0-rc.611 - 2026-11-23
+
+- 新增 `scripts/check_application_reads.py`（57 项结构、64 项行为），在真实构造的 `ApplicationService` 上覆盖握手之后的只读查询入口：`thread/start` 的默认投影、只读策略、标题 / 策略 / 线路 / 模型拒绝与 `thread/created` 事件；`thread/list` 的归档过滤；`thread/read` 的十个响应键、`excludeTurns` 空回合、`snapshot=true` 快照标识与 `itemCount`、布尔参数拒绝与未知线程文案；`items/list` 的空页、`limit` 边界、`snapshotId` 与游标解码 / 越界、日志与快照两页回读；`event/list` 的游标、线程过滤与 `hasMore`；`config/read` 的 20 项字段与默认上限；`tool/list` 的 14 项工具与审批标记；`model/list` 的 `none` 线路；`skills/list` 的空目录报告。只读入口若放宽参数校验或投影漂移，桌面列表、会话恢复与配置页会收到错误数据且无本地告警。[Issue #3347](https://github.com/can4hou6joeng4/boss-harness/issues/3347)
+- 源码候选更新为 npm `0.2.0-rc.611` 和 Python `0.2.0rc611`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.610 - 2026-11-23
 
 - 新增 `scripts/check_application_handshake.py`（74 项结构、100 项行为），首次在检查中真实构造 `ApplicationService`（`provider=none`，不启动上游），把内核握手状态机纳入行为对照：`_check_ready` 的放行顺序与冷启动 / 初始化阶段 / 就绪后的固定拒绝，`0.2.0` 两步就绪与 `0.1.0` 单步就绪、缺省版本、六类非字符串版本、不兼容版本的数据字段、双向声明仅在 `0.2.0` 生效；`clientInfo` 与 `capabilities` 的缺失 / 类型 / 空白 / 超长拒绝，`optOutNotificationMethods` 的列表 / 数量 / 元素校验与去重写回；26 项能力全真投影、工具桥 14 个工具与组合标识、模型桥、审批工具与期限、事件游标；`autoCompactionConfig` 按 default / stored / environment / explicit 四种来源区分；`_bridge_description` 的回调异常、非对象、可用性非布尔、不可序列化、NaN、循环引用、16 KiB 上限与深拷贝。握手若放宽顺序或把显式空版本当成不兼容，桌面会在错误的阶段发送请求；能力投影漂移会让界面与内核的可用功能不一致。[Issue #3345](https://github.com/can4hou6joeng4/boss-harness/issues/3345)
