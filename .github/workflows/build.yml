@@ -304,6 +304,8 @@ jobs:
         run: python scripts/check_loop_guard.py
       - name: Verify browser source boundaries
         run: python scripts/check_browser_source.py
+      - name: Verify connection checks
+        run: python scripts/check_connections.py
       - name: Verify connection lifecycle boundaries
         run: python scripts/check_connection_lifecycle.py
       - name: Verify connection report boundaries
