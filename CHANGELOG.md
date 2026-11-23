@@ -1,3 +1,8 @@
+## 0.2.0-rc.691 - 2026-11-23
+
+- 新增 `scripts/check_queue_dialogs.py`（19 项结构、16 项行为），为队列对话框补上回归保护：命中实时条目时替换快照并保留其他字段，未命中时普通对话框关闭，编辑对话框仅在确有未保存修改时保留原对象。Node 直接加载真实 `queueDialogs.ts` 执行 16 个用例。[Issue #3507](https://github.com/can4hou6joeng4/boss-harness/issues/3507)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 252 → 253。源码候选更新为 npm `0.2.0-rc.691` 和 Python `0.2.0rc691`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.690 - 2026-11-23
 
 - 新增 `scripts/check_queue_skill_labels.py`（20 项结构、15 项行为），为队列项技能标签补上回归保护：非法 id 先过滤再计数、按 id 去重、最多 10 项、目录非空名称优先且同名不同 id 不合并。Node 直接加载真实 `queueSkillLabels.ts` 执行 15 个用例。[Issue #3505](https://github.com/can4hou6joeng4/boss-harness/issues/3505)
