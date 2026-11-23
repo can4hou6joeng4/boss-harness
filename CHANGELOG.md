@@ -1,3 +1,8 @@
+## 0.2.0-rc.668 - 2026-11-23
+
+- 新增 `scripts/check_tool_timing.py`（24 项结构、27 项行为），为工具卡的耗时文案补上回归保护：非负有限数校验、内核 `durationMs` 优先与时钟回退、非终态状态拦截、等待审批 / 未获批准 / 未执行 / 运行中 / 排队的文案、结束时间非法或倒序、`now` 非法与优先级。Node 在临时目录加载真实 `toolTiming.ts` / `turnTiming.ts`（改写导入）执行 27 个用例（时长 1、完成 8、等待 4、未执行 2、运行 5、排队 4、优先级 3）。[Issue #3461](https://github.com/can4hou6joeng4/boss-harness/issues/3461)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 229 → 230。源码候选更新为 npm `0.2.0-rc.668` 和 Python `0.2.0rc668`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.667 - 2026-11-23
 
 - 新增 `scripts/check_context_job.py`（43 项结构、26 项行为），为摘要任务回执补上回归保护：引用与回执的抛错 / 返回 `null` / 丢弃差异、`jobId` 与来源摘要正则、原因与状态白名单、文本截断、标识 / 计数 / 布尔 / 弃用回合数组校验、未知字段丢弃、手动压缩与分支摘要的任务归属。Node 在临时目录加载真实 `contextJob.ts`（改写共享包 URL）执行 26 个用例（引用 3、引用字段 2、完整回执 1、最小回执 1、身份 2、原因 1、文本 1、文本非法 2、标识 1、计数 2、布尔 1、弃用回合 2、手动压缩 2、分支摘要 5）。[Issue #3459](https://github.com/can4hou6joeng4/boss-harness/issues/3459)
