@@ -332,6 +332,8 @@ jobs:
         run: python scripts/check_compaction.py
       - name: Verify compaction preview
         run: python scripts/check_compaction_preview.py
+      - name: Verify compacted preview
+        run: python scripts/check_compacted_preview.py
       - name: Verify turn request limits
         run: python scripts/check_turn_limits.py
       - name: Verify model output budgets
