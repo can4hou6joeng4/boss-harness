@@ -1,3 +1,8 @@
+## 0.2.0-rc.649 - 2026-11-23
+
+- 修复键盘焦点不可见：`.page-search` 与 `.search-field` 两个容器补 `:focus-within` 强调色。此前输入框写了 `outline: none`，聚焦「最近聊天」「资料库」「技能与工具」筛选框或跨会话搜索框时没有任何可见反馈。[Issue #3423](https://github.com/can4hou6joeng4/boss-harness/issues/3423)
+- 新增 `scripts/check_focus_visibility.py`（8 项结构、4 项行为）：凡输入框移除默认焦点环，容器必须提供 `:focus-within` 替代；工作流注册、技术参考小节与索引行同步。源码候选更新为 npm `0.2.0-rc.649` 和 Python `0.2.0rc649`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.648 - 2026-11-23
 
 - 「最近聊天」与「资料库」的筛选框在输入非空时显示清除按钮（带明确 `aria-label`），点击清空对应筛选词，与技能搜索行为一致；有匹配结果时也有等价入口。[Issue #3421](https://github.com/can4hou6joeng4/boss-harness/issues/3421)

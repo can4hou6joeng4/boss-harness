@@ -324,6 +324,7 @@ button.user-skill-chip:hover { border-color: var(--text-muted); color: var(--tex
 .search-field { display: flex; gap: 10px; align-items: center; margin: 4px 20px 10px; padding: 11px 0; border-bottom: 1px solid var(--border-color); color: var(--text-faint); }
 .search-field input { background: transparent; border: 0; color: var(--text-main); font-size: 15px; min-width: 0; width: 100%; outline: none; }
 .search-field input:focus-visible { outline: none; }
+.search-field:focus-within { border-bottom-color: var(--border-active); }
 .search-clear { display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--text-faint); cursor: pointer; }
 .search-clear:hover { background: var(--btn-ghost-hover); color: var(--text-main); }
 .search-results { padding: 4px 10px 10px; overflow: auto; max-height: 48vh; }
@@ -363,6 +364,7 @@ button.user-skill-chip:hover { border-color: var(--text-muted); color: var(--tex
 .solid-button:disabled { opacity: .4; }
 .page-search { display: flex; align-items: center; gap: 10px; padding: 10px 13px; border: 1px solid var(--border-color); border-radius: 9px; color: var(--text-faint); margin-bottom: 20px; }
 .page-search input { width: 100%; background: transparent; border: none; outline: none; color: var(--text-main); font-size: 12px; }
+.page-search:focus-within { border-color: var(--border-active); }
 .recent-row { width: 100%; display: flex; align-items: center; gap: 13px; padding: 15px 8px; text-align: left; border: 0; border-bottom: 1px solid var(--border-color); background: transparent; cursor: pointer; border-radius: 5px; }
 .recent-row:hover { background: var(--btn-ghost-hover); }
 .recent-row-icon { color: var(--text-faint); width: 25px; text-align: center; }
