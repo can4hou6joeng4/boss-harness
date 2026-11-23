@@ -1,3 +1,8 @@
+## 0.2.0-rc.693 - 2026-11-23
+
+- 新增 `scripts/check_session_state.py`（13 项结构、11 项行为），为会话异步归属补上回归保护：resume 元数据只在对象身份相同时写回，续接提示同时匹配 threadId 与 sourceTurnId。Node 直接加载真实 `sessionState.ts` 执行 11 个用例。[Issue #3511](https://github.com/can4hou6joeng4/boss-harness/issues/3511)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 254 → 255。源码候选更新为 npm `0.2.0-rc.693` 和 Python `0.2.0rc693`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.692 - 2026-11-23
 
 - 新增 `scripts/check_queue_selection.py`（17 项结构、13 项行为），为折叠队列面板补上回归保护：展开原样返回，折叠最多 20 项且暂停项优先、待处理项次之、终态项最后，返回顺序保持持久化顺序。Node 直接加载真实 `queueSelection.ts` 执行 13 个用例。[Issue #3509](https://github.com/can4hou6joeng4/boss-harness/issues/3509)
