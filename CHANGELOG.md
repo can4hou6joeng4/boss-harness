@@ -1,3 +1,8 @@
+## 0.2.0-rc.659 - 2026-11-23
+
+- 新增 `scripts/check_composer_drafts.py`（35 项结构、31 项行为），为未发送草稿的本地持久化补上回归保护：正文按码点限制 100000、技能 id 去重过滤并截断 50 个、`recallDraft` / `projectId` 校验、`__proto__` 防污染、按更新时间裁剪 20 条并稳定排序、未变条目沿用时间戳、全空删除存储键、存储异常静默跳过、恢复优先使用 `recallDraft`。Node 在临时目录复制 `composerDraftStorage.ts` / `composerDraft.ts` / `uiStorage.ts` 并改写共享包 URL 与显式扩展名导入，执行 31 个用例（解析 12、加载 5、保存 9、恢复 5）。[Issue #3443](https://github.com/can4hou6joeng4/boss-harness/issues/3443)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 220 → 221。源码候选更新为 npm `0.2.0-rc.659` 和 Python `0.2.0rc659`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.658 - 2026-11-23
 
 - 新增 `scripts/check_message_feedback.py`（24 项结构、22 项行为），为消息反馈的本机持久化补上回归保护：JSON 数组键与 600 字符上限、只留合法键与 `up` / `down`、2000 条按插入顺序淘汰、写入先删后插、按会话查询与清理、存储异常时读空与写失败。Node 在临时目录加载真实模块并注入内存 `localStorage`，执行 22 个用例。[Issue #3441](https://github.com/can4hou6joeng4/boss-harness/issues/3441)
