@@ -1,3 +1,8 @@
+## 0.2.0-rc.645 - 2026-11-23
+
+- 「技能与工具」页的工具清单在读取失败或为空时提供「重新读取」按钮：复用现有加载 effect，新增 `toolRefresh` 计数与 `onRefreshTools` 链路，不必重启应用或切换页面；预览模式不显示该按钮，与技能清单的重试入口保持一致。[Issue #3415](https://github.com/can4hou6joeng4/boss-harness/issues/3415)
+- 扩展 `scripts/check_workspace_empty_states.py`（24 项结构、9 项行为）：纳入工具失败 / 空态按钮、`AppShell` 计数与传参链路、按钮间距样式；合成样本自检覆盖两处重试缺失。源码候选更新为 npm `0.2.0-rc.645` 和 Python `0.2.0rc645`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.644 - 2026-11-23
 
 - 桌面「最近聊天」无会话时改为完整空态：图标、标题、说明与「开始一个任务」按钮，复用现有新聊天流程；筛选无匹配与「资料库」筛选无匹配都提供「清空筛选」按钮，不再只留一行提示让人回头找入口或手动删词。[Issue #3413](https://github.com/can4hou6joeng4/boss-harness/issues/3413)

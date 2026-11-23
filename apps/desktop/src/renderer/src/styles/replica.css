@@ -638,3 +638,4 @@ button.user-skill-chip:hover { border-color: var(--text-muted); color: var(--tex
 .page-empty.recent-empty { min-height: 280px; }
 .page-empty-action { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 .page-empty-action p { margin: 0; }
+.page-tool-empty .subtle-button { margin-top: 10px; display: flex; width: fit-content; }

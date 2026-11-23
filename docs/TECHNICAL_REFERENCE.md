@@ -967,7 +967,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_workspace_empty_states.py`
 
-`scripts/check_workspace_empty_states.py` 核对工作区空状态都给出可点的恢复操作：`WorkspacePages.tsx` 中「最近聊天」无会话空态（`data-recents-empty="none"`）必须保留「还没有聊天」标题、「开始一个任务」按钮与 `onClick={onNewTask}`；「最近聊天」筛选无匹配（`data-recents-empty="no-match"`）与「资料库」筛选无匹配（`data-library-empty="no-match"`）必须保留对应提示文案、「清空筛选」按钮，并分别调用 `setQuery("")` / `setLibraryQuery("")`；`replica.css` 保留紧凑的 `recent-empty` 布局与 `page-empty-action` 操作列。行为侧用合成 JSX 核对缺少按钮、用错设置函数、缺少开始入口与标记缺失 / 改名都会检出、干净样本不误报。共 14 项结构、6 项行为。
+`scripts/check_workspace_empty_states.py` 核对工作区空状态与读取失败都给出可点的恢复操作：`WorkspacePages.tsx` 中「最近聊天」无会话空态（`data-recents-empty="none"`）必须保留「还没有聊天」标题、「开始一个任务」按钮与 `onClick={onNewTask}`；「最近聊天」筛选无匹配（`data-recents-empty="no-match"`）与「资料库」筛选无匹配（`data-library-empty="no-match"`）必须保留对应提示文案、「清空筛选」按钮，并分别调用 `setQuery("")` / `setLibraryQuery("")`。「已连接工具」的读取失败态与空态必须带「重新读取」按钮并调用 `onRefreshTools`；`AppShell.tsx` 保留 `toolRefresh` 计数、`[props.harnessUp, toolRefresh]` effect 依赖与传给 `WorkspacePages` 的 `onRefreshTools` 链路，重读不需要重启应用或切换页面。`replica.css` 保留紧凑的 `recent-empty` 布局、`page-empty-action` 操作列与工具空态按钮间距。行为侧用合成 JSX 核对缺少按钮、用错设置函数、缺少开始入口、标记缺失 / 改名与工具重试缺失都会检出、干净样本不误报。共 24 项结构、9 项行为。
 
 ### `check_docs_links.py`
 
