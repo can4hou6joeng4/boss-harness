@@ -611,6 +611,8 @@ jobs:
         run: python scripts/check_result_reads.py
       - name: Verify task check
         run: python scripts/check_task_check.py
+      - name: Verify context panel state
+        run: python scripts/check_context_panel_state.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
