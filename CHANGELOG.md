@@ -1,3 +1,8 @@
+## 0.2.0-rc.687 - 2026-11-23
+
+- 新增 `scripts/check_modal_focus.py`（8 项结构、11 项行为），为弹窗初始焦点补上回归保护：单行输入优先于多行文本域，文本域优先于首个控件，同优先级取首次命中，空列表返回 undefined。Node 直接加载真实 `modalFocus.ts` 执行 11 个用例。[Issue #3499](https://github.com/can4hou6joeng4/boss-harness/issues/3499)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 248 → 249。源码候选更新为 npm `0.2.0-rc.687` 和 Python `0.2.0rc687`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.686 - 2026-11-23
 
 - 新增 `scripts/check_skill_chips.py`（28 项结构、22 项行为），为输入区技能标签补上回归保护：id 原样保留、重复与空 id 去重、最多 10 项、目录未命中仅在已确认时标失效、名称与描述折叠空白并安全截断。Node 加载真实 `skillChips.ts` 与真实 `safeSlice` 执行 22 个用例。[Issue #3497](https://github.com/can4hou6joeng4/boss-harness/issues/3497)
