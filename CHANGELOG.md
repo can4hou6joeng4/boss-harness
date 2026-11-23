@@ -1,3 +1,8 @@
+## 0.2.0-rc.705 - 2026-11-24
+
+- 新增 `scripts/check_compaction_draft.py`（12 项结构、9 项行为），为压缩设置草稿补上回归保护：占位值、数字转字符串与零值、默认值来源、每次重置的副本隔离。Node 直接加载真实 `compactionDraft.ts` 执行 9 个用例。[Issue #3535](https://github.com/can4hou6joeng4/boss-harness/issues/3535)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 266 → 267。源码候选更新为 npm `0.2.0-rc.705` 和 Python `0.2.0rc705`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.704 - 2026-11-24
 
 - 新增 `scripts/check_cockpit_tabs.py`（15 项结构、23 项行为），为运行状态面板补上回归保护：分区顺序、ARIA id 前缀、← / → 循环、Home / End 首末跳转、未知按键、越界与非整数索引、单分区循环。Node 直接加载真实 `cockpitTabs.ts` 执行 23 个用例。[Issue #3533](https://github.com/can4hou6joeng4/boss-harness/issues/3533)
