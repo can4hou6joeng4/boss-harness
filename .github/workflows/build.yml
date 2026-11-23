@@ -517,5 +517,7 @@ jobs:
         run: python scripts/check_application_writes.py
       - name: Verify application lifecycle
         run: python scripts/check_application_lifecycle.py
+      - name: Verify application details
+        run: python scripts/check_application_details.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
