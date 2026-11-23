@@ -601,6 +601,8 @@ jobs:
         run: python scripts/check_context_read.py
       - name: Verify queue mapping
         run: python scripts/check_queue_mapping.py
+      - name: Verify markdown blocks
+        run: python scripts/check_markdown_blocks.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability

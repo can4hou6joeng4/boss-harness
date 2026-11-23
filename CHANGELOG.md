@@ -1,3 +1,8 @@
+## 0.2.0-rc.671 - 2026-11-23
+
+- 新增 `scripts/check_markdown_blocks.py`（34 项结构、31 项行为），为智能体消息的代码围栏切分补上回归保护：反引号围栏的前缀正文与语言标记、波浪号围栏仅行首识别、结束围栏独占一行且同类且不短于起始围栏、未闭合围栏按到文末的代码处理、代码块保留缩进并归一 CRLF、长反引号串线性扫描。Node 直接加载真实 `markdownBlocks.ts` 执行 31 个用例（普通文本 5、起始围栏 7、结束围栏 6、波浪号围栏 3、未闭合围栏 3、代码正文 5、线性扫描 2）。[Issue #3467](https://github.com/can4hou6joeng4/boss-harness/issues/3467)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 232 → 233。源码候选更新为 npm `0.2.0-rc.671` 和 Python `0.2.0rc671`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.670 - 2026-11-23
 
 - 新增 `scripts/check_queue_mapping.py`（54 项结构、31 项行为），为队列投影补上回归保护：队列项逐字段校验、活动状态与分类增量、分类计数与待处理数一致、总数 / 待处理数 / 截断标记自洽、`thread/resume` 快照共用元数据、提交结果查找的完整投影前提、本地入队 / 撤回 / 编辑的计数合入。Node 直接加载真实 `queueMapping.ts` 执行 31 个用例（活动状态 2、条目 1、计数 7、列表 5、元数据 2、非法元数据 6、提交查找 4、本地合入 4）。[Issue #3465](https://github.com/can4hou6joeng4/boss-harness/issues/3465)
