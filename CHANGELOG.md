@@ -1,3 +1,8 @@
+## 0.2.0-rc.673 - 2026-11-23
+
+- 新增 `scripts/check_context_plan.py`（34 项结构、54 项行为），为整理计划回执的形状校验补上回归保护：会话归属、标识长度、来源摘要格式、计数下界、保留回合去重与上限、`firstKeptItemId` 与保留条目数自洽、选择方式与保留目标对应本次请求、旧内核兼容字段、用量校准锚点。Node 直接加载真实 `contextPlan.ts` 执行 54 个用例（收敛结果 4、身份与摘要 9、计数与边界 7、保留回合 5、首个保留条目 5、选择方式 8、兼容字段 9、用量校准 7）。[Issue #3471](https://github.com/can4hou6joeng4/boss-harness/issues/3471)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 234 → 235。源码候选更新为 npm `0.2.0-rc.673` 和 Python `0.2.0rc673`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.672 - 2026-11-23
 
 - 新增 `scripts/check_approval_failure.py`（34 项结构、48 项行为），为审批回执补上回归保护：回执未知的「尚未确认」文案、审批卡按钮不可提交原因的判定顺序、七种拒绝码在手动与自动批准路径上的提示、已有结论时不重新开放操作、仅六种拒绝码重读会话而 `APPROVAL_BUSY` 不刷新。Node 直接加载真实 `approvalFailure.ts` 执行 48 个用例（未确认文案 4、按钮可用性 10、拒绝文案 9、无原因拒绝文案 3、自动批准拒绝文案 9、自动批准边界 4、刷新判定 9）。[Issue #3469](https://github.com/can4hou6joeng4/boss-harness/issues/3469)
