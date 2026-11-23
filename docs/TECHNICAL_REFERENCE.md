@@ -181,7 +181,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_tool_arguments.py`
 
-`scripts/check_tool_arguments.py` 核对工具参数里的空字符与未启动结算：`tool_schema.py` 必须在参数快照阶段拒绝含 `\u0000` 的字符串与对象键（孤立代理项同样拒绝），使需批准的工具在审批之前就返回参数错误；这类错误必须点名「无法作为命令行参数传递的字符」，与其他 schema 不符的通用文案分开，模型才能据此删掉字符重试；`tools/boss_cli.py` 在 `Popen` 因参数无法编码或含空字符而抛 `ValueError` 时返回独立的 `CLI_ARGUMENT_ERROR`，不得与「可执行文件缺失」共用错误码；`agent.py` 必须把该错误码结算为 `not_executed` 并暂停回合，同时不进入「已派发、结果不确定」集合。脚本还会构造真实注册表与执行器跑一遍：空字符、孤立高 / 低代理项参数被拒绝并点名原因，合法表情符号放行，普通 schema 不符保持通用文案，正常参数放行、`CLI_ARGUMENT_ERROR` 收尾为 `not_executed` 且暂停、`TOOL_ERROR` 仍收尾为 `outcome_unknown`；另用临时可执行脚本验证 CLI 层：合法参数真实执行并返回成功信封，含空字符的参数返回 `CLI_ARGUMENT_ERROR` 且脚本未被启动（共 30 项）。临时会话目录在隔离环境创建，检查不调用模型、招聘平台或真实 CLI 二进制。
+`scripts/check_tool_arguments.py` 核对工具参数的 schema 规则、不可传递字符与未启动结算：`tools/boss_cli.py` 的 `_validate_value` 必须在参数进入子进程前逐条核对类型精确匹配（布尔不算整数）、`anyOf` 分支回退、枚举、最小值、最小长度、格式、数组最小 / 最大长度、元素递归与唯一性，错误文案点名字段路径（含 `k[0]` 下标）且不回显原始取值；`tool_schema.py` 必须在参数快照阶段拒绝含 `\u0000` 的字符串与对象键（孤立代理项同样拒绝），使需批准的工具在审批之前就返回参数错误；这类错误必须点名「无法作为命令行参数传递的字符」，与其他 schema 不符的通用文案分开，模型才能据此删掉字符重试；`tools/boss_cli.py` 在 `Popen` 因参数无法编码或含空字符而抛 `ValueError` 时返回独立的 `CLI_ARGUMENT_ERROR`，不得与「可执行文件缺失」共用错误码；`agent.py` 必须把该错误码结算为 `not_executed` 并暂停回合，同时不进入「已派发、结果不确定」集合。脚本还会直接调用 `_validate_value` 跑一遍合法边界与非法取值（共 22 项），并构造真实注册表与执行器跑一遍：空字符、孤立高 / 低代理项参数被拒绝并点名原因，合法表情符号放行，普通 schema 不符保持通用文案，正常参数放行、`CLI_ARGUMENT_ERROR` 收尾为 `not_executed` 且暂停、`TOOL_ERROR` 仍收尾为 `outcome_unknown`；另用临时可执行脚本验证 CLI 层：合法参数真实执行并返回成功信封，含空字符的参数返回 `CLI_ARGUMENT_ERROR` 且脚本未被启动（共 65 项）。临时会话目录在隔离环境创建，检查不调用模型、招聘平台或真实 CLI 二进制。
 
 ### `check_model_tools.py`
 
