@@ -1,3 +1,8 @@
+## 0.2.0-rc.682 - 2026-11-23
+
+- 新增 `scripts/check_skill_catalog_receipts.py`（30 项结构、35 项行为），为桌面技能目录回执补上回归保护：条目长度与字节边界、可选截断标记、同目录标识唯一、读取归属、正文与上限校验、可选根目录白名单。Node 直接加载真实 `skillCatalog.ts` 执行 35 个用例（条目 18、唯一标识 4、读取回执 13）。[Issue #3489](https://github.com/can4hou6joeng4/boss-harness/issues/3489)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 243 → 244。源码候选更新为 npm `0.2.0-rc.682` 和 Python `0.2.0rc682`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.681 - 2026-11-23
 
 - 新增 `scripts/check_snapshot_shape.py`（22 项结构、24 项行为），为会话恢复快照补上回归保护：会话对象形状、线路字段类型与长度、快照身份、32 位小写十六进制标识、条目数组要求与成功收窄。Node 直接加载真实 `snapshotShape.ts` 执行 24 个用例（线路字段 10、快照形状 11、类型收窄 3）。[Issue #3487](https://github.com/can4hou6joeng4/boss-harness/issues/3487)
