@@ -2914,6 +2914,8 @@ class ApplicationService:
 
         try:
             with self.runtimes.lock:
+                # Missing/deleted sessions get the stable public error, never a raw path.
+                self.sessions.require_thread(thread_id)
                 self._idle(thread_id)
                 source_digest = self._source_digest(params or {})
                 self.context.compact(thread_id, _text(params, "summary", maximum=32_000),

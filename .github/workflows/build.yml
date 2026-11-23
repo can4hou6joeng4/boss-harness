@@ -529,5 +529,7 @@ jobs:
         run: python scripts/check_application_queue.py
       - name: Verify application turn
         run: python scripts/check_application_turn.py
+      - name: Verify application compaction
+        run: python scripts/check_application_compaction.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
