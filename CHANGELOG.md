@@ -1,3 +1,8 @@
+## 0.2.0-rc.679 - 2026-11-23
+
+- 新增 `scripts/check_library_files.py`（45 项结构、45 项行为），为资料库文件与来源整理补上回归保护：路径拆分、扩展名标签、脏计数兜底、同路径 / 同 ref 去重、稳定排序、NFKC 筛选、查询时间格式与长标识截短。Node 在临时目录替换工具时间入口后加载真实 `libraryFiles.ts` 执行 45 个用例（路径拆分 8、扩展名标签 8、文件汇总 7、来源汇总 8、筛选 6、文案与短标识 8）。[Issue #3483](https://github.com/can4hou6joeng4/boss-harness/issues/3483)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 240 → 241。源码候选更新为 npm `0.2.0-rc.679` 和 Python `0.2.0rc679`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.678 - 2026-11-23
 
 - 新增 `scripts/check_reasoning_control.py`（24 项结构、25 项行为），为推理设置补上回归保护：断连与无会话时的可见提示、操作目标回传、`thread/reasoning/read` 的会话归属、可空档位与布尔字段类型、档位数组元素校验、输出字段白名单。Node 直接加载真实 `reasoningControl.ts` 执行 25 个用例（操作目标 6、回执校验 19）。[Issue #3481](https://github.com/can4hou6joeng4/boss-harness/issues/3481)
