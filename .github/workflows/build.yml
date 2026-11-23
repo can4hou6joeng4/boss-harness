@@ -681,6 +681,8 @@ jobs:
         run: python scripts/check_scroll_motion.py
       - name: Verify tool catalog
         run: python scripts/check_tool_catalog.py
+      - name: Verify notification test
+        run: python scripts/check_notification_test.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
