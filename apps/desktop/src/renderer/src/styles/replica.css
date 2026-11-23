@@ -633,3 +633,8 @@ button.user-skill-chip:hover { border-color: var(--text-muted); color: var(--tex
 .dialog-form label.branch-summary-option input[type="radio"] { width: auto; }
 .export-risk { border: 1px solid var(--accent-warning); }
 .export-risk strong { color: var(--accent-warning); }
+
+/* 空状态里直接给出恢复操作，避免只留一行提示让人回头找入口。 */
+.page-empty.recent-empty { min-height: 280px; }
+.page-empty-action { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.page-empty-action p { margin: 0; }

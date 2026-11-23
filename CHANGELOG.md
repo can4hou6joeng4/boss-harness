@@ -1,3 +1,8 @@
+## 0.2.0-rc.644 - 2026-11-23
+
+- 桌面「最近聊天」无会话时改为完整空态：图标、标题、说明与「开始一个任务」按钮，复用现有新聊天流程；筛选无匹配与「资料库」筛选无匹配都提供「清空筛选」按钮，不再只留一行提示让人回头找入口或手动删词。[Issue #3413](https://github.com/can4hou6joeng4/boss-harness/issues/3413)
+- 新增 `scripts/check_workspace_empty_states.py`（14 项结构、6 项行为）锁定三处空态的数据标记、提示文案、恢复按钮与设置函数；工作流注册、技术参考小节与索引行同步；隔离变异探针覆盖缺按钮、错设置函数、缺开始入口与标记改名。源码候选更新为 npm `0.2.0-rc.644` 和 Python `0.2.0rc644`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.643 - 2026-11-23
 
 - 扩展 `scripts/check_workflows.py`：解析 `python-matrix` 作业的 Verify 步骤，若其中脚本导入 `tomllib`（Python 3.11+ 标准库）或指向不存在的脚本即失败；矩阵外的步骤不受限制。rc.642 的安装指南检查曾因导入 `tomllib` 在 Python 3.10 上失败，只能等远端 CI 发现，现在本地检查即可拦截同类问题。[Issue #3411](https://github.com/can4hou6joeng4/boss-harness/issues/3411)

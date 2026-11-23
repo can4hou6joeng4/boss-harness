@@ -25,7 +25,9 @@ export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, o
   const recentRows = sessionRows(folders, query);
   if (page === "recents") return <div className="workspace-page" data-screen-label="最近聊天"><div className="page-heading"><div><h1>最近聊天</h1><p>从上次停下的地方继续。</p></div><button className="subtle-button" onClick={onNewTask}><IconPlus size={15} />新聊天</button></div><div className="page-search"><IconSearch size={16} /><input aria-label="筛选最近聊天" placeholder="搜索聊天…" value={query} onChange={event => setQuery(event.target.value)} /></div>
     <div className="recent-table">{recentRows.map(({ session, project }) => <button className="recent-row" key={session.id} onClick={() => onSelect(session)}><span className="recent-row-icon"><IconHistory size={18} /></span><span><strong>{session.title}</strong><small>{project}</small></span><time dateTime={session.updatedAt}>{session.updatedAt ? formatRelativeTime(session.updatedAt, now) : session.timeAgo}</time><IconChevronRight size={14} /></button>)}
-    {!recentRows.length && <p className="page-empty-note">{query.trim() ? "没有找到匹配的聊天" : "还没有聊天，创建一个任务开始吧"}</p>}</div></div>;
+    {!recentRows.length && (query.trim()
+      ? <div className="page-empty-note page-empty-action" data-recents-empty="no-match"><p>没有找到匹配的聊天。</p><button type="button" className="subtle-button" onClick={() => setQuery("")}>清空筛选</button></div>
+      : <div className="page-empty recent-empty" data-recents-empty="none"><IconHistory size={36} /><h2>还没有聊天</h2><p>创建任务后，聊天会保存在本地并出现在这里，可以从最近的位置继续。</p><button className="subtle-button" onClick={onNewTask}><IconPlus size={15} />开始一个任务</button></div>)}</div></div>;
   if (page === "library") {
     const files = collectLibraryFiles(messages);
     const sources = collectLibrarySources(messages);
@@ -38,7 +40,7 @@ export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, o
       <div className="page-heading"><div><h1>资料库</h1><p>当前会话中的文件变更与工具来源{preview ? " · 示例" : ""}</p></div></div>
       {!empty && <div className="page-search"><IconSearch size={16} /><input aria-label="筛选资料" placeholder="筛选文件或来源…" value={libraryQuery} onChange={event => setLibraryQuery(event.target.value)} /></div>}
       {empty ? <div className="page-empty"><IconFolder size={36} /><h2>资料会汇集在这里</h2><p>会话中出现的文件变更与工具来源会显示在这里。文件变更摘要目前只有示例会话提供；真实会话里调用工具后，来源会出现在下方列表。</p><button className="subtle-button" onClick={onNewTask}>开始一个任务</button></div>
-        : noMatch ? <p className="page-empty-note">没有匹配的文件或来源。清空筛选后再试。</p>
+        : noMatch ? <div className="page-empty-note page-empty-action" data-library-empty="no-match"><p>没有匹配的文件或来源。</p><button type="button" className="subtle-button" onClick={() => setLibraryQuery("")}>清空筛选</button></div>
         : <>
           {files.length > 0 && <><h2 className="page-section-title">文件 <span>{visibleFiles.length} / {files.length}</span></h2>
             {visibleFiles.length ? <div className="library-grid">{visibleFiles.map(item => <button key={item.path} onClick={() => setFile(item.path)}>
