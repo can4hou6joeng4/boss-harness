@@ -1,3 +1,8 @@
+## 0.2.0-rc.661 - 2026-11-23
+
+- 新增 `scripts/check_approval_copy.py`（24 项结构、18 项行为），为审批复制文本补上回归保护：结论只认 `approve` / `deny` / `expired` 且拒绝原型属性名，期限为有限正数且不超过 `8.64e15`、整秒省略毫秒，复制行按工具名、说明、结论或期限拼装并保持互斥，空白字段与无内容分别跳过与返回 null。Node 直接加载真实 `approvalCopy.ts` 执行 18 个用例（结论 3、期限 4、拼装 11）。[Issue #3447](https://github.com/can4hou6joeng4/boss-harness/issues/3447)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 222 → 223。源码候选更新为 npm `0.2.0-rc.661` 和 Python `0.2.0rc661`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.660 - 2026-11-23
 
 - 新增 `scripts/check_model_catalog.py`（27 项结构、17 项行为），为模型目录条目与菜单文案补上回归保护：`id` / `provider` 长度上限、布尔标记、`capabilities` 数值与来源校验、`reasoningEfforts` 最多 16 项并复制、多余字段丢弃、`provider:id` 去重与分隔符冲突、空态按预览 / 目录 / 匹配 / none 线路分流。Node 直接加载真实 `modelCatalog.ts` 执行 17 个用例（条目 8、去重 1、空态 8）。[Issue #3445](https://github.com/can4hou6joeng4/boss-harness/issues/3445)
