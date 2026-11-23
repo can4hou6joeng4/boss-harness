@@ -593,6 +593,8 @@ jobs:
         run: python scripts/check_error_report.py
       - name: Verify usage mapping
         run: python scripts/check_usage_mapping.py
+      - name: Verify context job
+        run: python scripts/check_context_job.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
