@@ -1,3 +1,8 @@
+## 0.2.0-rc.653 - 2026-11-23
+
+- 新增 `scripts/check_composer_history.py`（21 项结构、29 项行为），为输入区 ↑ / ↓ 历史调取补上回归保护：只收本会话非空且不超过 20000 字符的用户消息、最近 50 条上限、草稿保存与恢复、前缀过滤（与聊天内查找共用 NFKC + 大小写归一化）与无匹配回退、历史缩短后的游标收敛、多行编辑与修饰键 / 选区保留原生行为。Node 在临时目录加载真实模块执行 29 个用例。[Issue #3431](https://github.com/can4hou6joeng4/boss-harness/issues/3431)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 215 → 216。源码候选更新为 npm `0.2.0-rc.653` 和 Python `0.2.0rc653`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.652 - 2026-11-23
 
 - 新增 `scripts/check_message_merge.py`（18 项结构、18 项行为），为会话区本地消息合并补上回归保护：审批卡仅在 `approvalId` 相同且新数据没有结论时保留本地 `decision` / `remember`，否则保留提交标记；问题与计划只在卡片 id / slug 相同时保留已回答与已保存状态；父级已移除的消息不复活，正文与顺序以新数据为准。Node 直接调用真实 `mergeLocalMessageState` 执行 18 个用例。[Issue #3429](https://github.com/can4hou6joeng4/boss-harness/issues/3429)
