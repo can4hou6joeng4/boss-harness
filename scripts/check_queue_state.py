@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""核对队列新增、编辑、状态转移与暂停结算口径。
+"""核对队列新增、编辑、状态转移、暂停结算与容量回队口径。
 
 `TurnQueue` 是持久队列的状态机：新增时校验 kind、正文、客户端幂等 id、技能
 列表与容量上限；编辑只改排队项正文并按替换后的字节重算上限；转移表禁止
 已投递项回退；领取 steering 时必须匹配当前回合；暂停来源按 kind 优先，
-结算只处理排队 / 投递中的项，并在一次 `append_many` 后清理作用域。这里按
+结算只处理排队 / 投递中的项，并在一次 `append_many` 后清理作用域；容量
+回队只把投递中的跟随消息退回排队，剥离投递期字段后一次写回。这里按
 源码顺序固定这些边界。行为检查在临时会话存储上直接调用 `TurnQueue`，避免
 去重、上限或状态机被重构放宽。
 """
@@ -139,6 +140,18 @@ SETTLE_ORDER = (
     "self._pending_pauses.pop(thread_id, None)",
     'return [entry.payload["id"] for entry in updates]',
 )
+DEFER_ORDER = (
+    "def defer_capacity(self, thread_id: str, queue_id: str) -> dict:",
+    "with self.lock:",
+    "self.settle_pauses(thread_id)",
+    "item = self.get(thread_id, queue_id)",
+    'if item["status"] != "delivering":',
+    "return item",
+    "deferred = {key: value for key, value in item.items()",
+    'if key not in {"turnId", "failureCode", "executionStarted", "inputPersisted"}}',
+    'deferred["status"] = "queued"',
+    "return self._save(thread_id, deferred)",
+)
 
 
 sys.path.insert(0, str(ROOT / "harness/src"))
@@ -148,7 +161,7 @@ from boss_harness.runtime import (  # noqa: E402
     MAX_PENDING_QUEUE_ITEMS,
     TurnQueue,
 )
-from boss_harness.session import SessionStore  # noqa: E402
+from boss_harness.session import Entry, SessionStore  # noqa: E402
 
 
 def _expect_value(actual, expected, label: str) -> int:
@@ -301,6 +314,57 @@ def _behavior_checks() -> int:
         queue.pause(limit_thread, reason=None)
         checked += _expect_value(queue.add(limit_thread, "after pause")["status"], "queued",
                                  "暂停项不占容量")
+
+        # 容量回队：只有投递中的跟随消息退回排队，投递字段不随重试复用。
+        defer_thread = thread()
+
+        def queue_entries() -> list[dict]:
+            return [entry for entry in store.read_entries(defer_thread)
+                    if entry.get("type") == "queue"]
+
+        waiting = queue.add(defer_thread, "retry-me", client_id="c9",
+                            skill_ids=["x"], turn_id="turn-7")
+        entries_before = len(queue_entries())
+        checked += _expect_value(queue.defer_capacity(defer_thread, waiting["id"]), waiting,
+                                 "排队项原样返回")
+        checked += _expect_value(len(queue_entries()), entries_before, "排队项不写回")
+        checked += _expect_error(lambda: queue.defer_capacity(defer_thread, "missing"),
+                                 "队列项不存在", "回队不存在项")
+        delivered = queue.add(defer_thread, "done")
+        queue.transition(defer_thread, delivered["id"], "delivering")
+        queue.transition(defer_thread, delivered["id"], "delivered")
+        entered = len(queue_entries())
+        checked += _expect_value(
+            queue.defer_capacity(defer_thread, delivered["id"])["status"], "delivered",
+            "已投递项原样返回")
+        checked += _expect_value(len(queue_entries()), entered, "已投递项不写回")
+        checked += _expect_value((queue.claim(defer_thread, "followUp") or {}).get("id"),
+                                 waiting["id"], "投递中项被领取")
+        deferred = queue.defer_capacity(defer_thread, waiting["id"])
+        checked += _expect_value(
+            (deferred["status"], deferred["id"], deferred["input"],
+             deferred.get("expectedTurnId"), deferred.get("clientUserMessageId"),
+             deferred.get("skillIds")),
+            ("queued", waiting["id"], "retry-me", "turn-7", "c9", ["x"]), "回队保留字段")
+        checked += _expect_value((queue.claim(defer_thread, "followUp") or {}).get("id"),
+                                 waiting["id"], "回队后可再次领取")
+        raw_id = "raw-defer"
+        store.append(defer_thread, Entry(type="queue", payload={
+            "id": raw_id, "kind": "followUp", "status": "delivering", "input": "raw",
+            "expectedTurnId": "turn-8", "clientUserMessageId": "c10",
+            "skillIds": ["y"], "autoCompaction": {"enabled": False},
+            "turnId": "turn-failed", "failureCode": "TURN_START_FAILED",
+            "executionStarted": False, "inputPersisted": True}))
+        stripped = queue.defer_capacity(defer_thread, raw_id)
+        checked += _expect_value(
+            (stripped["status"], sorted(set(stripped) & {
+                "turnId", "failureCode", "executionStarted", "inputPersisted"})),
+            ("queued", []), "回队剥离投递字段")
+        checked += _expect_value(
+            (stripped.get("expectedTurnId"), stripped.get("clientUserMessageId"),
+             stripped.get("skillIds"), stripped.get("autoCompaction"), stripped["input"]),
+            ("turn-8", "c10", ["y"], {"enabled": False}, "raw"), "回队保留其余字段")
+        checked += _expect_value(queue.get(defer_thread, raw_id), stripped, "回队持久化一致")
     return checked
 
 
@@ -342,6 +406,7 @@ def check_queue_state() -> int:
     claim = _method(tree, source, "claim")
     pause = _method(tree, source, "pause")
     settle = _method(tree, source, "settle_pauses")
+    defer = _method(tree, source, "defer_capacity")
     checked = _ordered(USAGE_ORDER, usage, RUNTIME)
     checked += _ordered(ADD_ORDER, add, RUNTIME)
     checked += _ordered(UPDATE_ORDER, update, RUNTIME)
@@ -349,6 +414,7 @@ def check_queue_state() -> int:
     checked += _ordered(CLAIM_ORDER, claim, RUNTIME)
     checked += _ordered(PAUSE_ORDER, pause, RUNTIME)
     checked += _ordered(SETTLE_ORDER, settle, RUNTIME)
+    checked += _ordered(DEFER_ORDER, defer, RUNTIME)
     # 待处理统计只覆盖排队与投递中两项。
     if usage.count('{"queued", "delivering"}') != 1:
         raise ValueError(f"{RUNTIME} 的待处理统计必须只覆盖 queued 与 delivering")
@@ -424,6 +490,22 @@ def check_queue_state() -> int:
     if settle.count('return [entry.payload["id"] for entry in updates]') != 1:
         raise ValueError(f"{RUNTIME} 的暂停结算必须返回实际暂停的 id")
     checked += 1
+    # 回队：只有投递中可以退回排队，四个投递字段剥离后一次写回。
+    if defer.count('if item["status"] != "delivering":') != 1:
+        raise ValueError(f"{RUNTIME} 的容量回队必须只接受投递中的项")
+    checked += 1
+    if defer.count('if key not in {"turnId", "failureCode", "executionStarted", "inputPersisted"}}') != 1:
+        raise ValueError(f"{RUNTIME} 的容量回队必须剥离四个投递字段")
+    checked += 1
+    if defer.count('deferred["status"] = "queued"') != 1:
+        raise ValueError(f"{RUNTIME} 的容量回队必须退回排队")
+    checked += 1
+    if defer.count("return self._save(thread_id, deferred)") != 1:
+        raise ValueError(f"{RUNTIME} 的容量回队必须一次写回")
+    checked += 1
+    if "sessions.append(" in defer or "append_many(" in defer:
+        raise ValueError(f"{RUNTIME} 的容量回队不得绕过队列写回")
+    checked += 1
     return checked + _behavior_checks()
 
 
@@ -433,7 +515,7 @@ def main() -> int:
     except (ValueError, SyntaxError) as error:
         print(f"队列状态核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"队列状态一致：{checked} 项新增、编辑、转移、暂停与行为校验")
+    print(f"队列状态一致：{checked} 项新增、编辑、转移、暂停、回队与行为校验")
     return 0
 
 
