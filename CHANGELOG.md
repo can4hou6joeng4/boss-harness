@@ -1,3 +1,8 @@
+## 0.2.0-rc.623 - 2026-11-23
+
+- 新增 `scripts/check_application_branches.py`（29 项结构、21 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`（`provider=none`），用分支指针移动与 `append_branch_summary` 构造真实分叉，覆盖分支读取入口：`thread/branches/list` 的空投影与分叉端点投影（`isLeaf` / `containsLeaf` / `forkTurnId` / `branchTurnId` / `selectable` / 输入预览）、`limit=1` 首页与游标续读、参数 / 游标 / 上限 / 未知线程拒绝；`thread/branchSummary/read` 的 15 项投影、参数 / 多余键 / 未知线程拒绝，未知条目与普通条目都返回 -32011 与 `BRANCH_SUMMARY_NOT_FOUND`。分支端点标记或摘要读取若退化为按 id 直接查日志，桌面分支面板会显示错误位置或把普通条目当成摘要正文。[Issue #3371](https://github.com/can4hou6joeng4/boss-harness/issues/3371)
+- 源码候选更新为 npm `0.2.0-rc.623` 和 Python `0.2.0rc623`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.622 - 2026-11-23
 
 - 新增 `scripts/check_application_leaf.py`（39 项结构、29 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`（`provider=none`），覆盖分支指针入口：`thread/leaf/read` 的参数与未知线程拒绝及六项投影；`thread/leaf/set` 的参数集合、`turnId` 与 `summarize` 类型、未知线程、未知回合、未结束回合与归档会话（-32004）拒绝；移到已结束回合的 `changed=true` 投影与 `thread/leafChanged` 广播载荷、幂等移动不发事件、`summarize=true` 预检失败返回 -32013 且指针保持不动、回到起点的投影与广播。分支指针若在拒绝条件下移动或在幂等重复时广播，桌面会显示错误的分支位置或触发多余重载。[Issue #3369](https://github.com/can4hou6joeng4/boss-harness/issues/3369)
