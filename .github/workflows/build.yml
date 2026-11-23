@@ -651,6 +651,8 @@ jobs:
         run: python scripts/check_sidebar_visibility.py
       - name: Verify notification focus
         run: python scripts/check_notification_focus.py
+      - name: Verify model retry
+        run: python scripts/check_model_retry.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
