@@ -971,7 +971,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_focus_visibility.py`
 
-`scripts/check_focus_visibility.py` 核对移除默认焦点环的输入框都有容器级焦点替代：扫描 `styles/*.css`，对 `.page-search input`、`.search-field input`、`.composer-menu-search input` 与 `.composer-surface>textarea` 检查规则或 `:focus-visible` 规则是否写了 `outline: none`；一旦写了，对应容器必须提供 `:focus-within` 规则（`.page-search:focus-within`、`.search-field:focus-within`、`.composer-menu-search:focus-within`、`.composer-surface:focus-within`）。保留默认焦点环的输入不要求容器替代，输入规则缺失同样失败。行为侧用合成 CSS 核对缺少容器替代、保留默认环与缺少输入规则三种情形。共 8 项结构、4 项行为。
+`scripts/check_focus_visibility.py` 核对移除默认焦点环的输入框都有焦点替代：扫描 `styles/*.css`，对 `.page-search input`、`.search-field input`、`.composer-menu-search input`、`.composer-surface>textarea`、`.dialog-form input` 与 `.sidechat-composer input` 检查规则或 `:focus-visible` 规则是否写了 `outline: none`；一旦写了，替代必须是容器的 `:focus-within`（`.page-search:focus-within`、`.search-field:focus-within`、`.composer-menu-search:focus-within`、`.composer-surface:focus-within`）或输入自身的 `:focus-visible`（`.dialog-form input:focus-visible`、`.sidechat-composer input:focus-visible`），且替代规则必须包含 `outline: 2px`、边框、背景或阴影之一，不能只是再次 `outline: none`。保留默认焦点环的输入不要求替代，输入规则缺失同样失败。行为侧用合成 CSS 核对缺少替代、保留默认环与缺少输入规则三种情形。共 12 项结构、4 项行为。
 
 ### `check_docs_links.py`
 

@@ -18,11 +18,14 @@ STYLES = ROOT / "apps/desktop/src/renderer/src/styles"
 DOCS = "docs/TECHNICAL_REFERENCE.md"
 
 INPUTS = (
-    (".page-search input", ".page-search:focus-within"),
-    (".search-field input", ".search-field:focus-within"),
-    (".composer-menu-search input", ".composer-menu-search:focus-within"),
-    (".composer-surface>textarea", ".composer-surface:focus-within"),
+    (".page-search input", (".page-search:focus-within",)),
+    (".search-field input", (".search-field:focus-within",)),
+    (".composer-menu-search input", (".composer-menu-search:focus-within",)),
+    (".composer-surface>textarea", (".composer-surface:focus-within",)),
+    (".dialog-form input", (".dialog-form input:focus-visible",)),
+    (".sidechat-composer input", (".sidechat-composer input:focus-visible",)),
 )
+VISIBLE_MARKERS = ("outline: 2px", "border", "background", "box-shadow")
 
 
 def _read_all() -> str:
@@ -37,17 +40,24 @@ def _rule_body(css: str, selector: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _visible_focus(css: str, fallback: str) -> bool:
+    body = _rule_body(css, fallback)
+    return body is not None and any(marker in body for marker in VISIBLE_MARKERS)
+
+
 def _focus_problems(css: str) -> list[str]:
     problems: list[str] = []
-    for selector, container in INPUTS:
+    for selector, fallbacks in INPUTS:
         bodies = [_rule_body(css, selector), _rule_body(css, selector + ":focus-visible")]
         if all(body is None for body in bodies):
             problems.append(f"缺少输入规则 {selector}")
             continue
         if not any(body is not None and "outline: none" in body for body in bodies):
             continue
-        if f"{container} {{" not in css:
-            problems.append(f"{selector} 移除了默认焦点环，但缺少 {container} 替代")
+        if not any(_visible_focus(css, fallback) for fallback in fallbacks):
+            problems.append(
+                f"{selector} 移除了默认焦点环，但缺少替代：" + "、".join(fallbacks)
+            )
     return problems
 
 
@@ -59,8 +69,9 @@ def _expect_value(actual, expected, label: str) -> int:
 
 def _check_behaviors() -> int:
     sample = "\n".join(
-        f"{selector} {{ border: 0; outline: none; }}\n{container} {{ border-color: red; }}"
-        for selector, container in INPUTS
+        f"{selector} {{ border: 0; outline: none; }}\n"
+        + "\n".join(f"{fallback} {{ border-color: red; }}" for fallback in fallbacks)
+        for selector, fallbacks in INPUTS
     )
     checked = 0
     checked += _expect_value(len(_focus_problems(sample)), 0, "干净样本")
@@ -82,8 +93,8 @@ def _check_documentation() -> int:
     docs = (ROOT / DOCS).read_text(encoding="utf-8")
     if "`check_focus_visibility.py`" not in docs:
         raise ValueError(f"{DOCS} 缺少 check_focus_visibility.py")
-    if "共 8 项结构、4 项行为" not in docs:
-        raise ValueError(f"{DOCS} 需说明 check_focus_visibility.py 检查 8 项结构、4 项行为")
+    if "共 12 项结构、4 项行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_focus_visibility.py 检查 12 项结构、4 项行为")
     return 2
 
 

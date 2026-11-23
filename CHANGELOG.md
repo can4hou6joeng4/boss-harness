@@ -1,3 +1,8 @@
+## 0.2.0-rc.650 - 2026-11-23
+
+- 修复对话框与快速提问输入框的键盘焦点不可见：`.dialog-form input`（新建项目、重命名等对话框）与 `.sidechat-composer input`（快速提问）补 `:focus-visible` 强调色。此前两处移除默认焦点环却没有替代，rc.649 的检查也未覆盖。[Issue #3425](https://github.com/can4hou6joeng4/boss-harness/issues/3425)
+- 扩展 `scripts/check_focus_visibility.py`（12 项结构、4 项行为）：输入清单从 4 项扩到 6 项，替代可以是容器 `:focus-within` 或输入自身 `:focus-visible`，且必须包含 `outline: 2px`、边框、背景或阴影之一。源码候选更新为 npm `0.2.0-rc.650` 和 Python `0.2.0rc650`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.649 - 2026-11-23
 
 - 修复键盘焦点不可见：`.page-search` 与 `.search-field` 两个容器补 `:focus-within` 强调色。此前输入框写了 `outline: none`，聚焦「最近聊天」「资料库」「技能与工具」筛选框或跨会话搜索框时没有任何可见反馈。[Issue #3423](https://github.com/can4hou6joeng4/boss-harness/issues/3423)

@@ -1771,6 +1771,7 @@ html:not(.dark) .chat-blockquote {
   font-size: 13px;
   outline: none;
 }
+.sidechat-composer input:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 1px; }
 
 /* ========================================================
    Codex Diff Card（代码变更卡片）
