@@ -675,6 +675,8 @@ jobs:
         run: python scripts/check_cursor_chain.py
       - name: Verify tool outcome
         run: python scripts/check_tool_outcome.py
+      - name: Verify preference shapes
+        run: python scripts/check_preference_shapes.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
