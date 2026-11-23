@@ -631,6 +631,8 @@ jobs:
         run: python scripts/check_queue_refresh.py
       - name: Verify skill editor close
         run: python scripts/check_skill_editor_close.py
+      - name: Verify skill chips
+        run: python scripts/check_skill_chips.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
