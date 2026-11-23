@@ -1,3 +1,8 @@
+## 0.2.0-rc.683 - 2026-11-23
+
+- 新增 `scripts/check_skill_detail.py`（12 项结构、19 项行为），为桌面技能详情补上回归保护：详情只在选中条目与回执标识一致时返回，目录刷新期间不因空数组清除选中项，终态按同标识条目决定保留；入参不被改写。Node 直接加载真实 `skillDetail.ts` 执行 19 个用例（详情归属 7、原样返回 1、选中态 9、入参不变 2）。[Issue #3491](https://github.com/can4hou6joeng4/boss-harness/issues/3491)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 244 → 245。源码候选更新为 npm `0.2.0-rc.683` 和 Python `0.2.0rc683`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.682 - 2026-11-23
 
 - 新增 `scripts/check_skill_catalog_receipts.py`（30 项结构、35 项行为），为桌面技能目录回执补上回归保护：条目长度与字节边界、可选截断标记、同目录标识唯一、读取归属、正文与上限校验、可选根目录白名单。Node 直接加载真实 `skillCatalog.ts` 执行 35 个用例（条目 18、唯一标识 4、读取回执 13）。[Issue #3489](https://github.com/can4hou6joeng4/boss-harness/issues/3489)
