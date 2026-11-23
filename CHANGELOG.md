@@ -1,3 +1,8 @@
+## 0.2.0-rc.701 - 2026-11-24
+
+- 新增 `scripts/check_export_receipt.py`（15 项结构、26 项行为），为导出保存回执补上回归保护：取消回执、文件名上限、计数类型与回合数自洽、枚举字段、脱敏统计、权限标记与原始对象返回。Node 直接加载真实 `exportReceipt.ts` 执行 26 个用例。[Issue #3527](https://github.com/can4hou6joeng4/boss-harness/issues/3527)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 262 → 263。源码候选更新为 npm `0.2.0-rc.701` 和 Python `0.2.0rc701`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.700 - 2026-11-24
 
 - 新增 `scripts/check_about_info.py`（18 项结构、17 项行为），为关于页补上回归保护：空值与非字符串回退、平台名称映射、固定条目顺序与内核连接状态、诊断文本拼接。Node 直接加载真实 `aboutInfo.ts` 执行 17 个用例。[Issue #3525](https://github.com/can4hou6joeng4/boss-harness/issues/3525)
