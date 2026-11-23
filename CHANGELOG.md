@@ -1,3 +1,8 @@
+## 0.2.0-rc.694 - 2026-11-23
+
+- 新增 `scripts/check_sidebar_visibility.py`（25 项结构、30 项行为），为侧栏会话可见性补上回归保护：隐藏开关过滤、归档分组互斥、隐藏计数去重，以及失败、中断、暂停队列项与待审批调用的待处理判定。Node 直接加载真实 `sidebarVisibility.ts` 执行 30 个用例。[Issue #3513](https://github.com/can4hou6joeng4/boss-harness/issues/3513)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 255 → 256。源码候选更新为 npm `0.2.0-rc.694` 和 Python `0.2.0rc694`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.693 - 2026-11-23
 
 - 新增 `scripts/check_session_state.py`（13 项结构、11 项行为），为会话异步归属补上回归保护：resume 元数据只在对象身份相同时写回，续接提示同时匹配 threadId 与 sourceTurnId。Node 直接加载真实 `sessionState.ts` 执行 11 个用例。[Issue #3511](https://github.com/can4hou6joeng4/boss-harness/issues/3511)
