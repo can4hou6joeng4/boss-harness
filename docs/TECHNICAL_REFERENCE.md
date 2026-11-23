@@ -77,7 +77,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 | 连接与浏览器来源 | [`check_browser_source.py`](#check_browser_sourcepy)、[`check_connections.py`](#check_connectionspy)、[`check_connection_lifecycle.py`](#check_connection_lifecyclepy)、[`check_connection_report.py`](#check_connection_reportpy)、[`check_login_flow.py`](#check_login_flowpy) |
 | 关闭与中止 | [`check_shutdown.py`](#check_shutdownpy)、[`check_runtime_capacity.py`](#check_runtime_capacitypy)、[`check_bridge_lifecycle.py`](#check_bridge_lifecyclepy) |
 | 搜索 | [`check_search_unicode.py`](#check_search_unicodepy)、[`check_search_clusters.py`](#check_search_clusterspy)、[`check_search_index.py`](#check_search_indexpy)、[`check_search_scan.py`](#check_search_scanpy)、[`check_search_snippet.py`](#check_search_snippetpy) |
-| 工作流与文档 | [`check_workflows.py`](#check_workflowspy)、[`check_docs_links.py`](#check_docs_linkspy)、[`check_handler_coverage.py`](#check_handler_coveragepy)、[`check_offline_checks.py`](#check_offline_checkspy) |
+| 工作流与文档 | [`check_workflows.py`](#check_workflowspy)、[`check_docs_links.py`](#check_docs_linkspy)、[`check_handler_coverage.py`](#check_handler_coveragepy)、[`check_offline_checks.py`](#check_offline_checkspy)、[`check_readme_stability.py`](#check_readme_stabilitypy) |
 
 ### `check_versions.py`
 
@@ -936,6 +936,10 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 ### `check_offline_checks.py`
 
 `scripts/check_offline_checks.py` 核对构建前检查的离线边界，守住「运行这组脚本无需网络、模型凭据或招聘平台账号」的承诺。它用 AST 扫描全部 `scripts/check_*.py`：禁止导入 `urllib.request`、`urllib.error`、`http`、`http.client`、`requests`、`httpx`、`aiohttp`、`websocket`、`websockets`、`smtplib`、`ftplib`、`imaplib`、`poplib`、`telnetlib`、`xmlrpc`、`grpc`、`boto3`、`paramiko`、`pycurl` 与 `ssl`；允许 `import socket` 与 `socket.gaierror` 等错误类型，但禁止 `socket.socket`、`socket.create_connection`、`socket.getaddrinfo`、`socket.gethostbyname`、`socket.gethostbyaddr` 调用与 `from socket import socket`；禁止 `__import__("…")` 与 `importlib.import_module("…")` 动态加载上述模块，`urllib.parse` 保持允许。行为侧用合成源码逐条核对每条禁令都会检出、允许项不误报。共 28 项结构、11 项行为。
+
+### `check_readme_stability.py`
+
+`scripts/check_readme_stability.py` 核对项目首页只写稳定事实，把 `CONTRIBUTING.md` 的约定变成 CI 不变量：README 不得出现 `rc.N` / `0.2.0-rc` 候选号、版本号或更新说明类标题（更新日志 / 更新说明 / 版本更新 / 近期进展 / 发布说明 / What's new / Release notes）与本机绝对路径；必须保留 CHANGELOG、项目状态、发布约定、许可证、安全、支持、贡献、安装、用户指南与桌面指南等稳定链接，以及「`main` 是开发分支」「桌面从源码构建」「MIT License」与 Releases 链接。近期进展与逐版本变化只留在 CHANGELOG 与 Release。行为侧用合成 Markdown 核对每条规则都会检出、干净样本不误报。共 17 项结构、7 项行为。
 
 ### `check_docs_links.py`
 
