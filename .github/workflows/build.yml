@@ -519,5 +519,7 @@ jobs:
         run: python scripts/check_application_lifecycle.py
       - name: Verify application details
         run: python scripts/check_application_details.py
+      - name: Verify application context
+        run: python scripts/check_application_context.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts

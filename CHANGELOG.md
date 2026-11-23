@@ -1,3 +1,8 @@
+## 0.2.0-rc.615 - 2026-11-23
+
+- 新增 `scripts/check_application_context.py`（27 项结构、26 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖上下文与导出入口：`context/read` 的 26 项键与预算 / 来源投影、带 `input` 的预览标记与消息数、未知线程；`context/instructions/read` 的空状态、写入后回读与参数拒绝；`thread/export` 的 Markdown / JSON / HTML 元数据、`redactions` 四类计数、凭据替换、`includeToolResults` 对比、`view=branch` 与格式 / 上限 / 参数集合拒绝。上下文与导出入口若放宽来源标记或脱敏计数，桌面会展示错误的预算状态，导出文件可能带出凭据或明文工具结果。[Issue #3355](https://github.com/can4hou6joeng4/boss-harness/issues/3355)
+- 源码候选更新为 npm `0.2.0-rc.615` 和 Python `0.2.0rc615`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.614 - 2026-11-23
 
 - 新增 `scripts/check_application_details.py`（92 项结构、62 项行为），在临时工作区与状态目录中真实构造 `ApplicationService` 并写入已完成回合与三类条目，覆盖会话详情读取入口：`thread/usage/read` 的投影与视图差异，`thread/search` 的命中结构、归档过滤与参数拒绝，`thread/reasoning/read|set` 的档位投影与未声明档位的 `-32012`，`thread/branches/list` 与 `thread/branchSummary/read` 的空投影与 `BRANCH_SUMMARY_NOT_FOUND`，`turn/list|read` 的回合与条目投影，`task/read` 的任务 locator 与 `TASK_NOT_FOUND`，`item/content/read` 与 `tool/result/read` 的摘要校验（`STALE_CONTENT` / `STALE_RESULT`）。详情入口若放宽视图、归档过滤或摘要比对，桌面会显示与引用不一致的用量、回合与正文，且无本地告警。[Issue #3353](https://github.com/can4hou6joeng4/boss-harness/issues/3353)
