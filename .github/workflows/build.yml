@@ -607,6 +607,8 @@ jobs:
         run: python scripts/check_approval_failure.py
       - name: Verify context plan
         run: python scripts/check_context_plan.py
+      - name: Verify result reads
+        run: python scripts/check_result_reads.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
