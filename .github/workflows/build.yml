@@ -617,6 +617,8 @@ jobs:
         run: python scripts/check_queue_action.py
       - name: Verify reasoning control
         run: python scripts/check_reasoning_control.py
+      - name: Verify library files
+        run: python scripts/check_library_files.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
