@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS_SOURCE = ROOT / "harness/src/boss_harness/tools/boss_cli.py"
@@ -20,12 +21,14 @@ HARNESS_PACKAGE = ROOT / "harness/src/boss_harness"
 sys.path.insert(0, str(ROOT / "harness/src"))
 
 from boss_harness.toolkit import ToolResult  # noqa: E402
+from boss_harness.tools import boss_cli as boss_cli_module  # noqa: E402
 from boss_harness.tools.boss_cli import (  # noqa: E402
     BROWSER_SOURCE_ENV,
     TOOLS,
     _decode_cli_envelope,
     _executable_path,
     approval_required_tools,
+    binary_available,
     resolve_binary,
     resolve_browser_source_override,
     should_pause,
@@ -92,6 +95,13 @@ BINARY_FRAGMENTS = (
     'return BinaryChoice(explicit_path, "explicit")',
     'env = (os.environ.get(BINARY_ENV) or "").strip()',
     'if env and _executable_path(env):',
+    'return BinaryChoice(env, "env")',
+    'sibling = REPO_ROOT.parent / "boss-agent-cli" / ".venv" / "bin" / "boss"',
+    'if _executable_path(str(sibling)):\n        return BinaryChoice(str(sibling), "sibling")',
+    'found = which("boss")',
+    'if found:\n        return BinaryChoice(found, "path")',
+    'return BinaryChoice("boss", "path")',
+    'return _executable_path(binary) if "/" in binary else which(binary) is not None',
 )
 
 
@@ -495,6 +505,64 @@ def _behavior_checks() -> int:
                                  "显式二进制路径规范化")
         choice = resolve_binary("   ")
         checked += _expect_value(choice.source != "explicit", True, "空白显式路径不生效")
+        second = base / "boss-env"
+        second.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        second.chmod(0o755)
+        empty_path = base / "empty-bin"
+        empty_path.mkdir()
+        with mock.patch.dict(os.environ,
+                             {"BOSS_CLI_BIN": str(second), "PATH": str(empty_path)}):
+            choice = resolve_binary(f"  {executable}  ")
+        checked += _expect_value((choice.path, choice.source), (str(executable), "explicit"),
+                                 "显式路径优先于环境变量")
+        with mock.patch.dict(os.environ,
+                             {"BOSS_CLI_BIN": f"  {second}  ", "PATH": str(empty_path)}):
+            choice = resolve_binary()
+        checked += _expect_value((choice.path, choice.source), (str(second), "env"),
+                                 "环境变量二进制路径规范化")
+        fake_root = base / "repo"
+        fake_root.mkdir()
+        previous_root = boss_cli_module.REPO_ROOT
+        boss_cli_module.REPO_ROOT = fake_root
+        try:
+            with mock.patch.dict(os.environ,
+                                 {"BOSS_CLI_BIN": str(plain), "PATH": str(empty_path)}):
+                choice = resolve_binary()
+            checked += _expect_value((choice.path, choice.source), ("boss", "path"),
+                                     "不可执行的环境变量回退默认名")
+            with mock.patch.dict(os.environ,
+                                 {"BOSS_CLI_BIN": "   ", "PATH": str(empty_path)}):
+                choice = resolve_binary()
+            checked += _expect_value((choice.path, choice.source), ("boss", "path"),
+                                     "空白环境变量被跳过")
+            sibling_bin = base / "boss-agent-cli" / ".venv" / "bin"
+            sibling_bin.mkdir(parents=True)
+            sibling = sibling_bin / "boss"
+            sibling.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            sibling.chmod(0o755)
+            with mock.patch.dict(os.environ, {"BOSS_CLI_BIN": "", "PATH": str(empty_path)}):
+                choice = resolve_binary()
+            checked += _expect_value((choice.path, choice.source), (str(sibling), "sibling"),
+                                     "并排上游虚拟环境")
+            path_bin = base / "path-bin"
+            path_bin.mkdir()
+            path_boss = path_bin / "boss"
+            path_boss.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            path_boss.chmod(0o755)
+            sibling.chmod(0o644)
+            with mock.patch.dict(os.environ, {"BOSS_CLI_BIN": "", "PATH": str(path_bin)}):
+                choice = resolve_binary()
+            checked += _expect_value((choice.path, choice.source), (str(path_boss), "path"),
+                                     "不可执行的并排候选被跳过并回退 PATH")
+        finally:
+            boss_cli_module.REPO_ROOT = previous_root
+        checked += _expect_value((binary_available(str(executable)), binary_available(str(plain)),
+                                  binary_available(str(base))), (True, False, False),
+                                 "绝对路径可用性判定")
+        with mock.patch.dict(os.environ, {"PATH": str(path_bin)}):
+            checked += _expect_value((binary_available("boss"),
+                                      binary_available("definitely-missing-boss")),
+                                     (True, False), "PATH 名称可用性判定")
 
     for label, arguments in (
         ("未知工具", ("unknown_tool", {"x": 1})),
