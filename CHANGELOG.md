@@ -1,3 +1,8 @@
+## 0.2.0-rc.617 - 2026-11-23
+
+- 新增 `scripts/check_application_continuation.py`（19 项结构、22 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖续接、队列与关闭入口：`turn/continuation/read` 的不可续接资格、`CONTINUATION_NOT_INTERRUPTED` 与风险提示、参数 / 来源 / 未知线程拒绝；`queue/list` 的空投影、`followUp` / `steering` 条目与按状态计数；`queue/get` 的单项投影与未知标识；`thread/resume` 与 `thread/read` 逐值一致；`shutdown` 的 `stopped`、状态收敛与重复幂等。续接资格或队列计数漂移会让桌面提供不可用的续接入口或显示错误的排队状态。[Issue #3359](https://github.com/can4hou6joeng4/boss-harness/issues/3359)
+- 源码候选更新为 npm `0.2.0-rc.617` 和 Python `0.2.0rc617`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.616 - 2026-11-23
 
 - 新增 `scripts/check_application_attachments.py`（36 项结构、25 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖附件与运行资源入口：`attachment/add` 的五项投影与工作区外 / 不存在 / 缺失路径拒绝；`attachment/read` 的整份读取、显式摘要的分块读取、未知附件 / 摘要格式 / 分块上限 / 参数集合拒绝；`runtime/resources/read` 的十项空投影与参数拒绝；`approval/list` 的空投影、线程过滤与参数 / 标识上限拒绝。附件入口若放宽工作区路径或分块摘要校验，内核可能读取工作区外文件或返回与引用不一致的内容。[Issue #3357](https://github.com/can4hou6joeng4/boss-harness/issues/3357)

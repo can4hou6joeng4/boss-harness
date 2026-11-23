@@ -523,5 +523,7 @@ jobs:
         run: python scripts/check_application_context.py
       - name: Verify application attachments
         run: python scripts/check_application_attachments.py
+      - name: Verify application continuation
+        run: python scripts/check_application_continuation.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
