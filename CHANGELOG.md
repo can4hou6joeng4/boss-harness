@@ -1,3 +1,8 @@
+## 0.2.0-rc.608 - 2026-11-23
+
+- 新增 `scripts/check_model_types.py`（62 项结构、46 项行为），直接构造模型层类型契约并执行带逻辑的部分：`token_count` 对缺失、布尔、非整数浮点与非 ASCII 数字视为未上报；`Usage.total` 只计输入与输出；`AssistantMessage` 按块类型投影文本与工具调用；`ModelErrorInfo.event_payload()` 只保留已知事实并保留零值 / 假值；`ModelRecoveryBudget` 的 0–64 边界、预留 / 提交 / 释放、取消与耗尽语义，以及 8 / 16 线程并发下的额度不超发、不丢还。恢复额度若超发会让执行循环无限重试，归还丢失会让后续请求提前失去恢复机会。[Issue #3341](https://github.com/can4hou6joeng4/boss-harness/issues/3341)
+- 源码候选更新为 npm `0.2.0-rc.608` 和 Python `0.2.0rc608`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.607 - 2026-11-23
 
 - 新增 `scripts/check_anthropic_stream.py`（128 项结构、85 项行为），用假 `anthropic` 客户端驱动真实 `AnthropicProvider._stream_once`，把 Messages 事件到 `StreamEvent` 的流状态机纳入行为对照：文本流与初始块文本拼接、思考增量与签名差分预算、加密思考块、工具参数分片与初始快照二选一、空参数与坏 JSON、未关闭工具、用量合并与停止原因、`refusal` 固定错误、开始前与中途取消、总时限前缀、529 / 400 / 429 / 连接失败 / 未知异常与文本 / 工具字节预算的错误收敛、`messages.create` 与 `beta.messages.create` 请求路径及请求头过滤，以及重复索引 / 关闭、增量错置、无活动块、空签名增量、空加密块、服务端 fallback 块、非法工具标识与名称、签名与加密块超预算、`message_stop` 后事件、缺少 `message_stop`、工具缺思考签名等协议错误必须以「模型流处理异常（ValueError）」收敛而非抛异常。流状态机若接受错配增量或把未闭合工具写进历史，续接与工具批次匹配会永久失败。[Issue #3339](https://github.com/can4hou6joeng4/boss-harness/issues/3339)
