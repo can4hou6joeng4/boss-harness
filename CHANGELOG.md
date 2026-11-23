@@ -1,3 +1,8 @@
+## 0.2.0-rc.714 - 2026-11-24
+
+- 新增 `scripts/check_home_suggestions.py`（8 项结构、12 项行为），为首页建议卡的填充判定补上回归保护：空白草稿直接放行、两侧空白不影响相同判定，前缀关系、多词包含与大小写差异都要求确认。Node 直接加载真实 `homeSuggestions.ts` 执行 12 个用例。[Issue #3553](https://github.com/can4hou6joeng4/boss-harness/issues/3553)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 275 → 276。源码候选更新为 npm `0.2.0-rc.714` 和 Python `0.2.0rc714`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.713 - 2026-11-24
 
 - 新增 `scripts/check_project_name.py`（6 项结构、11 项行为），为项目名称码点上限补上回归保护：60 码点边界、表情按单码点计数、混合文本与全空白名称不做修剪。Node 改写共享包导入后直接加载真实 `projectName.ts` 执行 11 个用例。[Issue #3551](https://github.com/can4hou6joeng4/boss-harness/issues/3551)
