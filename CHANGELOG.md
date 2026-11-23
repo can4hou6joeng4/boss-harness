@@ -1,3 +1,8 @@
+## 0.2.0-rc.708 - 2026-11-24
+
+- 新增 `scripts/check_preference_shapes.py`（20 项结构、26 项行为），为本地偏好形状校验补上回归保护：字符串集合去重与空串过滤、映射类型过滤、分组字段校验与去重、布尔映射与布尔偏好回退。Node 直接加载真实 `preferenceShapes.ts` 执行 26 个用例。[Issue #3541](https://github.com/can4hou6joeng4/boss-harness/issues/3541)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 269 → 270。源码候选更新为 npm `0.2.0-rc.708` 和 Python `0.2.0rc708`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.707 - 2026-11-24
 
 - 新增 `scripts/check_tool_outcome.py`（15 项结构、20 项行为），为工具结果徽标补上回归保护：九个明确状态的色调与文案、成功不打扰、显式状态优先、旧条目错误码 / 状态兜底与未知状态值。Node 直接加载真实 `toolOutcome.ts` 执行 20 个用例。[Issue #3539](https://github.com/can4hou6joeng4/boss-harness/issues/3539)
