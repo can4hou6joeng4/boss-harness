@@ -1,3 +1,8 @@
+## 0.2.0-rc.690 - 2026-11-23
+
+- 新增 `scripts/check_queue_skill_labels.py`（20 项结构、15 项行为），为队列项技能标签补上回归保护：非法 id 先过滤再计数、按 id 去重、最多 10 项、目录非空名称优先且同名不同 id 不合并。Node 直接加载真实 `queueSkillLabels.ts` 执行 15 个用例。[Issue #3505](https://github.com/can4hou6joeng4/boss-harness/issues/3505)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 251 → 252。源码候选更新为 npm `0.2.0-rc.690` 和 Python `0.2.0rc690`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.689 - 2026-11-23
 
 - 新增 `scripts/check_queue_skill_notice.py`（7 项结构、9 项行为），为运行中队列技能提示补上回归保护：仅队列开启、转向意图且携带技能时返回固定提示，后续回合队列不再被误报不支持技能。Node 直接加载真实 `queueSkillNotice.ts` 执行 9 个用例。[Issue #3503](https://github.com/can4hou6joeng4/boss-harness/issues/3503)
