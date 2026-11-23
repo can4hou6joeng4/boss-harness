@@ -1,3 +1,8 @@
+## 0.2.0-rc.670 - 2026-11-23
+
+- 新增 `scripts/check_queue_mapping.py`（54 项结构、31 项行为），为队列投影补上回归保护：队列项逐字段校验、活动状态与分类增量、分类计数与待处理数一致、总数 / 待处理数 / 截断标记自洽、`thread/resume` 快照共用元数据、提交结果查找的完整投影前提、本地入队 / 撤回 / 编辑的计数合入。Node 直接加载真实 `queueMapping.ts` 执行 31 个用例（活动状态 2、条目 1、计数 7、列表 5、元数据 2、非法元数据 6、提交查找 4、本地合入 4）。[Issue #3465](https://github.com/can4hou6joeng4/boss-harness/issues/3465)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 231 → 232。源码候选更新为 npm `0.2.0-rc.670` 和 Python `0.2.0rc670`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.669 - 2026-11-23
 
 - 新增 `scripts/check_context_read.py`（54 项结构、28 项行为），为上下文面板的回执校验补上回归保护：核心计数 / 文本 / 布尔与会话归属、可选标识与可空文本、记录字段复制、摘要任务引用、分支摘要形状、问题清单过滤 / 截断 / 总数自洽、工作区说明与系统提示词分节过滤。Node 在临时目录加载真实 `contextRead.ts` / `contextJob.ts`（改写导入）执行 28 个用例（核心 2、可选标识 2、布尔 1、诊断文本 1、记录 2、可空文本 3、摘要引用 2、分支摘要 2、问题清单 6、工作区说明 3、系统提示词 3、用量与检查点 1）。[Issue #3463](https://github.com/can4hou6joeng4/boss-harness/issues/3463)
