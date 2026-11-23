@@ -3,17 +3,20 @@
 
 静态扫描固定导出格式、字节上限、请求字段白名单、脱敏标记与管线顺序；行为对照直接
 构造 Redactor 并调用敏感信息 / 个人信息 / 文本接口，核对凭据、环境变量、路径与候选人
-信息的替换结果、计数以及路径延续、短文本与状态文本的边界。任一放宽都可能让本机数据进入
-导出文件。不访问网络、模型或招聘平台。
+信息的替换结果、计数以及路径延续、短文本与状态文本的边界。端到端对照再用临时
+SessionStore 调用 export_thread，核对三种格式的投影、文件名、预算截断、脱敏接线、
+参数拒绝与只读约束。任一放宽都可能让本机数据进入导出文件。不访问网络、模型或招聘平台。
 """
 
 from __future__ import annotations
 
 import ast
+import json
 import os
 from pathlib import Path
 import re
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPORT_MODULE = "harness/src/boss_harness/session_export.py"
@@ -21,10 +24,15 @@ APPLICATION_MODULE = "harness/src/boss_harness/application.py"
 SECURITY_MODULE = "apps/desktop/src/main/security.ts"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.session import Entry, SessionStore  # noqa: E402
 from boss_harness.session_export import (  # noqa: E402
+    DEFAULT_EXPORT_BYTES,
     ENV_MARK,
+    EXPORT_SCHEMA,
+    MAX_EXPORT_BYTES,
     MAX_PII_VALUES,
     MAX_TEXT_CHARS,
+    MIN_EXPORT_BYTES,
     PATH_MARK,
     PII_MARK,
     SECRET_MARK,
@@ -38,6 +46,7 @@ from boss_harness.session_export import (  # noqa: E402
     _short_text,
     _status_text,
     _wire_bytes,
+    export_thread,
 )
 DESKTOP_EXPORT = re.compile(r"const EXPORT_MAX_BYTES = (\d+(?:\s*\*\s*\d+)*);")
 DESKTOP_EXPORT_CHECK = 'Buffer.byteLength(value.content, "utf8") > EXPORT_MAX_BYTES'
@@ -61,6 +70,24 @@ PATH_SEGMENT_FRAGMENTS = (
 WIRE_BYTES_FRAGMENTS = (
     # 预算按转义后的传输拼写计字节；孤立代理项先降级，不能抛 UnicodeEncodeError。
     'return len(json.dumps(wire_text(text), ensure_ascii=False).encode("utf-8"))',
+)
+EXPORT_THREAD_FRAGMENTS = (
+    # 入口参数：格式、布尔与上限按固定文案拒绝，布尔不得当作整数接受。
+    'if fmt not in EXPORT_FORMATS:\n        raise ValueError("format 必须是 markdown、json 或 html")',
+    'if type(include_tool_results) is not bool:\n        raise ValueError("includeToolResults 必须是布尔值")',
+    "if type(max_bytes) is not int or not MIN_EXPORT_BYTES <= max_bytes <= MAX_EXPORT_BYTES:",
+    # 已知凭据与路径必须在构造脱敏器时归一化后接入，不能空着传给渲染。
+    "redactor = Redactor(secrets=_known_secrets(secrets), paths=_known_paths(paths))",
+    # 预算按传输拼写二分收窄，导出的回合数只统计保留的单位。
+    "if size(keep) > max_bytes:",
+    "keep = low",
+    "content = wire_text(render(meta, units[:keep], counts, len(units), max_bytes, queue))",
+    'exported_turns = sum(1 for _, unit in units[:keep] if unit["kind"] == "turn")',
+    # 返回值：截断标注、字节数按 UTF-8、视图与文件名同源。
+    '"truncated": keep < len(units), "turnCount": len(exporter.turns), "exportedTurnCount": exported_turns,',
+    '"content": content, "bytes": len(content.encode("utf-8")), "maxBytes": max_bytes,',
+    '"suggestedFileName": _suggested_file_name(thread_id, meta["view"], extension),',
+    '"createdAt": self.thread.get("createdAt"), "view": "branch" if self.branch else "log",',
 )
 FORBIDDEN_WRITES = (
     "write_text(",
@@ -537,6 +564,152 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _tree_snapshot(root: Path) -> list[tuple[str, int]]:
+    return sorted(
+        (path.relative_to(root).as_posix(), path.stat().st_size)
+        for path in root.rglob("*")
+        if path.is_file()
+    )
+
+
+def _expect_export_error(call, expected: str, label: str) -> int:
+    try:
+        call()
+    except ValueError as error:
+        if str(error) != expected:
+            raise ValueError(
+                f"会话导出隐私行为变化 {label}：错误文案 {str(error)!r}，期望 {expected!r}"
+            ) from None
+        return 1
+    raise ValueError(f"会话导出隐私行为变化 {label}：未抛出 ValueError")
+
+
+def _export_thread_checks() -> int:
+    # 端到端只读对照：真实 SessionStore 走完 export_thread，核对投影、脱敏、
+    # 截断、参数拒绝与“导出前后目录清单不变”。
+    checked = 0
+    version = "0.0.0-check"
+    # 该值不被通用令牌模式命中，只能经显式凭据接入被替换，才能验证接线。
+    secret = "knownsecret42"
+    path = "/Users/Alice/resume.pdf"
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = SessionStore(root / "sessions")
+        thread_id = store.create("导出探针")["id"]
+        store.append(thread_id, Entry(
+            type="turn", payload={"turnId": "turn-1", "status": "completed"}))
+        store.append(thread_id, Entry(
+            type="item", id="item-1",
+            payload={"kind": "userMessage", "turnId": "turn-1",
+                     "text": f"你好 {secret}，附件见 {path}"}))
+        store.append(thread_id, Entry(
+            type="item", id="item-2",
+            payload={"kind": "agentMessage", "turnId": "turn-1",
+                     "status": "completed", "text": "收到。"}))
+        before = _tree_snapshot(root)
+        document = export_thread(
+            store, thread_id, branch=False, fmt="json", include_tool_results=True,
+            max_bytes=MIN_EXPORT_BYTES, server_version=version,
+            secrets=(secret,), paths=(path,))
+        checked += _expect_value(
+            (document["threadId"], document["format"], document["view"],
+             document["mediaType"], document["toolResults"]),
+            (thread_id, "json", "log", "application/json", "included"), "JSON 投影")
+        checked += _expect_value(
+            document["suggestedFileName"],
+            f"boss-harness-session-{thread_id}-log.json", "JSON 文件名")
+        checked += _expect_value(
+            (document["turnCount"], document["exportedTurnCount"], document["truncated"]),
+            (1, 1, False), "回合计数")
+        checked += _expect_value(
+            (document["bytes"], document["maxBytes"]),
+            (len(document["content"].encode("utf-8")), MIN_EXPORT_BYTES), "字节计量")
+        checked += _expect_value(
+            json.loads(document["content"])["schema"], EXPORT_SCHEMA, "导出 schema")
+        checked += _expect_value(
+            (secret in document["content"], SECRET_MARK in document["content"]),
+            (False, True), "凭据不落文")
+        checked += _expect_value(
+            (path in document["content"], PATH_MARK in document["content"]),
+            (False, True), "路径不落文")
+        checked += _expect_value(
+            (document["redactions"]["secrets"] >= 1,
+             document["redactions"]["paths"] >= 1,
+             document["redactions"]["environment"] == 0),
+            (True, True, True), "脱敏计数")
+        branch = export_thread(
+            store, thread_id, branch=True, fmt="markdown", include_tool_results=False,
+            max_bytes=DEFAULT_EXPORT_BYTES, server_version=version)
+        checked += _expect_value(
+            (branch["view"], branch["mediaType"], branch["toolResults"]),
+            ("branch", "text/markdown", "omitted"), "Markdown 投影")
+        checked += _expect_value(
+            branch["suggestedFileName"],
+            f"boss-harness-session-{thread_id}-branch.md", "Markdown 文件名")
+        checked += _expect_value(
+            branch["content"].startswith("# BOSS Harness 会话导出"), True, "Markdown 标题")
+        page = export_thread(
+            store, thread_id, branch=False, fmt="html", include_tool_results=False,
+            max_bytes=MIN_EXPORT_BYTES, server_version=version)
+        checked += _expect_value(
+            (page["mediaType"], page["suggestedFileName"].endswith(".html")),
+            ("text/html", True), "HTML 投影")
+        checked += _expect_value(
+            page["content"].startswith("<!doctype html>"), True, "HTML 声明")
+        checked += _expect_value(_tree_snapshot(root), before, "导出只读")
+    with tempfile.TemporaryDirectory() as directory:
+        store = SessionStore(Path(directory) / "sessions")
+        empty_id = store.create("空会话")["id"]
+        empty = export_thread(
+            store, empty_id, branch=False, fmt="json", include_tool_results=False,
+            max_bytes=MIN_EXPORT_BYTES, server_version=version)
+        checked += _expect_value(
+            (empty["turnCount"], empty["exportedTurnCount"], empty["truncated"],
+             empty["redactions"]),
+            (0, 0, False,
+             {"secrets": 0, "environment": 0, "paths": 0, "personalInfo": 0}), "空会话")
+    with tempfile.TemporaryDirectory() as directory:
+        store = SessionStore(Path(directory) / "sessions")
+        long_id = store.create("长会话")["id"]
+        store.append(long_id, Entry(
+            type="turn", payload={"turnId": "turn-1", "status": "completed"}))
+        for index in range(120):
+            store.append(long_id, Entry(
+                type="item", id=f"item-{index}",
+                payload={"kind": "agentMessage", "turnId": "turn-1",
+                         "status": "completed", "text": f"{index:03d} " + "x" * 900}))
+        clipped = export_thread(
+            store, long_id, branch=False, fmt="json", include_tool_results=False,
+            max_bytes=MIN_EXPORT_BYTES, server_version=version)
+        clipped_document = json.loads(clipped["content"])
+        checked += _expect_value(
+            (clipped["truncated"], clipped["bytes"] <= MIN_EXPORT_BYTES,
+             clipped["exportedTurnCount"] <= clipped["turnCount"]),
+            (True, True, True), "预算截断")
+        checked += _expect_value(
+            (clipped_document["truncated"],
+             clipped_document["exportedEntries"] < clipped_document["totalEntries"]),
+            (True, True), "截断标注")
+        checked += _expect_export_error(
+            lambda: export_thread(
+                store, long_id, branch=False, fmt="pdf", include_tool_results=False,
+                max_bytes=MIN_EXPORT_BYTES, server_version=version),
+            "format 必须是 markdown、json 或 html", "格式校验")
+        checked += _expect_export_error(
+            lambda: export_thread(
+                store, long_id, branch=False, fmt="json", include_tool_results=1,
+                max_bytes=MIN_EXPORT_BYTES, server_version=version),
+            "includeToolResults 必须是布尔值", "布尔校验")
+        for max_bytes in (0, True, MAX_EXPORT_BYTES + 1):
+            checked += _expect_export_error(
+                lambda max_bytes=max_bytes: export_thread(
+                    store, long_id, branch=False, fmt="json", include_tool_results=False,
+                    max_bytes=max_bytes, server_version=version),
+                f"maxBytes 必须是 {MIN_EXPORT_BYTES} 到 {MAX_EXPORT_BYTES} 的整数",
+                f"上限校验 {max_bytes!r}")
+    return checked
+
+
 def check_export_privacy() -> int:
     export_text = _read(EXPORT_MODULE)
     application_text = _read(APPLICATION_MODULE)
@@ -604,13 +777,22 @@ def check_export_privacy() -> int:
     ]
     if missing:
         raise ValueError("导出字节计量缺少传输拼写或代理项降级：" + "、".join(missing))
+    missing = [
+        fragment for fragment in EXPORT_THREAD_FRAGMENTS if fragment not in export_text
+    ]
+    if missing:
+        raise ValueError("会话导出入口缺少：" + "、".join(missing))
     writes = [token for token in FORBIDDEN_WRITES if token in export_text]
     if writes:
         raise ValueError("session_export.py 不得触碰目标文件：" + "、".join(writes))
     pipeline = _check_sensitive_pipeline(tree, export_text)
     tool = _check_tool_projection(tree, export_text)
     behavior = _behavior_checks()
-    return 7 + len(PATH_SEGMENT_FRAGMENTS) + len(WIRE_BYTES_FRAGMENTS) + pipeline + tool + behavior
+    thread = _export_thread_checks()
+    return (
+        7 + len(PATH_SEGMENT_FRAGMENTS) + len(WIRE_BYTES_FRAGMENTS)
+        + len(EXPORT_THREAD_FRAGMENTS) + pipeline + tool + behavior + thread
+    )
 
 
 def main() -> int:
@@ -622,7 +804,7 @@ def main() -> int:
     print(
         "会话导出隐私边界一致：3 种格式、请求字段与默认脱敏、"
         f"4 个脱敏标记、字节上限有序且低于 1 MiB 并与主进程一致、脱敏管线顺序、"
-        f"工具数据边界、导出模块不写盘与脱敏行为对照（{guards} 项）"
+        f"工具数据边界、导出模块不写盘、脱敏行为与导出入口端到端对照（{guards} 项）"
     )
     return 0
 
