@@ -1,24 +1,33 @@
 #!/usr/bin/env python3
-"""核对被放弃分支的推导 `abandoned_branch` 与摘要写入 `append_branch_summary`。
+"""核对被放弃分支的推导 `abandoned_branch`、摘要写入 `append_branch_summary`
+与当前分支条目读取 `read_active_entries`。
 
 切换分支后，界面与内核要说明哪些回合被放弃：`abandoned_branch` 以目标回合的祖先
 链为界，从旧叶回溯到共同祖先（不含），再反转成时间顺序；`append_branch_summary`
 只允许在请求摘要的叶记录仍是最后一条叶记录、且其后没有新回合或摘要时写入，长度
 为 1 到 32000 字符，并在追加后执行提交回调与重建索引。这里固定这些规则，避免
 重构后把摘要写到已经切换走的分支，或让放弃列表与共同祖先错位，并直接调用
-`abandoned_branch` 核对祖先链、共同祖先与时间顺序。
+`abandoned_branch` 核对祖先链、共同祖先与时间顺序。`read_active_entries` 按最后
+一条叶记录回溯当前分支：损坏叶指针忽略、重复编号拒绝、会话级条目跨分支保留、
+被放弃回合的条目与叶记录不返回；这里同时固定该投影并用临时 `SessionStore` 对照
+无叶直返、切换分支、损坏叶与重复编号的行为。
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
-from boss_harness.session import SessionStore  # noqa: E402
+from boss_harness.session import (  # noqa: E402
+    BRANCH_SUMMARY_ENTRY_TYPE,
+    Entry,
+    SessionStore,
+)
 
 # 放弃列表：读取条目与回合树 → 目标必须存在 → 目标祖先链 → 旧叶回溯到共同祖先 →
 # 反转成时间顺序 → 固定结果字段。
@@ -65,6 +74,23 @@ SUMMARY_ORDER = (
     "on_committed()",
     "self._index_thread(thread_id, connection)",
     "return entry",
+)
+ACTIVE_READER = (
+    "def read_active_entries(self, thread_id: str) -> list[dict]:\n"
+    "        return self._active_entries(self.read_entries(thread_id))"
+)
+# 当前分支条目：无叶记录原样返回 → 损坏叶指针跳过 → 重复编号拒绝 →
+# 按追加顺序回溯 path → 条目按归属回合过滤、会话级条目跨分支保留、叶记录自身不返回。
+ACTIVE_ENTRIES_ORDER = (
+    "def _active_entries(cls, entries: list[dict]) -> list[dict]:",
+    'if not any(entry.get("type") == LEAF_ENTRY_TYPE for entry in entries):\n            return entries',
+    'or records[target].get("type") != "turn"):',
+    'raise ValueError("会话条目编号重复，无法投影分支")',
+    'previous[entry["id"]] = tail',
+    "cursor = previous[cursor]",
+    'if kind == LEAF_ENTRY_TYPE:\n                return False',
+    'return owner in included_turns if owner is not None else entry["id"] in path',
+    "if kind in cls._BRANCH_INDEPENDENT_TYPES:",
 )
 
 
@@ -175,12 +201,100 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _active_entries_checks() -> int:
+    # 当前分支条目：无叶直返原顺序 → 切到较早回合只留该分支 → 会话级条目保留 →
+    # 损坏叶指针忽略 → 有叶时重复编号拒绝，无叶时不报错。
+    checked = 0
+    with tempfile.TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        try:
+            thread_id = store.create("分支读取")["id"]
+            store.append(thread_id, Entry(
+                type="thread_info", id="info-1", payload={"title": "新标题"}))
+            store.record_turn(thread_id, "turn-a", "completed")
+            store.append(thread_id, Entry(
+                type="item", id="item-a",
+                payload={"kind": "userMessage", "turnId": "turn-a", "text": "A"}))
+            store.record_turn(thread_id, "turn-b", "completed")
+            store.append(thread_id, Entry(
+                type="item", id="item-b",
+                payload={"kind": "agentMessage", "turnId": "turn-b", "text": "B"}))
+            # 被放弃分支上的会话级条目也要跨分支保留。
+            store.append(thread_id, Entry(
+                type="thread_info", id="info-2", payload={"title": "另一个标题"}))
+            linear = store.read_active_entries(thread_id)
+            if ([entry.get("id") for entry in linear if entry.get("type") != "turn"]
+                    != ["info-1", "item-a", "item-b", "info-2"]):
+                raise ValueError("无叶记录时必须保持原条目顺序")
+            checked += 1
+            if [entry.get("type") for entry in linear].count("turn") != 2:
+                raise ValueError("无叶记录时必须返回全部回合")
+            checked += 1
+            store.set_leaf(thread_id, "turn-a")
+            # 叶记录之后的摘要条目属于当前分支，必须沿 path 保留。
+            store.append(thread_id, Entry(
+                type=BRANCH_SUMMARY_ENTRY_TYPE, id="sum-1",
+                payload={"summary": "摘要"}))
+            active = store.read_active_entries(thread_id)
+            if ([entry.get("id") for entry in active if entry.get("type") != "turn"]
+                    != ["info-1", "item-a", "info-2", "sum-1"]):
+                raise ValueError("切换分支后必须丢弃被放弃回合的条目并保留会话级条目")
+            checked += 1
+            if any(entry.get("type") == "leaf" for entry in active):
+                raise ValueError("叶记录不得出现在当前分支条目中")
+            checked += 1
+            if [entry.get("type") for entry in active].count("turn") != 1:
+                raise ValueError("切换分支后只保留目标回合")
+            checked += 1
+            store.append(thread_id, Entry(
+                type="leaf", payload={"targetId": "turn-ghost"}))
+            ghost = store.read_active_entries(thread_id)
+            if [entry.get("id") for entry in ghost] != [entry.get("id") for entry in active]:
+                raise ValueError("损坏叶指针必须被忽略并沿用上一个有效叶")
+            checked += 1
+            store.append(thread_id, Entry(
+                type="item", id="item-a",
+                payload={"kind": "userMessage", "turnId": "turn-a", "text": "重复"}))
+            checked += _expect_error(
+                lambda: store.read_active_entries(thread_id),
+                "会话条目编号重复，无法投影分支", "重复编号")
+        finally:
+            store.close()
+    with tempfile.TemporaryDirectory() as temporary:
+        store = SessionStore(Path(temporary) / "sessions")
+        try:
+            thread_id = store.create("无叶重复")["id"]
+            store.append(thread_id, Entry(
+                type="item", id="dup-1", payload={"kind": "userMessage", "text": "一"}))
+            store.append(thread_id, Entry(
+                type="item", id="dup-1", payload={"kind": "userMessage", "text": "二"}))
+            if len(store.read_active_entries(thread_id)) != 2:
+                raise ValueError("无叶记录时重复编号必须原样返回")
+            checked += 1
+            empty_id = store.create("空分支")["id"]
+            if store.read_active_entries(empty_id) != []:
+                raise ValueError("空会话必须返回空列表")
+            checked += 1
+        finally:
+            store.close()
+    return checked
+
+
 def check_branch_summary() -> int:
     source = _read(SESSION)
     abandoned = _region(source, "def abandoned_branch(")
     summary = _region(source, "def append_branch_summary(")
+    active = _region(source, "def _active_entries(")
     checked = _ordered(ABANDONED_ORDER, abandoned, SESSION)
     checked += _ordered(SUMMARY_ORDER, summary, SESSION)
+    checked += _ordered(ACTIVE_ENTRIES_ORDER, active, SESSION)
+    if ACTIVE_READER not in source:
+        raise ValueError(f"{SESSION} 缺少 read_active_entries 入口")
+    checked += 1
+    # 当前分支投影必须按追加顺序延续 tail，不信任写入方提供的 parentId。
+    if active.count('tail = entry["id"]') != 1:
+        raise ValueError(f"{SESSION} 的当前分支投影必须按追加顺序延续 tail")
+    checked += 1
     # 放弃列表必须反转成时间顺序，且共同祖先来自回溯终点游标。
     if abandoned.count("abandoned.reverse()") != 1:
         raise ValueError(f"{SESSION} 的被放弃回合必须按时间顺序返回")
@@ -197,7 +311,7 @@ def check_branch_summary() -> int:
     if summary.count("MAX_BRANCH_SUMMARY_CHARS") != 1:
         raise ValueError(f"{SESSION} 的摘要长度上限必须唯一")
     checked += 1
-    return checked + _behavior_checks()
+    return checked + _behavior_checks() + _active_entries_checks()
 
 
 def main() -> int:
@@ -206,7 +320,7 @@ def main() -> int:
     except ValueError as error:
         print(f"被放弃分支核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"被放弃分支一致：{checked} 项祖先、目标、摘要绑定与行为校验")
+    print(f"被放弃分支一致：{checked} 项祖先、目标、摘要绑定、当前分支条目与行为校验")
     return 0
 
 

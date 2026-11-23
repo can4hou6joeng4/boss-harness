@@ -735,7 +735,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_branch_summary.py`
 
-`scripts/check_branch_summary.py` 核对被放弃分支的推导与摘要写入：`abandoned_branch` 先读条目与回合树，目标回合必须存在（`None` 除外），以目标祖先链为界从旧叶回溯到共同祖先（不含）并反转成时间顺序，返回 `fromTurnId` / `targetTurnId` / `commonTurnId` / `abandonedTurnIds`；`append_branch_summary` 校验摘要为 1–32000 字符且非纯空白，在锁与索引事务内从最后一条叶记录反向扫描并核对请求的 `leafEntryId`，其后不得已有回合或摘要，摘要只追加一次并绑定 `leafEntryId`，先执行提交回调再重建索引。反向断言：叶记录只能反向扫描；摘要只追加一次；长度上限只出现一次。脚本并构造轻量替身直接调用 `abandoned_branch`（52 项），覆盖线性链回退一级 / 两级 / 四级、原地目标、目标为空、分叉共同祖先、无叶记录、空树、目标不存在与固定结果字段。检查不执行摘要写入。
+`scripts/check_branch_summary.py` 核对被放弃分支的推导、摘要写入与当前分支条目读取：`abandoned_branch` 先读条目与回合树，目标回合必须存在（`None` 除外），以目标祖先链为界从旧叶回溯到共同祖先（不含）并反转成时间顺序，返回 `fromTurnId` / `targetTurnId` / `commonTurnId` / `abandonedTurnIds`；`append_branch_summary` 校验摘要为 1–32000 字符且非纯空白，在锁与索引事务内从最后一条叶记录反向扫描并核对请求的 `leafEntryId`，其后不得已有回合或摘要，摘要只追加一次并绑定 `leafEntryId`，先执行提交回调再重建索引。反向断言：叶记录只能反向扫描；摘要只追加一次；长度上限只出现一次。`read_active_entries` 直接投影 `_active_entries`：无叶记录原样返回，损坏叶指针按缺失跳过，重复编号以「会话条目编号重复，无法投影分支」拒绝，按追加顺序而非写入方 `parentId` 回溯 path，条目按归属回合过滤，`attachment` / `thread_info` / `queue` 会话级条目跨分支保留，叶记录自身不返回。脚本构造轻量替身直接调用 `abandoned_branch`，并用临时 `SessionStore` 覆盖当前分支投影：线性链回退、原地目标、目标为空、分叉共同祖先、无叶记录、空树、目标不存在与固定结果字段；无叶时保持原条目顺序，`set_leaf` 后只保留目标分支的回合与条目、被放弃回合条目与叶记录不出现、会话级条目保留、叶后摘要沿 path 保留，损坏叶指针忽略并沿用上一个有效叶，有叶时重复编号拒绝而无叶时同数据原样返回。总项数 72。检查不执行摘要写入。
 
 ### `check_item_projection.py`
 
