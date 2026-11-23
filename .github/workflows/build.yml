@@ -362,6 +362,8 @@ jobs:
         run: python scripts/check_openai_stream.py
       - name: Verify Anthropic adapter
         run: python scripts/check_anthropic_provider.py
+      - name: Verify Anthropic stream state machine
+        run: python scripts/check_anthropic_stream.py
       - name: Verify context retention hint boundaries
         run: python scripts/check_context_keep.py
       - name: Verify context edit boundaries
