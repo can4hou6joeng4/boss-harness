@@ -1,3 +1,8 @@
+## 0.2.0-rc.613 - 2026-11-23
+
+- 新增 `scripts/check_application_lifecycle.py`（72 项结构、42 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖会话生命周期写入入口：`thread/archive` 的归档标记、重复归档幂等与 `thread/archived` 广播、默认列表排除与 `archived=true` 只列归档，`thread/unarchive` 的恢复标记、广播与列表回归；`thread/name/set` 的标题更新、`thread/renamed` 广播与空白 / 501 字符 / 缺失标题拒绝；`thread/model/set` 的参数集合、不可用线路与目录外模型两类 `-32013`、切换投影、`thread/model/updated` 广播、同值不广播与归档会话拒绝；`thread/fork` 的无结束回合拒绝、按 `turnId` 分支的默认值 / 标题与 `thread/created` 广播；`thread/delete` 的 `THREAD_NOT_FOUND` 数据、成功返回、删除后列表与读取、`thread/deleted` 广播与事件落库；`thread/leaf/read` 的参数集合与分支位置投影。生命周期入口若放宽归档 / 删除忙因或模型线路校验，桌面会看到已归档会话继续切换、删除后仍有残留或跨线路调用，且无本地告警。[Issue #3351](https://github.com/can4hou6joeng4/boss-harness/issues/3351)
+- 源码候选更新为 npm `0.2.0-rc.613` 和 Python `0.2.0rc613`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.612 - 2026-11-23
 
 - 新增 `scripts/check_application_writes.py`（49 项结构、41 项行为），在临时工作区与状态目录中真实构造 `ApplicationService`，覆盖应用写入入口：`config/autoCompaction/set` 的字段集合、布尔 / 比例 / 保留额度校验、default / stored 来源写盘与 `autoCompactionSource=stored`、`config/read` 反映新策略、重建服务后设置仍生效，以及 environment / explicit 来源的 `-32004` 拒绝；`skills/create` 的 id 规则、正文类型 / 空白 / 65536 字节上限 / 同名拒绝，`skills/read` 的八键与正文，`skills/write` 的参数集合、摘要格式与不一致拒绝、合法更新，`skills/delete` 的参数、摘要、目录含额外文件拒绝与合法删除；`context/instructions/write` 的参数集合、非字符串、8192 字节上限、写入 `.boss-harness/CONTEXT.md` 后读回与系统错误映射。写入入口若放宽来源保护或摘要比对，会覆盖启动参数或用户手改内容且无本地告警。[Issue #3349](https://github.com/can4hou6joeng4/boss-harness/issues/3349)
