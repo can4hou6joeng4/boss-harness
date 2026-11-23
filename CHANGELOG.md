@@ -1,3 +1,8 @@
+## 0.2.0-rc.626 - 2026-11-23
+
+- 新增 `scripts/check_application_search_export.py`（30 项结构、34 项行为），在临时工作区真实构造 `ApplicationService`（`provider=none`），覆盖搜索与导出读取入口：`thread/search` 的命中投影、空结果、归档默认排除与 `includeArchived=true` 包含、查询 / 参数 / 布尔 / 上限拒绝；`thread/export` 的 13 项投影、Markdown / JSON / HTML 内容契约与格式 / 工具结果 / 大小 / 视图 / 未知线程 / 多余键拒绝；脱敏组验证工作区绝对路径在 markdown 与 json 导出中都被替换且 `redactions.paths >= 1`。归档过滤或导出脱敏漂移会让搜索返回已归档会话，或把本机路径写进对外分享的文档。[Issue #3377](https://github.com/can4hou6joeng4/boss-harness/issues/3377)
+- 源码候选更新为 npm `0.2.0-rc.626` 和 Python `0.2.0rc626`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.625 - 2026-11-23
 
 - 新增 `scripts/check_application_usage.py`（17 项结构、18 项行为），在临时工作区真实构造 `ApplicationService`（`provider=none`），写入 `model_usage` 记录并跨分叉核对 `thread/usage/read`：空会话投影与总量键、默认视图、参数 / 视图 / 未知线程 / 坏游标 / 上限拒绝；`log` 视图包含被放弃分支请求并返回 `cacheWaste`，`branch` 视图只聚合当前分支、附叶子投影且不返回线性缓存估计；分页续读。视图参数或聚合范围漂移会让桌面把被放弃分支请求计入当前分支，或给出误导性的缓存浪费估计。[Issue #3375](https://github.com/can4hou6joeng4/boss-harness/issues/3375)

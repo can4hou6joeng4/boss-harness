@@ -541,5 +541,7 @@ jobs:
         run: python scripts/check_handler_coverage.py
       - name: Verify application usage
         run: python scripts/check_application_usage.py
+      - name: Verify application search and export
+        run: python scripts/check_application_search_export.py
       - name: Compile kernel and scripts
         run: python -m compileall -q harness/src scripts
