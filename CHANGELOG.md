@@ -1,3 +1,8 @@
+## 0.2.0-rc.676 - 2026-11-23
+
+- 新增 `scripts/check_context_panel_state.py`（54 项结构、36 项行为），为摘要面板的状态收敛补上回归保护：旧读取航班身份与刷新标记、断连易失状态复位、任务记录缺失与开始回执未知时的恢复入口、运行中任务保留、占用详情连续失败三次才解锁、终态详情不可识别时的固定提示。Node 直接加载真实 `contextPanelState.ts` 执行 36 个用例（读取航班 6、断连收敛 6、任务缺失 6、开始回执 5、占用解锁 9、终态详情 4）。[Issue #3477](https://github.com/can4hou6joeng4/boss-harness/issues/3477)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 237 → 238。源码候选更新为 npm `0.2.0-rc.676` 和 Python `0.2.0rc676`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.675 - 2026-11-23
 
 - 新增 `scripts/check_task_check.py`（88 项结构、81 项行为），为桌面任务核对回执补上回归保护：任务类型 / 归属 / 恢复策略白名单、标识与长度边界、阶段与关联可选字段校验、历史窗口与截断标记、原型链安全的标签映射、队列取消文案、八条关联展开上限与 `TASK_NOT_FOUND` 特判。Node 在临时目录改写错误文案导入后加载真实 `taskCheck.ts` 执行 81 个用例（文案 15、owner 映射 11、响应校验 38、展示行 9、失败文案 8）。[Issue #3475](https://github.com/can4hou6joeng4/boss-harness/issues/3475)
