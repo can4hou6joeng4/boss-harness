@@ -23,6 +23,18 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/models/openai_responses.py"
 sys.path.insert(0, str(ROOT / "harness/src"))
 
+# Source build 在安装依赖前运行本脚本：`openai_responses` 模块级导入 SDK，
+# 这里注入最小占位模块让真实模块可导入，行为对照随后用完整假 SDK 替换。
+try:
+    import openai  # noqa: F401
+except ModuleNotFoundError:
+    _sdk_stub = types.ModuleType("openai")
+    for _name in ("APIError", "APIStatusError", "APIConnectionError", "APITimeoutError",
+                  "InternalServerError", "RateLimitError"):
+        setattr(_sdk_stub, _name, type(_name, (Exception,), {}))
+    _sdk_stub.AsyncOpenAI = None
+    sys.modules["openai"] = _sdk_stub
+
 from boss_harness.models import openai_responses  # noqa: E402
 from boss_harness.models import ModelConfig  # noqa: E402
 from boss_harness.models.secret import Secret  # noqa: E402
