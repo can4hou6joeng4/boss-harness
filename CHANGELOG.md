@@ -1,3 +1,8 @@
+## 0.2.0-rc.643 - 2026-11-23
+
+- 扩展 `scripts/check_workflows.py`：解析 `python-matrix` 作业的 Verify 步骤，若其中脚本导入 `tomllib`（Python 3.11+ 标准库）或指向不存在的脚本即失败；矩阵外的步骤不受限制。rc.642 的安装指南检查曾因导入 `tomllib` 在 Python 3.10 上失败，只能等远端 CI 发现，现在本地检查即可拦截同类问题。[Issue #3411](https://github.com/can4hou6joeng4/boss-harness/issues/3411)
+- 合成工作流的行为自检覆盖矩阵内 tomllib / 未知脚本与矩阵外 tomllib / 未知脚本；技术参考同步。源码候选更新为 npm `0.2.0-rc.643` 和 Python `0.2.0rc643`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.642 - 2026-11-23
 
 - 新增 `scripts/check_setup_guide.py`（15 项结构、17 项行为），锁定 `SETUP.md` 的安装指引：工具链核对、内核与桌面依赖安装、`--check` 自检与禁用模型的桌面启动共 9 条命令；两条安全约定（不碰凭据、不执行平台写操作）与 macOS 12 最低版本；Node / Python 最低版本从 `package.json` engines 与 `harness/pyproject.toml` requires-python 推导，文档中的「需要 X 或更高」不再与包元数据漂移。[Issue #3409](https://github.com/can4hou6joeng4/boss-harness/issues/3409)
