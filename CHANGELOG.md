@@ -1,3 +1,8 @@
+## 0.2.0-rc.606 - 2026-11-23
+
+- 新增 `scripts/check_openai_stream.py`（79 项结构、48 项行为），用假 `openai` 客户端驱动真实 `OpenAIResponsesProvider._stream_once`，把 Responses 事件到 `StreamEvent` 的流状态机纳入行为对照：文本流与完成项文本优先、撤回块过滤、空文本与拒答片段、思考分段延后分隔符、工具调用 `call_id` 标识与参数增量、`arguments.done` 权威与只补后缀、坏 JSON 与来源冲突收敛为「工具调用参数不完整」、截断与用量、缺终态 / 中止 / `response.failed` / 流内 `error` 的固定错误事件，以及身份不一致、重复标识与索引、关闭后起始、增量错置、参数事件越界、重复关闭、终态缺字段与类型不一致等协议错误必须以「模型流处理异常（ValueError）」收敛而非抛异常。流状态机若接受错配的工具身份或把撤回块写进终态消息，执行器会把结果配给错误调用或执行已撤回的工具。[Issue #3337](https://github.com/can4hou6joeng4/boss-harness/issues/3337)
+- 源码候选更新为 npm `0.2.0-rc.606` 和 Python `0.2.0rc606`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.605 - 2026-11-23
 
 - 新增 `scripts/check_connections.py`（54 项结构、94 项行为），首次实际构造 `ConnectionChecks`：静态固定 `is_idle` 持锁判定、`read()` 深拷贝与禁用覆盖、`_error()` 公开码白名单与暂停码、`_new_bridge` 弱引用身份校验、`model_calls_disabled` 约束、空闲通知在锁外与关闭默认两秒截止。行为对照用假桥与假 provider 覆盖禁用报告与强制覆盖、浏览器来源投影、登录等待标识复用、九类登录态格式校验与 64 KiB 上限、保存成功 / 读回失败 / 登录态不完整 / 保存中取消、平台风险锁与未登录阻断、本地契约与在线验证、`_error` 白名单、关闭取消与模型检查标记、非协作 worker 按截止时间返回并保留所有权，以及模型检查的成功、空响应、工具调用、错误事件、缺少 provider、请求被拒绝、准备顺序与检查中重复启动。连接检查若放宽错误码白名单或在校验前保存登录态，会把上游细节写进报告或覆盖错误身份。隔离变异探针结构 12/12、行为 16/16（其中「拒绝标记丢失」以未包装异常使检查失败）。脚本注册进构建作业与技术参考。[Issue #3335](https://github.com/can4hou6joeng4/boss-harness/issues/3335)
