@@ -625,6 +625,8 @@ jobs:
         run: python scripts/check_snapshot_shape.py
       - name: Verify skill catalog receipts
         run: python scripts/check_skill_catalog_receipts.py
+      - name: Verify skill detail
+        run: python scripts/check_skill_detail.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
