@@ -1,3 +1,8 @@
+## 0.2.0-rc.707 - 2026-11-24
+
+- 新增 `scripts/check_tool_outcome.py`（15 项结构、20 项行为），为工具结果徽标补上回归保护：九个明确状态的色调与文案、成功不打扰、显式状态优先、旧条目错误码 / 状态兜底与未知状态值。Node 直接加载真实 `toolOutcome.ts` 执行 20 个用例。[Issue #3539](https://github.com/can4hou6joeng4/boss-harness/issues/3539)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 268 → 269。源码候选更新为 npm `0.2.0-rc.707` 和 Python `0.2.0rc707`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.706 - 2026-11-24
 
 - 新增 `scripts/check_cursor_chain.py`（6 项结构、10 项行为），为分页游标环检测补上回归保护：首次登记、相邻重复、A → B → A、抛出前不写入集合、标签拼接、集合隔离与字符串游标区分。Node 直接加载真实 `cursorChain.ts` 执行 10 个用例。[Issue #3537](https://github.com/can4hou6joeng4/boss-harness/issues/3537)
