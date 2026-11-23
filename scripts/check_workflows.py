@@ -18,6 +18,8 @@ ACTION_REF = re.compile(r"^actions/[A-Za-z0-9_-]+@v\d+$")
 FORBIDDEN_TRIGGERS = ("pull_request_target", "workflow_run")
 JOB = re.compile(r"(?m)^  ([A-Za-z0-9_-]+):\s*$")
 TIMEOUT = re.compile(r"(?m)^    timeout-minutes:\s*([1-9]\d*)\s*$")
+MATRIX_JOB = "python-matrix"
+TOMLIB_IMPORT = re.compile(r"(?m)^(?:from tomllib import|import tomllib)\b")
 AUDIT_COMMANDS = (
     "npm audit --audit-level=moderate --omit=dev",
     "npm audit --audit-level=critical",
@@ -91,6 +93,62 @@ def _check_workflow(path: Path) -> tuple[int, int]:
     return checkouts, len(actions)
 
 
+def _matrix_problems(workflows: list[str], sources: dict[str, str]) -> list[str]:
+    found: list[str] = []
+    for text in workflows:
+        heading = re.search(r"(?m)^jobs:\s*$", text)
+        if heading is None:
+            continue
+        jobs_text = text[heading.end():]
+        jobs = list(JOB.finditer(jobs_text))
+        for index, job in enumerate(jobs):
+            if job.group(1) != MATRIX_JOB:
+                continue
+            end = jobs[index + 1].start() if index + 1 < len(jobs) else len(jobs_text)
+            for name in sorted(set(CHECK_SCRIPT.findall(jobs_text[job.end():end]))):
+                source = sources.get(name)
+                if source is None:
+                    found.append(f"{MATRIX_JOB} 引用了不存在的检查脚本 {name}")
+                elif TOMLIB_IMPORT.search(source):
+                    found.append(f"{name} 在 Python 3.10 矩阵中运行但导入了 tomllib")
+    return found
+
+
+def _expect_value(actual, expected, label: str) -> int:
+    if actual != expected:
+        raise ValueError(f"CI 工作流安全配置变化 {label}：期望 {expected!r}，实际 {actual!r}")
+    return 1
+
+
+def _matrix_self_check() -> int:
+    workflow = (
+        "jobs:\n"
+        "  build:\n"
+        "    steps:\n"
+        "      - name: Verify versions\n"
+        "        run: python scripts/check_versions.py\n"
+        "  python-matrix:\n"
+        "    steps:\n"
+        "      - name: Verify demo\n"
+        "        run: python scripts/check_demo.py\n"
+    )
+    sources = {"check_versions.py": "import tomllib\n", "check_demo.py": "print('ok')\n"}
+    checked = 0
+    checked += _expect_value(len(_matrix_problems([workflow], sources)), 0, "矩阵兼容")
+    leaked = workflow.replace(
+        "run: python scripts/check_demo.py",
+        "run: python scripts/check_demo.py\n"
+        "      - name: Verify versions\n"
+        "        run: python scripts/check_versions.py",
+    )
+    checked += _expect_value(len(_matrix_problems([leaked], sources)), 1, "矩阵内 tomllib")
+    ghost = workflow.replace("scripts/check_demo.py", "scripts/check_ghost.py")
+    checked += _expect_value(len(_matrix_problems([ghost], sources)), 1, "矩阵内未知脚本")
+    outside = workflow.replace("scripts/check_versions.py", "scripts/check_ghost.py")
+    checked += _expect_value(len(_matrix_problems([outside], sources)), 0, "矩阵外未知脚本")
+    return checked
+
+
 def check_workflows() -> tuple[int, int, int, int]:
     paths = sorted(WORKFLOWS.glob("*.yml")) + sorted(WORKFLOWS.glob("*.yaml"))
     if not paths:
@@ -120,6 +178,16 @@ def check_workflows() -> tuple[int, int, int, int]:
     absent = [command for command in AUDIT_COMMANDS if command not in "\n".join(combined)]
     if absent:
         raise ValueError("工作流缺少依赖审计命令：" + "、".join(absent))
+    sources: dict[str, str] = {}
+    for name in sorted(scripts):
+        try:
+            sources[name] = (ROOT / "scripts" / name).read_text(encoding="utf-8")
+        except OSError:
+            raise ValueError(f"无法读取 scripts/{name}") from None
+    matrix = _matrix_problems(combined, sources)
+    if matrix:
+        raise ValueError("工作流矩阵兼容不一致：" + "；".join(matrix))
+    _matrix_self_check()
     return len(paths), checkouts, actions, len(scripts)
 
 
