@@ -1,3 +1,8 @@
+## 0.2.0-rc.704 - 2026-11-24
+
+- 新增 `scripts/check_cockpit_tabs.py`（15 项结构、23 项行为），为运行状态面板补上回归保护：分区顺序、ARIA id 前缀、← / → 循环、Home / End 首末跳转、未知按键、越界与非整数索引、单分区循环。Node 直接加载真实 `cockpitTabs.ts` 执行 23 个用例。[Issue #3533](https://github.com/can4hou6joeng4/boss-harness/issues/3533)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 265 → 266。源码候选更新为 npm `0.2.0-rc.704` 和 Python `0.2.0rc704`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.703 - 2026-11-24
 
 - 新增 `scripts/check_context_edit_drafts.py`（10 项结构、19 项行为），为上下文编辑草稿缓存补上回归保护：覆盖写入与空串区分、会话 / 消息双向隔离、单条清除范围、清除后重写与拼接碰撞。Node 直接加载真实 `contextEditDrafts.ts` 执行 19 个用例。[Issue #3531](https://github.com/can4hou6joeng4/boss-harness/issues/3531)
