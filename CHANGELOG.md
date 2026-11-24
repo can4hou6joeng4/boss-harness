@@ -1,3 +1,8 @@
+## 0.2.0-rc.740 - 2026-11-24
+
+- 扩展 `scripts/check_queue_status.py`（44 项结构、29 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `queueStatus.ts` 与 `queueRetry.ts` 复制到临时目录、改写类型导入，Node 直接加载并核对五种通用标签、启动失败与四类暂停原因的优先级、关联去重标签、暂停说明三态、转向消息与未知原因文案。[Issue #3605](https://github.com/can4hou6joeng4/boss-harness/issues/3605)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.740` 和 Python `0.2.0rc740`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.739 - 2026-11-24
 
 - 扩展 `scripts/check_search_status.py`（38 项结构、20 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `searchStatus.ts` 与共享 `shared/index.ts` 复制到临时目录、改写导入，Node 直接加载并核对状态行全部分支、空态全部分支与优先级、截断文案、超限与失败文案，以及按码点计数的最短长度边界（双码点 emoji 达到两字符）。[Issue #3603](https://github.com/can4hou6joeng4/boss-harness/issues/3603)

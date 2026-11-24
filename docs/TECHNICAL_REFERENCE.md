@@ -503,7 +503,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_queue_status.py`
 
-`scripts/check_queue_status.py` 核对任务队列的状态与暂停原因文案：五种通用标签按 `queued` / `delivering` / `delivered` / `paused` / `cancelled` 排列；暂停项先看 `TURN_START_FAILED`，再按 `COMPACTION_FAILED`、`THREAD_ARCHIVED`、`TURN_NOT_COMPLETED` 排序，关联去重项显示「已关联已有回合」。暂停说明在非暂停项先返回 `null`，启动失败按 `inputPersisted` 三态分支，`retryAvailable` 只作为「未写入」分支的措辞选择。检查是源码字面量扫描，不执行队列操作。
+`scripts/check_queue_status.py` 核对任务队列的状态与暂停原因文案：五种通用标签按 `queued` / `delivering` / `delivered` / `paused` / `cancelled` 排列；暂停项先看 `TURN_START_FAILED`，再按 `COMPACTION_FAILED`、`THREAD_ARCHIVED`、`TURN_NOT_COMPLETED` 排序，关联去重项显示「已关联已有回合」。暂停说明在非暂停项先返回 `null`，启动失败按 `inputPersisted` 三态分支，`retryAvailable` 只作为「未写入」分支的措辞选择。行为侧把真实 `queueStatus.ts` 与 `queueRetry.ts` 复制到临时目录、改写类型导入，由 Node 驱动标签优先级、暂停说明三态、关联去重、转向消息与未知原因文案，共 44 项结构、29 项行为。
 
 ### `check_notification_labels.py`
 
