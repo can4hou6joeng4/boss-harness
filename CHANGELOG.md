@@ -1,3 +1,8 @@
+## 0.2.0-rc.742 - 2026-11-24
+
+- 扩展 `scripts/check_theme_preference.py`（24 项结构、20 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `themePreference.ts` 复制到临时目录，Node 直接加载并核对三态解析、空白与大小写折叠、内部空白不折叠、非字符串与未知值回退、深色合成分支、写回规范化与解析写回往返。[Issue #3609](https://github.com/can4hou6joeng4/boss-harness/issues/3609)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.742` 和 Python `0.2.0rc742`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.741 - 2026-11-24
 
 - 扩展 `scripts/check_session_error_notice.py`（33 项结构、17 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `sessionErrorNotice.ts` 与共享 `shared/index.ts` 复制到临时目录、改写导入，Node 直接加载并核对参数形状、会话标识长度边界、正文类型、空白折叠、通用文案回退、600 码点截断、补充平面字符不被切开、带属性的数组参数与多余字段丢弃。[Issue #3607](https://github.com/can4hou6joeng4/boss-harness/issues/3607)
