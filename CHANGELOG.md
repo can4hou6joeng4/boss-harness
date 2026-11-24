@@ -1,3 +1,8 @@
+## 0.2.0-rc.733 - 2026-11-24
+
+- 扩展 `scripts/check_queue_retry.py`（56 项结构、30 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `queueRetry.ts` 复制到临时目录，Node 直接加载 `queueItemRetryable` 与 `queuePauseReasonText`，覆盖重试判定矩阵（类型、状态、去重、启动失败与三类暂停原因）与文案分档矩阵（归档、回合未完成、摘要失败的三档文案、转向消息、未知原因）。[Issue #3591](https://github.com/can4hou6joeng4/boss-harness/issues/3591)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.733` 和 Python `0.2.0rc733`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.732 - 2026-11-24
 
 - 新增 `scripts/check_approval_submission.py`（46 项结构、27 项行为）：固定按会话缓存、结算核对、记住记录与删除入口的结构与顺序；真实 `approvalSubmission.ts` 复制到临时目录、`react` 以桩替换，Node 直接加载并核对实例缓存与隔离、持锁与后发覆盖、迟到回执丢弃、成功与失败结算、自动批准错误、记住写删、订阅退订、快照稳定、删除后实例失效与匿名视图。工作流接入新步骤，检查脚本总数 288 → 289。[Issue #3589](https://github.com/can4hou6joeng4/boss-harness/issues/3589)

@@ -601,7 +601,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_queue_retry.py`
 
-`scripts/check_queue_retry.py` 核对暂停队列项的重试条件与原因文案：只有 `followUp` + `paused` 且未去重的项可重试；`TURN_START_FAILED` 要求 `inputPersisted === false`，归档、回合未完成与摘要失败要求 `!== true`；文案按「去重 → 输入已写入 → 可重试」顺序返回，转向消息与非 `followUp` 早退，未知原因不声称可重新排队。反向断言去重与输入已写入在各分支最先拦截、`TURN_START_FAILED` 只出现两次。检查是源码字面量扫描，不调用内核。
+`scripts/check_queue_retry.py` 核对暂停队列项的重试条件与原因文案（共 56 项结构、30 项行为）：只有 `followUp` + `paused` 且未去重的项可重试；`TURN_START_FAILED` 要求 `inputPersisted === false`，归档、回合未完成与摘要失败要求 `!== true`；文案按「去重 → 输入已写入 → 可重试」顺序返回，转向消息与非 `followUp` 早退，未知原因不声称可重新排队。反向断言去重与输入已写入在各分支最先拦截、`TURN_START_FAILED` 只出现两次。行为侧把真实 `queueRetry.ts` 复制到临时目录，由 Node 直接加载 `queueItemRetryable` 与 `queuePauseReasonText`，驱动重试判定矩阵（14 项）与文案分档矩阵（16 项）。
 
 ### `check_clipboard_copy.py`
 
