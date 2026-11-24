@@ -511,7 +511,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_sidebar_notice.py`
 
-`scripts/check_sidebar_notice.py` 核对侧栏操作回执的序号重播与清空语义：每次回执都生成新记录并让 `seq + 1`，即使文案相同也不复用；计时器到点只清空文案，空态返回原对象，序号不重置。`ProjectSidebar` 以 `notice.seq` 作为提示节点的 key，容器保留 `role="status"`，停留时长取 `SIDEBAR_NOTICE_TIMEOUT_MS = 2600`。反向断言相同文案不得复用对象、清空不得重置序号、组件不得改用文案作 key。检查是源码字面量扫描，不执行复制或渲染。
+`scripts/check_sidebar_notice.py` 核对侧栏操作回执的序号重播与清空语义：每次回执都生成新记录并让 `seq + 1`，即使文案相同也不复用；计时器到点只清空文案，空态返回原对象，序号不重置。`ProjectSidebar` 以 `notice.seq` 作为提示节点的 key，容器保留 `role="status"`，停留时长取 `SIDEBAR_NOTICE_TIMEOUT_MS = 2600`。反向断言相同文案不得复用对象、清空不得重置序号、组件不得改用文案作 key。行为侧把真实 `sidebarNotice.ts` 复制到临时目录，由 Node 直接加载并核对空态形状、停留时长、首次回执、相同文案自增且返回新对象、以当前序号为基递增、输入不可变、清空保留序号并生成新对象、已空返回原引用、清空后继续递增、空文案与多行文本边界，共 17 项结构、16 项行为。
 
 ### `check_usage_view_keys.py`
 
