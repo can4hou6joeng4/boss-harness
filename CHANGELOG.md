@@ -1,3 +1,9 @@
+## 0.2.0-rc.752 - 2026-11-25
+
+- 修复草稿恢复的技能数量与内核每回合上限不一致：内核对 `skillIds` 的上限是 10，输入区技能菜单与首页技能并入也是 10，本地草稿存储却按 50 截断。草稿库里出现 11–50 项技能时（外部改写或内容损坏；界面入口本身不会超过 10 项）会被原样恢复，发送时被内核以 `-32602` 整条拒绝。现在新增唯一来源 `MAX_TURN_SKILLS`，技能菜单、首页技能并入与草稿的解析 / 保存都引用它，超出部分在过滤、去重后只保留前 10 项。[Issue #3629](https://github.com/can4hou6joeng4/boss-harness/issues/3629)
+- `scripts/check_composer_drafts.py`（45 项结构、42 项行为）新增超限技能的解析、保存与恢复用例，并核对该上限与输入区菜单、技能标签、重试请求以及内核 `SkillCatalog.load` 接受的最大数量一致；`scripts/check_home_draft.py`（31 项结构、36 项行为）改为运行时驱动真实 `homeDraftFill.ts`。
+- 技术参考与桌面指南同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.752` 和 Python `0.2.0rc752`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.751 - 2026-11-24
 
 - 扩展 `scripts/check_notification_labels.py`（29 项结构、33 项行为）：保留源码字面量、顺序与反向断言，新增运行时驱动——真实 `notificationLabels.ts` 与共享 `shared/index.ts` 复制到临时目录、改写导入，由 Node 直接加载并核对线程 id 回退、空白折叠、项目去重、归档只认显式 `true`、120 上限边界（含后缀与省略号）、按码点截断与输入不可变。[Issue #3627](https://github.com/can4hou6joeng4/boss-harness/issues/3627)

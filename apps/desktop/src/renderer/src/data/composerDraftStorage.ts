@@ -6,7 +6,7 @@
  * 旧 `boss-cli.ui.*` 由启动迁移补齐。
  */
 import { codePointLength } from "@boss-harness/shared";
-import { MAX_MESSAGE_TEXT_LENGTH, createComposerDraft, type ComposerDraft } from "./composerDraft";
+import { MAX_MESSAGE_TEXT_LENGTH, MAX_TURN_SKILLS, createComposerDraft, type ComposerDraft } from "./composerDraft";
 import { UI_STORAGE_PREFIX } from "./uiStorage";
 
 export const COMPOSER_DRAFT_STORAGE_KEY = UI_STORAGE_PREFIX + "composerDrafts";
@@ -14,7 +14,6 @@ export const COMPOSER_DRAFT_STORAGE_KEY = UI_STORAGE_PREFIX + "composerDrafts";
 export const MAX_DRAFT_TEXT_LENGTH = MAX_MESSAGE_TEXT_LENGTH;
 /** 最多保留的会话草稿数量；超出时丢弃最久未修改的条目。 */
 export const MAX_SESSION_DRAFTS = 20;
-const MAX_SKILL_IDS = 50;
 /** 项目 id 的上限；本地分组 id 形如 `group-` + UUID，留足余量但拒绝异常超长值。 */
 const MAX_PROJECT_ID_LENGTH = 200;
 const STORE_VERSION = 1;
@@ -44,13 +43,17 @@ function defaultStorage(): DraftStorage | null {
   try { return localStorage; } catch { return null; }
 }
 
-/** 校验单个条目；空正文且无技能、类型错误或超限都视为没有草稿。 */
+/**
+ * 校验单个条目；空正文且无技能、类型错误或超限都视为没有草稿。
+ * 技能先过滤、去重，再按每回合上限保留前几项：内核对超出上限的 `skillIds` 整条拒绝，
+ * 恢复出更多技能的草稿在手动取消勾选之前无法发送。
+ */
 function draftEntry(value: unknown): PersistedComposerDraft | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as { text?: unknown; skillIds?: unknown; updatedAt?: unknown; projectId?: unknown; recallDraft?: unknown };
   if (typeof record.text !== "string" || codePointLength(record.text) > MAX_DRAFT_TEXT_LENGTH) return null;
   const skillIds = Array.isArray(record.skillIds)
-    ? [...new Set(record.skillIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0))].slice(0, MAX_SKILL_IDS)
+    ? [...new Set(record.skillIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0))].slice(0, MAX_TURN_SKILLS)
     : [];
   // 旧版本条目没有调取字段；非法类型或超长值忽略，按普通正文恢复，不影响已有草稿。
   const recallDraft = typeof record.recallDraft === "string" && codePointLength(record.recallDraft) <= MAX_DRAFT_TEXT_LENGTH
@@ -106,7 +109,7 @@ export function loadComposerDraftStore(storage: DraftStorage | null = defaultSto
 function collectDraft(draft: ComposerDraft | undefined): { text: string; skillIds: string[]; recallDraft?: string } | null {
   if (!draft) return null;
   if (codePointLength(draft.text) > MAX_DRAFT_TEXT_LENGTH) return null;
-  const skillIds = [...new Set((draft.skillIds ?? []).filter(id => typeof id === "string" && id.trim().length > 0))].slice(0, MAX_SKILL_IDS);
+  const skillIds = [...new Set((draft.skillIds ?? []).filter(id => typeof id === "string" && id.trim().length > 0))].slice(0, MAX_TURN_SKILLS);
   if (!draft.text.trim() && skillIds.length === 0) return null;
   // 原稿超过存储上限时与普通超长草稿一致：不持久化，但保留当前被调取的正文。
   const recallDraft = draft.recallDraft !== undefined && codePointLength(draft.recallDraft) <= MAX_DRAFT_TEXT_LENGTH ? draft.recallDraft : undefined;

@@ -13,7 +13,7 @@ import { filterSkills } from "../data/skillFilter";
 import { skillChips } from "../data/skillChips";
 import { attachmentFailureNotice, readTextAttachments } from "../data/attachmentRead";
 import type { SessionReasoningControl } from "../data/useSessionReasoning";
-import { createComposerDraft, clearTransferredDraft, composerSendResult, composedMessageText, draftQueueIntent, withQueueIntent, MAX_MESSAGE_TEXT_LENGTH, type ComposerDraft, type UpdateComposerDraft, type ComposerSend, type ComposerSendOutcome, type ComposerQueue, type QueueIntent, type QueueSubmission, type CheckQueueSubmission } from "../data/composerDraft";
+import { createComposerDraft, clearTransferredDraft, composerSendResult, composedMessageText, draftQueueIntent, withQueueIntent, MAX_MESSAGE_TEXT_LENGTH, MAX_TURN_SKILLS, type ComposerDraft, type UpdateComposerDraft, type ComposerSend, type ComposerSendOutcome, type ComposerQueue, type QueueIntent, type QueueSubmission, type CheckQueueSubmission } from "../data/composerDraft";
 import { queueSkillNotice } from "../data/queueSkillNotice";
 import { recallAfterValueChange, recallKeyDirection, recallNewer, recallOlder, type PromptRecallState } from "../data/composerHistory";
 import "../styles/composer-menus.css";
@@ -453,7 +453,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   const toggleSkill = (id: string) => updateDraft(previous => {
     const current = previous.skillIds ?? [];
     if (current.includes(id)) return { ...previous, skillIds: current.filter(skillId => skillId !== id) };
-    return current.length >= 10 ? previous : { ...previous, skillIds: [...current, id] };
+    return current.length >= MAX_TURN_SKILLS ? previous : { ...previous, skillIds: [...current, id] };
   });
 
   return <div className={`composer-surface ${home ? "home-composer" : ""} ${dragging ? "composer-drop-active" : ""}`}
@@ -550,9 +550,9 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
             {skillCatalogState === "unavailable" && <div className="composer-menu-empty">{preview ? "运行时技能仅在连接桌面 Harness 后可用。" : "连接本地 Harness 后可加载技能。"}</div>}
             {skillCatalogState === "error" && <div className="composer-menu-empty">技能目录读取失败{skillCatalogError ? `：${skillCatalogError}` : ""}。这只表示读取没有完成，不代表工作区没有技能；请重试。</div>}
             {skillCatalogState === "empty" && <div className="composer-menu-empty">当前工作区没有可用技能。</div>}
-            {skillCatalogState === "ready" && filteredSkills.map(skill => <button type="button" role="menuitemcheckbox" aria-checked={selectedSkillIds.includes(skill.id)} key={skill.id} disabled={submitting || (selectedSkillIds.length >= 10 && !selectedSkillIds.includes(skill.id))} onClick={() => toggleSkill(skill.id)}><IconSparkles /><span>{skill.name}<small>{skill.description || "无描述"}</small></span>{selectedSkillIds.includes(skill.id) && <IconCheck className="menu-check" />}</button>)}
+            {skillCatalogState === "ready" && filteredSkills.map(skill => <button type="button" role="menuitemcheckbox" aria-checked={selectedSkillIds.includes(skill.id)} key={skill.id} disabled={submitting || (selectedSkillIds.length >= MAX_TURN_SKILLS && !selectedSkillIds.includes(skill.id))} onClick={() => toggleSkill(skill.id)}><IconSparkles /><span>{skill.name}<small>{skill.description || "无描述"}</small></span>{selectedSkillIds.includes(skill.id) && <IconCheck className="menu-check" />}</button>)}
             {skillCatalogState === "ready" && skills.length > 0 && filteredSkills.length === 0 && <div className="composer-menu-empty">没有匹配的技能。</div>}
-            {skillCatalogState === "ready" && selectedSkillIds.length >= 10 && <div className="composer-menu-footer">每回合最多选择 10 项技能。</div>}
+            {skillCatalogState === "ready" && selectedSkillIds.length >= MAX_TURN_SKILLS && <div className="composer-menu-footer">每回合最多选择 {MAX_TURN_SKILLS} 项技能。</div>}
             {hiddenSelectedSkills > 0 && <div className="composer-menu-footer">已选技能中有 {hiddenSelectedSkills} 项不在当前筛选结果中，仍会随消息应用。</div>}
             {staleSkillIds.length > 0 && skillCatalogKnown && <div className="composer-menu-empty">{staleSkillIds.length} 项已选技能已不在当前目录中。</div>}
             {staleSkillIds.length > 0 && skillCatalogKnown && <button type="button" disabled={submitting} onClick={() => updateDraft(previous => ({ ...previous, skillIds: previous.skillIds.filter(id => !staleSkillIds.includes(id)) }))}>清除不可用技能</button>}

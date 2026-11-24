@@ -1,4 +1,4 @@
-import type { ComposerDraft } from "./composerDraft";
+import { MAX_TURN_SKILLS, type ComposerDraft } from "./composerDraft";
 
 /**
  * 工作区页把模板或技能带回首页草稿前的判断。
@@ -27,10 +27,10 @@ export function templateFillIntent(draft: ComposerDraft, template: string): "app
 
 /**
  * 技能入口只把技能并入已选列表，保留正文与附件，并沿用原草稿。
- * 已选或已达 10 项上限时原样返回，由输入区继续显示原有提示。
+ * 已选或已达每回合上限时原样返回，由输入区继续显示原有提示。
  */
 export function withHomeDraftSkill(draft: ComposerDraft, skillId: string): ComposerDraft {
   const current = draft.skillIds ?? [];
-  if (current.includes(skillId) || current.length >= 10) return draft;
+  if (current.includes(skillId) || current.length >= MAX_TURN_SKILLS) return draft;
   return { ...draft, skillIds: [...current, skillId] };
 }

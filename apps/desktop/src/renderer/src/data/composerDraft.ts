@@ -6,6 +6,11 @@ export interface DraftAttachment { id: string; name: string; text: string; size:
 /** 内核 `_text` 对单条 input 的字符上限；`turn/start` 与 `queue/add` 共用。 */
 export const MAX_MESSAGE_TEXT_LENGTH = 100_000;
 /**
+ * 内核 `skillIds` 对单次请求的数量上限；`turn/start` 与 `queue/add` 共用，超出时整条请求被拒绝。
+ * 技能菜单、首页技能并入与本地草稿的保存 / 恢复都引用这一个值，避免各处各写一个数。
+ */
+export const MAX_TURN_SKILLS = 10;
+/**
  * 输入区最终发出的完整消息：正文在上、附件逐个附在下面。
  * 提交、排队与核对队列共用，避免两处拼接分叉。
  * 调用方按 Unicode 码点计数并与 `MAX_MESSAGE_TEXT_LENGTH` 比较，与内核 `_text`
