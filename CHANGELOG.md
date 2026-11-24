@@ -1,3 +1,8 @@
+## 0.2.0-rc.748 - 2026-11-24
+
+- 扩展 `scripts/check_find_status.py`（33 项结构、24 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `findStatus.ts` 复制到临时目录、改写导入，并从真实 `findHighlight.ts` 抽取 `FIND_HIGHLIGHT_LIMIT` 常量生成最小依赖，由 Node 直接加载并核对空查询、位次夹取与 1 起始显示、总数与上限取整、`capped` 严格判定、详情提示与零命中优先、输入不可变。[Issue #3621](https://github.com/can4hou6joeng4/boss-harness/issues/3621)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.748` 和 Python `0.2.0rc748`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.747 - 2026-11-24
 
 - 扩展 `scripts/check_find_step.py`（45 项结构、31 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `findStep.ts` 复制到临时目录，Node 直接加载并核对位点数下限与非有限值、夹取的取整与边界、段内前进后退、跨消息与两端循环、非法游标先收敛、全局序号累加与遍历一致性、输入不可变。[Issue #3619](https://github.com/can4hou6joeng4/boss-harness/issues/3619)

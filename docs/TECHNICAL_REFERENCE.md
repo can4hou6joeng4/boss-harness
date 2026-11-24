@@ -481,7 +481,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_find_status.py`
 
-`scripts/check_find_status.py` 核对会话内查找状态行的计数单位与分支：空查询显示「输入关键词」；`total > 0` 时把位次夹进范围并按 1 起始显示「第 N / M 处命中」，只有 `capped === true` 才追加「仅前 N 处高亮」，上限取 `input.highlightLimit ?? FIND_HIGHLIGHT_LIMIT`；零命中时先看 `detailHits`，给出「正文无匹配 · 含详情可命中 N 条消息」，最后才是「无匹配消息」。反向断言数值向下取整、详情提示只在零命中分支出现一次、上限不得写死。检查是源码字面量扫描，不执行查找或界面渲染。
+`scripts/check_find_status.py` 核对会话内查找状态行的计数单位与分支：空查询显示「输入关键词」；`total > 0` 时把位次夹进范围并按 1 起始显示「第 N / M 处命中」，只有 `capped === true` 才追加「仅前 N 处高亮」，上限取 `input.highlightLimit ?? FIND_HIGHLIGHT_LIMIT`；零命中时先看 `detailHits`，给出「正文无匹配 · 含详情可命中 N 条消息」，最后才是「无匹配消息」。反向断言数值向下取整、详情提示只在零命中分支出现一次、上限不得写死。行为侧把真实 `findStatus.ts` 复制到临时目录、改写导入，并从真实 `findHighlight.ts` 抽取 `FIND_HIGHLIGHT_LIMIT` 常量生成最小依赖，由 Node 直接加载驱动计数、夹取、截断与详情分支，共 33 项结构、24 项行为。
 
 ### `check_find_seed.py`
 
