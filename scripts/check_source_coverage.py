@@ -26,7 +26,6 @@ ROOTS = (
 )
 
 EXEMPT = frozenset({
-    "apps/desktop/src/renderer/src/data/useLocalNow.ts",
     "apps/desktop/src/renderer/src/data/usePlatformLogin.ts",
 })
 

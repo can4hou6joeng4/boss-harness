@@ -1,3 +1,8 @@
+## 0.2.0-rc.726 - 2026-11-24
+
+- 新增 `scripts/check_local_now.py`（11 项结构、11 项行为），运行时驱动真实 `useLocalNow.ts`：`react` 以记录 effect / dispatch 的桩替换并模拟 `window.setInterval`，覆盖唯一 15 秒定时器、首次渲染不刷新、回调触发 dispatch、清理停止、`active=false` 不注册、每次渲染重新取时间。[Issue #3577](https://github.com/can4hou6joeng4/boss-harness/issues/3577)
+- 从 `check_source_coverage.py` 的豁免清单移除 `useLocalNow.ts`；工作流新增 `Verify local now hook` 步骤，技术参考同步；脚本总数更新为 287。源码候选更新为 npm `0.2.0-rc.726` 和 Python `0.2.0rc726`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.725 - 2026-11-24
 
 - 新增 `scripts/check_queue_edit_drafts.py`（17 项结构、24 项行为），运行时驱动真实 `queueEditDrafts.ts`：`react` 与 `./harnessBridge` 以桩替换，Node 直接加载真实模块，覆盖匿名实例隔离、按会话缓存、保存同步持锁与重复提交忽略、成功清空、失败保留草稿、订阅与退订、快照稳定性、保存中切换与失败重试等语义。[Issue #3575](https://github.com/can4hou6joeng4/boss-harness/issues/3575)
