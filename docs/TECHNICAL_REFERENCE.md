@@ -549,7 +549,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_single_flight.py`
 
-`scripts/check_single_flight.py` 核对单飞读取的尾随补跑与取消：入口先判取消与 `canRun`，在途期间只置尾随标记并返回；同步抛错也以已解决的 Promise 释放单飞标记；`.catch().finally()` 链在收尾释放单飞标记，再按取消与尾随标记决定是否补跑一次；`cancel` 同时清除取消与尾随标记且不直接补跑。反向断言单飞标记只能在收尾释放、尾随标记只在补跑与取消时清除、不得用延时轮询代替尾随补跑。检查是源码字面量扫描，不执行 TypeScript。
+`scripts/check_single_flight.py` 核对单飞读取的尾随补跑与取消（共 46 项结构、15 项行为）：入口先判取消与 `canRun`，在途期间只置尾随标记并返回；同步抛错也以已解决的 Promise 释放单飞标记；`.catch().finally()` 链在收尾释放单飞标记，再按取消与尾随标记决定是否补跑一次；`cancel` 同时清除取消与尾随标记且不直接补跑。反向断言单飞标记只能在收尾释放、尾随标记只在补跑与取消时清除、不得用延时轮询代替尾随补跑。行为侧把真实 `singleFlightReload.ts` 复制到临时目录，由 Node 直接加载 `createSingleFlightReload`，驱动立即执行、尾随合并、链式补跑、失败与同步抛错后的恢复、取消、`canRun` 门控与尾随补跑的入口守卫。
 
 ### `check_queue_read_guard.py`
 
