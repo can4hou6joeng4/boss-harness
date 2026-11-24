@@ -553,7 +553,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_queue_read_guard.py`
 
-`scripts/check_queue_read_guard.py` 核对队列并发读取的先后守卫：`QueueReadTicket` 的 `commit` 只在 `isCurrent` 为真时执行写入；`issue` 先推进该会话的代数再快照己方代，`isCurrent` 严格比较当前代与己方代；`invalidate` 只推进代数，让此前发出的读取全部失效；缺失会话从 0 起算，代数单调递增。反向断言写入必须经过当前代检查、失效不得删除代数记录、缺失会话不得使用负值起点。检查是源码字面量扫描，不执行 TypeScript。
+`scripts/check_queue_read_guard.py` 核对队列并发读取的先后守卫（共 44 项结构、15 项行为）：`QueueReadTicket` 的 `commit` 只在 `isCurrent` 为真时执行写入；`issue` 先推进该会话的代数再快照己方代，`isCurrent` 严格比较当前代与己方代；`invalidate` 只推进代数，让此前发出的读取全部失效；缺失会话从 0 起算，代数单调递增。反向断言写入必须经过当前代检查、失效不得删除代数记录、缺失会话不得使用负值起点。行为侧把真实 `queueReadGuard.ts` 复制到临时目录，由 Node 直接加载 `createQueueReadGuard`，驱动首次领票、新票失效旧票、旧票丢弃、跨会话隔离、`invalidate` 作废在途读取、失效后新票有效、乱序到达与连续失效。
 
 ### `check_attempt_token.py`
 
