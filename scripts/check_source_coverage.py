@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""固化源码覆盖不变量：每个桌面 / 共享模块都被某个检查脚本引用。
+"""固化源码覆盖不变量：每个桌面 / 共享 / 内核模块都被某个检查脚本引用。
 
-`scripts/check_*.py` 为桌面主进程、预加载、渲染层与共享包模块提供回归保护。新增模块
-时若没有任何检查提及它，覆盖缺口不会出现在 CI 信号里。这里扫描 `.ts` 模块（排除
-测试与声明文件），要求模块名被至少一个检查脚本引用；确实无法在 Node 中直接加载的
-React hooks 列入显式豁免，且豁免项必须真实存在，避免名单陈旧。
+`scripts/check_*.py` 为桌面主进程、预加载、渲染层、共享包与内核模块提供回归保护。
+新增模块时若没有任何检查提及它，覆盖缺口不会出现在 CI 信号里。这里扫描 `.ts` 与
+`.py` 模块（排除测试、声明与 `__init__.py`），要求模块名（Python 也可用模块名）被
+至少一个检查脚本引用；确实无法在 Node 中直接加载的 React hooks 列入显式豁免，
+且豁免项必须真实存在，避免名单陈旧。
 """
 
 from __future__ import annotations
@@ -33,6 +34,10 @@ EXEMPT = frozenset({
 MODULE_GLOB = "*.ts"
 EXCLUDED_SUFFIXES = (".test.ts", ".d.ts")
 
+PY_ROOT = "harness/src/boss_harness"
+PYTHON_GLOB = "*.py"
+PY_EXCLUDED_NAMES = ("__init__.py",)
+
 
 def _read(relative: str) -> str:
     return (ROOT / relative).read_text(encoding="utf-8")
@@ -59,6 +64,33 @@ def uncovered_modules(files: list[str], corpus: str, exempt: frozenset[str]) -> 
     )
 
 
+def scan_python_modules(root: Path) -> list[str]:
+    found: list[str] = []
+    for path in sorted(root.rglob(PYTHON_GLOB)):
+        if path.name in PY_EXCLUDED_NAMES:
+            continue
+        found.append(path.relative_to(root).as_posix())
+    return found
+
+
+def _python_mentioned(path: str, corpus: str) -> bool:
+    if _mentioned(Path(path).name, corpus):
+        return True
+    stem = Path(path).stem
+    # 模块名允许出现在点分路径中（`boss_harness.search_unicode`），短名不做宽松匹配。
+    if len(stem) < 3:
+        return False
+    pattern = rf"(?<![A-Za-z0-9_-]){re.escape(stem)}(?![A-Za-z0-9_])"
+    return re.search(pattern, corpus) is not None
+
+
+def uncovered_python(files: list[str], corpus: str, exempt: frozenset[str]) -> list[str]:
+    return sorted(
+        path for path in files
+        if path not in exempt and not _python_mentioned(path, corpus)
+    )
+
+
 def _check_real_tree() -> None:
     corpus = "\n".join(
         path.read_text(encoding="utf-8")
@@ -70,6 +102,9 @@ def _check_real_tree() -> None:
     missing = uncovered_modules(files, corpus, EXEMPT)
     if missing:
         raise ValueError("以下模块未被任何检查脚本引用：" + "、".join(missing))
+    missing_python = uncovered_python(scan_python_modules(ROOT / PY_ROOT), corpus, frozenset())
+    if missing_python:
+        raise ValueError("以下内核模块未被任何检查脚本引用：" + "、".join(missing_python))
     stale = sorted(path for path in EXEMPT if not (ROOT / path).is_file())
     if stale:
         raise ValueError("豁免清单包含不存在的模块：" + "、".join(stale))
@@ -103,15 +138,36 @@ def _check_behaviors() -> int:
         raise ValueError("前缀相近的名字不应算作覆盖")
     if uncovered_modules(["x/a.ts"], "a.tsx", frozenset()) != ["x/a.ts"]:
         raise ValueError("后缀相近的名字不应算作覆盖")
-    return 9
+
+    with tempfile.TemporaryDirectory() as directory:
+        folder = Path(directory)
+        (folder / "a.py").write_text("", encoding="utf-8")
+        (folder / "b.py").write_text("", encoding="utf-8")
+        (folder / "__init__.py").write_text("", encoding="utf-8")
+        (folder / "sub").mkdir()
+        (folder / "sub/c.py").write_text("", encoding="utf-8")
+        scanned_python = scan_python_modules(folder)
+    if scanned_python != ["a.py", "b.py", "sub/c.py"]:
+        raise ValueError(f"Python 扫描未正确排除 __init__.py：{scanned_python!r}")
+    if uncovered_python(["x/search_unicode.py"], "from boss_harness import search_unicode", frozenset()) != []:
+        raise ValueError("模块名引用应算作覆盖")
+    if uncovered_python(["x/search_unicode.py"], "from boss_harness.search_unicode import f", frozenset()) != []:
+        raise ValueError("点分模块名引用应算作覆盖")
+    if uncovered_python(["x/q.py"], "q.py", frozenset()) != []:
+        raise ValueError("文件名引用应算作覆盖")
+    if uncovered_python(["x/search_unicode.py"], "b", frozenset()) != ["x/search_unicode.py"]:
+        raise ValueError("未引用的内核模块应被列出")
+    if uncovered_python(["x/q.py"], "q", frozenset()) != ["x/q.py"]:
+        raise ValueError("短模块名不应做宽松匹配")
+    return 14
 
 
 def _check_documentation() -> int:
     docs = _read(DOCS)
     if "`check_source_coverage.py`" not in docs:
         raise ValueError(f"{DOCS} 缺少 check_source_coverage.py")
-    if "共 6 项结构、9 项行为" not in docs:
-        raise ValueError(f"{DOCS} 需说明 check_source_coverage.py 检查 6 项结构、9 项行为")
+    if "共 12 项结构、14 项行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_source_coverage.py 检查 12 项结构、14 项行为")
     return 2
 
 
@@ -122,6 +178,12 @@ FRAGMENTS = (
     'EXCLUDED_SUFFIXES = (".test.ts", ".d.ts")',
     "def scan_modules(root: Path) -> list[str]:",
     "def uncovered_modules(files: list[str], corpus: str, exempt: frozenset[str]) -> list[str]:",
+    'PY_ROOT = "harness/src/boss_harness"',
+    'PYTHON_GLOB = "*.py"',
+    'PY_EXCLUDED_NAMES = ("__init__.py",)',
+    "def scan_python_modules(root: Path) -> list[str]:",
+    "def _python_mentioned(path: str, corpus: str) -> bool:",
+    "def uncovered_python(files: list[str], corpus: str, exempt: frozenset[str]) -> list[str]:",
 )
 
 

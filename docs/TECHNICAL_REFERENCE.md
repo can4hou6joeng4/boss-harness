@@ -1255,7 +1255,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_source_coverage.py`
 
-`scripts/check_source_coverage.py` 固化源码覆盖不变量：扫描 `apps/desktop/src`、`packages/{shared,protocol,app-client}/src` 下的 `.ts` 模块（排除 `.test.ts` 与 `.d.ts`），要求每个模块名被至少一个 `scripts/check_*.py` 引用；无法在 Node 中直接加载的 React hooks 列入显式豁免，豁免项必须真实存在，避免名单陈旧。命名匹配带前后边界，前缀与后缀相近的名字不算覆盖。共 6 项结构、9 项行为。
+`scripts/check_source_coverage.py` 固化源码覆盖不变量：扫描 `apps/desktop/src`、`packages/{shared,protocol,app-client}/src` 下的 `.ts` 模块与 `harness/src/boss_harness` 下的 `.py` 模块（排除 `.test.ts`、`.d.ts` 与 `__init__.py`），要求每个模块被至少一个 `scripts/check_*.py` 引用；Python 模块允许以模块名引用，TS 模块按文件名匹配。无法在 Node 中直接加载的 React hooks 列入显式豁免，豁免项必须真实存在，避免名单陈旧。命名匹配带前后边界，前缀与后缀相近的名字不算覆盖。共 12 项结构、14 项行为。
 
 ### `check_docs_links.py`
 

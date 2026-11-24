@@ -1,3 +1,8 @@
+## 0.2.0-rc.723 - 2026-11-24
+
+- 扩展 `scripts/check_source_coverage.py`（12 项结构、14 项行为）：把内核 `harness/src/boss_harness` 下的 `.py` 模块纳入覆盖不变量（排除 `__init__.py`），Python 模块允许以模块名或文件名被引用；新增 Python 扫描过滤、模块名 / 文件名命中与未引用列出的行为用例。[Issue #3571](https://github.com/can4hou6joeng4/boss-harness/issues/3571)
+- 技术参考小节同步；脚本总数保持 284。源码候选更新为 npm `0.2.0-rc.723` 和 Python `0.2.0rc723`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.722 - 2026-11-24
 
 - 新增 `scripts/check_source_coverage.py`（6 项结构、9 项行为），把「每个桌面 / 共享模块都被某个检查脚本引用」固化为 CI 不变量：扫描四棵源码树（排除测试与声明文件），名称匹配带前后边界，React hooks 列入显式豁免且豁免项必须真实存在。共 6 项结构、9 项行为。[Issue #3569](https://github.com/can4hou6joeng4/boss-harness/issues/3569)
