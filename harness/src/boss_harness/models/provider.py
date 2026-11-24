@@ -71,6 +71,8 @@ class ModelConfig:
     #: openai 线路的 bearer 凭据，用 Secret 包装：repr 脱敏，且不可 JSON 序列化。
     api_key: Secret | None = None
     request_timeout_seconds: int = DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS
+    #: Anthropic 线路是否为回合请求设置提示缓存断点；其他线路不读取。
+    prompt_cache: bool = True
 
 
 class Provider(Protocol):
@@ -172,6 +174,7 @@ def resolve_config(
         thinking=thinking,
         base_url=base_url,
         server_side_fallback=server_side_fallback,
+        prompt_cache=_prompt_cache(env, strict=resolved == "anthropic"),
     )
 
 
@@ -234,6 +237,23 @@ def _server_side_fallback(env: Mapping[str, str], default: bool, *, strict: bool
     if not strict:
         return default
     raise ModelConfigError("MODEL_SERVER_FALLBACK_INVALID")
+
+
+def _prompt_cache(env: Mapping[str, str], *, strict: bool) -> bool:
+    """未设置、为空或只有空白时开启；其余须是可识别的开关写法。
+
+    缓存断点不改变模型可见内容，默认开启；网关拒绝该字段时用关闭写法退出。拼错的
+    关闭写法若被当作开启，请求仍会带上网关拒绝的字段，因此无法识别的取值明确失败，
+    错误不带原始取值；`strict` 为假时按默认处理。
+    """
+    value = (env.get("BOSS_HARNESS_PROMPT_CACHE") or "").strip().lower()
+    if not value or value in _SWITCH_ON:
+        return True
+    if value in _SWITCH_OFF:
+        return False
+    if not strict:
+        return True
+    raise ModelConfigError("MODEL_PROMPT_CACHE_INVALID")
 
 
 def _request_timeout_seconds(env: Mapping[str, str]) -> int:

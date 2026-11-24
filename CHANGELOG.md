@@ -1,3 +1,10 @@
+## 0.2.0-rc.754 - 2026-11-25
+
+- Anthropic 线路为回合请求设置提示缓存断点：系统提示转为带 `cache_control` 的单文本块，最后一条用户消息的最后一个内容块（字符串正文，或工具回合的最后一个工具结果）同样带断点。此前这条线路的请求从不携带断点，不会向模型服务请求缓存，每次工具回路都完整重发工具定义、系统提示与全部历史。断点只加在回合请求上，摘要任务、连接检查与没有任务上下文的请求保持原形状；空白文本、内容为空或不是文本的工具结果不标记；不单独标记工具定义，不设置保留时间，不使用顶层缓存字段。断点在思考块续接用的前缀摘要算完之后才加到交给 SDK 的副本上，已签名的思考块照常回放，会话不持久化断点。[Issue #3633](https://github.com/can4hou6joeng4/boss-harness/issues/3633)
+- 新增 `BOSS_HARNESS_PROMPT_CACHE`：默认开启且不随端点变化，`0` / `false` / `no` / `off` 关闭；无法识别的取值在 Anthropic 线路以 `MODEL_PROMPT_CACHE_INVALID` 失败且不回显原值，内核自检与正常启动报告同一固定码；`none` 线路不因它失败，OpenAI 线路不读取。
+- 升级注意：Anthropic 线路的回合请求默认带 `cache_control` 字段，`system` 由字符串变为文本块列表；所用网关拒绝这一形状时，设置 `BOSS_HARNESS_PROMPT_CACHE=off` 即恢复原请求。本轮没有调用真实模型，只核对了请求形状、续接摘要不变、关闭后请求逐字节相同，以及新旧版本交替续接同一会话；缓存是否命中、用量如何变化未核对，可在「会话用量」的缓存读取与缓存写入中观察服务端上报的结果。
+- `scripts/check_provider_config.py`（156 项）、`scripts/check_anthropic_provider.py`（192 项）与 `scripts/check_anthropic_stream.py`（132 项结构、95 项行为）新增缓存开关、断点位置与请求路径的核对；使用指南、技术参考与上游阅读记录同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.754` 和 Python `0.2.0rc754`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.753 - 2026-11-25
 
 - `scripts/check_session_index_health.py`（42 项结构、37 项行为）从源码字面量扫描改为运行时驱动：在临时状态目录中构造真实内核应用服务（`provider=none`，不联网），写入损坏的会话日志后读取 `config/read`，核对计数完整不随截断、id 按字典序截断到上限、不符合会话 id 形状的文件名不计入、删除后不残留；再把这些真实响应连同真实 `sessionIndexHealth.ts` 交给 Node，核对读出的计数、id 与文案三态，以及内核 `MAX_UNREADABLE_THREAD_IDS` 与桌面 `SESSION_INDEX_MAX_IDS` 一致。[Issue #3631](https://github.com/can4hou6joeng4/boss-harness/issues/3631)

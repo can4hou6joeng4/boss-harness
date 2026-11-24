@@ -5,6 +5,8 @@
 比较，大小写、尾根点、端口与路径不影响结果，前缀伪装、userinfo 与畸形 IPv6 不得
 误判为官方。`_server_side_fallback` 解析 `BOSS_HARNESS_SERVER_FALLBACK`：未设置取
 默认，空白视为关闭，只接受固定开关写法，未知取值在严格模式失败且不回显原文。
+`_prompt_cache` 解析 `BOSS_HARNESS_PROMPT_CACHE`：未设置与空白都是开启，只接受同一组
+开关写法，拼错的关闭写法不得被当作开启，只有 anthropic 线路读取并严格校验。
 `_request_timeout_seconds` 与 `_max_tokens` 把空白视为未设置，按整数解析并收敛到
 固定错误码；`_configured_model`、`_has_configured_value` 与 `has_anthropic_credential`
 让纯空白占位值不遮蔽后续变量。`resolve_config` 按显式参数 > `BOSS_HARNESS_PROVIDER` >
@@ -38,6 +40,7 @@ from boss_harness.models.provider import (  # noqa: E402
     _is_first_party_base_url,
     _max_tokens,
     _openai_config,
+    _prompt_cache,
     _request_timeout_seconds,
     _server_side_fallback,
     has_anthropic_credential,
@@ -63,6 +66,15 @@ SWITCH_FRAGMENTS = (
     "if value in _SWITCH_ON:",
     "if not strict:\n        return default",
     'raise ModelConfigError("MODEL_SERVER_FALLBACK_INVALID")',
+)
+CACHE_FRAGMENTS = (
+    "prompt_cache: bool = True",
+    'value = (env.get("BOSS_HARNESS_PROMPT_CACHE") or "").strip().lower()',
+    "if not value or value in _SWITCH_ON:\n        return True",
+    "if value in _SWITCH_OFF:\n        return False",
+    "if not strict:\n        return True",
+    'raise ModelConfigError("MODEL_PROMPT_CACHE_INVALID")',
+    'prompt_cache=_prompt_cache(env, strict=resolved == "anthropic"),',
 )
 TIMEOUT_FRAGMENTS = (
     'raw = (env.get("BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS") or "").strip()',
@@ -182,6 +194,48 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _cache_outcome(env: dict[str, str], *, strict: bool = True) -> object:
+    """返回解析结果；失败时返回错误码，让期望不符的用例带着自己的标签报告。"""
+    try:
+        return _prompt_cache(env, strict=strict)
+    except ModelConfigError as error:
+        return error.code
+
+
+def _cache_checks() -> int:
+    name = "BOSS_HARNESS_PROMPT_CACHE"
+    # 提示缓存开关：未设置与空白都是开启（与回退开关的「空值为关闭」不同）。
+    checked = _expect_value((_cache_outcome({}), _cache_outcome({}, strict=False)),
+                            (True, True), "缓存开关未设置为开启")
+    for raw in ("", "  ", "\t\n"):
+        checked += _expect_value(_cache_outcome({name: raw}), True, f"缓存开关空白 {raw!r}")
+    for raw in ("1", "TRUE", "Yes", "on", "  On  "):
+        checked += _expect_value(_cache_outcome({name: raw}), True, f"缓存开启写法 {raw!r}")
+    for raw in ("0", "FALSE", "No", "off", "  Off  "):
+        checked += _expect_value(_cache_outcome({name: raw}), False, f"缓存关闭写法 {raw!r}")
+    # 拼错的关闭写法不得被当作开启：网关拒绝该字段时，用户以为已经关闭。
+    for raw in ("offf", "disabled", "none", "2", "o ff"):
+        checked += _expect_value(_cache_outcome({name: raw}), "MODEL_PROMPT_CACHE_INVALID",
+                                 f"缓存开关近似写法 {raw!r}")
+    checked += _expect_code(lambda: _prompt_cache({name: "mystery-value-9"}, strict=True),
+                            "MODEL_PROMPT_CACHE_INVALID", "缓存开关未知取值不回显原文",
+                            absent="mystery-value-9")
+    checked += _expect_value(_cache_outcome({name: "mystery-value-9"}, strict=False), True,
+                             "缓存开关非严格按默认")
+    # 两个开关互不影响：关闭回退不关闭缓存。
+    checked += _expect_value(_cache_outcome({"BOSS_HARNESS_SERVER_FALLBACK": "off"}), True,
+                             "缓存开关不读取回退开关")
+    return checked
+
+
+def _resolved_cache(env: dict[str, str], provider: str | None = None) -> object:
+    """返回解析出的缓存开关；失败时返回错误码，让期望不符的用例带着自己的标签报告。"""
+    try:
+        return resolve_config(env, provider).prompt_cache
+    except ModelConfigError as error:
+        return error.code
+
+
 def _model_env_checks() -> int:
     checked = _expect_value((DEFAULT_MAX_TOKENS, DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS,
                              MAX_MODEL_REQUEST_TIMEOUT_SECONDS),
@@ -295,6 +349,23 @@ def _resolve_checks() -> int:
     checked += _expect_code(
         lambda: resolve_config({**anthropic_env, "BOSS_HARNESS_SERVER_FALLBACK": "mystery"}),
         "MODEL_SERVER_FALLBACK_INVALID", "anthropic 线路严格失败")
+    # 提示缓存：默认开启且不随端点变化；只有 anthropic 线路读取并严格校验。
+    checked += _expect_value(
+        (_resolved_cache(anthropic_env),
+         _resolved_cache({**anthropic_env, "ANTHROPIC_BASE_URL": "https://proxy.example/v1"})),
+        (True, True), "缓存默认开启且不随端点变化")
+    checked += _expect_value(
+        _resolved_cache({**anthropic_env, "BOSS_HARNESS_PROMPT_CACHE": " Off "}),
+        False, "anthropic 线路关闭缓存")
+    checked += _expect_value(
+        _resolved_cache({"BOSS_HARNESS_PROVIDER": "none", "BOSS_HARNESS_PROMPT_CACHE": "mystery"}),
+        True, "none 线路不因缓存开关失败")
+    checked += _expect_code(
+        lambda: resolve_config({**anthropic_env, "BOSS_HARNESS_PROMPT_CACHE": "mystery-value-9"}),
+        "MODEL_PROMPT_CACHE_INVALID", "anthropic 线路缓存开关严格失败", absent="mystery-value-9")
+    checked += _expect_value(
+        _resolved_cache({**openai_env, "BOSS_HARNESS_PROMPT_CACHE": "mystery"}, "openai"),
+        True, "openai 线路不读取缓存开关")
     # OpenAI：完整显式配置跳过 Codex 文件；缺项时缺失文件按未配置处理。
     with TemporaryDirectory() as directory:
         full = {**openai_env, "BOSS_HARNESS_CODEX_CONFIG": directory}
@@ -322,12 +393,14 @@ def check_provider_config() -> int:
     module = _read(MODULE)
     checked = _expect(HOST_FRAGMENTS, module, MODULE)
     checked += _expect(SWITCH_FRAGMENTS, module, MODULE)
+    checked += _expect(CACHE_FRAGMENTS, module, MODULE)
     checked += _expect(TIMEOUT_FRAGMENTS, module, MODULE)
     checked += _expect(TOKENS_FRAGMENTS, module, MODULE)
     checked += _expect(MODEL_HELPER_FRAGMENTS, module, MODULE)
     checked += _expect(PROVIDER_FRAGMENTS, module, MODULE)
     checked += _expect(OPENAI_FRAGMENTS, module, MODULE)
     checked += _behavior_checks()
+    checked += _cache_checks()
     checked += _model_env_checks()
     checked += _resolve_checks()
     return checked + 1
@@ -339,7 +412,7 @@ def main() -> int:
     except ValueError as error:
         print(f"模型配置边界核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"模型配置边界一致：{checked} 项端点、回退、时限、上限、凭据与线路解析防护")
+    print(f"模型配置边界一致：{checked} 项端点、回退、缓存开关、时限、上限、凭据与线路解析防护")
     return 0
 
 

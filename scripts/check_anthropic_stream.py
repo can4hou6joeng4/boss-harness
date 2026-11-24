@@ -9,8 +9,9 @@ thinking 签名的初始值与增量覆盖共享同一份续接预算；工具�
 
 这里用假的 `anthropic` 客户端驱动真实 `_stream_once`（不联网、不调用模型），
 逐类验证文本、思考签名、加密思考、工具调用、用量与停止原因、协议错误、
-预算超限、错误分类、请求路径、中途取消与总时限；同时静态固定关键拒绝分支、
-事件顺序与异常分层顺序。
+预算超限、错误分类、请求路径、提示缓存断点、中途取消与总时限；同时静态固定关键
+拒绝分支、事件顺序与异常分层顺序。提示缓存断点只加在回合请求上，并且排在思考块
+续接用的前缀摘要之后：摘要、连接检查与没有任务上下文的请求保持原形状。
 """
 
 from __future__ import annotations
@@ -42,8 +43,19 @@ except ModuleNotFoundError:
     sys.modules["anthropic"] = _sdk_stub
 
 from boss_harness.models import anthropic_provider, ModelConfig  # noqa: E402
+from boss_harness.models.continuation import anthropic_prefix_digest  # noqa: E402
 from boss_harness.models.secret import Secret  # noqa: E402
-from boss_harness.models.types import ModelRequest, ToolSpec, UserMessage  # noqa: E402
+from boss_harness.models.types import (  # noqa: E402
+    AssistantMessage,
+    ModelRequest,
+    ModelTaskContext,
+    ThinkingBlock,
+    ToolCallBlock,
+    ToolResultItem,
+    ToolResultsMessage,
+    ToolSpec,
+    UserMessage,
+)
 
 RESET = (
     "        self._last_error_retryable = False",
@@ -212,6 +224,13 @@ EXCEPTION_ORDER = (
     "        except anthropic.APIStatusError as exc:",
     "        except OutputBudgetExceeded as exc:",
     "        except Exception as exc:  # noqa: BLE001",
+)
+# 四行既固定写法也固定先后：前缀摘要必须先于断点算完，断点只进入交给 SDK 的副本。
+CACHE_ORDER = (
+    '        prefix_digest = anthropic_prefix_digest(request.system, kwargs.get("tools"), kwargs["messages"])',
+    "        task = request.task_context",
+    '        if self.prompt_cache and task is not None and task.purpose == "turn":',
+    "            kwargs = with_cache_breakpoints(kwargs)",
 )
 PROBES = (
     ("reset", RESET),
@@ -393,14 +412,16 @@ def _request(**overrides) -> ModelRequest:
 
 def _run(events: list, *, fallback: bool = False, abort: bool = False,
          gate=None, gate_after: int = 0, timeout: int = 120,
-         request: ModelRequest | None = None) -> tuple:
+         request: ModelRequest | None = None, cache: bool | None = None) -> tuple:
     _FakeAsyncAnthropic.holder.clear()
     _FakeAsyncAnthropic.holder.update(events=events, gate=gate, gate_after=gate_after)
     with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-api-key"}, clear=False):
         os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
+        # 缺省不传开关，沿用配置默认值；只有显式关闭的用例才传。
+        options = {} if cache is None else {"prompt_cache": cache}
         provider = anthropic_provider.AnthropicProvider(
             ModelConfig(provider="anthropic", model="m1", api_key=Secret("k"),
-                        server_side_fallback=fallback, request_timeout_seconds=timeout))
+                        server_side_fallback=fallback, request_timeout_seconds=timeout, **options))
         if abort:
             provider._abort_requested = True
         result = list(provider._stream_once(request or _request()))
@@ -500,7 +521,7 @@ def _check_structures() -> int:
             if fragment not in body:
                 raise ValueError(f"_stream_once 的 {name} 分支缺少：{fragment}")
             checked += 1
-    for order in (EVENT_BRANCHES, FINISH_ORDER, EXCEPTION_ORDER):
+    for order in (CACHE_ORDER, EVENT_BRANCHES, FINISH_ORDER, EXCEPTION_ORDER):
         position = -1
         for fragment in order:
             index = body.find(fragment, position + 1)
@@ -757,6 +778,74 @@ def _request_checks() -> int:
     return checked
 
 
+def _cache_checks() -> int:
+    checked = 0
+    ephemeral = {"type": "ephemeral"}
+    turn = ModelTaskContext(purpose="turn", request_index=0)
+    plain = ("sys", [{"role": "user", "content": "hi"}])
+    marked = ([{"type": "text", "text": "sys", "cache_control": ephemeral}],
+              [{"role": "user", "content": [{"type": "text", "text": "hi", "cache_control": ephemeral}]}])
+
+    def captured(request: ModelRequest, events: list | None = None, **options) -> tuple:
+        _, result = _run(events or [_message_start(1), _message_delta("end_turn"), _message_stop()],
+                         request=request, **options)
+        return dict(_FakeAsyncAnthropic.holder["kwargs"]), _done(result).message
+
+    # 只有回合请求带断点：系统提示与末条 user 消息各一处；其余用途与关闭开关时保持原形状。
+    turn_kwargs, _ = captured(_request(task_context=turn))
+    checked += _expect_value((turn_kwargs["system"], turn_kwargs["messages"]), marked,
+                             "回合请求在系统提示与末条消息各带一处断点")
+    for label, purpose in (("摘要", "compaction"), ("连接检查", "connection_check")):
+        kwargs, _ = captured(_request(task_context=ModelTaskContext(purpose=purpose, request_index=0)))
+        checked += _expect_value((kwargs["system"], kwargs["messages"]), plain, f"{label}请求不带断点")
+    kwargs, _ = captured(_request())
+    checked += _expect_value((kwargs["system"], kwargs["messages"]), plain, "无任务上下文的请求不带断点")
+    # 断点只写在内容块里：带断点的请求与不带断点的请求有同一组顶层参数。
+    checked += _expect_value(sorted(turn_kwargs), sorted(kwargs), "断点不新增顶层参数")
+    kwargs, _ = captured(_request(task_context=turn), cache=False)
+    checked += _expect_value((kwargs["system"], kwargs["messages"]), plain, "关闭开关后回合请求不带断点")
+    kwargs, _ = captured(_request(task_context=turn), fallback=True)
+    checked += _expect_value(
+        (_FakeAsyncAnthropic.holder["path"], kwargs["system"], kwargs["messages"]),
+        ("beta", *marked), "beta 路径同样带断点")
+
+    # 工具回合：断点落在最后一个工具结果上；更早的消息、工具定义与回放的思考块保持原样。
+    tools = [{"name": "boss_search", "description": "搜索", "input_schema": {"type": "object"}}]
+    replayed = ThinkingBlock(thinking="t", signature="s",
+                             prefix_digest=anthropic_prefix_digest("sys", tools, plain[1]))
+    history = (UserMessage("hi"),
+               AssistantMessage((replayed, ToolCallBlock("c1", "boss_search", {"q": 1}),
+                                 ToolCallBlock("c2", "boss_search", {"q": 2}))),
+               ToolResultsMessage((ToolResultItem("c1", "ok"), ToolResultItem("c2", "bad", True))))
+    earlier = [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": [
+            {"type": "thinking", "thinking": "t", "signature": "s"},
+            {"type": "tool_use", "id": "c1", "name": "boss_search", "input": {"q": 1}},
+            {"type": "tool_use", "id": "c2", "name": "boss_search", "input": {"q": 2}}]},
+    ]
+    first_result = {"type": "tool_result", "tool_use_id": "c1", "content": "ok"}
+    last_result = {"type": "tool_result", "tool_use_id": "c2", "content": "bad", "is_error": True}
+    request = _request(messages=history, task_context=turn,
+                       tools=(ToolSpec(name="boss_search", description="搜索",
+                                       input_schema={"type": "object"}),))
+    thinking_events = [_message_start(1), _block(0, _thinking("想", "s1")), _block_stop(0),
+                       _message_delta("end_turn"), _message_stop()]
+    kwargs, message = captured(request, list(thinking_events))
+    checked += _expect_value(
+        kwargs["messages"],
+        earlier + [{"role": "user", "content": [first_result, {**last_result, "cache_control": ephemeral}]}],
+        "工具回合只标记最后一个工具结果")
+    checked += _expect_value(kwargs["tools"], tools, "工具定义不带断点")
+    # 续接：新思考块绑定的是不带断点的前缀，开关开闭得到同一个摘要，下一次请求才能回放。
+    expected = anthropic_prefix_digest(
+        "sys", tools, earlier + [{"role": "user", "content": [first_result, last_result]}])
+    _, without = captured(request, list(thinking_events), cache=False)
+    checked += _expect_value((message.blocks[0].prefix_digest, without.blocks[0].prefix_digest),
+                             (expected, expected), "断点不进入思考块的前缀摘要")
+    return checked
+
+
 def _protocol_error_checks() -> int:
     checked = 0
 
@@ -829,6 +918,8 @@ def _behavior_checks() -> int:
     checked += _call_checks()
     checked += _terminal_checks()
     checked += _error_checks()
+    # 排在请求路径之前：断点用途判定出错时由这里的用例报告，而不是由基本字段的用例顺带发现。
+    checked += _cache_checks()
     checked += _request_checks()
     checked += _protocol_error_checks()
     return checked
