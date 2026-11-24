@@ -523,7 +523,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_last_session.py`
 
-`scripts/check_last_session.py` 核对上次打开会话的存储解析与回退：`LAST_SESSION_KEY` 以 `UI_STORAGE_PREFIX` 为命名空间；解析要求字符串、去空白后非空、不超过 200 字符，且 `id === raw`（带首尾空白视为损坏）；读取与写入都捕获存储异常并退回首页；`rememberLastSessionId(null)` 删除键而不是写入空字符串。检查是源码字面量扫描，不访问本地存储。
+`scripts/check_last_session.py` 核对上次打开会话的存储解析与回退：`LAST_SESSION_KEY` 以 `UI_STORAGE_PREFIX` 为命名空间；解析要求字符串、去空白后非空、不超过 200 字符，且 `id === raw`（带首尾空白视为损坏）；读取与写入都捕获存储异常并退回首页；`rememberLastSessionId(null)` 删除键而不是写入空字符串。反向断言带首尾空白的记录必须视为损坏、读写都要有异常回退、清空不得写入空字符串。行为侧把真实 `lastSession.ts` 与 `uiStorage.ts` 复制到临时目录、改写导入，由 Node 注入可控 `localStorage` 驱动命名空间键、严格解析边界（空值、首尾空白、纯空白、200/201 码点、非字符串）、读取与写入往返、`null` 与空字符串删除键、其他键不受影响及存储异常静默，共 25 项结构、20 项行为。
 
 ### `check_ui_storage.py`
 
