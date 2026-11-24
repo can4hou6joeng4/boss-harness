@@ -549,7 +549,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_theme_preference.py`
 
-`scripts/check_theme_preference.py` 核对主题偏好的三态语义：联合类型只含 `system` / `light` / `dark`；解析先拒绝非字符串，再 `trim().toLowerCase()` 折叠空白与大小写，无法识别时回退 `system`；`resolveDarkTheme` 按 `dark` → 真、`light` → 假、其余跟随系统外观；`serializeThemePreference` 只保留 `light` / `dark`，其他值规范化为 `system`。反向断言解析不得跳过空白折叠、写回不得原样保留未知值、回退不得落到固定外观。检查是源码字面量扫描，不执行 TypeScript。
+`scripts/check_theme_preference.py` 核对主题偏好的三态语义：联合类型只含 `system` / `light` / `dark`；解析先拒绝非字符串，再 `trim().toLowerCase()` 折叠空白与大小写，无法识别时回退 `system`；`resolveDarkTheme` 按 `dark` → 真、`light` → 假、其余跟随系统外观；`serializeThemePreference` 只保留 `light` / `dark`，其他值规范化为 `system`。反向断言解析不得跳过空白折叠、写回不得原样保留未知值、回退不得落到固定外观。行为侧把真实 `themePreference.ts` 复制到临时目录，由 Node 直接加载驱动三态解析、空白与大小写折叠、非字符串与未知值回退、深色合成与写回规范化，共 24 项结构、20 项行为。
 
 ### `check_single_flight.py`
 
