@@ -1,3 +1,8 @@
+## 0.2.0-rc.720 - 2026-11-24
+
+- 新增 `scripts/check_tool_source.py`（9 项结构、12 项行为），为工具来源查询时间补上回归保护：严格 ISO 解析拒绝 `"1"`、只有日期、本地时间与数字，UTC 文本省略整秒 `.000` 并保留毫秒，本机时区标签按 `YYYY-MM-DD HH:mm` 输出，非法值返回 null。真实 `timeFormat.ts` 改写共享包导入后，由 Node 在 `TZ=UTC` 下直接加载真实 `toolSource.ts` 执行 12 个用例。[Issue #3565](https://github.com/can4hou6joeng4/boss-harness/issues/3565)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 281 → 282。源码候选更新为 npm `0.2.0-rc.720` 和 Python `0.2.0rc720`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.719 - 2026-11-24
 
 - 新增 `scripts/check_delete_cleanup_summary.py`（8 项结构、11 项行为），为删除会话前的本机内容清单补上回归保护：空白正文不计数，附件 / 技能 / 读取中按真实数量拼接，类别顺序固定，消息反馈只统计当前会话且无效键跳过。真实 `uiStorage.ts` 与 `messageFeedback.ts` 复制到临时目录并改写相对导入后，由 Node 直接加载真实 `deleteCleanup.ts` 执行 11 个用例。[Issue #3563](https://github.com/can4hou6joeng4/boss-harness/issues/3563)

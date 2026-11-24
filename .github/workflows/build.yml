@@ -699,6 +699,8 @@ jobs:
         run: python scripts/check_confirmation_failure.py
       - name: Verify delete cleanup summary
         run: python scripts/check_delete_cleanup_summary.py
+      - name: Verify tool source
+        run: python scripts/check_tool_source.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
