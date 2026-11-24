@@ -1,3 +1,8 @@
+## 0.2.0-rc.721 - 2026-11-24
+
+- 新增 `scripts/check_message_copy.py`（6 项结构、15 项行为），为消息工具栏复制文本补上回归保护：段落优先与空白过滤、正文 / 计划回退、工具字段顺序、输出回退结果、完成态才显示耗时、独立审批自带工具名、查询时间与思考过程排除。依赖链复制到临时目录并统一改写导入后，由 Node 直接加载真实 `messageCopy.ts` 执行 15 个用例。[Issue #3567](https://github.com/can4hou6joeng4/boss-harness/issues/3567)
+- 工作流注册、技术参考小节与索引行同步；脚本总数 282 → 283。源码候选更新为 npm `0.2.0-rc.721` 和 Python `0.2.0rc721`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.720 - 2026-11-24
 
 - 新增 `scripts/check_tool_source.py`（9 项结构、12 项行为），为工具来源查询时间补上回归保护：严格 ISO 解析拒绝 `"1"`、只有日期、本地时间与数字，UTC 文本省略整秒 `.000` 并保留毫秒，本机时区标签按 `YYYY-MM-DD HH:mm` 输出，非法值返回 null。真实 `timeFormat.ts` 改写共享包导入后，由 Node 在 `TZ=UTC` 下直接加载真实 `toolSource.ts` 执行 12 个用例。[Issue #3565](https://github.com/can4hou6joeng4/boss-harness/issues/3565)
