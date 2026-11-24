@@ -541,7 +541,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_time_format.py`
 
-`scripts/check_time_format.py` 核对界面统一时间格式与会话排序键：`pad` 必须补足两位；`formatLocalDateTime` / `formatLocalClock` 先判 `Number.isNaN` 再分别输出 `YYYY-MM-DD HH:mm` 与 `HH:mm:ss`；`formatIsoDateTime` / `formatIsoClock` 经严格 `parseIsoDateTime` 解析，无效值返回空字符串；`sessionUpdatedAt` 以 `?? 0` 回退。反向断言不得调用 `toLocaleString` / `toLocaleDateString`、排序键不得使用 `Date.parse`、两个格式化函数都要判非法。检查是源码字面量扫描，不执行 TypeScript，也不改变运行时区。
+`scripts/check_time_format.py` 核对界面统一时间格式与会话排序键：`pad` 必须补足两位；`formatLocalDateTime` / `formatLocalClock` 先判 `Number.isNaN` 再分别输出 `YYYY-MM-DD HH:mm` 与 `HH:mm:ss`；`formatIsoDateTime` / `formatIsoClock` 经严格 `parseIsoDateTime` 解析，无效值返回空字符串；`sessionUpdatedAt` 以 `?? 0` 回退。反向断言不得调用 `toLocaleString` / `toLocaleDateString`、排序键不得使用 `Date.parse`、两个格式化函数都要判非法。行为侧把真实 `timeFormat.ts`、`sessionOrder.ts` 与共享 `shared/index.ts` 复制到临时目录、改写导入，由 Node 驱动补零、非法 Date 空串、严格 ISO（日期越界、24 时、仅日期、本地空格）、前后空白修剪、毫秒与偏移、排序键零回退，共 27 项结构、18 项行为。
 
 ### `check_preferences_file.py`
 
