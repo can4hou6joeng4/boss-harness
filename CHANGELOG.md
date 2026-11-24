@@ -1,3 +1,8 @@
+## 0.2.0-rc.747 - 2026-11-24
+
+- 扩展 `scripts/check_find_step.py`（45 项结构、31 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `findStep.ts` 复制到临时目录，Node 直接加载并核对位点数下限与非有限值、夹取的取整与边界、段内前进后退、跨消息与两端循环、非法游标先收敛、全局序号累加与遍历一致性、输入不可变。[Issue #3619](https://github.com/can4hou6joeng4/boss-harness/issues/3619)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.747` 和 Python `0.2.0rc747`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.746 - 2026-11-24
 
 - 扩展 `scripts/check_search_options.py`（39 项结构、22 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `searchOptions.ts` 复制到临时目录、删去类型导入，由 Node 直接加载并核对消息命中在前、键格式、缺行跳过且不中断、重复命中去重、同会话只入列一次、空输入、角色标签、工具命中展开、查询词首尾空白与定位不修改输入。[Issue #3617](https://github.com/can4hou6joeng4/boss-harness/issues/3617)
