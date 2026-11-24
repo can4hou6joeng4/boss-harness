@@ -1,3 +1,8 @@
+## 0.2.0-rc.735 - 2026-11-24
+
+- 扩展 `scripts/check_preferences_file.py`（82 项结构、33 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `preferencesFile.ts` 与 `uiStorage.ts` 复制到临时目录、改写相对导入，Node 加载并核对空文件、超限、非法 JSON、版本与作用域、五类键的合法/非法/缺省、未知键忽略、旧作用域兼容、任一非法键整体拒绝与导出往返。[Issue #3595](https://github.com/can4hou6joeng4/boss-harness/issues/3595)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.735` 和 Python `0.2.0rc735`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.734 - 2026-11-24
 
 - 扩展 `scripts/check_ui_storage.py`（22 项结构、14 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `uiStorage.ts` 复制到临时目录，以可控 `localStorage` 桩由 Node 加载，覆盖旧键补齐、已有新键不被覆盖、旧键保留、非旧前缀不动、空前缀、多键、空值、写入失败与存储不可用被吞掉、重复迁移幂等。[Issue #3593](https://github.com/can4hou6joeng4/boss-harness/issues/3593)
