@@ -485,7 +485,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_find_seed.py`
 
-`scripts/check_find_seed.py` 核对会话内查找沿用选中文本的放行条件：焦点落在 `input` / `textarea` / `select` 或 `isContentEditable` 时返回 `null`；选择不是字符串、`trim()` 后为空、含 `\r` / `\n`、或按 `codePointLength` 超过 `FIND_SEED_MAX_LENGTH = 120` 时不沿用，否则返回去掉首尾空白的文本。判定顺序固定为「可编辑 → 类型 → 去空白 → 空选择 → 多行 → 码点上限」，反向断言不得按 `String.length` 判长、多行校验不得先于 `trim()`。检查是源码字面量扫描，不执行查找或选择。
+`scripts/check_find_seed.py` 核对会话内查找沿用选中文本的放行条件：焦点落在 `input` / `textarea` / `select` 或 `isContentEditable` 时返回 `null`；选择不是字符串、`trim()` 后为空、含 `\r` / `\n`、或按 `codePointLength` 超过 `FIND_SEED_MAX_LENGTH = 120` 时不沿用，否则返回去掉首尾空白的文本。判定顺序固定为「可编辑 → 类型 → 去空白 → 空选择 → 多行 → 码点上限」，反向断言不得按 `String.length` 判长、多行校验不得先于 `trim()`。行为侧把真实 `findSeed.ts` 与共享 `shared/index.ts` 复制到临时目录、改写导入，由 Node 直接加载驱动标签判定、放行顺序、空白与多行边界、120/121 码点与 emoji 边界，共 26 项结构、23 项行为。
 
 ### `check_thread_search_result.py`
 
