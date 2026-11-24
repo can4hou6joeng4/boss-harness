@@ -527,7 +527,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_ui_storage.py`
 
-`scripts/check_ui_storage.py` 核对界面偏好的旧命名空间迁移：先收集 `boss-cli.ui.*` 旧键，再逐个把前缀替换为 `boss-harness.ui.`；新键已存在时跳过，旧值只用于补齐，不删除旧键；整体捕获存储异常，隐私模式下界面按默认值运行。检查是源码字面量扫描，不访问本地存储。
+`scripts/check_ui_storage.py` 核对界面偏好的旧命名空间迁移（共 22 项结构、14 项行为）：先收集 `boss-cli.ui.*` 旧键，再逐个把前缀替换为 `boss-harness.ui.`；新键已存在时跳过，旧值只用于补齐，不删除旧键；整体捕获存储异常，隐私模式下界面按默认值运行。行为侧把真实 `uiStorage.ts` 复制到临时目录，以可控 `localStorage` 桩由 Node 加载，覆盖补齐、已有新键不被覆盖、旧键保留、非旧前缀不动、空前缀、多键、空值、写入失败与存储不可用被吞掉、重复迁移幂等。
 
 ### `check_thread_list.py`
 
