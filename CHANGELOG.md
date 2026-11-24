@@ -1,3 +1,8 @@
+## 0.2.0-rc.745 - 2026-11-24
+
+- 扩展 `scripts/check_last_session.py`（25 项结构、20 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `lastSession.ts` 与 `uiStorage.ts` 复制到临时目录、改写导入，由 Node 注入可控 `localStorage` 并核对命名空间键、严格解析边界（空值、首尾空白、纯空白、200/201 码点、非字符串）、读取与写入往返、`null` 与空字符串删除键、其他键不受影响及存储异常静默。[Issue #3615](https://github.com/can4hou6joeng4/boss-harness/issues/3615)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.745` 和 Python `0.2.0rc745`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.744 - 2026-11-24
 
 - 扩展 `scripts/check_sidebar_notice.py`（17 项结构、16 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `sidebarNotice.ts` 复制到临时目录，Node 直接加载并核对空态形状、停留时长、首次回执、相同文案自增且返回新对象、以当前序号为基递增、输入不可变、清空保留序号并生成新对象、已空返回原引用、清空后继续递增、空文案与多行文本边界。[Issue #3613](https://github.com/can4hou6joeng4/boss-harness/issues/3613)
