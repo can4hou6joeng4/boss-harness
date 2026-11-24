@@ -703,6 +703,8 @@ jobs:
         run: python scripts/check_tool_source.py
       - name: Verify message copy
         run: python scripts/check_message_copy.py
+      - name: Verify source coverage
+        run: python scripts/check_source_coverage.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
