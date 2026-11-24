@@ -1,3 +1,8 @@
+## 0.2.0-rc.734 - 2026-11-24
+
+- 扩展 `scripts/check_ui_storage.py`（22 项结构、14 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `uiStorage.ts` 复制到临时目录，以可控 `localStorage` 桩由 Node 加载，覆盖旧键补齐、已有新键不被覆盖、旧键保留、非旧前缀不动、空前缀、多键、空值、写入失败与存储不可用被吞掉、重复迁移幂等。[Issue #3593](https://github.com/can4hou6joeng4/boss-harness/issues/3593)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.734` 和 Python `0.2.0rc734`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.733 - 2026-11-24
 
 - 扩展 `scripts/check_queue_retry.py`（56 项结构、30 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `queueRetry.ts` 复制到临时目录，Node 直接加载 `queueItemRetryable` 与 `queuePauseReasonText`，覆盖重试判定矩阵（类型、状态、去重、启动失败与三类暂停原因）与文案分档矩阵（归档、回合未完成、摘要失败的三档文案、转向消息、未知原因）。[Issue #3591](https://github.com/can4hou6joeng4/boss-harness/issues/3591)
