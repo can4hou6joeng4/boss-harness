@@ -515,7 +515,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_usage_view_keys.py`
 
-`scripts/check_usage_view_keys.py` 核对用量范围单选组的方向键循环：左右与上下方向键映射为 ±1，其他按键返回 `null`；视图先经 `indexOf` 越界保护，再以 `(index + delta + USAGE_VIEWS.length) % USAGE_VIEWS.length` 非负取模循环，选项顺序为 `log`、`branch`。反向断言四个方向键都必须参与映射、取模前必须补齐长度、未知视图不得回退首项。检查是源码字面量扫描，不执行键盘事件或渲染。
+`scripts/check_usage_view_keys.py` 核对用量范围单选组的方向键循环：左右与上下方向键映射为 ±1，其他按键返回 `null`；视图先经 `indexOf` 越界保护，再以 `(index + delta + USAGE_VIEWS.length) % USAGE_VIEWS.length` 非负取模循环，选项顺序为 `log`、`branch`。反向断言四个方向键都必须参与映射、取模前必须补齐长度、未知视图不得回退首项。行为侧把真实 `usageViewKeys.ts` 复制到临时目录、改写类型导入，由 Node 驱动两个视图与四个方向键的映射、首尾环绕、非方向键与未知视图返回 `null`、重复调用稳定性与选项只读，共 18 项结构、14 项行为。
 
 ### `check_send_failure.py`
 
