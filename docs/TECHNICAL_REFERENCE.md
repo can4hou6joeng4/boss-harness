@@ -601,7 +601,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_clipboard_copy.py`
 
-`scripts/check_clipboard_copy.py` 核对剪贴板写入与反馈：`copyText` 先检查 `navigator.clipboard.writeText`，系统写入成功才返回 `ok: true`；失败原因只取错误消息、按 80 字符截断，为空时回退固定文案，且不包含被复制正文；`useClipboardCopy` 用版本令牌丢弃迟到回执，计时器到期、重置与卸载都会清空反馈。反向断言失败原因不得拼接正文、迟到回执不得恢复提示、版本令牌必须在卸载与重置时推进。检查是源码字面量扫描，不访问真实剪贴板。
+`scripts/check_clipboard_copy.py` 核对剪贴板写入与反馈：结构侧固定 `copyText` 的环境守卫、写入路径与 80 字符原因截断，`useClipboardCopy` 的版本令牌、计时器清理与重置顺序，并反向断言失败原因不得拼接正文、迟到回执不得恢复提示、版本令牌必须在卸载与重置时推进、清空必须覆盖开始 / 计时器 / 重置。行为侧把真实 `clipboardCopy.ts` 复制到临时目录，`react`、`@boss-harness/shared` 与计时器替换为桩，`navigator.clipboard` 可控制成功 / 失败 / 挂起，由 Node 加载真实模块核对成功与失败结果、字符串与空原因、原因截断、缺失环境、反馈与计时器、迟到回执丢弃、重置与卸载清理。共 64 项结构、23 项行为。
 
 ### `check_home_draft.py`
 
