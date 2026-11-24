@@ -1,3 +1,8 @@
+## 0.2.0-rc.750 - 2026-11-24
+
+- 扩展 `scripts/check_thread_search_result.py`（81 项结构、35 项行为）：保留跨文件结构断言（内核分支标记、弹窗标签、会话区定位说明与样式），新增运行时驱动——真实 `threadSearchResult.ts` 复制到临时目录、删去类型导入，由 Node 直接加载并核对条目判定、标识与文本上限、角色白名单、`onBranch` 显式布尔、回执上限与整包拒绝、输入不可变。[Issue #3625](https://github.com/can4hou6joeng4/boss-harness/issues/3625)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.750` 和 Python `0.2.0rc750`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.749 - 2026-11-24
 
 - 扩展 `scripts/check_find_seed.py`（26 项结构、23 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `findSeed.ts` 与共享 `shared/index.ts` 复制到临时目录、改写导入，由 Node 直接加载并核对标签判定、可编辑属性、放行顺序、空白与多行边界、120/121 码点与 emoji 边界。[Issue #3623](https://github.com/can4hou6joeng4/boss-harness/issues/3623)

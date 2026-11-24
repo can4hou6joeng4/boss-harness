@@ -8,15 +8,19 @@
 
 会话区按当前分支视图展示，搜索却覆盖完整日志：命中可能位于被放弃的分支上。
 这里同时固定内核的分支标记、弹窗标签与会话区的定位说明，避免再次出现
-「点击搜索结果后什么都没发生」。
+「点击搜索结果后什么都没发生」。行为侧把真实 `threadSearchResult.ts` 复制
+到临时目录、删去类型导入，由 Node 直接加载驱动条目与回执的边界。
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+DOCS = "docs/TECHNICAL_REFERENCE.md"
 RESULT = "apps/desktop/src/renderer/src/data/threadSearchResult.ts"
 SESSION = "harness/src/boss_harness/session.py"
 DIALOG = "apps/desktop/src/renderer/src/components/SearchDialog.tsx"
@@ -24,6 +28,146 @@ SHELL = "apps/desktop/src/renderer/src/shell/AppShell.tsx"
 CONVERSATION = "apps/desktop/src/renderer/src/shell/ConversationArea.tsx"
 PROTOCOL = "packages/protocol/src/index.ts"
 CSS = "apps/desktop/src/renderer/src/styles/replica.css"
+
+EXPECTED = 35
+
+NODE_SCRIPT = """\
+import {
+  SEARCH_MATCH_LIMIT,
+  threadSearchMatchOf,
+  threadSearchResultOf,
+} from "./threadSearchResult.ts";
+
+let passed = 0;
+function expect(label: string, condition: boolean): void {
+  if (!condition) {
+    console.error(`FAIL ${label}`);
+    process.exit(1);
+  }
+  passed += 1;
+}
+const same = (a: any, b: any): boolean => JSON.stringify(a) === JSON.stringify(b);
+const entry = (overrides: Record<string, unknown> = {}): any => ({
+  threadId: "t1",
+  threadTitle: "标题",
+  itemId: "i1",
+  role: "user",
+  snippet: "片段",
+  ...overrides,
+});
+const resultOf = (overrides: Record<string, unknown> = {}): any => ({
+  matches: [entry()],
+  truncated: false,
+  ...overrides,
+});
+
+expect(
+  "合法条目形状",
+  same(threadSearchMatchOf(entry()), {
+    threadId: "t1",
+    threadTitle: "标题",
+    itemId: "i1",
+    role: "user",
+    snippet: "片段",
+  }),
+);
+expect("条目无 onBranch 键", !("onBranch" in (threadSearchMatchOf(entry()) as any)));
+expect("onBranch 真保留", threadSearchMatchOf(entry({ onBranch: true }))!.onBranch === true);
+expect("onBranch 假保留", threadSearchMatchOf(entry({ onBranch: false }))!.onBranch === false);
+expect("onBranch 非布尔拒绝", threadSearchMatchOf(entry({ onBranch: "true" })) === null);
+expect(
+  "非对象拒绝",
+  threadSearchMatchOf(null) === null
+    && threadSearchMatchOf(42) === null
+    && threadSearchMatchOf([]) === null,
+);
+const arrayLike: any = [];
+arrayLike.threadId = "t1";
+arrayLike.threadTitle = "";
+arrayLike.itemId = "i1";
+arrayLike.role = "user";
+arrayLike.snippet = "";
+expect("带属性的数组仍拒绝", threadSearchMatchOf(arrayLike) === null);
+expect("空 threadId 拒绝", threadSearchMatchOf(entry({ threadId: "" })) === null);
+expect("threadId 非字符串拒绝", threadSearchMatchOf(entry({ threadId: 7 })) === null);
+expect("threadId 200 通过", threadSearchMatchOf(entry({ threadId: "a".repeat(200) })) !== null);
+expect("threadId 201 拒绝", threadSearchMatchOf(entry({ threadId: "a".repeat(201) })) === null);
+expect("标题允许为空", threadSearchMatchOf(entry({ threadTitle: "" }))!.threadTitle === "");
+expect(
+  "标题 4096 通过",
+  threadSearchMatchOf(entry({ threadTitle: "a".repeat(4096) })) !== null,
+);
+expect("标题 4097 拒绝", threadSearchMatchOf(entry({ threadTitle: "a".repeat(4097) })) === null);
+expect("标题非字符串拒绝", threadSearchMatchOf(entry({ threadTitle: 7 })) === null);
+expect("空 itemId 拒绝", threadSearchMatchOf(entry({ itemId: "" })) === null);
+expect("未知角色拒绝", threadSearchMatchOf(entry({ role: "system" })) === null);
+expect(
+  "三种角色通过",
+  ["user", "agent", "tool"].every(role => threadSearchMatchOf(entry({ role })) !== null),
+);
+expect("角色非字符串拒绝", threadSearchMatchOf(entry({ role: 7 })) === null);
+expect("片段允许为空", threadSearchMatchOf(entry({ snippet: "" }))!.snippet === "");
+expect(
+  "片段 4096 通过",
+  threadSearchMatchOf(entry({ snippet: "a".repeat(4096) })) !== null,
+);
+expect("片段 4097 拒绝", threadSearchMatchOf(entry({ snippet: "a".repeat(4097) })) === null);
+expect(
+  "多余字段丢弃",
+  same(Object.keys(threadSearchMatchOf(entry({ extra: 1 }))!).sort(), [
+    "itemId",
+    "role",
+    "snippet",
+    "threadId",
+    "threadTitle",
+  ]),
+);
+const rawEntry = entry();
+threadSearchMatchOf(rawEntry);
+expect("条目不被修改", same(rawEntry, entry()));
+
+expect("回执上限常量", SEARCH_MATCH_LIMIT === 200);
+expect(
+  "合法回执与显式 true",
+  same(threadSearchResultOf(resultOf({ truncated: true })), {
+    matches: [threadSearchMatchOf(entry())],
+    truncated: true,
+  }),
+);
+expect("truncated 缺省为假", threadSearchResultOf({ matches: [] })!.truncated === false);
+expect("truncated 非布尔拒绝", threadSearchResultOf(resultOf({ truncated: "true" })) === null);
+expect(
+  "matches 非数组拒绝",
+  threadSearchResultOf(resultOf({ matches: {} })) === null,
+);
+expect(
+  "matches 200 通过",
+  threadSearchResultOf(resultOf({ matches: Array.from({ length: 200 }, () => entry()) }))!.matches.length === 200,
+);
+expect(
+  "matches 201 拒绝",
+  threadSearchResultOf(resultOf({ matches: Array.from({ length: 201 }, () => entry()) })) === null,
+);
+expect(
+  "任一命中非法整包拒绝",
+  threadSearchResultOf(resultOf({ matches: [entry(), { bad: true }] })) === null,
+);
+expect(
+  "空 matches 回执",
+  same(threadSearchResultOf({ matches: [], truncated: false }), { matches: [], truncated: false }),
+);
+expect(
+  "回执非对象拒绝",
+  threadSearchResultOf(null) === null
+    && threadSearchResultOf(42) === null
+    && threadSearchResultOf([]) === null,
+);
+const rawResult = resultOf();
+threadSearchResultOf(rawResult);
+expect("回执不被修改", same(rawResult, resultOf()));
+
+console.log(`PASS ${passed}`);
+"""
 
 FRAGMENTS = (
     "const ID_LIMIT = 200;",
@@ -137,8 +281,17 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
-def check_thread_search_result() -> int:
-    source = _read(RESULT)
+def _rewrite(source: str) -> str:
+    rewritten = "".join(
+        line for line in source.splitlines(keepends=True) if not line.startswith("import type ")
+    )
+    if "import type" in rewritten:
+        raise ValueError(f"{RESULT} 的导入结构已变化，需要更新改写")
+    return rewritten
+
+
+def _check_structure(source: str, session: str, dialog: str,
+                     shell: str, conversation: str, protocol: str, css: str) -> int:
     checked = 0
     checked += _expect(FRAGMENTS, source, RESULT)
     for group in ORDERED:
@@ -154,7 +307,6 @@ def check_thread_search_result() -> int:
     if source.count('raw.onBranch === "boolean"') != 1 or "raw.onBranch === false" in source:
         raise ValueError(f"{RESULT} 的 onBranch 只能按显式布尔传递")
     checked += 4
-    session = _read(SESSION)
     start = session.find(KERNEL_MARK[0])
     end = session.find("def record_turn(", start)
     if start < 0 or end < 0:
@@ -166,15 +318,13 @@ def check_thread_search_result() -> int:
     if "except ValueError:\n                        branch_item_ids = None" not in session:
         raise ValueError(f"{SESSION} 的分支标记必须容忍投影失败")
     checked += 2
-    checked += _expect(DIALOG_MARK, _read(DIALOG), DIALOG)
-    shell = _read(SHELL)
+    checked += _expect(DIALOG_MARK, dialog, DIALOG)
     for fragment in ("revealToolBlock?: boolean; offBranch?: boolean }", "offBranch = false) => {",
                      "setMessageFocus({ threadId: session.id, itemId, revealToolBlock, offBranch });",
                      "focusOffBranch={messageFocus !== null && messageFocus.threadId === props.activeSession?.id && messageFocus.offBranch === true}"):
         if shell.count(fragment) != 1:
             raise ValueError(f"{SHELL} 缺少跨分支定位的传递：{fragment}")
     checked += 4
-    conversation = _read(CONVERSATION)
     checked += _expect(CONVERSATION_MARK, conversation, CONVERSATION)
     # 旧形态：列表就绪后静默清除定位意图。
     if "if (messages.length) onFocusMessage?.();" in conversation:
@@ -182,22 +332,59 @@ def check_thread_search_result() -> int:
     if conversation.count("setFocusMiss(false)") != 2:
         raise ValueError(f"{CONVERSATION} 的定位说明只在命中或关闭时清除")
     checked += 2
-    if 'onBranch?: boolean;' not in _read(PROTOCOL):
+    if 'onBranch?: boolean;' not in protocol:
         raise ValueError(f"{PROTOCOL} 的搜索命中缺少可选 onBranch")
     for fragment in (".focus-miss-notice {", ".search-branch-badge {"):
-        if _read(CSS).count(fragment) != 1:
+        if css.count(fragment) != 1:
             raise ValueError(f"{CSS} 缺少提示行或标签样式：{fragment}")
     checked += 3
     return checked
 
 
+def _check_behaviors() -> int:
+    source = _read(RESULT)
+    with tempfile.TemporaryDirectory() as directory:
+        folder = Path(directory)
+        (folder / "threadSearchResult.ts").write_text(_rewrite(source), encoding="utf-8")
+        harness = folder / "harness.ts"
+        harness.write_text(NODE_SCRIPT, encoding="utf-8")
+        result = subprocess.run(
+            ["node", str(harness)], capture_output=True, text=True, timeout=120
+        )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise ValueError("搜索回执行为用例失败：" + detail[:400])
+    if f"PASS {EXPECTED}" not in result.stdout:
+        raise ValueError(f"搜索回执行为用例数量不符：{result.stdout.strip()}")
+    return EXPECTED
+
+
+def _check_documentation() -> int:
+    docs = _read(DOCS)
+    if "`check_thread_search_result.py`" not in docs:
+        raise ValueError(f"{DOCS} 缺少 check_thread_search_result.py")
+    if "共 81 项结构、35 项行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_thread_search_result.py 检查 81 项结构、35 项行为")
+    return 2
+
+
+def check_thread_search_result() -> tuple[int, int]:
+    structure = _check_structure(
+        _read(RESULT), _read(SESSION), _read(DIALOG), _read(SHELL),
+        _read(CONVERSATION), _read(PROTOCOL), _read(CSS),
+    )
+    behavior = _check_behaviors()
+    _check_documentation()
+    return structure, behavior
+
+
 def main() -> int:
     try:
-        checked = check_thread_search_result()
-    except ValueError as error:
+        structure, behavior = check_thread_search_result()
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"搜索回执核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"搜索回执一致：{checked} 项形状校验、上限与跨分支命中标记")
+    print(f"搜索回执一致：{structure} 项结构、{behavior} 项行为")
     return 0
 
 

@@ -489,7 +489,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_thread_search_result.py`
 
-`scripts/check_thread_search_result.py` 核对搜索回执的形状校验与上限：单条命中要求对象、非空且不超过 200 字符的 `threadId` / `itemId`、不超过 4096 字符的标题与片段（允许为空）、`user` / `agent` / `tool` 三种角色，角色先过白名单再断言类型；整体回执要求 `matches` 为数组且不超过 `SEARCH_MATCH_LIMIT = 200`，`truncated` 只接受布尔或缺省，任一命中非法时整体拒绝，`truncated` 只取显式 `true`。
+`scripts/check_thread_search_result.py` 核对搜索回执的形状校验与上限：单条命中要求对象、非空且不超过 200 字符的 `threadId` / `itemId`、不超过 4096 字符的标题与片段（允许为空）、`user` / `agent` / `tool` 三种角色，角色先过白名单再断言类型；整体回执要求 `matches` 为数组且不超过 `SEARCH_MATCH_LIMIT = 200`，`truncated` 只接受布尔或缺省，任一命中非法时整体拒绝，`truncated` 只取显式 `true`。行为侧把真实 `threadSearchResult.ts` 复制到临时目录、删去类型导入，由 Node 直接加载并核对条目判定、标识与文本上限、角色白名单、`onBranch` 显式布尔、回执上限与整包拒绝、输入不可变，共 81 项结构、35 项行为。
 
 同一脚本固定跨分支命中的标记：会话区按当前分支视图展示，`thread/search` 却覆盖完整日志，因此 `search_messages` 对含位置记录的会话额外按 `_active_entries` 投影出当前分支的条目集合，逐条给出 `onBranch`（投影失败时省略字段，搜索结果照常返回）；客户端只接受显式布尔，弹窗仅在 `onBranch === false` 时显示「其他分支」标签，并把该事实随打开动作传给会话区。会话区在历史未读尽时继续等待定位，列表就绪仍找不到才显示说明（已确认在其他分支 / 可能在其他分支或尚未载入），不再静默放弃；说明可关闭，关闭时才清除定位意图。检查是源码字面量扫描，不执行搜索或渲染。
 
