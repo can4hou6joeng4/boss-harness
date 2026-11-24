@@ -1,3 +1,8 @@
+## 0.2.0-rc.737 - 2026-11-24
+
+- 扩展 `scripts/check_queue_badge.py`（73 项结构、23 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `queueBadge.ts` 复制到临时目录、类型导入改写为内联声明，Node 直接加载 `queueBadgeOf` 与 `patchQueueBadge`，覆盖完整与截断投影、持久计数优先、本地增量、零待处理、非待处理状态忽略、增量非负与合计核对、未变化返回 `null` 与不可变补丁。[Issue #3599](https://github.com/can4hou6joeng4/boss-harness/issues/3599)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.737` 和 Python `0.2.0rc737`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.736 - 2026-11-24
 
 - 扩展 `scripts/check_attempt_token.py`（21 项结构、12 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `attemptToken.ts` 复制到临时目录，Node 直接加载并核对起步值、连续推进、返回最新标记、严格比较、作废、实例隔离与不回退。[Issue #3597](https://github.com/can4hou6joeng4/boss-harness/issues/3597)
