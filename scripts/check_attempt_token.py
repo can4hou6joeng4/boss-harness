@@ -3,17 +3,68 @@
 
 弹窗等待异步结果期间可以被关闭、重新打开或发起新请求；旧请求返回时
 只在与当前标记一致时才允许写回。开始提交与关闭弹窗都推进标记，标记
-从 0 起算，`attemptCurrent` 做严格相等比较。这里固定这些语义，避免
-旧回调把提示、输入正文或忙碌态写回新界面。
+从 0 起算，`attemptCurrent` 做严格相等比较。结构侧固定这些语义；行为侧
+把真实模块复制到临时目录，由 Node 直接加载并驱动推进、作废与比较。
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+DOCS = "docs/TECHNICAL_REFERENCE.md"
 ATTEMPT = "apps/desktop/src/renderer/src/data/attemptToken.ts"
+
+EXPECTED = 12
+
+NODE_SCRIPT = """\
+import {
+  attemptCurrent,
+  createAttemptToken,
+  invalidateAttempts,
+  startAttempt,
+} from "./attemptToken.ts";
+
+let passed = 0;
+function expect(label: string, condition: boolean): void {
+  if (!condition) {
+    console.error(`FAIL ${label}`);
+    process.exit(1);
+  }
+  passed += 1;
+}
+
+const tracker = createAttemptToken();
+expect("新建标记为 0", tracker.current === 0);
+const first = startAttempt(tracker);
+expect("开始提交返回最新标记", first === 1 && tracker.current === 1);
+expect("当前标记可用", attemptCurrent(tracker, first) === true);
+expect("旧标记不可用", attemptCurrent(tracker, 0) === false);
+const second = startAttempt(tracker);
+expect(
+  "连续开始持续递增",
+  second === 2 && attemptCurrent(tracker, first) === false && attemptCurrent(tracker, second) === true,
+);
+invalidateAttempts(tracker);
+expect("作废推进标记", tracker.current === 3 && attemptCurrent(tracker, second) === false);
+const third = startAttempt(tracker);
+expect("作废后可继续提交", third === 4 && attemptCurrent(tracker, third) === true);
+expect("开始提交不重置标记", tracker.current === 4);
+const other = createAttemptToken();
+expect("新实例从 0 开始", other.current === 0 && attemptCurrent(other, 0) === true);
+expect("实例互不影响", startAttempt(other) === 1 && tracker.current === 4);
+const detached = { current: 7 };
+expect("外部标记按当前值比较", attemptCurrent(detached, 7) === true && attemptCurrent(detached, 6) === false);
+expect(
+  "严格相等不放宽",
+  attemptCurrent(tracker, 4) === true && attemptCurrent(tracker, 5) === false && attemptCurrent(tracker, 3) === false,
+);
+
+console.log(`PASS ${passed}`);
+"""
 
 FRAGMENTS = (
     "export type AttemptToken = { current: number };",
@@ -73,8 +124,7 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
-def check_attempt_token() -> int:
-    source = _read(ATTEMPT)
+def _check_structure(source: str) -> int:
     checked = 0
     checked += _expect(FRAGMENTS, source, ATTEMPT)
     for group in ORDERED:
@@ -89,13 +139,48 @@ def check_attempt_token() -> int:
     return checked + 3
 
 
+def _check_behaviors() -> int:
+    source = _read(ATTEMPT)
+    with tempfile.TemporaryDirectory() as directory:
+        folder = Path(directory)
+        (folder / "attemptToken.ts").write_text(source, encoding="utf-8")
+        harness = folder / "harness.ts"
+        harness.write_text(NODE_SCRIPT, encoding="utf-8")
+        result = subprocess.run(
+            ["node", str(harness)], capture_output=True, text=True, timeout=120
+        )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise ValueError("在途标记行为用例失败：" + detail[:400])
+    if f"PASS {EXPECTED}" not in result.stdout:
+        raise ValueError(f"在途标记行为用例数量不符：{result.stdout.strip()}")
+    return EXPECTED
+
+
+def _check_documentation() -> int:
+    docs = _read(DOCS)
+    if "`check_attempt_token.py`" not in docs:
+        raise ValueError(f"{DOCS} 缺少 check_attempt_token.py")
+    if "共 21 项结构、12 项行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_attempt_token.py 检查 21 项结构、12 项行为")
+    return 2
+
+
+def check_attempt_token() -> tuple[int, int]:
+    source = _read(ATTEMPT)
+    structure = _check_structure(source)
+    behavior = _check_behaviors()
+    _check_documentation()
+    return structure, behavior
+
+
 def main() -> int:
     try:
-        checked = check_attempt_token()
-    except ValueError as error:
+        structure, behavior = check_attempt_token()
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"在途标记核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"在途标记一致：{checked} 项推进、作废与比较")
+    print(f"在途标记一致：{structure} 项结构、{behavior} 项行为")
     return 0
 
 

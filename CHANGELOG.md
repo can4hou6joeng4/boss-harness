@@ -1,3 +1,8 @@
+## 0.2.0-rc.736 - 2026-11-24
+
+- 扩展 `scripts/check_attempt_token.py`（21 项结构、12 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `attemptToken.ts` 复制到临时目录，Node 直接加载并核对起步值、连续推进、返回最新标记、严格比较、作废、实例隔离与不回退。[Issue #3597](https://github.com/can4hou6joeng4/boss-harness/issues/3597)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.736` 和 Python `0.2.0rc736`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.735 - 2026-11-24
 
 - 扩展 `scripts/check_preferences_file.py`（82 项结构、33 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `preferencesFile.ts` 与 `uiStorage.ts` 复制到临时目录、改写相对导入，Node 加载并核对空文件、超限、非法 JSON、版本与作用域、五类键的合法/非法/缺省、未知键忽略、旧作用域兼容、任一非法键整体拒绝与导出往返。[Issue #3595](https://github.com/can4hou6joeng4/boss-harness/issues/3595)
