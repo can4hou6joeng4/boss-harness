@@ -1,3 +1,8 @@
+## 0.2.0-rc.749 - 2026-11-24
+
+- 扩展 `scripts/check_find_seed.py`（26 项结构、23 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `findSeed.ts` 与共享 `shared/index.ts` 复制到临时目录、改写导入，由 Node 直接加载并核对标签判定、可编辑属性、放行顺序、空白与多行边界、120/121 码点与 emoji 边界。[Issue #3623](https://github.com/can4hou6joeng4/boss-harness/issues/3623)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.749` 和 Python `0.2.0rc749`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.748 - 2026-11-24
 
 - 扩展 `scripts/check_find_status.py`（33 项结构、24 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `findStatus.ts` 复制到临时目录、改写导入，并从真实 `findHighlight.ts` 抽取 `FIND_HIGHLIGHT_LIMIT` 常量生成最小依赖，由 Node 直接加载并核对空查询、位次夹取与 1 起始显示、总数与上限取整、`capped` 严格判定、详情提示与零命中优先、输入不可变。[Issue #3621](https://github.com/can4hou6joeng4/boss-harness/issues/3621)
