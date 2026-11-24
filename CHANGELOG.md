@@ -1,3 +1,8 @@
+## 0.2.0-rc.741 - 2026-11-24
+
+- 扩展 `scripts/check_session_error_notice.py`（33 项结构、17 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `sessionErrorNotice.ts` 与共享 `shared/index.ts` 复制到临时目录、改写导入，Node 直接加载并核对参数形状、会话标识长度边界、正文类型、空白折叠、通用文案回退、600 码点截断、补充平面字符不被切开、带属性的数组参数与多余字段丢弃。[Issue #3607](https://github.com/can4hou6joeng4/boss-harness/issues/3607)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.741` 和 Python `0.2.0rc741`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.740 - 2026-11-24
 
 - 扩展 `scripts/check_queue_status.py`（44 项结构、29 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `queueStatus.ts` 与 `queueRetry.ts` 复制到临时目录、改写类型导入，Node 直接加载并核对五种通用标签、启动失败与四类暂停原因的优先级、关联去重标签、暂停说明三态、转向消息与未知原因文案。[Issue #3605](https://github.com/can4hou6joeng4/boss-harness/issues/3605)

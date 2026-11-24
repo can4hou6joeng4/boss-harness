@@ -593,7 +593,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_session_error_notice.py`
 
-`scripts/check_session_error_notice.py` 核对 `session/error` 通知：`threadId` 必须是非空且不超过 200 的字符串；`message` 缺省或 `null` 时回退通用文案，字符串折叠空白、按 600 码点用 `safeSlice` 截断并补省略号，其他类型整条丢弃；结果只含 `threadId` 与 `message`。反向断言不得直接按 UTF-16 码元切正文、空白正文必须回退通用文案、多余字段不得进入结果。检查是源码字面量扫描，不渲染 React 节点。
+`scripts/check_session_error_notice.py` 核对 `session/error` 通知：`threadId` 必须是非空且不超过 200 的字符串；`message` 缺省或 `null` 时回退通用文案，字符串折叠空白、按 600 码点用 `safeSlice` 截断并补省略号，其他类型整条丢弃；结果只含 `threadId` 与 `message`。反向断言不得直接按 UTF-16 码元切正文、空白正文必须回退通用文案、多余字段不得进入结果。行为侧把真实 `sessionErrorNotice.ts` 与共享 `shared/index.ts` 复制到临时目录、改写导入，由 Node 驱动参数形状、标识长度边界、正文类型、空白折叠、通用文案回退、码点截断与多余字段丢弃，共 33 项结构、17 项行为。
 
 ### `check_alias_migration.py`
 
