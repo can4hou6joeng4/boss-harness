@@ -1,3 +1,8 @@
+## 0.2.0-rc.727 - 2026-11-24
+
+- 新增 `scripts/check_platform_login.py`（20 项结构、37 项行为），运行时驱动真实 `usePlatformLogin.ts`：最小 hook 运行时桩支持重复渲染，`window.boss` 可控制订阅、回执与拒绝，覆盖初始读取、非法回执、广播、迟到回执丢弃、卸载退订、`open` / `cancel` 的锁与失败回落、`show` / `dismiss` / `visibleIn` 分支。[Issue #3579](https://github.com/can4hou6joeng4/boss-harness/issues/3579)
+- 从 `check_source_coverage.py` 清空豁免清单：三个渲染层模块均已由运行时检查覆盖，豁免机制保留但当前为空。工作流新增 `Verify platform login panel` 步骤，技术参考同步；脚本总数更新为 288。源码候选更新为 npm `0.2.0-rc.727` 和 Python `0.2.0rc727`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.726 - 2026-11-24
 
 - 新增 `scripts/check_local_now.py`（11 项结构、11 项行为），运行时驱动真实 `useLocalNow.ts`：`react` 以记录 effect / dispatch 的桩替换并模拟 `window.setInterval`，覆盖唯一 15 秒定时器、首次渲染不刷新、回调触发 dispatch、清理停止、`active=false` 不注册、每次渲染重新取时间。[Issue #3577](https://github.com/can4hou6joeng4/boss-harness/issues/3577)

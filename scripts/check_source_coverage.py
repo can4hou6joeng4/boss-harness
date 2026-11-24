@@ -4,8 +4,8 @@
 `scripts/check_*.py` 为桌面主进程、预加载、渲染层、共享包与内核模块提供回归保护。
 新增模块时若没有任何检查提及它，覆盖缺口不会出现在 CI 信号里。这里扫描 `.ts` 与
 `.py` 模块（排除测试、声明与 `__init__.py`），要求模块名（Python 也可用模块名）被
-至少一个检查脚本引用；确实无法在 Node 中直接加载的 React hooks 列入显式豁免，
-且豁免项必须真实存在，避免名单陈旧。
+至少一个检查脚本引用；豁免清单当前为空：渲染层模块都已能在 Node 中以桩驱动；
+保留该机制并要求豁免项必须真实存在，避免名单陈旧。
 """
 
 from __future__ import annotations
@@ -25,9 +25,7 @@ ROOTS = (
     "packages/app-client/src",
 )
 
-EXEMPT = frozenset({
-    "apps/desktop/src/renderer/src/data/usePlatformLogin.ts",
-})
+EXEMPT = frozenset()
 
 MODULE_GLOB = "*.ts"
 EXCLUDED_SUFFIXES = (".test.ts", ".d.ts")
@@ -171,7 +169,7 @@ def _check_documentation() -> int:
 
 FRAGMENTS = (
     "ROOTS = (",
-    "EXEMPT = frozenset({",
+    "EXEMPT = frozenset(",
     'MODULE_GLOB = "*.ts"',
     'EXCLUDED_SUFFIXES = (".test.ts", ".d.ts")',
     "def scan_modules(root: Path) -> list[str]:",

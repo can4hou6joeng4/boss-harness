@@ -1,0 +1,533 @@
+#!/usr/bin/env python3
+"""运行时核对登录面板状态机：广播、回执、锁与按会话可见性。
+
+`usePlatformLogin.ts` 把主进程广播、初始状态读取、`open` / `cancel` 回执与
+界面可见性编排在一起。这里把真实模块复制到临时目录，`react` 替换为可重复
+渲染的最小 hook 运行时桩，`./harnessBridge` 替换为桩，`window.boss`、
+`requestAnimationFrame` 与 `document` 用可控桩，由 Node 直接加载真实模块，
+核对迟到回执丢弃、卸载退订、`open` / `cancel` 的锁与失败回落，以及
+`show` / `visibleIn` 的分支。
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+DOCS = "docs/TECHNICAL_REFERENCE.md"
+SOURCE = "apps/desktop/src/renderer/src/data/usePlatformLogin.ts"
+STATE = "apps/desktop/src/renderer/src/data/platformLoginState.ts"
+
+EXPECTED = 37
+
+REACT_STUB = """\
+export interface Slot {
+  value: unknown;
+}
+
+export const slots: Slot[] = [];
+export let effectCleanup: (() => void) | undefined;
+let renderIndex = 0;
+let mounted = false;
+
+export function beginRender(): void {
+  renderIndex = 0;
+}
+
+export function reset(): void {
+  slots.length = 0;
+  renderIndex = 0;
+  mounted = false;
+  effectCleanup = undefined;
+}
+
+export function useState<T>(init: T | (() => T)): [T, (next: T | ((prev: T) => T)) => void] {
+  const index = renderIndex++;
+  if (!slots[index]) {
+    slots[index] = { value: typeof init === "function" ? (init as () => T)() : init };
+  }
+  const slot = slots[index];
+  const set = (next: T | ((prev: T) => T)) => {
+    slot.value = typeof next === "function" ? (next as (prev: T) => T)(slot.value) : next;
+  };
+  return [slot.value as T, set];
+}
+
+export function useRef<T>(initial: T): { current: T } {
+  const index = renderIndex++;
+  if (!slots[index]) {
+    slots[index] = { value: { current: initial } };
+  }
+  return slots[index].value as { current: T };
+}
+
+export function useEffect(run: () => void | (() => void)): void {
+  if (mounted) return;
+  mounted = true;
+  const cleanup = run();
+  effectCleanup = typeof cleanup === "function" ? cleanup : undefined;
+}
+"""
+
+BRIDGE_STUB = """\
+export function harnessErrorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+"""
+
+NODE_SCRIPT = """\
+import { usePlatformLogin } from "./usePlatformLogin.ts";
+import { beginRender, effectCleanup, reset } from "./reactStub.ts";
+
+interface StatusLike {
+  state: string;
+  summary: string;
+  threadId?: string;
+  browserId?: string;
+}
+interface View {
+  status: StatusLike;
+  panelThreadId: string | null;
+  choiceThreadId: string | null;
+  busy: boolean;
+  error: { threadId: string; message: string } | null;
+  expanded: boolean;
+  open: (threadId: string) => Promise<void>;
+  cancel: (threadId: string) => Promise<void>;
+  show: (threadId: string) => void;
+  dismiss: (threadId: string) => void;
+  toggleExpanded: () => void;
+  hideForLater: () => void;
+  closePanel: () => void;
+  visibleIn: (threadId: string) => boolean;
+}
+interface Deferred {
+  promise: Promise<unknown>;
+  resolve: (value: unknown) => void;
+  reject: (reason?: unknown) => void;
+}
+interface BossHandles {
+  calls: Array<{ method: string; payload?: unknown }>;
+  pending: Deferred[];
+  emit: (raw: unknown) => void;
+  unsubscribeCount: () => number;
+}
+
+let passed = 0;
+function expect(label: string, condition: boolean): void {
+  if (!condition) {
+    console.error(`FAIL ${label}`);
+    process.exit(1);
+  }
+  passed += 1;
+}
+
+function deferred(): Deferred {
+  let resolve!: (value: unknown) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<unknown>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+let focused = 0;
+(globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame =
+  (callback: () => void) => { callback(); };
+(globalThis as { document?: unknown }).document = {
+  querySelector: () => ({ focus: () => { focused += 1; } }),
+};
+
+function installBoss(): BossHandles {
+  const calls: Array<{ method: string; payload?: unknown }> = [];
+  const pending: Deferred[] = [];
+  let handler: ((raw: unknown) => void) | undefined;
+  let unsubscribed = 0;
+  (globalThis as { window?: unknown }).window = {
+    boss: {
+      onPlatformLogin(callback: (raw: unknown) => void) {
+        handler = callback;
+        return () => { unsubscribed += 1; };
+      },
+      platformLogin(method: string, payload?: unknown) {
+        calls.push({ method, payload });
+        const next = deferred();
+        pending.push(next);
+        return next.promise;
+      },
+    },
+  };
+  return {
+    calls,
+    pending,
+    emit: (raw: unknown) => { handler?.(raw); },
+    unsubscribeCount: () => unsubscribed,
+  };
+}
+
+const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+const render = (): View => { beginRender(); return usePlatformLogin() as unknown as View; };
+const unmount = (): void => { effectCleanup?.(); };
+
+async function run(): Promise<void> {
+  reset();
+  (globalThis as { window?: unknown }).window = {};
+  let view = render();
+  expect("无 boss 时保持初始空闲", view.status.state === "idle" && view.status.summary === "尚未开始登录");
+  expect("无 boss 时面板与选择为空", view.panelThreadId === null && view.choiceThreadId === null);
+  expect("无 boss 时默认字段", view.busy === false && view.error === null && view.expanded === false);
+
+  reset();
+  let boss = installBoss();
+  view = render();
+  expect("挂载后订阅并读取一次状态", boss.calls.length === 1 && boss.calls[0].method === "status");
+  boss.pending[0].resolve({ state: "idle", summary: "读取成功" });
+  await flush();
+  view = render();
+  expect("初始回执更新状态", view.status.summary === "读取成功");
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.pending[0].resolve({ state: "未知状态" });
+  await flush();
+  view = render();
+  view.show("t1");
+  view = render();
+  expect(
+    "非法初始回执经展示提示",
+    view.error !== null && view.error.message.includes("无法读取上一次登录状态：回执无法识别") && view.error.message.includes("若此前已发起过登录"),
+  );
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.pending[0].reject(new Error("boom"));
+  await flush();
+  view = render();
+  view.show("t1");
+  view = render();
+  expect(
+    "初始读取失败经展示提示",
+    view.error !== null && view.error.message.includes("无法读取上一次登录状态：boom"),
+  );
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.emit({ state: "waiting", summary: "等待扫码", threadId: "t1", browserId: "b1" });
+  view = render();
+  expect("合法广播更新状态", view.status.threadId === "t1" && view.status.summary === "等待扫码");
+  boss.emit({ state: "无此状态" });
+  view = render();
+  expect("非法广播保留上一次状态", view.status.threadId === "t1" && view.status.summary === "等待扫码");
+  view.show("t1");
+  view = render();
+  expect("非法广播经展示提示", view.error !== null && view.error.message.includes("登录状态更新无法识别"));
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.emit({ state: "waiting", summary: "等待扫码", threadId: "t1" });
+  boss.pending[0].resolve({ state: "idle", summary: "旧回执" });
+  await flush();
+  view = render();
+  expect("迟到的初始回执被丢弃", view.status.summary === "等待扫码");
+
+  reset();
+  boss = installBoss();
+  view = render();
+  unmount();
+  expect("卸载时退订", boss.unsubscribeCount() === 1);
+  boss.emit({ state: "waiting", summary: "卸载后", threadId: "t1" });
+  view = render();
+  expect("卸载后广播不再更新状态", view.status.state === "idle");
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.emit({ state: "waiting", summary: "等待扫码", threadId: "t1" });
+  view = render();
+  view.show("t1");
+  view = render();
+  expect("show 对活跃会话打开面板", view.panelThreadId === "t1" && view.choiceThreadId === null);
+  view.show("t2");
+  view = render();
+  expect("show 对其他会话进入选择", view.choiceThreadId === "t2" && view.panelThreadId === "t1");
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.emit({ state: "waiting", summary: "等待扫码", threadId: "t1" });
+  view = render();
+  view.show("t1");
+  view = render();
+  view.dismiss("t1");
+  view = render();
+  expect("dismiss 后不再可见", view.visibleIn("t1") === false && view.panelThreadId === null);
+  view.show("t1");
+  view = render();
+  expect("show 清除该会话的隐藏记录", view.visibleIn("t1") === true);
+
+  reset();
+  boss = installBoss();
+  view = render();
+  const opening = view.open("t1");
+  view = render();
+  expect("open 立即持锁并打开面板", view.busy === true && view.panelThreadId === "t1" && boss.calls.length === 2);
+  const duplicate = view.open("t1");
+  expect("open 期间重复调用被忽略", boss.calls.length === 2);
+  boss.pending[1].resolve({ state: "waiting", summary: "等待扫码", threadId: "t1", browserId: "b1" });
+  await opening;
+  await duplicate;
+  view = render();
+  expect("open 成功更新状态并解锁", view.status.summary === "等待扫码" && view.busy === false);
+
+  reset();
+  boss = installBoss();
+  view = render();
+  const rejected = view.open("t1");
+  boss.pending[1].resolve({ state: "无此状态" });
+  await rejected;
+  view = render();
+  expect(
+    "open 非法回执回落失败态",
+    view.status.state === "failed" && view.panelThreadId === null && view.error !== null
+      && view.error.message.includes("无法启动登录：登录状态回执无法识别"),
+  );
+
+  reset();
+  boss = installBoss();
+  view = render();
+  const failing = view.open("t1");
+  boss.pending[1].reject(new Error("boom"));
+  await failing;
+  view = render();
+  expect(
+    "open 失败保留可读原因",
+    view.status.state === "failed" && view.error !== null && view.error.message.includes("无法启动登录：boom"),
+  );
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.emit({ state: "waiting", summary: "等待扫码", threadId: "t1", browserId: "b1" });
+  view = render();
+  const active = view.open("t1");
+  await active;
+  view = render();
+  expect("已活跃会话不重复发起登录", boss.calls.length === 1 && view.panelThreadId === "t1");
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.emit({ state: "waiting", summary: "等待扫码", threadId: "t1" });
+  view = render();
+  await view.cancel("t1");
+  expect("缺少 browserId 时不取消", boss.calls.length === 1);
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.emit({ state: "waiting", summary: "等待扫码", threadId: "t1", browserId: "b1" });
+  view = render();
+  view.show("t1");
+  view = render();
+  const beforeCancelFocus = focused;
+  const cancelling = view.cancel("t1");
+  view = render();
+  expect("cancel 立即持锁", view.busy === true);
+  boss.pending[1].resolve({ state: "cancelled", summary: "已取消" });
+  await cancelling;
+  view = render();
+  expect("cancel 成功更新并清面板", view.status.state === "cancelled" && view.panelThreadId === null && view.busy === false);
+  expect("cancel 成功回到输入框", focused === beforeCancelFocus + 1);
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.emit({ state: "waiting", summary: "等待扫码", threadId: "t1", browserId: "b1" });
+  view = render();
+  const badCancel = view.cancel("t1");
+  boss.pending[1].resolve({ state: "无此状态" });
+  await badCancel;
+  view = render();
+  expect(
+    "cancel 非法回执提示未确认",
+    view.error !== null && view.error.message.includes("取消结果未确认：取消回执无法识别"),
+  );
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.emit({ state: "waiting", summary: "等待扫码", threadId: "t1", browserId: "b1" });
+  view = render();
+  const failedCancel = view.cancel("t1");
+  boss.pending[1].reject(new Error("boom"));
+  await failedCancel;
+  view = render();
+  expect(
+    "cancel 失败保留可读原因",
+    view.error !== null && view.error.message.includes("取消结果未确认：boom"),
+  );
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.emit({ state: "idle", summary: "空闲" });
+  view = render();
+  expect("空闲状态不可见", view.visibleIn("t1") === false);
+  view.show("t1");
+  view = render();
+  expect("选择中的会话可见", view.visibleIn("t1") === true);
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.pending[0].resolve({ state: "无此状态" });
+  await flush();
+  view = render();
+  view.show("t2");
+  view = render();
+  expect("有错误的会话可见", view.visibleIn("t2") === true && view.visibleIn("t1") === false);
+
+  reset();
+  boss = installBoss();
+  view = render();
+  expect("展开默认关闭", view.expanded === false);
+  view.toggleExpanded();
+  view = render();
+  expect("展开可切换", view.expanded === true);
+  view.toggleExpanded();
+  view = render();
+  expect("展开可关闭", view.expanded === false);
+
+  reset();
+  boss = installBoss();
+  view = render();
+  boss.emit({ state: "waiting", summary: "等待扫码", threadId: "t1" });
+  view = render();
+  view.show("t1");
+  view = render();
+  view.hideForLater();
+  view = render();
+  expect("稍后处理关闭面板", view.panelThreadId === null);
+  view.show("t1");
+  view = render();
+  const beforeClose = focused;
+  view.closePanel();
+  view = render();
+  expect("关闭面板并聚焦", view.panelThreadId === null && focused === beforeClose + 1);
+
+  console.log(`PASS ${passed}`);
+}
+
+await run();
+"""
+
+FRAGMENTS = (
+    'const [status, setStatus] = useState<PlatformLoginStatus>({ state: "idle", summary: "尚未开始登录" });',
+    "const flight = useRef(false), revision = useRef(0);",
+    "if (!window.boss) return;",
+    "const initial = revision.current;",
+    "const unsubscribe = window.boss.onPlatformLogin(raw => {",
+    "revision.current += 1;",
+    "if (!alive) return;",
+    "setStatusError(\"登录状态更新无法识别，已保留上一次有效状态；请重新打开官方页面，或重新连接后再试。\");",
+    "if (!alive || initial !== revision.current) return;",
+    "return () => { alive = false; unsubscribe(); };",
+    "const show = (threadId: string) => {",
+    "const open = async (threadId: string) => {",
+    "if (!window.boss || flight.current) return;",
+    "if (status.threadId === threadId && loginActive(status)) return;",
+    "setStatus(previous => fallbackLoginStatus(previous, threadId));",
+    "const cancel = async (threadId: string) => {",
+    "if (!window.boss || !status.browserId || status.threadId !== threadId || flight.current) return;",
+    "visibleIn: (threadId: string) => choiceThreadId === threadId || error?.threadId === threadId || (!dismissed.includes(threadId) && status.threadId === threadId && status.state !== \"idle\"),",
+)
+
+
+def _read(relative: str) -> str:
+    return (ROOT / relative).read_text(encoding="utf-8")
+
+
+def _expect(fragments: tuple[str, ...], text: str, label: str) -> int:
+    missing = [fragment for fragment in fragments if fragment not in text]
+    if missing:
+        raise ValueError(f"{label} 缺少：" + "、".join(missing))
+    return len(fragments)
+
+
+def _rewrite(source: str) -> str:
+    rewritten = source.replace('from "react"', 'from "./reactStub.ts"')
+    rewritten = rewritten.replace('from "./harnessBridge"', 'from "./harnessBridge.ts"')
+    rewritten = rewritten.replace('from "./platformLoginState"', 'from "./platformLoginState.ts"')
+    for expected in ("./reactStub.ts", "./harnessBridge.ts", "./platformLoginState.ts"):
+        if f'from "{expected}"' not in rewritten:
+            raise ValueError(f"{SOURCE} 的导入结构已变化，需要更新桩")
+    return rewritten
+
+
+def _check_source(source: str) -> int:
+    checked = _expect(FRAGMENTS, source, SOURCE)
+    if source.index("revision.current += 1;") > source.index("if (!alive) return;"):
+        raise ValueError(f"{SOURCE} 必须先自增 revision 再判断存活")
+    if source.index("flight.current = true; setBusy(true);") > source.index(
+        'window.boss.platformLogin("open"'
+    ):
+        raise ValueError(f"{SOURCE} 必须先持锁再发起登录")
+    return checked + 2
+
+
+def _check_behaviors() -> int:
+    source = _read(SOURCE)
+    state = _read(STATE)
+    with tempfile.TemporaryDirectory() as directory:
+        folder = Path(directory)
+        (folder / "usePlatformLogin.ts").write_text(_rewrite(source), encoding="utf-8")
+        (folder / "platformLoginState.ts").write_text(state, encoding="utf-8")
+        (folder / "reactStub.ts").write_text(REACT_STUB, encoding="utf-8")
+        (folder / "harnessBridge.ts").write_text(BRIDGE_STUB, encoding="utf-8")
+        harness = folder / "harness.ts"
+        harness.write_text(NODE_SCRIPT, encoding="utf-8")
+        result = subprocess.run(
+            ["node", str(harness)], capture_output=True, text=True, timeout=120
+        )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise ValueError("登录面板行为用例失败：" + detail[:400])
+    if f"PASS {EXPECTED}" not in result.stdout:
+        raise ValueError(f"登录面板行为用例数量不符：{result.stdout.strip()}")
+    return EXPECTED
+
+
+def _check_documentation() -> int:
+    docs = _read(DOCS)
+    if "`check_platform_login.py`" not in docs:
+        raise ValueError(f"{DOCS} 缺少 check_platform_login.py")
+    if "共 20 项结构、37 项行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_platform_login.py 检查 20 项结构、37 项行为")
+    return 2
+
+
+def check_platform_login() -> tuple[int, int]:
+    source = _read(SOURCE)
+    structure = _check_source(source)
+    behavior = _check_behaviors()
+    _check_documentation()
+    return structure, behavior
+
+
+def main() -> int:
+    try:
+        structure, behavior = check_platform_login()
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        print(f"登录面板状态机核对失败，{error}", file=sys.stderr)
+        return 2
+    print(f"登录面板状态机一致：{structure} 项结构、{behavior} 项行为")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
