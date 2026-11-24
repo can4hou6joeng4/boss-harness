@@ -5,10 +5,14 @@
 工具调用参数装配、用量上报与错误分类。这里固定停止原因映射、可重试状态、
 凭据去空白与请求头过滤、流内事件顺序校验、签名总量上限、工具标识上限、
 「已产出内容后不再重试」以及错误文本不回显私有载荷等边界。
+`with_cache_breakpoints` 为回合请求加提示缓存断点：只在系统提示与最后一条 user
+消息的末块各放一处，返回副本而不改入参，不标记工具定义、更早的消息与空白内容，
+也不使用顶层缓存字段或更长的保留时间。
 """
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 import sys
 import types
@@ -37,6 +41,7 @@ from boss_harness.models.anthropic_provider import (  # noqa: E402
     _status_retryable,
     to_sdk_messages,
     tool_result_payload,
+    with_cache_breakpoints,
 )
 from boss_harness.models.continuation import anthropic_prefix_digest  # noqa: E402
 from boss_harness.models.types import (  # noqa: E402
@@ -95,6 +100,19 @@ TRANSFORM_FRAGMENTS = (
     "if (prefix_digest is not None and block.prefix_digest is not None",
     "if block.redacted_data is not None:",
     "elif block.signature is not None:",
+)
+CACHE_FRAGMENTS = (
+    "def with_cache_breakpoints(kwargs: Mapping[str, object]) -> dict[str, object]:",
+    "return isinstance(value, str) and bool(value.strip())",
+    "marked = dict(kwargs)",
+    'marked["system"] = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]',
+    "if not isinstance(messages, list) or not messages:\n        return marked",
+    'if not isinstance(last, dict) or last.get("role") != "user":\n        return marked',
+    'blocks: list[object] = [{"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}]',
+    'and content[-1].get("type") == "tool_result" and _has_text(content[-1].get("content"))):',
+    'blocks = [*content[:-1], {**content[-1], "cache_control": {"type": "ephemeral"}}]',
+    'marked["messages"] = [*messages[:-1], {**last, "content": blocks}]',
+    "self.prompt_cache = config.prompt_cache",
 )
 CREDENTIAL_FRAGMENTS = (
     'id = "anthropic"',
@@ -342,11 +360,103 @@ def _behavior_checks() -> int:
     return checked
 
 
+_EPHEMERAL = {"type": "ephemeral"}
+
+
+def _cache_checks() -> int:
+    checked = 0
+
+    def expect(kwargs: dict, expected: dict, label: str) -> None:
+        nonlocal checked
+        try:
+            actual = with_cache_breakpoints(kwargs)
+        except Exception as error:  # noqa: BLE001 - 调用点在流开始之前，任何输入形状都不应抛出
+            raise ValueError(f"缓存断点 {label}：抛出 {type(error).__name__}") from None
+        _expect_value(actual, expected, f"缓存断点 {label}")
+        checked += 1
+
+    def user(content: object) -> dict:
+        return {"role": "user", "content": content}
+
+    def result(call_id: str, content: object, **extra: object) -> dict:
+        return {"type": "tool_result", "tool_use_id": call_id, "content": content, **extra}
+
+    system_block = [{"type": "text", "text": "sys", "cache_control": _EPHEMERAL}]
+    hi_block = [{"type": "text", "text": "hi", "cache_control": _EPHEMERAL}]
+    assistant = {"role": "assistant", "content": [{"type": "text", "text": "a"}]}
+    # 系统提示与字符串 user 正文：非空白字符串各转成带断点的单文本块，两处互不依赖。
+    expect({"system": "sys", "messages": []}, {"system": system_block, "messages": []},
+           "系统提示转成带断点的文本块")
+    expect({"system": "sys", "messages": [user("hi")]},
+           {"system": system_block, "messages": [user(hi_block)]}, "系统提示与字符串正文各带一处断点")
+    # 空白、缺失与已是块列表的系统提示保持原样，消息上的断点不受影响。
+    for blank in ("", "  \n"):
+        expect({"system": blank, "messages": [user("hi")]},
+               {"system": blank, "messages": [user(hi_block)]}, f"空白系统提示保持原样 {blank!r}")
+    expect({"messages": [user("hi")]}, {"messages": [user(hi_block)]}, "缺少系统提示时不新增")
+    listed = [{"type": "text", "text": "sys"}]
+    expect({"system": listed, "messages": []}, {"system": listed, "messages": []},
+           "已是块列表的系统提示不再包裹")
+    # 空白正文不能带断点。
+    for blank in ("", " \n "):
+        expect({"system": "sys", "messages": [user(blank)]},
+               {"system": system_block, "messages": [user(blank)]}, f"空白正文不标记 {blank!r}")
+    # 工具结果列表：只标记末块，保留错误标记，前面的块不带断点。
+    expect({"system": "sys", "messages": [user([result("t1", "ok"), result("t2", "bad", is_error=True)])]},
+           {"system": system_block,
+            "messages": [user([result("t1", "ok"),
+                               result("t2", "bad", is_error=True, cache_control=_EPHEMERAL)])]},
+           "工具结果只标记末块")
+    for label, content in (("内容为空", ""), ("内容为空白", " \n"),
+                           ("内容不是字符串", [{"type": "text", "text": "x"}])):
+        blocks = [result("t1", "ok"), result("t2", content)]
+        expect({"system": "sys", "messages": [user(blocks)]},
+               {"system": system_block, "messages": [user(blocks)]}, f"工具结果{label}时不标记")
+    for label, block in (("文本块", {"type": "text", "text": "x"}),
+                         ("其他带内容的块", {"type": "mcp_tool_result", "tool_use_id": "t9", "content": "x"})):
+        blocks = [result("t1", "ok"), block]
+        expect({"system": "sys", "messages": [user(blocks)]},
+               {"system": system_block, "messages": [user(blocks)]}, f"末块是{label}时不标记")
+    expect({"system": "sys", "messages": [user([])]},
+           {"system": system_block, "messages": [user([])]}, "空内容列表不标记")
+    # 位置：只看最后一条消息；末条不是 user 时不回头标记更早的 user 消息。
+    expect({"system": "sys", "messages": [user("a"), assistant, user("hi")]},
+           {"system": system_block, "messages": [user("a"), assistant, user(hi_block)]},
+           "只标记最后一条 user 消息")
+    # 末条用字符串正文：只有角色判断能拦住它，换成块列表会被形状判断顺带拦下。
+    reply = {"role": "assistant", "content": "a"}
+    expect({"system": "sys", "messages": [user("hi"), reply]},
+           {"system": system_block, "messages": [user("hi"), reply]}, "末条是 assistant 时不标记消息")
+    # 其余参数原样保留，工具定义不带断点；返回副本，入参与其中的消息、内容块都不被修改，
+    # 调用方先算好的前缀摘要因此仍然对应入参。
+    tools = [{"name": "boss_search", "description": "搜索", "input_schema": {"type": "object"}}]
+    full = {"model": "m1", "max_tokens": 64, "system": "sys", "tools": tools,
+            "thinking": {"type": "adaptive"}, "output_config": {"effort": "high"},
+            "messages": [user("a"), assistant, user([result("t1", "ok")])]}
+    snapshot = copy.deepcopy(full)
+    marked = with_cache_breakpoints(full)
+    rest = ("model", "max_tokens", "thinking", "output_config")
+    _expect_value({key: marked.get(key) for key in rest}, {key: snapshot[key] for key in rest},
+                  "缓存断点 其余参数原样保留")
+    checked += 1
+    _expect_value(marked.get("tools"), snapshot["tools"], "缓存断点 工具定义不带断点")
+    checked += 1
+    _expect_value(full, snapshot, "缓存断点 工具结果的入参不被修改")
+    checked += 1
+    text_only = {"system": "sys", "messages": [user("hi")]}
+    text_snapshot = copy.deepcopy(text_only)
+    with_cache_breakpoints(text_only)
+    _expect_value(text_only, text_snapshot, "缓存断点 字符串正文的入参不被修改")
+    checked += 1
+    return checked
+
+
 def check_anthropic_provider() -> int:
     module = _read(MODULE)
     checked = 0
     for fragments in (CONSTANT_FRAGMENTS, STATUS_FRAGMENTS, MESSAGE_FRAGMENTS,
-                      TRANSFORM_FRAGMENTS, CREDENTIAL_FRAGMENTS, REQUEST_FRAGMENTS, STREAM_ONCE_FRAGMENTS):
+                      TRANSFORM_FRAGMENTS, CACHE_FRAGMENTS, CREDENTIAL_FRAGMENTS, REQUEST_FRAGMENTS,
+                      STREAM_ONCE_FRAGMENTS):
         checked += _expect(fragments, module, MODULE)
     # 签名预算必须同时限制单块与总量。
     if "MAX_ANTHROPIC_SIGNATURE_BYTES" not in module or "MAX_ANTHROPIC_SIGNATURE_TOTAL_BYTES" not in module:
@@ -358,7 +468,13 @@ def check_anthropic_provider() -> int:
         raise ValueError(f"{MODULE} 的中断兜底不得把异常抛给调用方")
     if "json.loads(raw)" in module:
         raise ValueError(f"{MODULE} 的参数解析必须拒绝非法常量")
+    # 顶层缓存字段在部分平台被拒；更长的保留时间会提高写入成本，不能悄悄启用。
+    if 'kwargs["cache_control"]' in module or 'marked["cache_control"]' in module:
+        raise ValueError(f"{MODULE} 不得使用顶层缓存字段")
+    if '"ttl"' in module:
+        raise ValueError(f"{MODULE} 不得设置缓存保留时间")
     checked += _behavior_checks()
+    checked += _cache_checks()
     return checked + 1
 
 
@@ -368,7 +484,7 @@ def main() -> int:
     except ValueError as error:
         print(f"Anthropic 适配器核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"Anthropic 适配器一致：{checked} 项续接、重试、凭据与翻译防护")
+    print(f"Anthropic 适配器一致：{checked} 项续接、重试、凭据、翻译与缓存断点防护")
     return 0
 
 

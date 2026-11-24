@@ -9,6 +9,7 @@ ModelConfigErrorCode = Literal[
     "MODEL_MAX_TOKENS_INVALID",
     "MODEL_REQUEST_TIMEOUT_INVALID",
     "MODEL_SERVER_FALLBACK_INVALID",
+    "MODEL_PROMPT_CACHE_INVALID",
     "MODEL_ENDPOINT_MISSING",
     "MODEL_CREDENTIAL_MISSING",
     "MODEL_CODEX_UNREADABLE",
@@ -34,6 +35,10 @@ _DIAGNOSTICS: dict[ModelConfigErrorCode, tuple[str, str]] = {
     "MODEL_SERVER_FALLBACK_INVALID": (
         "服务端回退开关的取值无法识别。",
         "将 BOSS_HARNESS_SERVER_FALLBACK 设为 1、true、yes、on 之一以开启，或 0、false、no、off 之一以关闭，或取消设置以按端点取默认值。",
+    ),
+    "MODEL_PROMPT_CACHE_INVALID": (
+        "提示缓存开关的取值无法识别。",
+        "将 BOSS_HARNESS_PROMPT_CACHE 设为 0、false、no、off 之一以关闭，或 1、true、yes、on 之一以开启，或取消设置以使用默认的开启。",
     ),
     "MODEL_ENDPOINT_MISSING": (
         "OpenAI 线路缺少端点。",

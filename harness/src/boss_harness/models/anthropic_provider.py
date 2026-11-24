@@ -4,6 +4,7 @@
 - 必须用官方 `anthropic` SDK，不手写 HTTP/SSE；
 - 默认模型 `claude-opus-5-5`，默认流式（大 max_tokens 非流式会被 SDK 拒绝）；
 - `thinking` 默认不显式传：Opus 5.5 省略即等价于 adaptive，也能避免网关拒绝未知字段；
+- 回合请求用块级 `cache_control` 断点请求提示缓存，不使用顶层自动缓存字段；
 - 生成开始后的失败一律转成 `error` 事件，不向上抛。
 """
 from __future__ import annotations
@@ -14,7 +15,7 @@ import os
 import sys
 import threading
 import weakref
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import replace
 from typing import Any
 
@@ -134,6 +135,41 @@ def to_sdk_messages(messages: Sequence[ChatMessage], *, system: str | None = Non
     return out
 
 
+def _has_text(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def with_cache_breakpoints(kwargs: Mapping[str, object]) -> dict[str, object]:
+    """返回带提示缓存断点的请求参数副本；入参与其中的消息、内容块都不被修改。
+
+    断点放在两处：系统提示（渲染顺序在工具定义之后，一并覆盖工具与系统提示），以及
+    最后一条 user 消息的最后一个内容块（覆盖到当前为止的对话历史）。`to_sdk_messages`
+    只产出两种 user 内容：字符串正文与工具结果列表，其余形状不标记消息。空白文本不能
+    带断点；工具结果只在内容是非空白字符串时标记，其他写法未经核对，按不标记处理。
+    断点不属于模型可见内容，调用方须先算完思考块续接用的前缀摘要再调用这里。
+    """
+    marked = dict(kwargs)
+    system = kwargs.get("system")
+    if _has_text(system):
+        marked["system"] = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+    messages = kwargs.get("messages")
+    if not isinstance(messages, list) or not messages:
+        return marked
+    last = messages[-1]
+    if not isinstance(last, dict) or last.get("role") != "user":
+        return marked
+    content = last.get("content")
+    if _has_text(content):
+        blocks: list[object] = [{"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}]
+    elif (isinstance(content, list) and content and isinstance(content[-1], dict)
+          and content[-1].get("type") == "tool_result" and _has_text(content[-1].get("content"))):
+        blocks = [*content[:-1], {**content[-1], "cache_control": {"type": "ephemeral"}}]
+    else:
+        return marked
+    marked["messages"] = [*messages[:-1], {**last, "content": blocks}]
+    return marked
+
+
 class _BorrowedCredentials:
     """Keep attempt-client cleanup from closing the provider's credential owner."""
 
@@ -161,6 +197,7 @@ class AnthropicProvider:
         self.effort = config.effort
         self.thinking = config.thinking
         self.server_side_fallback = config.server_side_fallback
+        self.prompt_cache = config.prompt_cache
         #: 这条线路的凭据来自环境变量，因此除了 config 里可能带的，还要把环境里的也纳入脱敏。
         self._secret = (
             config.api_key.get() if config.api_key else ""
@@ -366,6 +403,11 @@ class AnthropicProvider:
         self._last_error_retry_after = None
         kwargs = self._request_kwargs(request)
         prefix_digest = anthropic_prefix_digest(request.system, kwargs.get("tools"), kwargs["messages"])
+        # 只有回合请求会在后续请求里复用同一前缀；摘要、连接检查与来历不明的请求不标记。
+        # 必须排在前缀摘要之后：断点只加在交给 SDK 的副本上，不改变续接校验的输入。
+        task = request.task_context
+        if self.prompt_cache and task is not None and task.purpose == "turn":
+            kwargs = with_cache_breakpoints(kwargs)
         buffers: dict[int, list[str]] = {}
         signatures: dict[int, str] = {}
         signature_sizes: dict[int, int] = {}
