@@ -1,3 +1,8 @@
+## 0.2.0-rc.728 - 2026-11-24
+
+- 扩展 `scripts/check_model_switch.py`（43 项结构、18 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `modelSwitchState.ts` 复制到临时目录、`react` 以桩替换，Node 直接加载并核对实例缓存、令牌自增、在途拒绝、迟到回执、会话视图复用、匿名隔离、订阅退订与快照稳定性。[Issue #3581](https://github.com/can4hou6joeng4/boss-harness/issues/3581)
+- 技术参考小节同步；脚本总数保持 288。源码候选更新为 npm `0.2.0-rc.728` 和 Python `0.2.0rc728`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.727 - 2026-11-24
 
 - 新增 `scripts/check_platform_login.py`（20 项结构、37 项行为），运行时驱动真实 `usePlatformLogin.ts`：最小 hook 运行时桩支持重复渲染，`window.boss` 可控制订阅、回执与拒绝，覆盖初始读取、非法回执、广播、迟到回执丢弃、卸载退订、`open` / `cancel` 的锁与失败回落、`show` / `dismiss` / `visibleIn` 分支。[Issue #3579](https://github.com/can4hou6joeng4/boss-harness/issues/3579)

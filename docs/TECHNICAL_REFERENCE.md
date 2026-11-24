@@ -491,7 +491,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_model_switch.py`
 
-`scripts/check_model_switch.py` 核对模型线路切换的在途锁与回执令牌：`begin` 在 `pending` 时返回 `null`，否则令牌自增、清空错误并交出令牌；`settle` 只结算发起它的那次请求，令牌不符直接返回；`switches` 按 `threadId` 缓存实例，`useModelSwitch` 在未关联会话时使用组件本地实例，不把匿名预览的状态混进会话缓存。反向断言在途会话不得再次交出令牌、迟到回执不得越过令牌核对、实例必须复用。检查是源码字面量扫描，不执行设置请求或切换模型。
+`scripts/check_model_switch.py` 核对模型线路切换的在途锁与回执令牌：结构侧固定 `begin` 的在途拒绝、令牌自增与清空错误，`settle` 只结算发起时的那次请求，`switches` 按 `threadId` 缓存实例，匿名预览使用组件本地实例；反向断言在途会话不得再次交出令牌、迟到回执不得越过令牌核对、实例必须复用。行为侧把真实 `modelSwitchState.ts` 复制到临时目录、以 `react` 桩加载，由 Node 驱动 `modelSwitchFor` / `useModelSwitch` 核对令牌自增、迟到回执、实例缓存、订阅通知、退订与快照稳定性。共 43 项结构、18 项行为。
 
 ### `check_session_index_health.py`
 
