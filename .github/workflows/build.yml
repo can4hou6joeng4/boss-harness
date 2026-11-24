@@ -711,6 +711,8 @@ jobs:
         run: python scripts/check_queue_edit_drafts.py
       - name: Verify local now hook
         run: python scripts/check_local_now.py
+      - name: Verify platform login panel
+        run: python scripts/check_platform_login.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability
