@@ -1,3 +1,8 @@
+## 0.2.0-rc.743 - 2026-11-24
+
+- 扩展 `scripts/check_usage_view_keys.py`（18 项结构、14 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `usageViewKeys.ts` 复制到临时目录、改写类型导入，Node 直接加载并核对选项顺序、两个视图与四个方向键的映射、首尾环绕、非方向键与未知视图返回 `null`、大小写敏感、重复调用稳定性与选项只读。[Issue #3611](https://github.com/can4hou6joeng4/boss-harness/issues/3611)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.743` 和 Python `0.2.0rc743`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.742 - 2026-11-24
 
 - 扩展 `scripts/check_theme_preference.py`（24 项结构、20 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `themePreference.ts` 复制到临时目录，Node 直接加载并核对三态解析、空白与大小写折叠、内部空白不折叠、非字符串与未知值回退、深色合成分支、写回规范化与解析写回往返。[Issue #3609](https://github.com/can4hou6joeng4/boss-harness/issues/3609)
