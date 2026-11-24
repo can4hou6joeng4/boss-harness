@@ -561,7 +561,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_attempt_token.py`
 
-`scripts/check_attempt_token.py` 核对在途请求标记：标记初值为 0，`startAttempt` 与 `invalidateAttempts` 都递增，`startAttempt` 返回推进后的值；`attemptCurrent` 只做 `token === tracker.current` 的严格比较。反向断言开始与作废都必须推进标记、开始提交不得重置标记、比较不得放宽。检查是源码字面量扫描，不执行 TypeScript。
+`scripts/check_attempt_token.py` 核对在途请求标记（共 21 项结构、12 项行为）：标记初值为 0，`startAttempt` 与 `invalidateAttempts` 都递增，`startAttempt` 返回推进后的值；`attemptCurrent` 只做 `token === tracker.current` 的严格比较。反向断言开始与作废都必须推进标记、开始提交不得重置标记、比较不得放宽。行为侧把真实 `attemptToken.ts` 复制到临时目录，由 Node 直接加载，驱动起步值、连续推进、返回最新标记、严格比较、作废、实例隔离与不回退。
 
 ### `check_delete_thread_error.py`
 
