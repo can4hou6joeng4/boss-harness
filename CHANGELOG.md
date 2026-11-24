@@ -1,3 +1,8 @@
+## 0.2.0-rc.724 - 2026-11-24
+
+- 新增 `scripts/check_ci_script_coverage.py`（10 项结构、14 项行为），把「每个检查脚本都在 CI 命名步骤中执行」固化为不变量：解析 `build.yml` 的 `run: python scripts/check_*.py` 引用，与 `scripts/` 实际文件双向核对遗漏与悬空引用，并要求每个步骤带 `- name: Verify ...` 名称。[Issue #3573](https://github.com/can4hou6joeng4/boss-harness/issues/3573)
+- 工作流新增 `Verify CI script coverage` 步骤，技术参考索引与小节同步；脚本总数更新为 285。源码候选更新为 npm `0.2.0-rc.724` 和 Python `0.2.0rc724`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.723 - 2026-11-24
 
 - 扩展 `scripts/check_source_coverage.py`（12 项结构、14 项行为）：把内核 `harness/src/boss_harness` 下的 `.py` 模块纳入覆盖不变量（排除 `__init__.py`），Python 模块允许以模块名或文件名被引用；新增 Python 扫描过滤、模块名 / 文件名命中与未引用列出的行为用例。[Issue #3571](https://github.com/can4hou6joeng4/boss-harness/issues/3571)
