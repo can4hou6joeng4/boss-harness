@@ -1,3 +1,8 @@
+## 0.2.0-rc.753 - 2026-11-25
+
+- `scripts/check_session_index_health.py`（42 项结构、37 项行为）从源码字面量扫描改为运行时驱动：在临时状态目录中构造真实内核应用服务（`provider=none`，不联网），写入损坏的会话日志后读取 `config/read`，核对计数完整不随截断、id 按字典序截断到上限、不符合会话 id 形状的文件名不计入、删除后不残留；再把这些真实响应连同真实 `sessionIndexHealth.ts` 交给 Node，核对读出的计数、id 与文案三态，以及内核 `MAX_UNREADABLE_THREAD_IDS` 与桌面 `SESSION_INDEX_MAX_IDS` 一致。[Issue #3631](https://github.com/can4hou6joeng4/boss-harness/issues/3631)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.753` 和 Python `0.2.0rc753`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.752 - 2026-11-25
 
 - 修复草稿恢复的技能数量与内核每回合上限不一致：内核对 `skillIds` 的上限是 10，输入区技能菜单与首页技能并入也是 10，本地草稿存储却按 50 截断。草稿库里出现 11–50 项技能时（外部改写或内容损坏；界面入口本身不会超过 10 项）会被原样恢复，发送时被内核以 `-32602` 整条拒绝。现在新增唯一来源 `MAX_TURN_SKILLS`，技能菜单、首页技能并入与草稿的解析 / 保存都引用它，超出部分在过滤、去重后只保留前 10 项。[Issue #3629](https://github.com/can4hou6joeng4/boss-harness/issues/3629)

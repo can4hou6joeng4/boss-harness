@@ -499,7 +499,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_session_index_health.py`
 
-`scripts/check_session_index_health.py` 核对会话索引健康度的读数与设置页文案：配置必须是对象，`unreadableThreadCount` 必须是非负安全整数，否则返回 `null`；计数为零却列出不可读 id 是矛盾响应，同样返回 `null`；有计数时只收集 1–64 字符的字符串 id，去重后按 `SESSION_INDEX_MAX_IDS = 20` 截断。文案三态为「未报告」「N 个无法读取」「正常」，未报告不得写成正常。检查是源码字面量扫描，不执行配置读取或界面渲染。
+`scripts/check_session_index_health.py` 核对会话索引健康度的读数与设置页文案：配置必须是对象，`unreadableThreadCount` 必须是非负安全整数，否则返回 `null`；计数为零却列出不可读 id 是矛盾响应，同样返回 `null`；有计数时只收集 1–64 字符的字符串 id，去重后按 `SESSION_INDEX_MAX_IDS = 20` 截断。文案三态为「未报告」「N 个无法读取」「正常」，未报告不得写成正常。行为侧先在临时状态目录中真实构造 `ApplicationService`（`provider=none`，不联网），写入损坏的会话日志后读取 `config/read`：计数完整不随截断、id 按字典序截断到 `MAX_UNREADABLE_THREAD_IDS`、不符合会话 id 形状的文件名不计入、删除后不残留；再把真实 `sessionIndexHealth.ts` 复制到临时目录由 Node 直接加载，核对这些真实响应读出的计数、id 与文案，内核截断数量与桌面上限一致，以及非对象、安全整数、零计数矛盾、去重与截断名额的边界。共 42 项结构、37 项行为。检查不渲染设置页，组件里「最多列出 5 个 id」的截取不在范围内。
 
 ### `check_queue_status.py`
 
