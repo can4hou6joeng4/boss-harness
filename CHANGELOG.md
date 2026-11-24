@@ -1,3 +1,8 @@
+## 0.2.0-rc.751 - 2026-11-24
+
+- 扩展 `scripts/check_notification_labels.py`（29 项结构、33 项行为）：保留源码字面量、顺序与反向断言，新增运行时驱动——真实 `notificationLabels.ts` 与共享 `shared/index.ts` 复制到临时目录、改写导入，由 Node 直接加载并核对线程 id 回退、空白折叠、项目去重、归档只认显式 `true`、120 上限边界（含后缀与省略号）、按码点截断与输入不可变。[Issue #3627](https://github.com/can4hou6joeng4/boss-harness/issues/3627)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.751` 和 Python `0.2.0rc751`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.750 - 2026-11-24
 
 - 扩展 `scripts/check_thread_search_result.py`（81 项结构、35 项行为）：保留跨文件结构断言（内核分支标记、弹窗标签、会话区定位说明与样式），新增运行时驱动——真实 `threadSearchResult.ts` 复制到临时目录、删去类型导入，由 Node 直接加载并核对条目判定、标识与文本上限、角色白名单、`onBranch` 显式布尔、回执上限与整包拒绝、输入不可变。[Issue #3625](https://github.com/can4hou6joeng4/boss-harness/issues/3625)

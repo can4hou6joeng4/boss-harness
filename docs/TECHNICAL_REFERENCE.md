@@ -507,7 +507,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_notification_labels.py`
 
-`scripts/check_notification_labels.py` 核对通知分组标题的拼接与截断：空白折叠后取线程 id 前 8 位回退，缺失会话显示「会话 <id>」；项目名与会话标题相同时不重复拼接；归档会话补「 · 已归档」。长度判断把后缀计入 120 上限，超限时按码点用 `safeSlice` 截断并保留后缀与省略号。反向断言不得按 UTF-16 码元截断、长度判断不得忽略后缀。检查是源码字面量扫描，不发送通知。
+`scripts/check_notification_labels.py` 核对通知分组标题的拼接与截断：空白折叠后取线程 id 前 8 位回退，缺失会话显示「会话 <id>」；项目名与会话标题相同时不重复拼接；归档会话补「 · 已归档」。长度判断把后缀计入 120 上限，超限时按码点用 `safeSlice` 截断并保留后缀与省略号。反向断言不得按 UTF-16 码元截断、长度判断不得忽略后缀。行为侧把真实 `notificationLabels.ts` 与共享 `shared/index.ts` 复制到临时目录、改写导入，由 Node 直接加载并核对线程 id 回退、空白折叠、项目去重、归档只认显式 `true`、120 上限边界（含后缀与省略号）、按码点截断与输入不可变，不发送通知，共 29 项结构、33 项行为。
 
 ### `check_sidebar_notice.py`
 
