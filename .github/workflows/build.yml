@@ -707,6 +707,8 @@ jobs:
         run: python scripts/check_source_coverage.py
       - name: Verify CI script coverage
         run: python scripts/check_ci_script_coverage.py
+      - name: Verify queue edit drafts
+        run: python scripts/check_queue_edit_drafts.py
       - name: Verify issue forms
         run: python scripts/check_issue_forms.py
       - name: Verify status page stability

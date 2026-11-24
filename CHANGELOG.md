@@ -1,3 +1,8 @@
+## 0.2.0-rc.725 - 2026-11-24
+
+- 新增 `scripts/check_queue_edit_drafts.py`（17 项结构、24 项行为），运行时驱动真实 `queueEditDrafts.ts`：`react` 与 `./harnessBridge` 以桩替换，Node 直接加载真实模块，覆盖匿名实例隔离、按会话缓存、保存同步持锁与重复提交忽略、成功清空、失败保留草稿、订阅与退订、快照稳定性、保存中切换与失败重试等语义。[Issue #3575](https://github.com/can4hou6joeng4/boss-harness/issues/3575)
+- 工作流新增 `Verify queue edit drafts` 步骤，技术参考索引与小节同步；脚本总数更新为 286。源码候选更新为 npm `0.2.0-rc.725` 和 Python `0.2.0rc725`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.724 - 2026-11-24
 
 - 新增 `scripts/check_ci_script_coverage.py`（10 项结构、14 项行为），把「每个检查脚本都在 CI 命名步骤中执行」固化为不变量：解析 `build.yml` 的 `run: python scripts/check_*.py` 引用，与 `scripts/` 实际文件双向核对遗漏与悬空引用，并要求每个步骤带 `- name: Verify ...` 名称。[Issue #3573](https://github.com/can4hou6joeng4/boss-harness/issues/3573)
