@@ -1,3 +1,8 @@
+## 0.2.0-rc.746 - 2026-11-24
+
+- 扩展 `scripts/check_search_options.py`（39 项结构、22 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `searchOptions.ts` 复制到临时目录、删去类型导入，由 Node 直接加载并核对消息命中在前、键格式、缺行跳过且不中断、重复命中去重、同会话只入列一次、空输入、角色标签、工具命中展开、查询词首尾空白与定位不修改输入。[Issue #3617](https://github.com/can4hou6joeng4/boss-harness/issues/3617)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.746` 和 Python `0.2.0rc746`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.745 - 2026-11-24
 
 - 扩展 `scripts/check_last_session.py`（25 项结构、20 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `lastSession.ts` 与 `uiStorage.ts` 复制到临时目录、改写导入，由 Node 注入可控 `localStorage` 并核对命名空间键、严格解析边界（空值、首尾空白、纯空白、200/201 码点、非字符串）、读取与写入往返、`null` 与空字符串删除键、其他键不受影响及存储异常静默。[Issue #3615](https://github.com/can4hou6joeng4/boss-harness/issues/3615)
