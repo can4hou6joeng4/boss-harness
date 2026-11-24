@@ -1,3 +1,8 @@
+## 0.2.0-rc.730 - 2026-11-24
+
+- 扩展 `scripts/check_single_flight.py`（46 项结构、15 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `singleFlightReload.ts` 复制到临时目录，Node 直接加载 `createSingleFlightReload`，核对立即执行、在途尾随合并、链式补跑、失败与同步抛错后的恢复、取消后不再执行与不补跑、`canRun` 门控及尾随补跑的入口守卫。[Issue #3585](https://github.com/can4hou6joeng4/boss-harness/issues/3585)
+- 技术参考小节同步；脚本总数保持 288。源码候选更新为 npm `0.2.0-rc.730` 和 Python `0.2.0rc730`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.729 - 2026-11-24
 
 - 扩展 `scripts/check_clipboard_copy.py`（64 项结构、23 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `clipboardCopy.ts` 复制到临时目录，`react`、共享包与计时器以桩替换，`navigator.clipboard` 可控制成功 / 失败 / 挂起，Node 直接加载并核对写入结果、失败原因截断、反馈计时器、迟到回执丢弃、重置与卸载清理。[Issue #3583](https://github.com/can4hou6joeng4/boss-harness/issues/3583)
