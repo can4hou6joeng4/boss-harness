@@ -473,7 +473,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_search_options.py`
 
-`scripts/check_search_options.py` 核对搜索结果的顺序与定位意图：消息命中排在会话标题结果之前，消息按 `threadId:itemId` 去重并入列，找不到对应会话行的命中直接跳过；随后遍历会话行，按 `session:<id>` 键去重入列。角色标签把 `user` / `tool` / 其他分别显示为「你」「工具」「助手」。`searchHitFocus` 只对工具命中返回 `revealToolBlock: true`，其余保持折叠，查询词去掉首尾空白后带回会话。反向断言缺行不得中断列表、只有工具命中可以展开工具块、关键词必须 `trim()`。检查是源码字面量扫描，不执行搜索或打开会话。
+`scripts/check_search_options.py` 核对搜索结果的顺序与定位意图：消息命中排在会话标题结果之前，消息按 `threadId:itemId` 去重并入列，找不到对应会话行的命中直接跳过；随后遍历会话行，按 `session:<id>` 键去重入列。角色标签把 `user` / `tool` / 其他分别显示为「你」「工具」「助手」。`searchHitFocus` 只对工具命中返回 `revealToolBlock: true`，其余保持折叠，查询词去掉首尾空白后带回会话。反向断言缺行不得中断列表、只有工具命中可以展开工具块、关键词必须 `trim()`。行为侧把真实 `searchOptions.ts` 复制到临时目录、删去类型导入，由 Node 直接加载驱动顺序、键格式、缺行跳过、重复去重、会话去重、角色标签与定位意图，共 39 项结构、22 项行为。
 
 ### `check_find_step.py`
 
