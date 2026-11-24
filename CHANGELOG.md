@@ -1,3 +1,8 @@
+## 0.2.0-rc.738 - 2026-11-24
+
+- 扩展 `scripts/check_time_format.py`（27 项结构、18 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `timeFormat.ts`、`sessionOrder.ts` 与共享 `shared/index.ts` 复制到临时目录、改写导入，Node 直接加载并核对补零输出、非法 Date 空串、严格 ISO 解析（日期越界、24 时、仅日期、本地空格、前后空白）、毫秒与偏移、时刻格式与排序键零回退。[Issue #3601](https://github.com/can4hou6joeng4/boss-harness/issues/3601)
+- 技术参考小节同步；脚本总数保持 289。源码候选更新为 npm `0.2.0-rc.738` 和 Python `0.2.0rc738`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.737 - 2026-11-24
 
 - 扩展 `scripts/check_queue_badge.py`（73 项结构、23 项行为）：保留源码字面量与顺序断言，新增运行时驱动——真实 `queueBadge.ts` 复制到临时目录、类型导入改写为内联声明，Node 直接加载 `queueBadgeOf` 与 `patchQueueBadge`，覆盖完整与截断投影、持久计数优先、本地增量、零待处理、非待处理状态忽略、增量非负与合计核对、未变化返回 `null` 与不可变补丁。[Issue #3599](https://github.com/can4hou6joeng4/boss-harness/issues/3599)
