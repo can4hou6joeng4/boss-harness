@@ -2,16 +2,23 @@
 """核对未发送草稿的本地持久化规则。
 
 `composerDraftStorage.ts` 只保存正文、技能 id 与历史调取前的原稿：单条正文按码点
-限制长度，技能 id 去重过滤并截断；解析时校验版本、`projectId` 与 `recallDraft`，
-用无原型对象承接外部会话键；最多保留 20 条并稳定排序；未变条目沿用原时间戳；
-全空时删除存储键；存储不可用或超限时静默回退。这里用 Node 在临时目录加载真实
-模块（改写共享包与无扩展名导入），逐项核对解析、加载、保存与恢复。
+限制长度，技能 id 过滤、去重后按每回合上限 `MAX_TURN_SKILLS` 保留前几项；解析时
+校验版本、`projectId` 与 `recallDraft`，用无原型对象承接外部会话键；最多保留 20 条
+并稳定排序；未变条目沿用原时间戳；全空时删除存储键；存储不可用或超限时静默回退。
+这里用 Node 在临时目录加载真实模块（改写共享包与无扩展名导入），逐项核对解析、
+加载、保存与恢复。
+
+技能数量上限另有一组对照：内核对超出上限的 `skillIds` 整条拒绝，所以草稿存储、
+输入区技能菜单、技能标签与重试必须是同一个数。结构侧核对它们引用同一常量或
+声明同一数值；行为侧在临时目录构造内核 `SkillCatalog`，确认该上限正是内核接受
+的最大数量、多一项即被拒绝。不启动内核进程、模型或招聘平台。
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -21,14 +28,17 @@ STORAGE = "apps/desktop/src/renderer/src/data/composerDraftStorage.ts"
 COMPOSER_DRAFT = "apps/desktop/src/renderer/src/data/composerDraft.ts"
 UI_STORAGE = "apps/desktop/src/renderer/src/data/uiStorage.ts"
 SHARED = "packages/shared/src/index.ts"
+COMPOSER = "apps/desktop/src/renderer/src/shell/Composer.tsx"
+KERNEL = "harness/src"
 DOCS = "docs/TECHNICAL_REFERENCE.md"
 
 STORAGE_FRAGMENTS = (
-    'import { MAX_MESSAGE_TEXT_LENGTH, createComposerDraft, type ComposerDraft } from "./composerDraft";',
+    'import { MAX_MESSAGE_TEXT_LENGTH, MAX_TURN_SKILLS, createComposerDraft, type ComposerDraft } from "./composerDraft";',
     'export const COMPOSER_DRAFT_STORAGE_KEY = UI_STORAGE_PREFIX + "composerDrafts";',
     "export const MAX_DRAFT_TEXT_LENGTH = MAX_MESSAGE_TEXT_LENGTH;",
     "export const MAX_SESSION_DRAFTS = 20;",
-    "const MAX_SKILL_IDS = 50;",
+    '? [...new Set(record.skillIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0))].slice(0, MAX_TURN_SKILLS)',
+    'const skillIds = [...new Set((draft.skillIds ?? []).filter(id => typeof id === "string" && id.trim().length > 0))].slice(0, MAX_TURN_SKILLS);',
     "const MAX_PROJECT_ID_LENGTH = 200;",
     "const STORE_VERSION = 1;",
     'if (typeof record.text !== "string" || codePointLength(record.text) > MAX_DRAFT_TEXT_LENGTH) return null;',
@@ -61,13 +71,28 @@ STORAGE_FRAGMENTS = (
     "return Object.fromEntries(Object.entries(store.sessions).map(([id, entry]) => [id, restoreComposerDraft(entry)]));",
 )
 
+# 输入区的三处判定都与同一常量比较；菜单页脚的数字也由它渲染。
+COMPOSER_FRAGMENTS = (
+    "return current.length >= MAX_TURN_SKILLS ? previous : { ...previous, skillIds: [...current, id] };",
+    "disabled={submitting || (selectedSkillIds.length >= MAX_TURN_SKILLS && !selectedSkillIds.includes(skill.id))}",
+    'selectedSkillIds.length >= MAX_TURN_SKILLS && <div className="composer-menu-footer">每回合最多选择 {MAX_TURN_SKILLS} 项技能。</div>}',
+)
+
+# 仍各自声明数值的两处：输入区技能标签的展示上限与重试请求的技能上限。
+SIBLING_LIMITS = (
+    ("apps/desktop/src/renderer/src/data/skillChips.ts", r"^export const SKILL_CHIP_LIMIT = (\d+);$", "输入区技能标签"),
+    ("apps/desktop/src/renderer/src/data/messageRetry.ts", r"^const MAX_RETRY_SKILLS = (\d+);$", "重试请求"),
+)
+
 NODE_SCRIPT = r"""
 import { pathToFileURL } from "node:url";
 const {
   parseComposerDraftStore, loadComposerDraftStore, saveComposerDrafts,
   restoreComposerDraft, restoreSessionDrafts, COMPOSER_DRAFT_STORAGE_KEY,
 } = await import(pathToFileURL(process.argv[1]).href);
+const { MAX_TURN_SKILLS } = await import(pathToFileURL(process.argv[2]).href);
 const draft = (over = {}) => ({ id: "d1", text: "", textVersion: 0, attachments: [], skillIds: [], pendingReads: 0, submitting: false, ...over });
+const ids = (total) => Array.from({ length: total }, (_, index) => `k${String(index).padStart(2, "0")}`);
 const box = (initial) => {
   const map = new Map();
   if (initial !== undefined) map.set(COMPOSER_DRAFT_STORAGE_KEY, JSON.stringify(initial));
@@ -85,6 +110,7 @@ const box = (initial) => {
 const readStore = (b) => JSON.parse(b.map.get(COMPOSER_DRAFT_STORAGE_KEY));
 const memory = (get) => ({ getItem: get, setItem: () => {}, removeItem: () => {} });
 const results = {
+  limit: MAX_TURN_SKILLS,
   parse: [
     parseComposerDraftStore(null),
     parseComposerDraftStore({ version: 2, sessions: {} }),
@@ -157,6 +183,20 @@ const results = {
       return [Object.keys(parsed.sessions), parsed.sessions["__proto__"].text, ({}).text === undefined,
         Object.getPrototypeOf(parsed.sessions) === Object.prototype];
     })(),
+    (() => {
+      const parsed = parseComposerDraftStore({ version: 1, home: { text: "t", skillIds: ids(10), updatedAt: 1 }, sessions: {} });
+      return [parsed.home.skillIds.length, parsed.home.skillIds[9]];
+    })(),
+    (() => {
+      const parsed = parseComposerDraftStore({ version: 1, home: { text: "t", skillIds: ids(11), updatedAt: 1 },
+        sessions: { s1: { text: "", skillIds: ids(12), updatedAt: 2 } } });
+      return [parsed.home.skillIds, parsed.sessions.s1.skillIds.length, parsed.sessions.s1.skillIds[9]];
+    })(),
+    (() => {
+      const noisy = ["k00", "k00", " ", 7, null, ...ids(11)];
+      const parsed = parseComposerDraftStore({ version: 1, home: { text: "t", skillIds: noisy, updatedAt: 1 }, sessions: {} });
+      return [parsed.home.skillIds.length, parsed.home.skillIds[0], parsed.home.skillIds[9]];
+    })(),
   ],
   load: [
     loadComposerDraftStore(null),
@@ -224,6 +264,23 @@ const results = {
       const keys = Object.keys(readStore(b).sessions);
       return [keys.length, keys.includes("s20"), keys.includes("s00")];
     })(),
+    (() => {
+      const b = box();
+      saveComposerDrafts(draft({ text: "hi", skillIds: ids(12) }), { s1: draft({ skillIds: ids(11) }) }, b.storage, 5);
+      const stored = readStore(b);
+      return [stored.home.skillIds, stored.sessions.s1.skillIds.length, stored.sessions.s1.skillIds[9]];
+    })(),
+    (() => {
+      const b = box();
+      saveComposerDrafts(draft({ text: "hi", skillIds: ids(10) }), {}, b.storage, 5);
+      return readStore(b).home.skillIds.length;
+    })(),
+    (() => {
+      const b = box({ version: 1, home: { text: "hi", skillIds: ids(12), updatedAt: 111 }, sessions: {} });
+      saveComposerDrafts(draft({ text: "hi", skillIds: ids(10) }), {}, b.storage, 999);
+      const stored = readStore(b);
+      return [stored.home.updatedAt, stored.home.skillIds.length];
+    })(),
   ],
   restore: [
     (() => {
@@ -243,6 +300,13 @@ const results = {
     (() => {
       const restored = restoreSessionDrafts({ home: { text: "h", skillIds: [], updatedAt: 1 }, sessions: { a: { text: "x", skillIds: ["k"], updatedAt: 1, recallDraft: "orig" } } });
       return [Object.keys(restored), restored.a.text, restored.a.skillIds];
+    })(),
+    (() => {
+      const loaded = loadComposerDraftStore(memory(() => JSON.stringify({ version: 1,
+        home: { text: "h", skillIds: ids(12), updatedAt: 1 }, sessions: { a: { text: "", skillIds: ids(11), updatedAt: 1 } } })));
+      const home = restoreComposerDraft(loaded.home);
+      const sessions = restoreSessionDrafts(loaded);
+      return [home.skillIds.length, home.skillIds[9], sessions.a.skillIds.length];
     })(),
   ],
 };
@@ -265,6 +329,9 @@ EXPECTED_PARSE = (
     [20, "s21", "s02"],
     ["a", "b"],
     [["__proto__"], "x", True, True],
+    [10, "k09"],
+    [[f"k{index:02d}" for index in range(10)], 10, "k09"],
+    [10, "k00", "k09"],
 )
 EXPECTED_LOAD = (
     {"sessions": {}},
@@ -283,6 +350,9 @@ EXPECTED_SAVE = (
     [True, ["s1"]],
     ["s1"],
     [20, False, True],
+    [[f"k{index:02d}" for index in range(10)], 10, "k09"],
+    10,
+    [111, 10],
 )
 EXPECTED_RESTORE = (
     ["", [], [], "string"],
@@ -290,6 +360,7 @@ EXPECTED_RESTORE = (
     "quoted",
     ["t", True],
     [["a"], "orig", ["k"]],
+    [10, "k09", 10],
 )
 
 
@@ -319,17 +390,15 @@ def _node_matrix() -> dict:
         target.write_text(
             _read(STORAGE)
             .replace('from "@boss-harness/shared"', f'from "{shared}"')
-            .replace(
-                "MAX_MESSAGE_TEXT_LENGTH, createComposerDraft, type ComposerDraft",
-                "MAX_MESSAGE_TEXT_LENGTH, createComposerDraft",
-            )
+            .replace(", type ComposerDraft } from", " } from")
             .replace('from "./composerDraft"', 'from "./composerDraft.ts"')
             .replace('from "./uiStorage"', 'from "./uiStorage.ts"'),
             encoding="utf-8",
         )
         try:
             result = subprocess.run(
-                ["node", "--input-type=module", "--no-warnings", "-e", NODE_SCRIPT, str(target)],
+                ["node", "--input-type=module", "--no-warnings", "-e", NODE_SCRIPT, str(target),
+                 str(base / "composerDraft.ts")],
                 cwd=ROOT, capture_output=True, text=True, check=True,
             )
         except FileNotFoundError:
@@ -349,6 +418,9 @@ def _node_matrix() -> dict:
     for key in ("parse", "load", "save", "restore"):
         if not isinstance(payload.get(key), list):
             raise ValueError(f"Node 未返回 {key} 列表")
+    limit = payload.get("limit")
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
+        raise ValueError("Node 未返回有效的 MAX_TURN_SKILLS")
     return payload
 
 
@@ -361,6 +433,76 @@ def _compare(actual: list, expected: tuple, label: str) -> int:
     return len(expected)
 
 
+def _declared_limit(draft_source: str) -> int:
+    match = re.search(r"^export const MAX_TURN_SKILLS = (\d+);$", draft_source, re.MULTILINE)
+    if not match:
+        raise ValueError(f"{COMPOSER_DRAFT} 缺少 MAX_TURN_SKILLS 的数字声明")
+    return int(match.group(1))
+
+
+def _check_structure(storage: str, draft_source: str, composer: str, siblings: dict[str, str]) -> int:
+    checked = _expect(STORAGE_FRAGMENTS, storage, STORAGE)
+    checked += _expect(COMPOSER_FRAGMENTS, composer, COMPOSER)
+    limit = _declared_limit(draft_source)
+    checked += 1
+    # 反向断言：草稿存储与输入区不得再各写一个数。
+    if re.search(r"\bMAX_SKILL_IDS\b", storage):
+        raise ValueError(f"{STORAGE} 的技能上限必须引用 MAX_TURN_SKILLS，不得另设常量")
+    if re.search(r"\.slice\(0, \d", storage):
+        raise ValueError(f"{STORAGE} 的截断上限不得写成数字字面量")
+    if re.search(r"(?:selectedSkillIds|current)\.length\s*>=\s*\d", composer):
+        raise ValueError(f"{COMPOSER} 的技能数量必须与 MAX_TURN_SKILLS 比较")
+    checked += 3
+    for relative, pattern, label in SIBLING_LIMITS:
+        match = re.search(pattern, siblings[relative], re.MULTILINE)
+        if not match:
+            raise ValueError(f"{relative} 缺少{label}的上限声明")
+        if int(match.group(1)) != limit:
+            raise ValueError(f"{relative} 的{label}上限 {match.group(1)} 与 MAX_TURN_SKILLS {limit} 不一致")
+        checked += 1
+    return checked
+
+
+def _kernel_limit_checks(limit: int) -> int:
+    # 内核对 skillIds 先比数量、后去重：桌面端只要多带一项，整条请求就被拒绝。
+    kernel = str(ROOT / KERNEL)
+    if kernel not in sys.path:
+        sys.path.insert(0, kernel)
+    try:
+        from boss_harness.resources import SkillCatalog
+        from boss_harness.session import MAX_SKILL_IDS
+    except ImportError as error:
+        raise ValueError(f"无法导入内核模块：{error}") from None
+    checked = 0
+    if MAX_SKILL_IDS != limit:
+        raise ValueError(f"内核 MAX_SKILL_IDS 为 {MAX_SKILL_IDS}，与 MAX_TURN_SKILLS {limit} 不一致")
+    checked += 1
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory) / "skills"
+        ids = [f"skill-{index:02d}" for index in range(limit + 1)]
+        for skill_id in ids:
+            (root / skill_id).mkdir(parents=True)
+            (root / skill_id / "SKILL.md").write_text(
+                f"---\nname: {skill_id}\ndescription: {skill_id} 的说明\n---\n正文", encoding="utf-8")
+        catalog = SkillCatalog(root)
+        try:
+            accepted = len(catalog.load(ids[:limit])[1])
+        except ValueError as error:
+            raise ValueError(f"内核拒绝了 {limit} 项技能：{error}") from None
+        if accepted != limit:
+            raise ValueError(f"内核应载入恰好 {limit} 项技能，实际 {accepted} 项")
+        checked += 1
+        try:
+            catalog.load(ids)
+        except ValueError as error:
+            if "skillIds" not in str(error):
+                raise ValueError(f"内核拒绝 {limit + 1} 项技能的原因变化：{error}") from None
+        else:
+            raise ValueError(f"内核接受了 {limit + 1} 项技能，MAX_TURN_SKILLS {limit} 低于内核上限")
+        checked += 1
+    return checked
+
+
 def _check_behaviors() -> int:
     payload = _node_matrix()
     checked = 0
@@ -368,6 +510,12 @@ def _check_behaviors() -> int:
     checked += _compare(payload["load"], EXPECTED_LOAD, "加载")
     checked += _compare(payload["save"], EXPECTED_SAVE, "保存")
     checked += _compare(payload["restore"], EXPECTED_RESTORE, "恢复")
+    limit = payload["limit"]
+    declared = _declared_limit(_read(COMPOSER_DRAFT))
+    if limit != declared:
+        raise ValueError(f"Node 导出的 MAX_TURN_SKILLS 为 {limit}，与源码声明 {declared} 不一致")
+    checked += 1
+    checked += _kernel_limit_checks(limit)
     return checked
 
 
@@ -375,13 +523,14 @@ def _check_documentation() -> int:
     docs = _read(DOCS)
     if "`check_composer_drafts.py`" not in docs:
         raise ValueError(f"{DOCS} 缺少 check_composer_drafts.py")
-    if "共 35 项结构、31 项行为" not in docs:
-        raise ValueError(f"{DOCS} 需说明 check_composer_drafts.py 检查 35 项结构、31 项行为")
+    if "共 45 项结构、42 项行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_composer_drafts.py 检查 45 项结构、42 项行为")
     return 2
 
 
 def check_composer_drafts() -> tuple[int, int]:
-    structure = _expect(STORAGE_FRAGMENTS, _read(STORAGE), STORAGE)
+    siblings = {relative: _read(relative) for relative, _, _ in SIBLING_LIMITS}
+    structure = _check_structure(_read(STORAGE), _read(COMPOSER_DRAFT), _read(COMPOSER), siblings)
     behavior = _check_behaviors()
     _check_documentation()
     return structure, behavior
