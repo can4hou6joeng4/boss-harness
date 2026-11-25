@@ -248,6 +248,8 @@ jobs:
         run: python scripts/check_termination.py
       - name: Verify desktop client close escalation
         run: python scripts/check_client_close.py
+      - name: Verify approval stop paths
+        run: python scripts/check_approval_stop.py
       - name: Verify runtime capacity admission
         run: python scripts/check_runtime_capacity.py
       - name: Verify tool bridge cleanup
@@ -519,6 +521,8 @@ jobs:
         run: python scripts/check_termination.py
       - name: Verify desktop client close escalation
         run: python scripts/check_client_close.py
+      - name: Verify approval stop paths
+        run: python scripts/check_approval_stop.py
       - name: Verify application handshake
         run: python scripts/check_application_handshake.py
       - name: Verify application reads

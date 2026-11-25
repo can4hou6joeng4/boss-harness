@@ -1,3 +1,9 @@
+## 0.2.0-rc.758 - 2026-11-25
+
+- 审批等待与工具运行中的停止行为有真实进程验证：`scripts/check_termination.py` 用 `--provider none`，回合只会走到只读查询，触达不到审批与工具桥的等待路径。现在把最小假 `anthropic` 模块放到 `PYTHONPATH` 上，真实内核的第一回合返回一次 `boss_hr_greet` 调用，假模块同时只允许启动假招聘 CLI；不联网、不调用模型或招聘平台。审批等待中收到 `SIGTERM` 时，假 CLI 从未启动、内核以该信号在 3 秒内结束、重启后工具项为 `CANCELLED` / `not_executed`；审批通过、假 CLI 启动后收到 `SIGTERM` 时，假 CLI 收到 `SIGTERM` 后消失、重启后为 `CANCELLED` / `outcome_unknown`。[Issue #3641](https://github.com/can4hou6joeng4/boss-harness/issues/3641)
+- 协议、工具清单、审批口径与内核关闭语义不变，没有面向用户的行为变化。
+- 新增 `scripts/check_approval_stop.py`（7 项结构、8 项真实进程结果、3 处文档口径）：结构固定工具桥的进程级停止标记与入口「先置位标记、最后打断读取」的顺序；行为覆盖上述两个场景的结束方式、诊断行、会话日志终态与重启结算。技术参考登记新脚本；CI 的 Source build 与 Python 3.10–3.14 矩阵各增加一步；脚本总数由 291 增至 292。源码候选更新为 npm `0.2.0-rc.758` 和 Python `0.2.0rc758`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.757 - 2026-11-25
 
 - 桌面端断开内核的关闭升级时序有真实进程验证：结束标准输入后内核在 2.5 秒宽限期内自行结束，假招聘 CLI 收到 `SIGTERM` 并退出；内核不理会 `SIGTERM` 时约 2.5 秒收到 `SIGTERM`、再过 1 秒收到 `SIGKILL`；内核已自行退出后调用 `dispose()` 立即完成。此前这条时序只有源码片段断言，且与 `0.2.0rc756` 起「收到 `SIGTERM` 后先完成关闭流程」的内核行为组合在一起没有验证。[Issue #3639](https://github.com/can4hou6joeng4/boss-harness/issues/3639)
