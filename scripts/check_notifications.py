@@ -170,6 +170,23 @@ out.newCardClosed = newCard.closed;
 registry.show(newCard, "approval:replace");
 out.sameCardClosed = newCard.closed;
 out.replacedDismiss = registry.dismiss("approval:replace");
+
+const bounded = new NotificationRegistry(2);
+const evictedApproval = new FakeNotification();
+const evictedTurn = new FakeNotification();
+const remainingApproval = new FakeNotification();
+const remainingTurn = new FakeNotification();
+// Electron 的主动关闭可能没有 close 事件。
+evictedApproval.close = () => { evictedApproval.closed += 1; };
+bounded.show(evictedApproval, "approval:evicted");
+bounded.show(evictedTurn);
+bounded.show(remainingApproval, "approval:remaining");
+bounded.show(remainingTurn);
+out.evictionCloses = [evictedApproval.closed, evictedTurn.closed];
+out.boundedSize = bounded.size;
+out.dismissEvicted = bounded.dismiss("approval:evicted");
+out.dismissRemaining = bounded.dismissPrefix("approval:");
+out.closesAfterEviction = [evictedApproval.closed, remainingApproval.closed, remainingTurn.closed];
 process.stdout.write(JSON.stringify(out) + "\\n", () => process.exit(0));
 """
 
@@ -196,7 +213,7 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
 
 
 def _check_behavior() -> int:
-    """Node 24 直接运行保留器源码：按 key 关闭、前缀批量关闭与自然关闭后释放。"""
+    """用 Node 24 核对通知关闭、替换和满额淘汰。"""
     with tempfile.TemporaryDirectory(prefix="boss-notify-") as folder:
         base = Path(folder)
         (base / "registry.ts").write_text(_read(REGISTRY), encoding="utf-8")
@@ -223,12 +240,17 @@ def _check_behavior() -> int:
         "newCardClosed": 0,
         "sameCardClosed": 0,
         "replacedDismiss": True,
+        "evictionCloses": [1, 0],
+        "boundedSize": 2,
+        "dismissEvicted": False,
+        "dismissRemaining": 1,
+        "closesAfterEviction": [1, 1, 0],
     }
     failures = [f"{key} 期望 {expected[key]!r}，实际 {actual.get(key)!r}"
                 for key in expected if actual.get(key) != expected[key]]
     if failures:
         raise ValueError("通知保留器行为不符：" + "；".join(failures))
-    return 6
+    return 8
 
 
 def check_notifications() -> int:
