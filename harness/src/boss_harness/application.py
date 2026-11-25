@@ -396,6 +396,10 @@ class ApplicationService:
             self._compaction_by_thread: dict[str, str] = {}
             self._compaction_terminal_order: deque[str] = deque()
             self._compaction_terminal_ids: set[str] = set()
+            # A retired job has handed its thread back while its worker or abort
+            # thread is still writing terminal events and waking the queue.
+            # That tail owns the state directory, never the session.
+            self._compaction_tails: dict[int, dict[str, Any]] = {}
             self._bridge_refs: list[Any] = []
             self.context = ContextService(self.sessions)
             self._restore_compaction_jobs()
@@ -2418,46 +2422,68 @@ class ApplicationService:
                 if job.get("status") == "completed":
                     self._compaction_committed_warning(job, exc)
 
+    def _retain_compaction_tail(self) -> dict:
+        """Register the calling thread before it can retire a compaction job.
+
+        Retiring drops the job's worker and abort references, so close() and the
+        idle check would otherwise lose sight of a thread that is still writing
+        the terminal events. The tail is not a session owner: once the job is
+        retired, new turns, summaries and deletion on that thread stay allowed.
+        """
+        tail = {"owner": threading.get_ident(), "done": threading.Event()}
+        with self.runtimes.lock:
+            self._compaction_tails[id(tail)] = tail
+        return tail
+
+    def _release_compaction_tail(self, tail: dict) -> None:
+        with self.runtimes.lock:
+            self._compaction_tails.pop(id(tail), None)
+            tail["done"].set()
+        self._close_application_resources_if_idle()
+
     def _finish_compaction(self, job: dict) -> None:
         wake_follow_up = False
         paused_queue_ids: list[str] = []
-        with self.runtimes.lock:
-            job["_shutdown_worker_done"] = True
-            if (job.get("status") in {"failed", "cancelled"}
-                    and self.runtimes.active.get(job["threadId"]) is None):
+        tail = self._retain_compaction_tail()
+        try:
+            with self.runtimes.lock:
+                job["_shutdown_worker_done"] = True
+                if (job.get("status") in {"failed", "cancelled"}
+                        and self.runtimes.active.get(job["threadId"]) is None):
+                    try:
+                        paused_queue_ids = self.queue.pause(
+                            job["threadId"], kind="followUp",
+                            reason=PAUSE_REASON_COMPACTION_FAILED)
+                    except Exception:
+                        # TurnQueue records an in-memory pending pause before
+                        # persistence, so future admission still settles it first.
+                        pass
+                released = self._retire_compaction_locked(job)
+                # A successful checkpoint is the only compaction outcome that may
+                # resume a queued user request. Failed/cancelled compaction keeps
+                # the queue untouched so no new model or external action starts
+                # without an explicit retry.
+                wake_follow_up = released and job.get("status") == "completed"
+            self._flush_compaction_terminal(job)
+            for queue_id in paused_queue_ids:
                 try:
-                    paused_queue_ids = self.queue.pause(
-                        job["threadId"], kind="followUp",
-                        reason=PAUSE_REASON_COMPACTION_FAILED)
+                    self.events.emit("queue/updated", {"threadId": job["threadId"], "queueId": queue_id})
                 except Exception:
-                    # TurnQueue records an in-memory pending pause before
-                    # persistence, so future admission still settles it first.
+                    # The pause is already durable; a failed observer signal must
+                    # not turn it into a different compaction outcome.
                     pass
-            released = self._retire_compaction_locked(job)
-            # A successful checkpoint is the only compaction outcome that may
-            # resume a queued user request. Failed/cancelled compaction keeps
-            # the queue untouched so no new model or external action starts
-            # without an explicit retry.
-            wake_follow_up = released and job.get("status") == "completed"
-        self._flush_compaction_terminal(job)
-        for queue_id in paused_queue_ids:
-            try:
-                self.events.emit("queue/updated", {"threadId": job["threadId"], "queueId": queue_id})
-            except Exception:
-                # The pause is already durable; a failed observer signal must
-                # not turn it into a different compaction outcome.
-                pass
-        if wake_follow_up:
-            try:
-                self._start_follow_up(job["threadId"])
-            except Exception:
-                # The queue item remains durable and queued; a transient
-                # dispatch/observer failure must not rewrite the compaction
-                # result or turn it into a start failure.
-                pass
-        elif job.get("status") in {"failed", "cancelled"}:
-            self._forget_capacity_waiter(job["threadId"])
-        self._close_application_resources_if_idle()
+            if wake_follow_up:
+                try:
+                    self._start_follow_up(job["threadId"])
+                except Exception:
+                    # The queue item remains durable and queued; a transient
+                    # dispatch/observer failure must not rewrite the compaction
+                    # result or turn it into a start failure.
+                    pass
+            elif job.get("status") in {"failed", "cancelled"}:
+                self._forget_capacity_waiter(job["threadId"])
+        finally:
+            self._release_compaction_tail(tail)
 
     def _retire_compaction_locked(self, job: dict) -> bool:
         abort = job.get("_shutdown_abort")
@@ -2472,16 +2498,21 @@ class ApplicationService:
 
     def _compaction_abort_done(self, job: dict) -> None:
         wake_follow_up = False
-        with self.runtimes.lock:
-            released = self._retire_compaction_locked(job)
-            wake_follow_up = released and job.get("status") == "completed"
-        self._flush_compaction_terminal(job)
-        if wake_follow_up:
-            try:
-                self._start_follow_up(job["threadId"])
-            except Exception:
-                pass
-        self._close_application_resources_if_idle()
+        # The abort thread may be the one that retires the job, or the one that
+        # takes the queued terminal events after the worker retired it.
+        tail = self._retain_compaction_tail()
+        try:
+            with self.runtimes.lock:
+                released = self._retire_compaction_locked(job)
+                wake_follow_up = released and job.get("status") == "completed"
+            self._flush_compaction_terminal(job)
+            if wake_follow_up:
+                try:
+                    self._start_follow_up(job["threadId"])
+                except Exception:
+                    pass
+        finally:
+            self._release_compaction_tail(tail)
 
     @staticmethod
     def _missing_compaction_job() -> RpcError:
@@ -4111,7 +4142,7 @@ class ApplicationService:
                     or self.runtimes.jobs or not self.runtimes.capacity_notifications_stopped
                     or (self._approval_expiry_thread.is_alive()
                         and self._approval_expiry_thread is not threading.current_thread())
-                    or self._compaction_by_thread
+                    or self._compaction_by_thread or self._compaction_tails
                     or self._follow_up_workers or self._follow_up_dispatches or self._receipt_notices
                     or not self.lifecycle_hooks.closed):
                 return
@@ -4742,6 +4773,18 @@ class ApplicationService:
             workers.extend(job["_shutdown_abort"].worker for job in self._compaction_jobs.values()
                            if "_shutdown_abort" in job)
         join_until(workers, deadline)
+        # A retired job has dropped the references joined above while its
+        # thread still writes the terminal events. Take a fresh snapshot each
+        # round: an abort thread may register after the worker retired the job.
+        current = threading.get_ident()
+        while time.monotonic() < deadline:
+            with self.runtimes.lock:
+                pending = [tail["done"] for tail in self._compaction_tails.values()
+                           if tail["owner"] != current]
+            if not pending:
+                return
+            for done in pending:
+                done.wait(max(0, deadline - time.monotonic()))
 
     def _stop_compaction_jobs(self, *, deadline: float | None = None) -> None:
         deadline = time.monotonic() + 2 if deadline is None else deadline
