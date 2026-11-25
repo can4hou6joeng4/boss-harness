@@ -34,7 +34,11 @@ export class NotificationRegistry {
     this.retained.add(notification);
     if (key) {
       const previous = this.byKey.get(key);
-      if (previous && previous !== notification) this.retained.delete(previous);
+      if (previous && previous !== notification) {
+        this.retained.delete(previous);
+        this.#forget(previous);
+        try { previous.close?.(); } catch {}
+      }
       this.byKey.set(key, notification);
     }
     while (this.retained.size > this.limit) {
