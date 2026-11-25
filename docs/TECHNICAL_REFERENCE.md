@@ -429,7 +429,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_export_write.py`
 
-`scripts/check_export_write.py` 核对会话导出的原子写入与失败诊断：临时文件必须由 `O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW` 在目标同目录独占创建、命名固定为 `.boss-harness-export-<uuid>.tmp` 且默认 `0600`；`O_NOFOLLOW` 缺失时回退为 0；`lstat` 的 `ENOENT` 视为新文件，`ELOOP` 与现成符号链接固定报 `symlink`；`sameTarget` 必须同时比较 dev、ino 与可得的 ctime；写入顺序固定为写入 → `sync` → `chmod(0o600)` → 关闭并置 `closed` → 再次核对目标身份 → `rename` 原子替换；`rename` 失败先删除临时文件再抛出原始错误；`chmod` 失败只记录 `permissionError` 并返回 `permissionsUnchanged: false`，不得中断保存；finally 在未关闭时补关闭并清理临时文件。`harness.ts` 的保存对话框必须带 `createDirectory` 与 `showOverwriteConfirmation`，默认目录为下载目录，失败日志只写诊断文本，回执只返回 `basename`。反向断言禁止声称沿用旧权限与回显完整路径。检查是源码字面量与首次出现顺序扫描，实际写入行为仍需按用户指南核对。
+`scripts/check_export_write.py` 核对会话导出的原子写入与失败诊断：临时文件必须由 `O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW` 在目标同目录独占创建、命名固定为 `.boss-harness-export-<uuid>.tmp` 且默认 `0600`；`O_NOFOLLOW` 缺失时回退为 0；`lstat` 的 `ENOENT` 视为新文件，`ELOOP` 与现成符号链接固定报 `symlink`；`sameTarget` 必须同时比较 dev、ino 与可得的 ctime；写入顺序固定为写入 → `sync` → `chmod(0o600)` → 关闭并置 `closed` → 再次核对目标身份 → `rename` 原子替换并置 `committed`；finally 先按需补关闭句柄，只要未完成替换就删除临时文件，清理错误不覆盖原始错误。`harness.ts` 的保存对话框必须带 `createDirectory` 与 `showOverwriteConfirmation`，默认目录为下载目录，失败日志只写诊断文本，回执只返回 `basename`。反向断言禁止声称沿用旧权限与回显完整路径。Node 24 类型剥离直接加载真实写入模块，核对成功、目标变化、身份读取失败、写入/刷新/关闭/重命名失败与清理本身失败八种场景。检查是源码字面量、首次出现顺序与离线注入行为扫描，实际写入行为仍需按用户指南核对。
 
 ### `check_export_html.py`
 
