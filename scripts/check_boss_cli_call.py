@@ -4,7 +4,8 @@
 `BossCliTool.call` 是领域工具唯一的进程边界：拼接 `--json` / `--data-dir` /
 `--browser-source`，启动子进程并并发读取输出、写入 stdin，在取消、超时与
 16 MiB 输出上限时终止进程组，然后校验 UTF-8、严格 JSON、七键信封与退出码，
-最后把 `hr chat` 的摘要补取暂停码投影成失败。
+最后把 `hr chat` 的摘要补取暂停码投影成失败。内核收到终止信号时置位的进程级
+停止标记与取消事件走同一处判断：不再启动 CLI，在途调用按取消终止进程组。
 
 这里在临时目录写入假 CLI 脚本，驱动真实 `BossCliTool.call`（不联网、不调用
 真实 CLI），逐类验证进程生命周期与信封契约；静态部分锁定参数拼接、启动、
@@ -27,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/tools/boss_cli.py"
 sys.path.insert(0, str(ROOT / "harness/src"))
 
+from boss_harness.tools import boss_cli  # noqa: E402
 from boss_harness.tools.boss_cli import BossCliTool  # noqa: E402
 
 CLI_SCRIPT = '''#!/usr/bin/env python3
@@ -89,7 +91,7 @@ ARGV = (
     "        argv += list(args)",
 )
 CANCEL_START = (
-    "        if self.cancel_event is not None and self.cancel_event.is_set():",
+    "        if self._stop_requested():",
     '            return failure("CANCELLED", "操作已停止，未启动 CLI")',
 )
 SPAWN = (
@@ -103,6 +105,7 @@ SPAWN = (
 )
 SUPERVISE = (
     "            output = BoundedProcessOutput(proc, stdin, MAX_CLI_OUTPUT_BYTES)",
+    "            cancelled = self._stop_requested()",
     "            if cancelled or output.overflow.is_set() or output.failed or time.monotonic() >= deadline:",
     '                code = "CANCELLED" if cancelled else "TOOL_TIMEOUT"',
     '                return failure(code, "CLI 已停止；已发出的操作可能生效，请先核对平台状态，不要直接重试。")',
@@ -317,6 +320,39 @@ def _cancel_checks(probe: _Probe) -> int:
     return checked
 
 
+def _process_stop_checks(probe: _Probe) -> int:
+    """内核停止时的进程级标记：不依赖调用方是否绑定了取消事件。"""
+    checked = 0
+    tool = probe.tool()
+    probe.marker.unlink(missing_ok=True)
+    with patch.object(boss_cli, "_process_stop_requested", True):
+        result = probe.call(tool, "argv")
+    error = result.error or {}
+    checked += _expect_value((result.ok, error.get("code"), error.get("message"), probe.started()),
+                             (False, "CANCELLED", "操作已停止，未启动 CLI", False), "内核停止后不启动 CLI")
+
+    outcome: list = []
+
+    def run() -> None:
+        outcome.append(probe.call(tool, "sleep", timeout=8))
+
+    # 标记是进程级的：用补丁保存并恢复，置位走真实入口，不留给后面的检查。
+    with patch.object(boss_cli, "_process_stop_requested", False):
+        worker = threading.Thread(target=run)
+        worker.start()
+        deadline = time.monotonic() + 5
+        while not probe.started() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        boss_cli.request_process_stop()
+        worker.join(timeout=20)
+    if not outcome:
+        raise ValueError("CLI 子进程行为变化 内核停止时的在途调用：调用没有返回")
+    error = outcome[0].error or {}
+    checked += _expect_value((outcome[0].ok, error.get("code")), (False, "CANCELLED"),
+                             "内核停止时终止没有取消事件的在途调用")
+    return checked
+
+
 def _output_checks(probe: _Probe) -> int:
     checked = 0
     tool = probe.tool()
@@ -426,6 +462,7 @@ def _behavior_checks() -> int:
         checked = 0
         checked += _argv_checks(probe)
         checked += _cancel_checks(probe)
+        checked += _process_stop_checks(probe)
         checked += _output_checks(probe)
         checked += _envelope_checks(probe)
         checked += _pause_checks(probe)

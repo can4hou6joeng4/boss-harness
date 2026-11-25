@@ -10,6 +10,7 @@
 - [桌面启动失败时的自检](#桌面启动失败时的自检)
 - [模型请求期限](#单次模型请求期限)
 - [其他运行参数](#其他运行参数)
+- [停止内核](#停止内核)
 - [职位搜索](#明确条件搜索)
 - [求职者沟通列表](#求职者沟通列表)
 - [聊天链接与代码](#聊天链接与代码)
@@ -33,7 +34,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.755` / Python `0.2.0rc755` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.756` / Python `0.2.0rc756` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -190,6 +191,14 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 桌面根据内核通知显示重试等待与结束状态；兼容路径缺少回合状态时仍保留等待提示，收到明确中断时显示「已停止」，不会把缺省状态当成重试已结束。自动重试策略不变。
 
 审批期限与两项重试配置的无效取值不会让启动失败，自检以 `APPROVAL_TIMEOUT_DEFAULTED` 或 `RETRY_CONFIG_DEFAULTED` 警告说明已回退或收敛；配置看似未生效时，请先核对取值是否符合上表。模型线路与凭据见[模型配置来源](#模型配置来源)，请求期限见[单次模型请求期限](#单次模型请求期限)，浏览器来源与两类状态目录见[上游 CLI 设置](#上游-cli-设置)；模型容量 `BOSS_HARNESS_MODEL_LIMITS` 与自动压缩 `BOSS_HARNESS_COMPACTION` 的 JSON 格式分别见技术参考的[模型容量与请求预算](TECHNICAL_REFERENCE.md#模型容量与请求预算)和[自动压缩与溢出恢复](TECHNICAL_REFERENCE.md#自动压缩与溢出恢复)。
+
+## 停止内核
+
+从命令行直接运行内核（`boss-harness`，经标准输入输出通信）时，结束它的标准输入就是正常关闭：内核停止接收请求、中断运行中的回合并写完会话记录，以退出码 0 结束。桌面应用退出时走的也是这条路径。
+
+用 `SIGTERM`、`SIGHUP` 或 `Ctrl+C` 停止内核时，内核先终止进行中的招聘 CLI 调用并写完会话记录，再结束进程。结束方式仍是这个信号本身：从 shell 看到的状态与信号未被处理时相同（例如 `SIGTERM` 为 143），stderr 末尾多一行 `[harness] 收到 SIGTERM，已按关闭流程停止`，`Ctrl+C` 不再打印回溯。被终止的调用在会话里带 `CANCELLED` 标记：只读查询记为失败，已经批准的发送类调用记为结果未知。已经发出的操作可能生效，重新打开会话后仍需先核对平台状态，不要直接重试。
+
+信号到达 5 秒后关闭仍未完成时，内核会被强制结束，此时进程的结束方式是 `SIGALRM`，会话记录可能停在结束前的状态。经 `nohup` 启动等已经忽略 `SIGHUP` 的环境里，内核继续忽略它。`kill -9` 不经过这段流程：内核立即结束，进行中的招聘 CLI 调用留在后台继续运行，重新打开会话后这次调用显示为结果未知，需要核对平台状态。上述信号处理只在 macOS 与 Linux 上生效；Windows 上的行为与此前相同。
 
 ## 聊天链接与代码
 

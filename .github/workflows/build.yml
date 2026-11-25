@@ -244,6 +244,8 @@ jobs:
         run: python scripts/check_settings.py
       - name: Verify shutdown wait boundaries
         run: python scripts/check_shutdown.py
+      - name: Verify termination signal handling
+        run: python scripts/check_termination.py
       - name: Verify runtime capacity admission
         run: python scripts/check_runtime_capacity.py
       - name: Verify tool bridge cleanup
@@ -511,6 +513,8 @@ jobs:
         run: python scripts/check_process_io.py
       - name: Verify CLI subprocess boundary
         run: python scripts/check_boss_cli_call.py
+      - name: Verify termination signal handling
+        run: python scripts/check_termination.py
       - name: Verify application handshake
         run: python scripts/check_application_handshake.py
       - name: Verify application reads
