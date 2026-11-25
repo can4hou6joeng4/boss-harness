@@ -37,6 +37,8 @@ REQUIRED_URLS = (
     "https://github.com/can4hou6joeng4/boss-harness/releases",
 )
 REQUIRED_PHRASES = ("`main` 是开发分支", "不等同于已发布", "尚未发布到 npm 或 PyPI")
+ROLLING_RELEASE_ENTRY = "https://github.com/can4hou6joeng4/boss-harness/issues/2351"
+NEXT_RELEASE_MARKER = "下一次实际预发布"
 RELEASE_TAG = re.compile(
     r"https://github\.com/can4hou6joeng4/boss-harness/releases/tag/v0\.2\.0-rc\.\d+")
 LOCAL_PATH = re.compile(r"/Users/|/home/|[A-Za-z]:\\\\Users")
@@ -87,6 +89,9 @@ def _violations(text: str, version: str, label: str = STATUS) -> list[str]:
     for phrase in REQUIRED_PHRASES:
         if phrase not in text:
             found.append(f"{label} 缺少稳定表述 {phrase}")
+    for line_number, line in enumerate(text.splitlines(), 1):
+        if NEXT_RELEASE_MARKER in line and ROLLING_RELEASE_ENTRY not in line:
+            found.append(f"{label}:{line_number} 的「下一次实际预发布」未指向滚动记录")
     if RELEASE_TAG.search(text) is None:
         found.append(f"{label} 缺少已发布 tag 链接")
     return found
@@ -104,7 +109,7 @@ def _check_structures() -> int:
     if violations:
         raise ValueError("状态页稳定事实变化：" + "；".join(violations))
     return (len(REQUIRED_HEADINGS) + len(RELATIVE_LINKS) + len(REQUIRED_URLS)
-            + len(REQUIRED_PHRASES) + 3)
+            + len(REQUIRED_PHRASES) + 4)
 
 
 def _clean_sample(version: str) -> str:
@@ -144,6 +149,12 @@ def _check_behaviors() -> int:
     checked += _expect_count(_clean_sample(version).replace(
         "https://github.com/can4hou6joeng4/boss-harness/releases/tag/v0.2.0-rc.15", ""),
         version, 1, "缺少已发布 tag")
+    checked += _expect_count(
+        _clean_sample(version) + "\n下一次实际预发布：见 [旧计划](https://github.com/can4hou6joeng4/boss-harness/issues/3259)\n",
+        version, 1, "下一次发布未指向滚动记录")
+    checked += _expect_count(
+        _clean_sample(version) + f"\n下一次实际预发布：见 [滚动记录]({ROLLING_RELEASE_ENTRY})\n",
+        version, 0, "下一次发布滚动记录")
     return checked
 
 
