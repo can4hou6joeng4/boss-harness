@@ -3,8 +3,8 @@
 
 系统通知会在锁屏与通知中心留下副本，所以正文只能来自受限字段：审批通知给出工具名
 与截断后的摘要，回合通知只给状态与时长，不携带会话标题或正文。同一审批只提醒一次，
-通知对象保留上限内并在关闭或失败后释放；审批结算或内核断开时按 key 主动关闭，不
-留下无法定位的待批准卡片。徽标只接受 0–999 的整数。点击通知聚焦窗口，审批还要同时
+通知对象保留上限内并在关闭或失败后释放；同一 key 换成新对象时关闭旧卡片，
+审批结算或内核断开时按 key 主动关闭，不留下无法定位的待批准卡片。徽标只接受 0–999 的整数。点击通知聚焦窗口，审批还要同时
 具备会话与条目 id 才定位，避免打开错误位置。
 """
 
@@ -83,6 +83,8 @@ REGISTRY_FRAGMENTS = (
     "dismiss(key: string): boolean {",
     "dismissPrefix(prefix: string): number {",
     "notification.close?.();",
+    "try { previous.close?.(); } catch {}",
+    "this.#forget(previous);",
     "if (key && this.byKey.get(key) === notification) this.byKey.delete(key);",
     "this.retained.delete(notification);",
     "this.retained.add(notification);",
@@ -159,6 +161,15 @@ registry.show(third, "approval:c");
 third.emit("close");
 out.dismissAfterClose = registry.dismiss("approval:c");
 out.sizeAfter = registry.size;
+const oldCard = new FakeNotification();
+const newCard = new FakeNotification();
+registry.show(oldCard, "approval:replace");
+registry.show(newCard, "approval:replace");
+out.oldCardClosed = oldCard.closed;
+out.newCardClosed = newCard.closed;
+registry.show(newCard, "approval:replace");
+out.sameCardClosed = newCard.closed;
+out.replacedDismiss = registry.dismiss("approval:replace");
 process.stdout.write(JSON.stringify(out) + "\\n", () => process.exit(0));
 """
 
@@ -208,12 +219,16 @@ def _check_behavior() -> int:
         "closedAfterPrefix": [1, 0],
         "dismissAfterClose": False,
         "sizeAfter": 1,
+        "oldCardClosed": 1,
+        "newCardClosed": 0,
+        "sameCardClosed": 0,
+        "replacedDismiss": True,
     }
     failures = [f"{key} 期望 {expected[key]!r}，实际 {actual.get(key)!r}"
                 for key in expected if actual.get(key) != expected[key]]
     if failures:
         raise ValueError("通知保留器行为不符：" + "；".join(failures))
-    return 4
+    return 6
 
 
 def check_notifications() -> int:
@@ -304,6 +319,19 @@ def check_notifications() -> int:
             'notification.once("close", release);',
             'notification.once("failed", release);',
             "notification.show();",
+        ),
+        registry,
+        REGISTRY,
+    )
+    # 同一 key 换对象时先清掉旧引用与旧 key、关闭旧卡片，再登记新卡片。
+    checked += _ordered(
+        (
+            "const previous = this.byKey.get(key);",
+            "if (previous && previous !== notification) {",
+            "this.retained.delete(previous);",
+            "this.#forget(previous);",
+            "try { previous.close?.(); } catch {}",
+            "this.byKey.set(key, notification);",
         ),
         registry,
         REGISTRY,

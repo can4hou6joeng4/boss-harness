@@ -1,3 +1,10 @@
+## 0.2.0-rc.762 - 2026-11-25
+
+- 修复同一个通知 key 重复登记时旧卡片失去引用的问题：`NotificationRegistry.show()` 此前只把旧对象移出保留集合，不调用 `close()`，通知中心可能同时保留同一 key 的旧卡片，点击处理也可能随垃圾回收失效。现在换成不同对象时先清理旧引用与旧 key、关闭旧卡片，再登记新对象；换成相同对象时只重新排到最新，不关闭自身。[Issue #3649](https://github.com/can4hou6joeng4/boss-harness/issues/3649)
+- 升级注意：当前审批通知已有 `rememberApproval` 去重，常规流程不会重复登记同一 `approvalId`；本次只收紧保留器的 key 语义，不影响通知正文、去重、按 key / 前缀关闭、点击定位与徽标。真实 rc.761 源码的对比探针里，同 key 换对象后旧通知 `close()` 次数为 0；当前源码为 1，新通知为 0，保留数量仍为 1。未在真实桌面平台复核通知动画。
+- `scripts/check_notifications.py` 增加 2 处结构片段与 1 组顺序断言，并用 Node 24 直接运行真实保留器核对换对象关闭旧卡片、同一对象不自我关闭两项行为，输出由 129 项增至 139 项。5 组变异（不关闭旧对象、换自身时也关闭、不登记新 key、顺序颠倒、不清理旧 key）全部被首报失败。技术参考同步登记；协议、工具清单、审批口径与脚本总数（293）不变。
+- 源码候选更新为 npm `0.2.0-rc.762` 和 Python `0.2.0rc762`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.761 - 2026-11-25
 
 - 修复审批已结算后系统通知仍留在通知中心的问题：`notifications.show()` 此前只保留引用、不记录可定位的 key，`approval/decided` 与 `harness/disconnected` 到达后没有关闭对应卡片，用户点击旧卡片会跳到已裁决条目或失效路由。审批通知现在以 `approval:${approvalId}` 登记，裁决时关闭单条，内核断开时按前缀撤销全部审批卡片；回合通知不受影响。[Issue #3647](https://github.com/can4hou6joeng4/boss-harness/issues/3647)
