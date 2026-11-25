@@ -1,3 +1,8 @@
+## 0.2.0-rc.760 - 2026-11-25
+
+- `scripts/check_termination.py` 补齐两条此前只在临时探针里跑过的真实进程场景：空闲时收到 `SIGTERM`（没有在途回合，也无需终止招聘 CLI）与结束标准输入后立刻收到 `SIGTERM`（两条关闭路径重合，在途 CLI 仍要被终止）。技术参考此前明确记为「没有覆盖这两种情形」，现在改为已覆盖，并把口径纳入脚本断言。rc.756 的对比探针里，前者内核在 0.004～0.019 秒以该信号结束并留一行说明，后者在 0.139～0.188 秒以该信号结束、假 CLI 收到 `SIGTERM` 后退出；rc.755 的后一种场景里假 CLI 留在后台，重启后结果未知。[Issue #3645](https://github.com/can4hou6joeng4/boss-harness/issues/3645)
+- 协议、工具清单、审批口径与内核关闭语义不变，没有行为变化；脚本总数保持 293。源码候选更新为 npm `0.2.0-rc.760` 和 Python `0.2.0rc760`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.759 - 2026-11-25
 
 - 修复退出桌面应用时可能留下孤儿内核：`before-quit` 此前只同步调用 `manager.dispose()` 就退出，客户端「结束标准输入 → 2.5 秒后 `SIGTERM` → 再过 1 秒 `SIGKILL`」的关闭升级挂在主进程事件循环上，主进程结束即不再运行。关闭卡住的内核（例如停在写回包或收尾里）不读标准输入结束、也不理会 `SIGTERM`，会继续持有状态目录与在途的招聘 CLI 进程组；下次启动可能遇到状态目录被占用。客户端层对比：`dispose()` 后立即退出驱动进程，假内核在 0.5 秒后仍在运行；改为等待 `waitForClose()` 后，约 3.7 秒升级到 `SIGKILL`、假内核消失。[Issue #3643](https://github.com/can4hou6joeng4/boss-harness/issues/3643)
