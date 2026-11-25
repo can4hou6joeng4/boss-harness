@@ -1,3 +1,8 @@
+## 0.2.0-rc.763 - 2026-11-25
+
+- README 把安装与首次试跑移到能力地图之前，页首新增试跑链接。首次访问可先选择安装已发布的 Python 内核或从源码启动桌面，桌面用户可从页首直接进入试跑步骤。[Issue #3651](https://github.com/can4hou6joeng4/boss-harness/issues/3651)
+- 通过首页稳定事实、文档链接与版本一致性检查。源码候选更新为 npm `0.2.0-rc.763` 和 Python `0.2.0rc763`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.762 - 2026-11-25
 
 - 修复同一个通知 key 重复登记时旧卡片失去引用的问题：`NotificationRegistry.show()` 此前只把旧对象移出保留集合，不调用 `close()`，通知中心可能同时保留同一 key 的旧卡片，点击处理也可能随垃圾回收失效。现在换成不同对象时先清理旧引用与旧 key、关闭旧卡片，再登记新对象；换成相同对象时只重新排到最新，不关闭自身。[Issue #3649](https://github.com/can4hou6joeng4/boss-harness/issues/3649)
