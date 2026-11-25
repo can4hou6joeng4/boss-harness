@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { IconMore, IconDiffFiles, IconChevronRight, IconTerminal, IconPlus, IconFolder, IconCheck } from "../components/Icons";
 import { Popover } from "../components/Popover";
+import { syncSummaryPanelVisit, withSummaryPanelExpanded, withSummaryPanelMenu, type SummaryPanelVisit } from "../data/summaryPanelVisit";
 import type { MessageItem } from "../data/mockData";
 interface Props { projectName: string; isOpen: boolean; messages: MessageItem[]; preview: boolean; onReviewChanges: () => void; onOpenSettings: () => void; }
 export function RightPanel({ projectName, isOpen, messages, preview, onReviewChanges, onOpenSettings }: Props) {
-  const [expanded, setExpanded] = useState(false), [menu, setMenu] = useState(false);
+  // 面板关闭时只返回 null 但保持挂载；菜单与来源展开必须在渲染期随可见性复位，避免重新展开时自动弹出旧菜单。
+  const [visit, setVisit] = useState<SummaryPanelVisit>(() => ({ open: isOpen, menu: false, expanded: false }));
+  if (visit.open !== isOpen) setVisit(syncSummaryPanelVisit(visit, isOpen));
+  const menu = visit.menu, expanded = visit.expanded;
+  const setMenu = (next: boolean) => setVisit(current => withSummaryPanelMenu(current, next));
+  const setExpanded = (next: boolean) => setVisit(current => withSummaryPanelExpanded(current, next));
   if (!isOpen) return null;
   const summary = [...messages].reverse().find(item => item.diffSummary)?.diffSummary;
   const tools = [...new Set(messages.flatMap(item => item.toolUse ? [item.toolUse.name] : []))];
