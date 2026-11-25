@@ -42,6 +42,8 @@ ENGLISH_PHRASES = (
     "`main` is the development branch and source candidates are not releases",
     "The desktop is built from source and has no standalone installer yet.",
     "14 allowlisted tools (13 read-only plus one greeting action that requires approval on every call)",
+    "data leaves the machine along only two paths",
+    "no telemetry, crash reporting, or update checks",
 )
 
 

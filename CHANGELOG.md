@@ -1,3 +1,9 @@
+## 0.2.0-rc.773 - 2026-11-26
+
+- README 英文概览的 Safety boundary 补充与中文段落等价的 Data flow 说明：数据只经模型线路与本机 `boss-agent-cli` 两条路径离开本机，会话记录、附件文件与界面偏好留在本机，仓库代码不含遥测、崩溃上报或自动更新检查。rc.772 只更新了中文入口，英文入口缺少同一组稳定事实。[Issue #3671](https://github.com/can4hou6joeng4/boss-harness/issues/3671)
+- `scripts/check_readme_stability.py` 的英文稳定表述增加对应两条短语；结构计数由 24 项增至 26 项，行为侧沿用既有缺失表述校验。技术参考同步登记。
+- 源码候选更新为 npm `0.2.0-rc.773` 和 Python `0.2.0rc773`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.772 - 2026-11-26
 
 - 补齐 README「安全边界」的数据去向说明：数据离开本机只经过模型线路与本机 `boss-agent-cli` 两条路径，前者收到完成回合与摘要所需的上下文，后者按自身登录状态与浏览器来源访问平台；会话、附件与界面偏好只保存在本机，仓库代码不含遥测、崩溃上报或自动更新检查。此前读者需要跨多个文档自行推断这些边界。[Issue #3669](https://github.com/can4hou6joeng4/boss-harness/issues/3669)
