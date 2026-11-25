@@ -637,6 +637,8 @@ jobs:
         run: python scripts/check_reasoning_control.py
       - name: Verify library files
         run: python scripts/check_library_files.py
+      - name: Verify library visit
+        run: python scripts/check_library_visit.py
       - name: Verify workspace instruction receipts
         run: python scripts/check_workspace_instruction_receipts.py
       - name: Verify snapshot shape

@@ -11,13 +11,19 @@ import { WorkspaceSkills } from "../components/WorkspaceSkills";
 import type { WorkspaceSkillDialog } from "../components/WorkspaceSkillDialogs";
 import { WorkspaceInstructionsSection } from "../components/WorkspaceInstructionsSection";
 import { collectLibraryFiles, collectLibrarySources, filterLibraryFiles, filterLibrarySources, formatSourceQueriedAt, shortLibraryId } from "../data/libraryFiles";
+import { syncLibraryVisit, withLibraryFile, type LibraryVisit } from "../data/libraryVisit";
 import { formatRelativeTime } from "@boss-harness/shared";
 import type { WorkspacePage } from "./NavigationRail";
 interface Props { page: WorkspacePage; folders: ProjectFolder[]; messages: MessageItem[]; onSelect: (session: SessionItem) => void; onNewTask: () => void; onDraft: (text: string) => void; tools: ToolDescriptor[]; toolCatalogState: ToolCatalogState; toolCatalogError: string; onRefreshTools?: () => void; skills: SkillDescriptor[]; skillCatalogState: SkillCatalogState; skillCatalogError?: string; onRefreshSkills: () => void; onOpenSkillDialog: (dialog: WorkspaceSkillDialog) => void; skillMutationNotice: string; skillMutationRevision: number; skillsReadable: boolean; skillsCreatable: boolean; skillsWritable: boolean; skillsDeletable: boolean; skillRoot?: string | null; skillProblems: SkillProblem[]; skillSkillsTruncated?: boolean; skillProblemsTruncated?: boolean; skillCandidatesTruncated?: boolean; onUseSkill: (skillId: string) => void; workspaceInstructionsEditable: boolean; harnessUp: boolean; preview: boolean; focusSkillId?: string | null; onFocusSkill?: () => void; /** 工作区说明的未保存状态交给外层，页面卸载前用于拦截导航。 */ onInstructionsDirty?: (dirty: boolean) => void; /** 工作区说明的保存在途状态交给外层。 */ onInstructionsSaving?: (saving: boolean) => void; }
 export function WorkspacePages({ page, folders, messages, onSelect, onNewTask, onDraft, tools, toolCatalogState, toolCatalogError, onRefreshTools, skills, skillCatalogState, skillCatalogError = "", onRefreshSkills, onOpenSkillDialog, skillMutationNotice, skillMutationRevision, skillsReadable, skillsCreatable, skillsWritable, skillsDeletable, skillRoot = null, skillProblems = [], skillSkillsTruncated = false, skillProblemsTruncated = false, skillCandidatesTruncated = false, onUseSkill, workspaceInstructionsEditable, harnessUp, preview, focusSkillId = null, onFocusSkill, onInstructionsDirty, onInstructionsSaving }: Props) {
   const now = useLocalNow(page === "recents");
-  const [query, setQuery] = useState(""), [file, setFile] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const [libraryQuery, setLibraryQuery] = useState("");
+  // 文件详情只属于当前这次资料库访问；页面切换时在渲染期同步，返回时不重开旧详情，也不先画出旧弹窗。
+  const [libraryVisit, setLibraryVisit] = useState<LibraryVisit>(() => ({ page, file: null }));
+  if (libraryVisit.page !== page) setLibraryVisit(syncLibraryVisit(libraryVisit, page));
+  const file = libraryVisit.file;
+  const setFile = (next: string | null) => setLibraryVisit(current => withLibraryFile(current, next));
   const { feedback: copyNote, copy: copyLibraryText, reset: resetCopy } = useClipboardCopy(2600);
   // 页面或文件详情切换后，使旧回执失效，避免返回时重新出现过期提示。
   useEffect(() => { resetCopy(); }, [page, file, resetCopy]);

@@ -1,3 +1,10 @@
+## 0.2.0-rc.768 - 2026-11-25
+
+- 修复资料库文件详情跨页面访问重新弹出的问题：`file` 选择状态此前与筛选词一起放在跨页面保持挂载的 `WorkspacePages` 顶层，切到其他工作区页面再返回资料库时，弹窗会自动重开。现在页面与详情收敛到 `libraryVisit.ts`，页面变化时开启新一次访问并丢弃旧详情，返回资料库不再重开；筛选词仍跨页面保留。[Issue #3661](https://github.com/can4hou6joeng4/boss-harness/issues/3661)
+- 用 React 18 + react-test-renderer 加载真实 `WorkspacePages` 复现：修复前打开 `a.ts` 详情、切到技能页再返回，弹窗标题重新出现；修复后返回时没有弹窗，同一页面内的打开与关闭不变。`syncLibraryVisit` 同页保持原引用，避免渲染期同步陷入循环。
+- 新增 `scripts/check_library_visit.py`（15 项结构、10 项行为）并在 CI 工作流登记，行为侧由 Node 直接加载真实模块核对离开丢弃、返回不恢复、幂等同步与打开 / 关闭 / 替换详情；技术参考同步登记。
+- 源码候选更新为 npm `0.2.0-rc.768` 和 Python `0.2.0rc768`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.767 - 2026-11-25
 
 - 修正状态页「下一次实际预发布」指向已关闭 Issue #3259 的问题，改为持续维护的滚动记录 [Issue #2351](https://github.com/can4hou6joeng4/boss-harness/issues/2351)；候选 PR 合入不等于发布、tag / Release / 资产上传需对应授权的说明保留。[Issue #3659](https://github.com/can4hou6joeng4/boss-harness/issues/3659)
