@@ -124,6 +124,10 @@ class FrameTooLargeError(ValueError):
     """Raised before writing any bytes; callers may send a bounded error once."""
 
 
+class _ReadInterrupted(BaseException):
+    """只用于让阻塞中的读取返回；继承 BaseException，途中的 `except Exception` 不会吞掉它。"""
+
+
 @dataclass(frozen=True)
 class ServerRequest:
     id: str
@@ -138,6 +142,9 @@ class JsonRpcServer:
         self._pending_lock = threading.Lock()
         self._pending: dict[str, tuple[Future, threading.Timer]] = {}
         self._closed = False
+        self._stop_requested = False
+        self._reading = False
+        self._reader: int | None = None
         self.opt_out_notifications: frozenset[str] = frozenset()
         self.before_dispatch: Callable[[str], None] | None = None
 
@@ -254,12 +261,34 @@ class JsonRpcServer:
         except UnicodeEncodeError:
             pass
 
+    def request_stop(self) -> None:
+        """让读取循环像输入结束一样退出；可以在信号处理器里调用。
+
+        不取锁。只打断阻塞中的读取，不打断正在执行的请求处理：处理中的请求照常
+        完成并回包，循环在读取下一帧之前结束。异常只在读取线程自己调用时抛出，
+        且最多一次——重复调用不会打断随后的关闭流程。其他线程调用只置位标记，
+        循环在当前读取返回后结束。
+        """
+        first = not self._stop_requested
+        self._stop_requested = True
+        if first and self._reading and threading.get_ident() == self._reader:
+            raise _ReadInterrupted()
+
     def serve_forever(self) -> None:
         _enable_surrogateescape_stdin()
+        self._reader = threading.get_ident()
         try:
             while True:
                 try:
-                    raw = sys.stdin.readline(MAX_FRAME_BYTES + 1)
+                    try:
+                        # 先标记再核对：停止请求要么在核对时已经可见，要么落在读取期间由异常带出。
+                        self._reading = True
+                        if self._stop_requested:
+                            break
+                        raw = sys.stdin.readline(MAX_FRAME_BYTES + 1)
+                    finally:
+                        # 可打断的范围只有读取本身：下面的错误回包与派发都不在其中。
+                        self._reading = False
                 except UnicodeDecodeError:
                     # 无法重配置的流仍可能在分帧前解码失败；此时缓冲状态不可信，
                     # 回一帧错误后有序停止，避免未捕获异常让进程整体崩溃。
@@ -288,6 +317,9 @@ class JsonRpcServer:
                     self._protocol_error(-32700, "无效的 JSON 帧")
                     continue
                 self._dispatch(message)
+        except _ReadInterrupted:
+            # 只可能来自 request_stop：与输入结束同样处理。
+            pass
         finally:
             self.close()
 

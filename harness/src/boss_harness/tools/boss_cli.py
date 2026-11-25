@@ -29,6 +29,16 @@ MAX_CLI_OUTPUT_BYTES = 16 * 1024 * 1024
 CHILD_EXIT_DRAIN_SECONDS = 0.5
 MAX_ENVELOPE_JSON_DEPTH = 64
 
+# 进程级停止标记：入口收到终止信号后置位。此后不再启动上游 CLI，在途调用按取消
+# 终止进程组。只做一次布尔赋值——信号处理器运行在主线程任意两条字节码之间，
+# 不能取锁，也不能触碰可能正被主线程持有的事件对象。
+_process_stop_requested = False
+
+
+def request_process_stop() -> None:
+    global _process_stop_requested
+    _process_stop_requested = True
+
 
 def _reject_json_constant(_: str) -> None:
     raise ValueError("JSON 数值必须有限")
@@ -216,6 +226,10 @@ class BossCliTool:
     def available(self) -> bool:
         return binary_available(self.binary)
 
+    def _stop_requested(self) -> bool:
+        # 进程级标记优先：没有绑定取消事件的调用同样要在内核停止时收尾。
+        return _process_stop_requested or (self.cancel_event is not None and self.cancel_event.is_set())
+
     def call(self, *args: str, timeout: int = DEFAULT_TIMEOUT_SECONDS, stdin: str | None = None) -> ToolResult:
         argv = [self.binary, "--json"]
         if self.data_dir:
@@ -226,7 +240,7 @@ class BossCliTool:
         def failure(code: str, message: str) -> ToolResult:
             return ToolResult(ok=False, command=" ".join(args), error={"code": code, "message": redact_secrets(message)})
 
-        if self.cancel_event is not None and self.cancel_event.is_set():
+        if self._stop_requested():
             return failure("CANCELLED", "操作已停止，未启动 CLI")
 
         def output_limit_failure() -> ToolResult:
@@ -261,7 +275,7 @@ class BossCliTool:
             return failure("CLI_ERROR", "CLI 输入输出未能启动，进程已停止；请先核对已发出的操作。")
         exited_at: float | None = None
         while True:
-            cancelled = self.cancel_event is not None and self.cancel_event.is_set()
+            cancelled = self._stop_requested()
             if cancelled or output.overflow.is_set() or output.failed or time.monotonic() >= deadline:
                 self._terminate(proc)
                 output.join()

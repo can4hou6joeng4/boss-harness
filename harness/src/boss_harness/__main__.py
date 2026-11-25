@@ -4,8 +4,10 @@ from __future__ import annotations
 import argparse
 import os
 import json
+import signal
 import sys
 from pathlib import Path
+from typing import Any
 
 from boss_harness import __version__
 from boss_harness.application import ApplicationService as Harness, _approval_timeout
@@ -13,7 +15,100 @@ from boss_harness.models import DEFAULT_MODEL, ModelConfig, build_provider, reso
 from boss_harness.models.config_errors import ModelConfigError
 from boss_harness.models.secret import redact_secrets
 from boss_harness.rpc import JsonRpcServer, describe_failure
-from boss_harness.tools.boss_cli import resolve_browser_source_override
+from boss_harness.tools.boss_cli import request_process_stop, resolve_browser_source_override
+
+# 终止信号到达后留给关闭流程的最长时间。关闭自身共享两秒期限，这里只兜住卡死：
+# 到期由定时器信号的系统默认动作结束进程，终止信号不会变成停不掉进程的请求。
+TERMINATION_HARD_LIMIT_SECONDS = 5.0
+_TERMINATION_SIGNALS = ("SIGTERM", "SIGHUP", "SIGINT")
+
+
+class _TerminationSignals:
+    """终止信号与标准输入结束走同一套关闭流程，关闭完成后仍以该信号的默认动作结束。
+
+    处理器运行在主线程任意两条字节码之间，所以只写标记、不取锁：置位进程级停止
+    标记（不再启动上游 CLI，在途调用终止进程组）、设定强制期限，再请求读取循环停止。
+    只有阻塞中的读取会被打断，正在执行的请求处理与已经开始的关闭不受影响。
+    """
+
+    def __init__(self, server: JsonRpcServer) -> None:
+        self._server = server
+        self._previous: dict[int, Any] = {}
+        self._limit_armed = False
+        self.signum: int | None = None
+
+    def __enter__(self) -> "_TerminationSignals":
+        if os.name != "posix":
+            # 其他平台的信号投递方式不同，也没有可作强制期限的定时器信号：保持原有行为。
+            return self
+        for name in _TERMINATION_SIGNALS:
+            signum = getattr(signal, name)
+            try:
+                previous = signal.getsignal(signum)
+                # 启动时已被忽略的信号保持忽略（例如 nohup）；不是由 Python 安装的处理器
+                # 无法原样恢复，同样不接管。
+                if previous is None or previous == signal.SIG_IGN:
+                    continue
+                signal.signal(signum, self._on_signal)
+            except (OSError, ValueError):
+                # 只有主线程能安装处理器；嵌入到其他线程运行时保持系统默认行为。
+                continue
+            self._previous[int(signum)] = previous
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        # 收到过信号时进程即将结束：保留处理器，重复信号继续被吸收而不是打断收尾。
+        if self.signum is not None:
+            return
+        for signum, previous in self._previous.items():
+            try:
+                signal.signal(signum, previous)
+            except (OSError, ValueError):
+                pass
+        self._previous.clear()
+
+    def _on_signal(self, signum: int, _frame: object) -> None:
+        # 每一步都可以重复执行，不以「是否第一个信号」整体把关：另一个信号的处理器可能
+        # 插在这里任意两步之间运行，它末尾的异常会让本次调用余下的步骤不再执行。
+        if self.signum is None:
+            self.signum = signum
+        request_process_stop()
+        if not self._limit_armed:
+            # 先设定再记账：被打断时宁可重设一次，也不能留下没有期限的关闭。
+            self._arm_hard_limit()
+            self._limit_armed = True
+        # 放在最后：它可能以异常打断阻塞中的读取。
+        self._server.request_stop()
+
+    @staticmethod
+    def _arm_hard_limit() -> None:
+        # 定时器信号恢复为系统默认动作并解除阻塞，由操作系统直接结束进程，不依赖主线程
+        # 回到解释器；启动环境留下的忽略或阻塞设置不会让期限失效。
+        try:
+            signal.signal(signal.SIGALRM, signal.SIG_DFL)
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGALRM})
+            signal.setitimer(signal.ITIMER_REAL, TERMINATION_HARD_LIMIT_SECONDS)
+        except (OSError, ValueError):
+            pass
+
+    def conclude(self) -> int:
+        """关闭流程结束后调用：没有收到信号时返回 0，否则以该信号的默认动作结束进程。"""
+        signum = self.signum
+        if signum is None:
+            return 0
+        try:
+            print(f"[harness] 收到 {signal.Signals(signum).name}，已按关闭流程停止", file=sys.stderr, flush=True)
+        except (OSError, ValueError):
+            # 终端挂断后 stderr 可能已不可写；诊断行丢失不影响结束方式。
+            pass
+        # 上级进程看到的结束方式与信号未被处理时相同；默认动作不经过解释器收尾。
+        try:
+            signal.signal(signum, signal.SIG_DFL)
+            os.kill(os.getpid(), signum)
+        except (OSError, ValueError):
+            pass
+        return 128 + signum
+
 
 def _failure_text(exc: Exception) -> str:
     """stderr 常被原样贴进 Issue：本地文件错误不带路径，其余文本抹掉凭据形态。"""
@@ -162,8 +257,10 @@ def main(argv: list[str] | None = None) -> int:
         f"model_calls_disabled={harness.model_calls_disabled}",
         file=sys.stderr,
     )
-    harness.serve_forever()
-    return 0
+    termination = _TerminationSignals(server)
+    with termination:
+        harness.serve_forever()
+    return termination.conclude()
 
 
 if __name__ == "__main__":

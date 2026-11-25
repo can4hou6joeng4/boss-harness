@@ -1,3 +1,10 @@
+## 0.2.0-rc.756 - 2026-11-25
+
+- 修复内核收到终止信号时立即消失、在途的招聘 CLI 留在后台继续运行：此前 `SIGTERM` 与 `SIGHUP` 按系统默认动作直接结束进程，不经过关闭流程；招聘 CLI 运行在独立进程组里，不随内核结束，已经批准的发送类调用对应的 CLI 进程同样留在后台，会话里这次调用只能按结果未知（`SESSION_INTERRUPTED`）结算。现在内核收到 `SIGTERM`、`SIGHUP` 或 `SIGINT` 时走与标准输入结束相同的关闭流程：先终止在途的招聘 CLI、写完会话记录，再以该信号的默认动作结束。信号只打断阻塞中的读取，不打断正在执行的请求处理；信号到达后不再启动招聘 CLI，在途调用由持有它的调用线程终止进程组，主线程无法进入关闭流程时同样生效。[Issue #3637](https://github.com/can4hou6joeng4/boss-harness/issues/3637)
+- `SIGINT` 走同一条路径，`Ctrl+C` 不再打印回溯。启动时已被忽略的信号保持忽略（例如经 `nohup` 启动时的 `SIGHUP`）。信号到达 5 秒后关闭仍未完成时，进程由定时器信号（`SIGALRM`）的默认动作结束。非 POSIX 平台不接管信号，`SIGKILL` 无法处理。不新增 RPC、握手字段或持久格式，协议仍为 `0.2.0`。
+- 升级注意：以信号停止内核的宿主观察到的结束方式不变（仍是该信号本身，不是退出码 `128 + 信号编号`），但进程不再立即消失：关闭通常需要 0.1～0.2 秒，招聘 CLI 不理会 `SIGTERM` 时约 0.6～0.7 秒，关闭卡住时最长 5 秒且结束方式变为 `SIGALRM`。stderr 末尾多一行 `[harness] 收到 SIGTERM，已按关闭流程停止`（信号名随实际信号变化），`SIGINT` 不再有回溯。被终止的调用由 `SESSION_INTERRUPTED` 变为 `CANCELLED`：只读查询记为失败，已经批准的发送类调用仍记为结果未知，已经发出的操作可能生效，仍需先核对平台状态。桌面应用断开内核时先结束标准输入、2.5 秒后才发 `SIGTERM`，正常关闭不受影响；关闭卡住时内核不再在 `SIGTERM` 时立即结束，而是继续到随后的 `SIGKILL`。真实进程路径上以假招聘 CLI 各 20 轮核对：`SIGTERM` 与 `SIGHUP` 之后假 CLI 仍在运行的轮数由 20 变为 0，`SIGINT` 的回溯由 20 轮变为 0 轮。以上在 macOS 上执行，Windows 没有运行，桌面端路径只做了源码阅读；本轮没有调用真实模型或招聘平台。
+- 新增 `scripts/check_termination.py`（12 项进程内行为、7 项真实进程结果、10 处文档口径）：以替身输入核对读取循环的可打断范围，并启动真实的 stdio 内核进程与假招聘 CLI，核对 `SIGTERM`、`SIGINT`、关闭期间的重复信号、启动时已被忽略的 `SIGHUP` 与关闭无法完成时的强制期限。`scripts/check_boss_cli_call.py`（52 项结构、41 项行为）新增进程级停止标记的核对。使用指南、技术参考与上游阅读记录同步；脚本总数由 289 增至 290。源码候选更新为 npm `0.2.0-rc.756` 和 Python `0.2.0rc756`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.755 - 2026-11-25
 
 - 修复内核可以在摘要任务的终态事件写完之前结束：摘要任务让出会话之后，终态事件（`context/compactionCompleted` / `context/compactionFailed`、`context/compacted`）、队列通知与后续唤醒仍由原线程写完，这一段此前不在任何关闭等待的登记里，`close()` 约 1 毫秒返回并释放状态目录。以 `context/compact/read` 轮询结果、读到终态就退出的宿主因此丢失终态事件；重启后同一任务读到的结果也与退出前不同，成功的任务多出 `COMPACTION_RECOVERED_COMMIT`、缺少 `context/compacted`，失败的任务的真实原因被改写为 `COMPACTION_INTERRUPTED`。现在这段收尾计入关闭的两秒共享期限，结束前不释放状态目录、会话存储与工具桥；超过期限时关闭照常返回，所有权留到收尾结束再释放。手动摘要、分支摘要与回合内自动压缩走同一段收尾；摘要检查点在终态事件之前已经提交，此前也不受影响。[Issue #3635](https://github.com/can4hou6joeng4/boss-harness/issues/3635)
