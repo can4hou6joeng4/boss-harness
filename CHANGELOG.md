@@ -1,3 +1,10 @@
+## 0.2.0-rc.766 - 2026-11-25
+
+- 修复系统通知显示同步失败后仍占用保留配额的问题：`NotificationRegistry.show()` 先登记保留引用和 key，再调用平台 `show()`；若显示同步抛错，`close` / `failed` 不会到达，带 key 的卡片仍可被 `dismiss()` 命中，无 key 的卡片一直留到满额淘汰。现在失败时释放该通知的保留引用与 key，再抛出原错误；同一 key 可以重新登记新通知。[Issue #3657](https://github.com/can4hou6joeng4/boss-harness/issues/3657)
+- 用当前保留器与 `show()` 抛错的假通知验证：修复前带 key 显示后 `size=1`、`dismiss=true`、失败对象被关闭一次，不带 key 的 `size=1`；修复后两者均为 `size=0`、`dismiss=false`、`closed=0`，同 key 重新显示后保留数为 1。修复前的真实源码在新增行为场景中首报 `failedApproval`、`failedTurn` 与 `recoveredSize` 不符，当前源码通过。
+- `scripts/check_notifications.py` 增至 144 项，新增 Node 24 假通知的带 key / 无 key 显示失败与同 key 恢复场景；结构断言固定失败时先释放再抛错。技术参考同步登记；协议、工具清单、审批口径与脚本总数（293）不变。
+- 源码候选更新为 npm `0.2.0-rc.766` 和 Python `0.2.0rc766`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.765 - 2026-11-25
 
 - 修复会话导出失败后残留含正文的临时副本：临时文件写入并关闭后，目标身份检查失败此前直接抛错，而 finally 只在句柄未关闭时清理。现在清理与句柄关闭分别管理，只要原子替换未完成就尝试删除临时文件，清理失败不覆盖原始错误。[Issue #3655](https://github.com/can4hou6joeng4/boss-harness/issues/3655)

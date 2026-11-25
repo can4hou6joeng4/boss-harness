@@ -60,7 +60,13 @@ export class NotificationRegistry {
     };
     notification.once("close", release);
     notification.once("failed", release);
-    notification.show();
+    try {
+      notification.show();
+    } catch (error) {
+      // 平台显示失败时不会发出 close / failed；立即释放保留位与 key 路由，再抛出原错误。
+      release();
+      throw error;
+    }
   }
 
   /** 主动关闭一个带 key 的通知；审批已经结算或路由失效后不再留在通知中心。 */

@@ -90,8 +90,8 @@ REGISTRY_FRAGMENTS = (
     "this.retained.add(notification);",
     "while (this.retained.size > this.limit) {",
     'notification.once("close", release);',
-    'notification.once("failed", release);',
-    "notification.show();",
+    'notification.once("failed", release);\n    try {\n      notification.show();\n    } catch (error) {',
+    "release();\n      throw error;",
 )
 BADGE_FRAGMENTS = (
     "/** 应用图标徽标只接受 0–999 的整数；其它输入返回 null，调用方保持现有徽标不变。 */",
@@ -129,8 +129,12 @@ import { NotificationRegistry } from "./registry.ts";
 class FakeNotification {
   shown = 0;
   closed = 0;
+  failOnShow = false;
   private readonly handlers: Record<string, Array<() => void>> = {};
-  show(): void { this.shown += 1; }
+  show(): void {
+    this.shown += 1;
+    if (this.failOnShow) throw new Error("show failed");
+  }
   close(): void {
     this.closed += 1;
     for (const listener of this.handlers.close ?? []) listener();
@@ -187,6 +191,28 @@ out.boundedSize = bounded.size;
 out.dismissEvicted = bounded.dismiss("approval:evicted");
 out.dismissRemaining = bounded.dismissPrefix("approval:");
 out.closesAfterEviction = [evictedApproval.closed, remainingApproval.closed, remainingTurn.closed];
+
+const failedRegistry = new NotificationRegistry(2);
+const failedApproval = new FakeNotification();
+failedApproval.failOnShow = true;
+let failedApprovalThrew = false;
+try { failedRegistry.show(failedApproval, "approval:failed"); } catch { failedApprovalThrew = true; }
+out.failedApproval = {
+  threw: failedApprovalThrew,
+  size: failedRegistry.size,
+  dismiss: failedRegistry.dismiss("approval:failed"),
+  closed: failedApproval.closed,
+};
+const failedTurn = new FakeNotification();
+failedTurn.failOnShow = true;
+let failedTurnThrew = false;
+try { failedRegistry.show(failedTurn); } catch { failedTurnThrew = true; }
+out.failedTurn = { threw: failedTurnThrew, size: failedRegistry.size, closed: failedTurn.closed };
+const recovered = new FakeNotification();
+failedRegistry.show(recovered, "approval:failed");
+out.recoveredSize = failedRegistry.size;
+out.recoveredDismiss = failedRegistry.dismiss("approval:failed");
+out.recoveredClosed = recovered.closed;
 process.stdout.write(JSON.stringify(out) + "\\n", () => process.exit(0));
 """
 
@@ -245,12 +271,17 @@ def _check_behavior() -> int:
         "dismissEvicted": False,
         "dismissRemaining": 1,
         "closesAfterEviction": [1, 1, 0],
+        "failedApproval": {"threw": True, "size": 0, "dismiss": False, "closed": 0},
+        "failedTurn": {"threw": True, "size": 0, "closed": 0},
+        "recoveredSize": 1,
+        "recoveredDismiss": True,
+        "recoveredClosed": 1,
     }
     failures = [f"{key} 期望 {expected[key]!r}，实际 {actual.get(key)!r}"
                 for key in expected if actual.get(key) != expected[key]]
     if failures:
         raise ValueError("通知保留器行为不符：" + "；".join(failures))
-    return 8
+    return 11
 
 
 def check_notifications() -> int:
