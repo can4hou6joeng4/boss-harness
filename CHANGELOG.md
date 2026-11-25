@@ -1,3 +1,10 @@
+## 0.2.0-rc.757 - 2026-11-25
+
+- 桌面端断开内核的关闭升级时序有真实进程验证：结束标准输入后内核在 2.5 秒宽限期内自行结束，假招聘 CLI 收到 `SIGTERM` 并退出；内核不理会 `SIGTERM` 时约 2.5 秒收到 `SIGTERM`、再过 1 秒收到 `SIGKILL`；内核已自行退出后调用 `dispose()` 立即完成。此前这条时序只有源码片段断言，且与 `0.2.0rc756` 起「收到 `SIGTERM` 后先完成关闭流程」的内核行为组合在一起没有验证。[Issue #3639](https://github.com/can4hou6joeng4/boss-harness/issues/3639)
+- 走到 `SIGKILL` 前客户端在诊断通道留一行固定说明 `harness did not stop after SIGTERM; sent SIGKILL`：内核关闭卡住时，宿主日志能区分桌面端强制升级与内核自身退出。协议、工具清单、审批口径与内核关闭语义不变。
+- 升级注意：除新增的这一行诊断（只在需要强制结束时出现）外没有行为变化；正常关闭、请求超时与断线处理都与此前一致。
+- 新增 `scripts/check_client_close.py`（7 项结构、7 项真实进程结果、3 处文档口径）：以真实 `HarnessClient` 驱动真实内核与假招聘 CLI，覆盖正常关闭、`SIGTERM` 无效时的两级升级，以及内核已退出后的立即完成。`scripts/check_client_transport.py`（63 项分帧、队列与关闭防护）同步强杀片段。技术参考同步；脚本总数由 290 增至 291。源码候选更新为 npm `0.2.0-rc.757` 和 Python `0.2.0rc757`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.756 - 2026-11-25
 
 - 修复内核收到终止信号时立即消失、在途的招聘 CLI 留在后台继续运行：此前 `SIGTERM` 与 `SIGHUP` 按系统默认动作直接结束进程，不经过关闭流程；招聘 CLI 运行在独立进程组里，不随内核结束，已经批准的发送类调用对应的 CLI 进程同样留在后台，会话里这次调用只能按结果未知（`SESSION_INTERRUPTED`）结算。现在内核收到 `SIGTERM`、`SIGHUP` 或 `SIGINT` 时走与标准输入结束相同的关闭流程：先终止在途的招聘 CLI、写完会话记录，再以该信号的默认动作结束。信号只打断阻塞中的读取，不打断正在执行的请求处理；信号到达后不再启动招聘 CLI，在途调用由持有它的调用线程终止进程组，主线程无法进入关闭流程时同样生效。[Issue #3637](https://github.com/can4hou6joeng4/boss-harness/issues/3637)
