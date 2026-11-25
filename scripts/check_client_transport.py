@@ -69,7 +69,9 @@ FAIL_FRAGMENTS = (
     'else process.stderr.write(`[harness] ${message}\\n`);',
     "child.stdin.end();",
     'child.kill("SIGTERM");',
-    'if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");',
+    "if (child.exitCode === null && child.signalCode === null) {",
+    'this.#diagnostic("harness did not stop after SIGTERM; sent SIGKILL");',
+    '            child.kill("SIGKILL");',
 )
 LINE_FRAGMENTS = (
     'if (message.jsonrpc !== "2.0") return;',

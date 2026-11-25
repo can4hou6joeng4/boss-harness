@@ -172,7 +172,11 @@ export class HarnessClient {
         if (child.exitCode !== null || child.signalCode !== null) return;
         child.kill("SIGTERM");
         this.#killTimer = setTimeout(() => {
-          if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+          if (child.exitCode === null && child.signalCode === null) {
+            // 走到这里说明内核没有在 SIGTERM 之后自行结束：留一行诊断，便于定位卡住的关闭。
+            this.#diagnostic("harness did not stop after SIGTERM; sent SIGKILL");
+            child.kill("SIGKILL");
+          }
         }, FORCE_KILL_TIMEOUT_MS);
         this.#killTimer.unref();
       }, GRACEFUL_CLOSE_TIMEOUT_MS);
