@@ -3,14 +3,19 @@
 
 系统通知会在锁屏与通知中心留下副本，所以正文只能来自受限字段：审批通知给出工具名
 与截断后的摘要，回合通知只给状态与时长，不携带会话标题或正文。同一审批只提醒一次，
-通知对象保留上限内并在关闭或失败后释放；徽标只接受 0–999 的整数。点击通知聚焦窗口，
-审批还要同时具备会话与条目 id 才定位，避免打开错误位置。
+通知对象保留上限内并在关闭或失败后释放；审批结算或内核断开时按 key 主动关闭，不
+留下无法定位的待批准卡片。徽标只接受 0–999 的整数。点击通知聚焦窗口，审批还要同时
+具备会话与条目 id 才定位，避免打开错误位置。
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+import json
+import os
+import subprocess
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 APPROVAL = "apps/desktop/src/main/approvalNotification.ts"
@@ -73,6 +78,12 @@ TURN_FRAGMENTS = (
 REGISTRY_FRAGMENTS = (
     "export const NOTIFICATION_RETENTION_LIMIT = 32;",
     'if (!Number.isSafeInteger(limit) || limit < 1) throw new Error("通知保留上限必须是正整数");',
+    "private readonly byKey = new Map<string, RetainableNotification>();",
+    "show(notification: RetainableNotification, key?: string): void {",
+    "dismiss(key: string): boolean {",
+    "dismissPrefix(prefix: string): number {",
+    "notification.close?.();",
+    "if (key && this.byKey.get(key) === notification) this.byKey.delete(key);",
     "this.retained.delete(notification);",
     "this.retained.add(notification);",
     "while (this.retained.size > this.limit) {",
@@ -110,6 +121,48 @@ HARNESS_FRAGMENTS = (
 )
 
 
+REGISTRY_DRIVER = """\
+import { NotificationRegistry } from "./registry.ts";
+
+class FakeNotification {
+  shown = 0;
+  closed = 0;
+  private readonly handlers: Record<string, Array<() => void>> = {};
+  show(): void { this.shown += 1; }
+  close(): void {
+    this.closed += 1;
+    for (const listener of this.handlers.close ?? []) listener();
+  }
+  once(event: "close" | "failed", listener: () => void): void {
+    (this.handlers[event] ??= []).push(listener);
+  }
+  emit(event: "close" | "failed"): void {
+    for (const listener of this.handlers[event] ?? []) listener();
+  }
+}
+
+const registry = new NotificationRegistry(8);
+const first = new FakeNotification();
+const second = new FakeNotification();
+const turn = new FakeNotification();
+registry.show(first, "approval:a");
+registry.show(second, "approval:b");
+registry.show(turn, "turn:t");
+const out: Record<string, unknown> = { sizeBefore: registry.size };
+out.dismissFirst = registry.dismiss("approval:a");
+out.dismissAgain = registry.dismiss("approval:a");
+out.closedAfterDismiss = [first.closed, second.closed, turn.closed];
+out.dismissPrefix = registry.dismissPrefix("approval:");
+out.closedAfterPrefix = [second.closed, turn.closed];
+const third = new FakeNotification();
+registry.show(third, "approval:c");
+third.emit("close");
+out.dismissAfterClose = registry.dismiss("approval:c");
+out.sizeAfter = registry.size;
+process.stdout.write(JSON.stringify(out) + "\\n", () => process.exit(0));
+"""
+
+
 def _read(relative: str) -> str:
     return (ROOT / relative).read_text(encoding="utf-8")
 
@@ -129,6 +182,38 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
             raise ValueError(f"{label} 缺少或首次出现顺序变化：{fragment}")
         position = index
     return len(fragments)
+
+
+def _check_behavior() -> int:
+    """Node 24 直接运行保留器源码：按 key 关闭、前缀批量关闭与自然关闭后释放。"""
+    with tempfile.TemporaryDirectory(prefix="boss-notify-") as folder:
+        base = Path(folder)
+        (base / "registry.ts").write_text(_read(REGISTRY), encoding="utf-8")
+        (base / "driver.ts").write_text(REGISTRY_DRIVER, encoding="utf-8")
+        completed = subprocess.run(
+            ["node", "driver.ts"], cwd=base, capture_output=True, text=True, timeout=30, check=False
+        )
+    if completed.returncode != 0:
+        raise ValueError(f"通知保留器行为探针失败：{completed.stderr.strip()}")
+    try:
+        actual = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"通知保留器行为探针输出不是 JSON：{completed.stdout!r}") from error
+    expected = {
+        "sizeBefore": 3,
+        "dismissFirst": True,
+        "dismissAgain": False,
+        "closedAfterDismiss": [1, 0, 0],
+        "dismissPrefix": 1,
+        "closedAfterPrefix": [1, 0],
+        "dismissAfterClose": False,
+        "sizeAfter": 1,
+    }
+    failures = [f"{key} 期望 {expected[key]!r}，实际 {actual.get(key)!r}"
+                for key in expected if actual.get(key) != expected[key]]
+    if failures:
+        raise ValueError("通知保留器行为不符：" + "；".join(failures))
+    return 4
 
 
 def check_notifications() -> int:
@@ -180,7 +265,32 @@ def check_notifications() -> int:
             "if (!content || !rememberApproval(notifiedApprovals, content.approvalId)) return;",
             "if (!Notification.isSupported()) return;",
             'native.on("click", () => {\n      const target = revealWindow();\n      if (!target || !content.threadId || !content.itemId) return;',
-            "sendApprovalFocus(target, { threadId: content.threadId, itemId: content.itemId });\n    });\n    notifications.show(native);",
+            "sendApprovalFocus(target, { threadId: content.threadId, itemId: content.itemId });\n    });\n    notifications.show(native, `approval:${content.approvalId}`);",
+            "function dismissApprovalNotification(notification: JsonRpcNotification): void {",
+            'notifications.dismiss(`approval:${approvalId}`);',
+            'if (notification.method === "harness/disconnected") notifications.dismissPrefix("approval:");',
+        ),
+        harness,
+        HARNESS,
+    )
+    # 审批通知按 approvalId 登记，裁决后关闭；断开时批量撤销全部审批通知。
+    checked += _ordered(
+        (
+            "function dismissApprovalNotification(notification: JsonRpcNotification): void {",
+            'if (notification.method !== "approval/decided") return;',
+            "const approvalId = (approval as Record<string, unknown>).approvalId;",
+            'notifications.dismiss(`approval:${approvalId}`);',
+        ),
+        harness,
+        HARNESS,
+    )
+    checked += _ordered(
+        (
+            "for (const window of windows) send(window, notification);",
+            'if (notification.method === "harness/disconnected") notifications.dismissPrefix("approval:");',
+            "notifyApproval(notification);",
+            "notifyTurn(notification);",
+            "dismissApprovalNotification(notification);",
         ),
         harness,
         HARNESS,
@@ -205,7 +315,7 @@ def check_notifications() -> int:
                 raise ValueError(f"{label} 的通知内容不得携带 {forbidden}")
     if "content.threadId" in turn:
         raise ValueError(f"{TURN} 的通知内容不得携带会话定位字段")
-    return checked + 1
+    return checked + _check_behavior() + 1
 
 
 def main() -> int:

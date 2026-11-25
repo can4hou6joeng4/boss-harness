@@ -1,3 +1,10 @@
+## 0.2.0-rc.761 - 2026-11-25
+
+- 修复审批已结算后系统通知仍留在通知中心的问题：`notifications.show()` 此前只保留引用、不记录可定位的 key，`approval/decided` 与 `harness/disconnected` 到达后没有关闭对应卡片，用户点击旧卡片会跳到已裁决条目或失效路由。审批通知现在以 `approval:${approvalId}` 登记，裁决时关闭单条，内核断开时按前缀撤销全部审批卡片；回合通知不受影响。[Issue #3647](https://github.com/can4hou6joeng4/boss-harness/issues/3647)
+- 升级注意：只改变系统通知的主动关闭，不影响通知正文、去重、点击定位或徽标语义；系统通知仍在窗口处于前台时不打扰。自动化对比探针用旧版 rc.760 与当前源码的真实 `notificationRegistry.ts`：旧版没有 `dismiss` / `dismissPrefix`，裁决后审批通知与另一条审批通知的关闭次数都是 0；新版按 key 关闭第一条、按前缀关闭第二条，回合通知关闭次数仍为 0。未在真实桌面平台复核通知动画与点击。
+- `NotificationRegistry` 新增按 key 登记、单条关闭（重复关闭返回 `false`）与前缀批量关闭；自然关闭或淘汰同时清理 key，重复 key 显示会替换旧引用。`harness.ts` 在通知转发后按裁决事件关闭审批卡片，断开时批量撤销。
+- `scripts/check_notifications.py` 增加 6 处结构片段与 2 组顺序断言（审批通知 key、裁决关闭、断开撤销、转发后的调用顺序），并用 Node 24 类型剥离直接运行真实保留器，核对按 key 关闭、重复关闭、前缀不影响回合通知、自然关闭释放共 4 项行为，输出 129 项。技术参考同步登记；脚本总数保持 293。源码候选更新为 npm `0.2.0-rc.761` 和 Python `0.2.0rc761`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.760 - 2026-11-25
 
 - `scripts/check_termination.py` 补齐两条此前只在临时探针里跑过的真实进程场景：空闲时收到 `SIGTERM`（没有在途回合，也无需终止招聘 CLI）与结束标准输入后立刻收到 `SIGTERM`（两条关闭路径重合，在途 CLI 仍要被终止）。技术参考此前明确记为「没有覆盖这两种情形」，现在改为已覆盖，并把口径纳入脚本断言。rc.756 的对比探针里，前者内核在 0.004～0.019 秒以该信号结束并留一行说明，后者在 0.139～0.188 秒以该信号结束、假 CLI 收到 `SIGTERM` 后退出；rc.755 的后一种场景里假 CLI 留在后台，重启后结果未知。[Issue #3645](https://github.com/can4hou6joeng4/boss-harness/issues/3645)

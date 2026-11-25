@@ -166,11 +166,23 @@ function notifyApproval(notification: JsonRpcNotification): void {
       if (!target || !content.threadId || !content.itemId) return;
       sendApprovalFocus(target, { threadId: content.threadId, itemId: content.itemId });
     });
-    notifications.show(native);
+    notifications.show(native, `approval:${content.approvalId}`);
   } catch {}
 }
 
 type DesktopConnectionStatus = HarnessConnectionStatus & { startupDiagnosis?: StartupDiagnosis };
+
+/** 审批已经裁决时关闭对应系统通知：通知中心不再留下无法定位的待批准卡片。 */
+function dismissApprovalNotification(notification: JsonRpcNotification): void {
+  if (notification.method !== "approval/decided") return;
+  const params = notification.params;
+  if (!params || typeof params !== "object") return;
+  const approval = (params as Record<string, unknown>).approval;
+  if (!approval || typeof approval !== "object") return;
+  const approvalId = (approval as Record<string, unknown>).approvalId;
+  if (typeof approvalId !== "string" || !approvalId) return;
+  notifications.dismiss(`approval:${approvalId}`);
+}
 
 /** 连接状态附带当前失败周期的本地自检结论；结论只在握手前失败后产生。 */
 function connectionStatus(connection: HarnessHostConnection): DesktopConnectionStatus {
@@ -234,8 +246,11 @@ function createHost(): HarnessHostConnection {
     // 状态帧只走宿主通道；内核通知流里的同名帧丢弃，不转发也不影响回合跟踪。
     if (notification.method === "harness/connectionStatus") return;
     for (const window of windows) send(window, notification);
+    // 内核断开时宿主撤销全部审批路由，通知中心里的待批准卡片同样失效。
+    if (notification.method === "harness/disconnected") notifications.dismissPrefix("approval:");
     notifyApproval(notification);
     notifyTurn(notification);
+    dismissApprovalNotification(notification);
   });
   return connection;
 }
