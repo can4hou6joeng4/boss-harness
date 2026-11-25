@@ -1,3 +1,9 @@
+## 0.2.0-rc.772 - 2026-11-26
+
+- 补齐 README「安全边界」的数据去向说明：数据离开本机只经过模型线路与本机 `boss-agent-cli` 两条路径，前者收到完成回合与摘要所需的上下文，后者按自身登录状态与浏览器来源访问平台；会话、附件与界面偏好只保存在本机，仓库代码不含遥测、崩溃上报或自动更新检查。此前读者需要跨多个文档自行推断这些边界。[Issue #3669](https://github.com/can4hou6joeng4/boss-harness/issues/3669)
+- `scripts/check_readme_stability.py` 把两条数据去向表述加入首页稳定事实，缺失时 CI 失败；结构计数由 22 项增至 24 项，行为侧沿用既有缺失表述校验。技术参考同步登记。
+- 源码候选更新为 npm `0.2.0-rc.772` 和 Python `0.2.0rc772`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.771 - 2026-11-26
 
 - 新增根级 `llms.txt` 代理入口：按 llmstxt.org 最小格式提供项目名、引用摘要与分节链接，集中指向 README、项目状态、变更记录、发布约定、贡献与安装、技术参考、用户指南、桌面指南、安全、支持、许可证与上游参考。入口只写稳定事实，不写候选版本、日期、本机路径或外部渠道。[Issue #3667](https://github.com/can4hou6joeng4/boss-harness/issues/3667)

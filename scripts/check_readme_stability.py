@@ -31,7 +31,10 @@ REQUIRED_LINKS = (
     "CHANGELOG.md", "docs/STATUS.md", "RELEASING.md", "LICENSE", "SECURITY.md",
     "SUPPORT.md", "CONTRIBUTING.md", "SETUP.md", "docs/USER_GUIDE.md", "docs/DESKTOP_GUIDE.md",
 )
-REQUIRED_PHRASES = ("`main` 是开发分支", "桌面从源码构建", "MIT License")
+REQUIRED_PHRASES = (
+    "`main` 是开发分支", "桌面从源码构建", "MIT License",
+    "数据离开本机只经过两条路径", "不包含遥测、崩溃上报或自动更新检查",
+)
 REQUIRED_URL = "https://github.com/can4hou6joeng4/boss-harness/releases"
 ENGLISH_HEADING = "## English overview"
 ENGLISH_PHRASES = (
