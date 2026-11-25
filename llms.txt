@@ -1,0 +1,28 @@
+# BOSS Harness
+
+> 面向招聘任务的 Agent Harness：Electron 工作台通过 stdio JSON-RPC 0.2.0 连接 Python 内核，招聘动作由独立的 boss-agent-cli 子进程完成。
+
+BOSS Harness 是开发中的开源项目；`main` 是开发分支，源码候选不是发布。稳定事实、能力边界与未完成项以项目状态和技术参考为准，不从候选版本或测试材料推断。
+
+## 快速入口
+
+- [README](README.md): 项目定位、安装、首次试跑与能力地图
+- [项目状态](docs/STATUS.md): 已实现、待验收与非目标
+- [变更记录](CHANGELOG.md): 逐版本变化与修复记录
+- [发布约定](RELEASING.md): 候选与发布流程；tag、GitHub Release、资产上传与包发布需单独授权
+
+## 开发与契约
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): 仓库治理、环境、门禁、提交格式与 PR 约定
+- [SETUP.md](SETUP.md): 本机安装、依赖与排障
+- [文档索引](docs/README.md): 设计、建设与运维文档的入口
+- [技术参考](docs/TECHNICAL_REFERENCE.md): 协议、请求预算、失败恢复、上下文、工具与构建前检查
+- [用户指南](docs/USER_GUIDE.md): 内核配置、模型线路与运行方式
+- [桌面交互指南](docs/DESKTOP_GUIDE.md): 工作台操作、快捷键与界面状态
+
+## 安全与支持
+
+- [SECURITY.md](SECURITY.md): 漏洞报告方式与支持范围
+- [SUPPORT.md](SUPPORT.md): 使用问题与反馈渠道
+- [许可证](LICENSE): MIT License
+- [上游参考](UPSTREAM.md): 外部参考仓库的只读阅读记录，不构成背书或上游依赖
