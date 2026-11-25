@@ -967,7 +967,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_status_stability.py`
 
-`scripts/check_status_stability.py` 核对项目状态页只写稳定事实：读取 `package.json` 当前版本，禁止 `docs/STATUS.md` 出现该版本号（npm / Python 两种写法与 `rc.N`）或本机绝对路径；要求保留发布状态、已具备、待完成与待验收、非目标、参与方式五个章节；要求保留 README、`package.json`、CHANGELOG、发布约定、支持、安全、贡献与技术参考的相对链接，Issue #2351 / #2312 与 Releases 入口，以及已发布 tag 链接；要求保留「`main` 是开发分支」「不等同于已发布」「尚未发布到 npm 或 PyPI」三条稳定表述。行为侧用合成 Markdown 核对每条规则都会检出、干净样本不误报。共 22 项结构、10 项行为。
+`scripts/check_status_stability.py` 核对项目状态页只写稳定事实：读取 `package.json` 当前版本，禁止 `docs/STATUS.md` 出现该版本号（npm / Python 两种写法与 `rc.N`）或本机绝对路径；要求保留发布状态、已具备、待完成与待验收、非目标、参与方式五个章节；要求保留 README、`package.json`、CHANGELOG、发布约定、支持、安全、贡献与技术参考的相对链接，Issue #2351 / #2312 与 Releases 入口，以及已发布 tag 链接；要求保留「`main` 是开发分支」「不等同于已发布」「尚未发布到 npm 或 PyPI」三条稳定表述；任何「下一次实际预发布」行都必须同时指向 Issue #2351 的滚动记录。行为侧用合成 Markdown 核对每条规则都会检出、干净样本不误报。共 23 项结构、12 项行为。
 
 ### `check_community_files.py`
 

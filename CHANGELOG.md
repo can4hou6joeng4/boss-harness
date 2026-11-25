@@ -1,3 +1,9 @@
+## 0.2.0-rc.767 - 2026-11-25
+
+- 修正状态页「下一次实际预发布」指向已关闭 Issue #3259 的问题，改为持续维护的滚动记录 [Issue #2351](https://github.com/can4hou6joeng4/boss-harness/issues/2351)；候选 PR 合入不等于发布、tag / Release / 资产上传需对应授权的说明保留。[Issue #3659](https://github.com/can4hou6joeng4/boss-harness/issues/3659)
+- `scripts/check_status_stability.py` 增加规则：状态页中任何「下一次实际预发布」行都必须同时指向 Issue #2351。合成 Markdown 对比中，修复前对带 #3259 的样本报告 0 项违规，当前报告 1 项；检查由 22 项结构、10 项行为增至 23 项结构、12 项行为。技术参考同步登记。
+- 源码候选更新为 npm `0.2.0-rc.767` 和 Python `0.2.0rc767`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.766 - 2026-11-25
 
 - 修复系统通知显示同步失败后仍占用保留配额的问题：`NotificationRegistry.show()` 先登记保留引用和 key，再调用平台 `show()`；若显示同步抛错，`close` / `failed` 不会到达，带 key 的卡片仍可被 `dismiss()` 命中，无 key 的卡片一直留到满额淘汰。现在失败时释放该通知的保留引用与 key，再抛出原错误；同一 key 可以重新登记新通知。[Issue #3657](https://github.com/can4hou6joeng4/boss-harness/issues/3657)
