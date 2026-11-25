@@ -1,3 +1,9 @@
+## 0.2.0-rc.765 - 2026-11-25
+
+- 修复会话导出失败后残留含正文的临时副本：临时文件写入并关闭后，目标身份检查失败此前直接抛错，而 finally 只在句柄未关闭时清理。现在清理与句柄关闭分别管理，只要原子替换未完成就尝试删除临时文件，清理失败不覆盖原始错误。[Issue #3655](https://github.com/can4hou6joeng4/boss-harness/issues/3655)
+- `scripts/check_export_write.py` 由 47 项增至 64 项，新增 Node 24 直接加载真实写入模块的八种离线场景。目标变化和身份读取失败后旧源码没有 `remove`，当前源码各执行一次；写入、刷新、关闭和重命名失败仍保留原始错误。技术参考同步登记；系统保存对话框的真实写盘仍需按平台核对。
+- 源码候选更新为 npm `0.2.0-rc.765` 和 Python `0.2.0rc765`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.764 - 2026-11-25
 
 - 桌面通知保留满额时，带 key 的卡片会在引用和 key 释放后主动关闭。即使平台没有发出 `close` 事件，后续裁决或断开也不会重复关闭同一张卡片。无 key 的回合通知淘汰时只释放引用。[Issue #3653](https://github.com/can4hou6joeng4/boss-harness/issues/3653)

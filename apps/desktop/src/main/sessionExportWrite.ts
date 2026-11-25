@@ -118,6 +118,7 @@ export async function writeSessionExport(filePath: string, content: string,
   // 临时文件必须与目标同目录，`rename` 才是同一文件系统内的原子替换。
   const temporary = await ops.createTemporary(dirname(filePath), sessionExportTemporaryName(), 0o600).catch(openFailure);
   let closed = false;
+  let committed = false;
   try {
     await temporary.handle.write(content);
     await temporary.handle.sync();
@@ -133,19 +134,18 @@ export async function writeSessionExport(filePath: string, content: string,
     // 整个写入期间目标可能被换成链接或别的文件；重命名前重新核对身份。
     // 临时文件内容已刷新，失败时只需清理它，不动目标文件。
     if (!sameTarget(existing, await ops.lstat(filePath))) targetChangedFailure();
-    try {
-      await ops.rename(temporary.path, filePath);
-    } catch (error) {
-      await ops.remove(temporary.path).catch(() => {});
-      throw error;
-    }
+    await ops.rename(temporary.path, filePath);
+    committed = true;
     return permissionError === undefined
       ? { permissionsUnchanged: false }
       : { permissionsUnchanged: false, permissionError };
   } finally {
     if (!closed) {
-      // 失败路径：清理临时文件；关闭与删除的错误都不覆盖主错误。
+      // 关闭失败不覆盖主错误；随后仍尝试删除临时副本。
       await temporary.handle.close().catch(() => {});
+    }
+    if (!committed) {
+      // 句柄已关闭后，身份检查仍可能失败；只有完成原子替换才免于清理。
       await ops.remove(temporary.path).catch(() => {});
     }
   }
