@@ -411,4 +411,17 @@ export class HarnessHostManager {
 
   list(): HarnessConnectionStatus[] { return [...this.#hosts.values()].map((host) => host.status()); }
   dispose(): void { for (const host of this.#hosts.values()) host.dispose(); this.#hosts.clear(); }
+
+  /**
+   * 先关闭所有宿主，再等待它们的进程与标准输入输出句柄全部关闭。
+   *
+   * 主进程退出前必须用这个入口而不是只调用 `dispose()`：关闭升级的计时器挂在
+   * 事件循环上，主进程一退出就不再运行，卡住的内核会成为孤儿进程。
+   */
+  async close(): Promise<void> {
+    const hosts = [...this.#hosts.values()];
+    for (const host of hosts) host.dispose();
+    this.#hosts.clear();
+    await Promise.all(hosts.map((host) => host.waitForClose()));
+  }
 }

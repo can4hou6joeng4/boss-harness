@@ -2,7 +2,8 @@
 """核对桌面启动接管、单实例与退出确认边界。
 
 存在运行中回合时退出必须先弹原生确认框，默认按钮与 Esc 都落在「继续运行」，确认框
-重复触发只保留一个；确认或无法显示时才继续退出并清理自检与 Host。首次以新名字启动
+重复触发只保留一个；确认或无法显示时先拦住本次退出，清理自检并等待 Host 关闭
+（内核关闭卡住时由客户端的两级期限兜底），完成后再真正退出。首次以新名字启动
 时只接管空的新 userData 目录：旧目录非空不覆盖、删除空壳失败就不改名、改名失败保留
 旧目录；整个过程不得递归删除或复制用户数据。后启动的实例只激活已有窗口。
 """
@@ -36,6 +37,8 @@ QUIT_FRAGMENTS = (
 HARNESS_FRAGMENTS = (
     "let quitConfirmed = false;",
     "let quitPromptOpen = false;",
+    "let quitClosing = false;",
+    "let quitReady = false;",
     "if (quitConfirmed) return true;",
     "const content = quitConfirmationContent(turnStartedAt.size);",
     "if (!content) return true;",
@@ -53,7 +56,10 @@ HARNESS_FRAGMENTS = (
     "if (!confirmQuit(event)) return;",
     "platformLogin.cancel(); diagnostics?.reset(); diagnostics = null; startupCheckTarget = null;",
     "manualStartupCheck.cancel();",
-    "manager.dispose(); host = null; windows.clear();",
+    "const closing = manager.close();",
+    "host = null; windows.clear();",
+    "void closing.catch(() =>",
+    "quitReady = true; app.quit();",
 )
 PROFILE_FRAGMENTS = (
     'import { existsSync, readdirSync, renameSync, rmdirSync } from "node:fs";',
@@ -124,13 +130,16 @@ def check_lifecycle() -> int:
         harness,
         HARNESS,
     )
-    # 退出清理：确认通过后才释放自检与 Host。
+    # 退出清理：确认通过后先拦住本次退出，清理自检并等待 Host 关闭，完成后再放行。
     checked += _ordered(
         (
             'app.on("before-quit", (event) => {',
+            "if (quitReady) return;",
             "if (!confirmQuit(event)) return;",
             "manualStartupCheck.cancel();",
-            "manager.dispose(); host = null; windows.clear();",
+            "const closing = manager.close();",
+            "host = null; windows.clear();",
+            "quitReady = true; app.quit();",
         ),
         harness,
         HARNESS,

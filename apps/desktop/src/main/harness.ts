@@ -242,6 +242,8 @@ function createHost(): HarnessHostConnection {
 
 let quitConfirmed = false;
 let quitPromptOpen = false;
+let quitClosing = false;
+let quitReady = false;
 
 /**
  * 存在运行中回合时拦截退出并显示原生确认框。
@@ -403,11 +405,21 @@ function registerIPC(): void {
     }
   });
   app.on("before-quit", (event) => {
+    // 关闭完成后的最后一次退出：直接放行。
+    if (quitReady) return;
     if (!confirmQuit(event)) return;
+    // 主进程退出后子进程不会再收到信号，关闭升级的计时器也随事件循环消失：先拦住
+    // 这次退出，等宿主把内核关完（卡住时按 2.5 秒 + 1 秒升级到 SIGKILL）再退出。
+    event.preventDefault();
+    if (quitClosing) return;
+    quitClosing = true;
     platformLogin.cancel(); diagnostics?.reset(); diagnostics = null; startupCheckTarget = null;
     // 超时计时器随主进程结束：退出前结束在途的手动自检，不留下无人回收的进程。
     manualStartupCheck.cancel();
-    manager.dispose(); host = null; windows.clear();
+    const closing = manager.close();
+    host = null; windows.clear();
+    void closing.catch(() => { /* 关闭失败也要退出；进程已不可回收时由操作系统回收。 */ })
+      .finally(() => { quitReady = true; app.quit(); });
   });
 }
 

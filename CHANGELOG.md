@@ -1,3 +1,10 @@
+## 0.2.0-rc.759 - 2026-11-25
+
+- 修复退出桌面应用时可能留下孤儿内核：`before-quit` 此前只同步调用 `manager.dispose()` 就退出，客户端「结束标准输入 → 2.5 秒后 `SIGTERM` → 再过 1 秒 `SIGKILL`」的关闭升级挂在主进程事件循环上，主进程结束即不再运行。关闭卡住的内核（例如停在写回包或收尾里）不读标准输入结束、也不理会 `SIGTERM`，会继续持有状态目录与在途的招聘 CLI 进程组；下次启动可能遇到状态目录被占用。客户端层对比：`dispose()` 后立即退出驱动进程，假内核在 0.5 秒后仍在运行；改为等待 `waitForClose()` 后，约 3.7 秒升级到 `SIGKILL`、假内核消失。[Issue #3643](https://github.com/can4hou6joeng4/boss-harness/issues/3643)
+- `HarnessHostManager` 新增 `close()`：先关闭所有宿主，再等待它们的进程与标准输入输出句柄全部关闭，重复调用立即完成。桌面主进程的 `before-quit` 在确认退出后拦住本次退出，等 `close()` 结束再真正退出；等待期间再次请求退出也不会提前放行。协议、工具清单、审批口径与内核关闭语义不变。
+- 升级注意：正常退出不受影响（内核读到标准输入结束即关闭）；只有内核关闭卡住时，应用退出最多多等约 3.5 秒，由客户端的强制升级兜底。桌面端没有在真实应用里复现退出卡住，进程行为由客户端的真实子进程验证，退出路径只做了源码核对。
+- 新增 `scripts/check_quit_close.py`（7 项结构、7 项真实进程结果、3 处文档口径）：用 Node 24 的类型剥离加载真实 `host.ts` 与 `index.ts`，以真实子进程核对正常内核与「不读标准输入、不理会 `SIGTERM`」的假内核的宿主关闭。技术参考登记新脚本；CI 的 Source build 与 Python 3.10–3.14 矩阵各增加一步；脚本总数由 292 增至 293。源码候选更新为 npm `0.2.0-rc.759` 和 Python `0.2.0rc759`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.758 - 2026-11-25
 
 - 审批等待与工具运行中的停止行为有真实进程验证：`scripts/check_termination.py` 用 `--provider none`，回合只会走到只读查询，触达不到审批与工具桥的等待路径。现在把最小假 `anthropic` 模块放到 `PYTHONPATH` 上，真实内核的第一回合返回一次 `boss_hr_greet` 调用，假模块同时只允许启动假招聘 CLI；不联网、不调用模型或招聘平台。审批等待中收到 `SIGTERM` 时，假 CLI 从未启动、内核以该信号在 3 秒内结束、重启后工具项为 `CANCELLED` / `not_executed`；审批通过、假 CLI 启动后收到 `SIGTERM` 时，假 CLI 收到 `SIGTERM` 后消失、重启后为 `CANCELLED` / `outcome_unknown`。[Issue #3641](https://github.com/can4hou6joeng4/boss-harness/issues/3641)
