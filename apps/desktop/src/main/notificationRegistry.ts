@@ -22,10 +22,14 @@ export class NotificationRegistry {
     this.limit = limit;
   }
 
-  #forget(notification: RetainableNotification): void {
+  #forget(notification: RetainableNotification): boolean {
+    let hadKey = false;
     for (const [key, value] of this.byKey) {
-      if (value === notification) this.byKey.delete(key);
+      if (value !== notification) continue;
+      this.byKey.delete(key);
+      hadKey = true;
     }
+    return hadKey;
   }
 
   /** 保留并显示通知；重复显示同一对象或同一个 key 时重新排到最新，避免被当成最旧的一条淘汰。 */
@@ -45,7 +49,10 @@ export class NotificationRegistry {
       const oldest = this.retained.values().next().value;
       if (oldest === undefined) break;
       this.retained.delete(oldest);
-      this.#forget(oldest);
+      // 带 key 的卡片被淘汰后无法按审批事件关闭，因此在释放 key 时主动关闭。
+      if (this.#forget(oldest)) {
+        try { oldest.close?.(); } catch {}
+      }
     }
     const release = (): void => {
       this.retained.delete(notification);

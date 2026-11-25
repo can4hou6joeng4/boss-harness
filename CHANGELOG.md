@@ -1,3 +1,8 @@
+## 0.2.0-rc.764 - 2026-11-25
+
+- 桌面通知保留满额时，带 key 的卡片会在引用和 key 释放后主动关闭。即使平台没有发出 `close` 事件，后续裁决或断开也不会重复关闭同一张卡片。无 key 的回合通知淘汰时只释放引用。[Issue #3653](https://github.com/can4hou6joeng4/boss-harness/issues/3653)
+- 同一离线探针在旧版与当前保留器上运行。第一条审批通知被淘汰后，以前从未调用 `close()`，现在淘汰时调用一次。第二条由前缀撤销关闭一次，保留中的回合通知维持打开。通知检查增至 141 项，系统通知中心的实际展示仍待平台验证。源码候选更新为 npm `0.2.0-rc.764` 和 Python `0.2.0rc764`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.763 - 2026-11-25
 
 - README 把安装与首次试跑移到能力地图之前，页首新增试跑链接。首次访问可先选择安装已发布的 Python 内核或从源码启动桌面，桌面用户可从页首直接进入试跑步骤。[Issue #3651](https://github.com/can4hou6joeng4/boss-harness/issues/3651)
