@@ -47,6 +47,7 @@ DOCUMENTS = (
         "启动时已被忽略的信号保持忽略",
         "信号到达 5 秒后关闭仍未完成时，进程由定时器信号（`SIGALRM`）的默认动作结束",
         "`SIGKILL` 无法处理",
+        "空闲时收到 `SIGTERM`",
     )),
     (USER_GUIDE, (
         "用 `SIGTERM`、`SIGHUP` 或 `Ctrl+C` 停止内核时，内核先终止进行中的招聘 CLI 调用并写完会话记录，再结束进程",
@@ -578,6 +579,32 @@ def _terminate_checks() -> int:
         return _expect_value(actual, expected, "工具调用进行中收到 SIGTERM")
 
 
+def _idle_checks() -> int:
+    """没有在途回合时收到 SIGTERM：没有 CLI 可终止，仍走关闭流程并以该信号结束。"""
+    with _session() as (_base, kernel, cli):
+        _handshake(kernel)
+        kernel.process.send_signal(signal.SIGTERM)
+        actual = {"结束方式": kernel.wait(EXIT_SECONDS), "stderr": kernel.diagnostics(),
+                  "假招聘 CLI 从未启动": (cli.gone, cli.signals)}
+        expected = {"结束方式": -signal.SIGTERM, "stderr": [NOTICE.format("SIGTERM")],
+                    "假招聘 CLI 从未启动": (False, 0)}
+        return _expect_value(actual, expected, "空闲时收到 SIGTERM")
+
+
+def _eofterm_checks() -> int:
+    """结束标准输入后立刻收到 SIGTERM：两条关闭路径重合，在途 CLI 仍被终止。"""
+    with _session() as (_base, kernel, cli):
+        _start_cli_call(kernel, cli)
+        kernel.close_input()
+        try:
+            kernel.process.send_signal(signal.SIGTERM)
+        except ProcessLookupError:
+            # 极快关闭时进程可能已经退出；让下面的断言按实际结束方式报告。
+            pass
+        return _expect_value(_stopped(kernel, cli, kernel.wait(EXIT_SECONDS)),
+                             _expected(signal.SIGTERM), "结束标准输入后立即收到 SIGTERM")
+
+
 def _interrupt_checks() -> int:
     """SIGINT：同一条关闭路径，不靠任意位置抛出的 KeyboardInterrupt，stderr 没有回溯。"""
     with _session() as (_base, kernel, cli):
@@ -662,6 +689,8 @@ class _Wedged:
 
 def _process_checks() -> int:
     checked = _terminate_checks()
+    checked += _idle_checks()
+    checked += _eofterm_checks()
     with ExitStack() as stack:
         wedged = _Wedged(stack)
         checked += wedged.begin()
