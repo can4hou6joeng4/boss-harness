@@ -1,3 +1,10 @@
+## 0.2.0-rc.770 - 2026-11-25
+
+- 修复变更审阅弹窗的文件下标、对比模式与目标会话残留：示例预览中关闭后重开会从上次选中的文件开始，弹窗保持打开时若背景会话切换，内容会静默换成另一会话的变更。现在临时状态收敛到 `diffReviewVisit.ts`，可见性变化时复位；`App` 在打开时固定目标会话，当前会话不匹配时渲染期关闭并释放目标。[Issue #3665](https://github.com/can4hou6joeng4/boss-harness/issues/3665)
+- 用 React 18 + react-test-renderer 加载真实 `UnifiedDiffModal` 对比：修复前关闭再打开仍选中 `d.ts`，打开期间背景会话切换后显示 `f.ts`；修复后重开回到首项 `c.ts`，背景会话切换后弹窗不再显示。
+- 新增 `scripts/check_diff_review_target.py`（30 项结构、15 项行为）并在 CI 工作流登记，行为侧由 Node 直接加载真实模块核对关闭复位、幂等、分别切换与目标可见性；技术参考同步登记。
+- 源码候选更新为 npm `0.2.0-rc.770` 和 Python `0.2.0rc770`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.769 - 2026-11-25
 
 - 修复摘要面板关闭再展开时临时 UI 状态残留的问题：`RightPanel` 只在关闭时返回 `null`，组件实例保持挂载，`menu` 与 `expanded` 仍为上次的值；Popover 卸载不回调 `onClose`，⌘⌥B 键盘切换又绕过 outside-dismiss，重新展开会无点击弹出「摘要选项」菜单并抢走焦点。现在可见性与两个临时状态收敛到 `summaryPanelVisit.ts`，可见性变化时开启新一次访问并复位。[Issue #3663](https://github.com/can4hou6joeng4/boss-harness/issues/3663)

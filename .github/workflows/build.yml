@@ -641,6 +641,8 @@ jobs:
         run: python scripts/check_library_visit.py
       - name: Verify summary panel visit
         run: python scripts/check_summary_panel_visit.py
+      - name: Verify diff review target
+        run: python scripts/check_diff_review_target.py
       - name: Verify workspace instruction receipts
         run: python scripts/check_workspace_instruction_receipts.py
       - name: Verify snapshot shape

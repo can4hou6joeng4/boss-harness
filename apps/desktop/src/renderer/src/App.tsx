@@ -25,6 +25,7 @@ import { approvalRejectionNotice, approvalRejectionRefreshes, approvalUnconfirme
 import { approvalSubmissionFor, approvalSubmissionIsCurrent, forgetApprovalSubmission } from "./data/approvalSubmission";
 import { forgetDeletedThread } from "./data/deletedThreadState";
 import { detachedTarget } from "./data/deletedDialogTarget";
+import { diffReviewVisible } from "./data/diffReviewVisit";
 import { deleteThreadFailure } from "./data/deleteThreadError";
 import { resolveQuickAskRoute } from "./data/quickAsk";
 import { sessionTitleFromPrompt } from "./data/sessionTitle";
@@ -228,6 +229,10 @@ export function App(): JSX.Element {
   const lastEsc = useRef(0);
   const [isCockpitOpen, setIsCockpitOpen] = useState(false), [isSideChatOpen, setIsSideChatOpen] = useState(false);
   const [rewindTarget, setRewindTarget] = useState<RewindTarget | null>(null), [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
+  const [diffThreadId, setDiffThreadId] = useState<string | null>(null);
+  // 审阅目标在打开时固定；背景会话切换后立即关闭，避免弹窗内容静默换成另一会话。
+  const diffVisible = diffReviewVisible(isDiffModalOpen, diffThreadId, activeSession?.id ?? null);
+  if (isDiffModalOpen && !diffVisible) { setIsDiffModalOpen(false); setDiffThreadId(null); }
   const [isRevertModalOpen, setIsRevertModalOpen] = useState(false), [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const contextThreadId = activeSession?.projectId === HARNESS_PROJECT_ID && !isHomeView ? activeSession.id : null;
   // 打开上下文面板时固定目标会话；通知切换背景会话不改变预算、计划与压缩对象。
@@ -1375,7 +1380,7 @@ export function App(): JSX.Element {
       skillsReadable={capabilities?.skillsRead === true} skillsCreatable={capabilities?.skillsCreate === true} skillsWritable={capabilities?.skillsWrite === true} skillsDeletable={capabilities?.skillsDelete === true} threadSearchable={capabilities?.threadSearch === true} threadSearchArchived={capabilities?.threadSearchArchived === true} workspaceInstructionsEditable={capabilities?.workspaceInstructionsEdit === true} onOpenCockpit={() => setIsCockpitOpen(true)} onOpenSideChat={() => setIsSideChatOpen(previous => !previous)} onOpenRewind={openRewind} onOpenContext={contextThreadId ? openContext : undefined}
       onOpenUsage={usageSupported && contextThreadId && !preview ? openUsage : undefined}
       onOpenExport={exportSupported && contextThreadId && !preview ? () => setExportTarget({ threadId: contextThreadId, title: activeSession?.title ?? "" }) : undefined}
-      onOpenShortcuts={() => setIsShortcutsOpen(true)} onReviewDiff={() => setIsDiffModalOpen(true)} onRevertDiff={() => setIsRevertModalOpen(true)} />
+      onOpenShortcuts={() => setIsShortcutsOpen(true)} onReviewDiff={() => { setDiffThreadId(activeSession?.id ?? null); setIsDiffModalOpen(true); }} onRevertDiff={() => setIsRevertModalOpen(true)} />
     {error && <div className="app-toast" role="alert"><span>{error}</span>{!harnessUp && window.boss && <button onClick={() => { void reconnectHarness().then(status => {
       // 重连结果以主进程返回的连接状态为准：仍未就绪时给出启动失败原因与本地自检结论，
       // 与连接状态通知使用同一套文案，不会互相覆盖成不同说法。
@@ -1402,7 +1407,7 @@ export function App(): JSX.Element {
         insertSession(session); handleSelectSession(session);
       }).catch(cause => showError(`创建分支失败：${harnessErrorText(cause)}`));
     }} />
-    <UnifiedDiffModal messages={messages} preview={preview} isOpen={isDiffModalOpen} onClose={() => setIsDiffModalOpen(false)} onRevertChanges={() => { setIsDiffModalOpen(false); setIsRevertModalOpen(true); }} />
+    <UnifiedDiffModal messages={messages} preview={preview} isOpen={diffVisible} onClose={() => { setIsDiffModalOpen(false); setDiffThreadId(null); }} onRevertChanges={() => { setIsDiffModalOpen(false); setDiffThreadId(null); setIsRevertModalOpen(true); }} />
     <RevertConfirmModal isOpen={isRevertModalOpen} onClose={() => setIsRevertModalOpen(false)} fileCount={[...messages].reverse().find(message => message.diffSummary)?.diffSummary?.fileCount ?? 0} onConfirm={() => {
       const id = activeRef.current?.id;
       if (id && preview) updateThread(id, previous => previous.map(message => ({ ...message, showDiffCard: false, diffSummary: undefined })));

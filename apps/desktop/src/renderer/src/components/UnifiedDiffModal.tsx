@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useClipboardCopy } from "../data/clipboardCopy";
+import { syncDiffReviewVisit, withDiffReviewFile, withDiffReviewMode, type DiffReviewVisit, type DiffReviewMode } from "../data/diffReviewVisit";
 import { ModalSurface } from "./ModalSurface";
 import { IconDiffFiles, IconCopy, IconCheck } from "./Icons";
 import type { MessageItem } from "../data/mockData";
@@ -10,7 +11,12 @@ const PREVIEW_LINES: Record<string, { before: string[]; after: string[] }> = {
   "configs/招聘策略_精准对齐.json": { before: ["{", "  \"reviewBeforeSend\": false", "}"], after: ["{", "  \"reviewBeforeSend\": true,", "  \"includeEvidence\": true", "}"] },
 };
 export function UnifiedDiffModal({ isOpen, onClose, onRevertChanges, messages, preview }: { isOpen: boolean; onClose: () => void; onRevertChanges?: () => void; messages: MessageItem[]; preview: boolean }) {
-  const [selected, setSelected] = useState(0), [mode, setMode] = useState<"unified" | "split">("unified");
+  // 弹窗关闭时只返回 null 但保持挂载；文件下标与模式随可见性复位，避免下次审阅从上次的选择开始。
+  const [visit, setVisit] = useState<DiffReviewVisit>(() => ({ open: isOpen, selected: 0, mode: "unified" }));
+  if (visit.open !== isOpen) setVisit(syncDiffReviewVisit(visit, isOpen));
+  const selected = visit.selected, mode: DiffReviewMode = visit.mode;
+  const setSelected = (next: number) => setVisit(current => withDiffReviewFile(current, next));
+  const setMode = (next: DiffReviewMode) => setVisit(current => withDiffReviewMode(current, next));
   const clipboard = useClipboardCopy();
   if (!isOpen) return null;
   const summary = [...messages].reverse().find(message => message.diffSummary)?.diffSummary;
