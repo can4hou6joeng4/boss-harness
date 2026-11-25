@@ -4,14 +4,25 @@
 shutdown.py 的 TrackedAbort 只发信号，不执行内联中止；收尾幂等且只跑一次；
 两秒预算由 runtime / application / connections 各自兑现。任一规则被放宽都不会
 触发构建失败，因此静态固定。
+
+摘要任务让出会话之后还要写完终态事件。这段收尾由临时目录里的真实 ApplicationService
+与自写替身线路驱动：闸门挡在终态事件写入之前，核对关闭等待、状态目录归属与会话占用
+三者的边界。
 """
 
 from __future__ import annotations
 
+import ast
+from contextlib import contextmanager
+import io
+import json
+import os
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 import threading
 import time
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/shutdown.py"
@@ -22,7 +33,17 @@ TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 USER_GUIDE = "docs/USER_GUIDE.md"
 sys.path.insert(0, str(ROOT / "harness/src"))
 
+from boss_harness.application import ApplicationService  # noqa: E402
+from boss_harness.models.provider import ModelConfig  # noqa: E402
+from boss_harness.models.types import AssistantMessage, StreamEvent, TextBlock  # noqa: E402
+from boss_harness.ownership import StateDirectoryOwner  # noqa: E402
+from boss_harness.rpc import JsonRpcServer, RpcError  # noqa: E402
+from boss_harness.session import Entry  # noqa: E402
 from boss_harness.shutdown import TrackedAbort, join_until  # noqa: E402
+
+ENVIRONMENT_PREFIXES = ("BOSS_HARNESS_", "BOSS_CLI_", "ANTHROPIC_")
+GATE_SECONDS = 10
+CLOSER = "probe-close"
 
 CONSTANT_FRAGMENTS = (
     # 两秒预算属于内核关闭策略，不得下沉到 provider 传输层。
@@ -102,6 +123,27 @@ APPLICATION_FRAGMENTS = (
     "self.lifecycle_hooks.close(deadline)",
     "self.snapshots.close()",
 )
+TAIL_FRAGMENTS = (
+    # 登记在运行时锁内完成：等待方每轮的快照不会与之交错。
+    'tail = {"owner": threading.get_ident(), "done": threading.Event()}\n'
+    "        with self.runtimes.lock:\n            self._compaction_tails[id(tail)] = tail",
+    # 摘除与置位同锁：等待方醒来时登记已经消失，随后的空闲判断不会被旧登记挡住。
+    'with self.runtimes.lock:\n            self._compaction_tails.pop(id(tail), None)\n'
+    '            tail["done"].set()',
+    # 每轮重取快照：中止线程可能在工作线程让出任务之后才登记自己的收尾。
+    "while time.monotonic() < deadline:\n            with self.runtimes.lock:\n"
+    '                pending = [tail["done"] for tail in self._compaction_tails.values()',
+    # 关闭若运行在收尾所在的线程上，不能等待自己。
+    'if tail["owner"] != current]',
+)
+# 收尾登记先于任务让出会话：让出会回收 worker 与 abort 引用，其间不能有无人持有的空档；
+# 释放放在 finally，收尾中途抛错也不能让状态目录一直被占用。
+TAIL_ORDER = (
+    "tail = self._retain_compaction_tail()",
+    "released = self._retire_compaction_locked(job)",
+    "finally:\n            self._release_compaction_tail(tail)",
+)
+TAIL_METHODS = ("_finish_compaction", "_compaction_abort_done")
 CONNECTIONS_FRAGMENTS = (
     "from boss_harness.shutdown import join_until",
     "deadline = time.monotonic() + 2 if deadline is None else deadline\n",
@@ -112,6 +154,7 @@ CONNECTIONS_FRAGMENTS = (
 DOC_FRAGMENTS = (
     (TECHNICAL_REFERENCE, "关闭内核时，应用先冻结准入，并为业务回合、摘要任务和连接检查统一置位取消，再异步分发各自的中止。所有 worker 与 abort 共享同一个最多两秒的等待期限"),
     (TECHNICAL_REFERENCE, "`turn/interrupt` 和 `context/compact/abort` 返回的是取消请求确认，不表示 worker 或供应商连接已经退出。"),
+    (TECHNICAL_REFERENCE, "摘要任务让出会话之后，终态事件、队列通知与后续唤醒仍由原线程写完：这段收尾不占用会话"),
     (USER_GUIDE, "「停止并退出」会中断运行中的回合"),
 )
 
@@ -138,10 +181,24 @@ def _ordered(fragments: tuple[str, ...], text: str, label: str) -> int:
     return len(fragments)
 
 
+def _method(source: str, name: str) -> str:
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.ClassDef) and node.name == "ApplicationService":
+            for child in node.body:
+                if isinstance(child, ast.FunctionDef) and child.name == name:
+                    return ast.get_source_segment(source, child) or ""
+    raise ValueError(f"{APPLICATION} 缺少 ApplicationService.{name}")
+
+
 def _expect_value(actual, expected, label: str) -> int:
     if actual != expected:
         raise ValueError(f"关闭等待预算行为变化 {label}：期望 {expected!r}，实际 {actual!r}")
     return 1
+
+
+def _await(event: threading.Event, label: str) -> None:
+    if not event.wait(GATE_SECONDS):
+        raise ValueError(f"关闭等待预算行为变化 {label}：{GATE_SECONDS} 秒内没有到达预期位置")
 
 
 class _Provider:
@@ -252,6 +309,224 @@ def _behavior_checks() -> int:
     return checked
 
 
+@contextmanager
+def _clean_environment(directory: str):
+    # 线路发现与工具桥会读环境变量：摘要场景只用传入的替身线路，也不解析真实 CLI。
+    with patch.dict(os.environ, {}, clear=False):
+        for name in [key for key in os.environ if key.startswith(ENVIRONMENT_PREFIXES)]:
+            os.environ.pop(name, None)
+        os.environ["BOSS_CLI_BIN"] = str(Path(directory) / "no-such-cli")
+        yield
+
+
+class _SummaryProvider:
+    """摘要线路替身：不联网；可在流内与中止钩子处停住，用来固定线程时序。"""
+
+    id = "probe"
+
+    def __init__(self, *, hold: bool = False) -> None:
+        self.streaming, self.aborting = threading.Event(), threading.Event()
+        self.stream_gate, self.abort_gate = threading.Event(), threading.Event()
+        if not hold:
+            self.stream_gate.set()
+            self.abort_gate.set()
+
+    def stream(self, request):
+        self.streaming.set()
+        self.stream_gate.wait(GATE_SECONDS)
+        yield StreamEvent(type="done", message=AssistantMessage(blocks=(TextBlock(text="摘要正文"),)))
+
+    def request_abort(self) -> None:
+        self.aborting.set()
+        self.abort_gate.wait(GATE_SECONDS)
+
+
+class _Kernel:
+    """临时状态目录里的真实 ApplicationService；闸门挡在摘要终态事件写入之前。"""
+
+    def __init__(self, directory: str, terminal: str, provider: _SummaryProvider) -> None:
+        root = Path(directory)
+        self.state = root / "state"
+        (root / "workspace").mkdir()
+        self.terminal, self.provider = terminal, provider
+        self.entered, self.release = threading.Event(), threading.Event()
+        self.job_id = ""
+        server = JsonRpcServer()
+        server._out = io.StringIO()
+        self.service = ApplicationService(server, self.state, ModelConfig(provider="openai", model="m1"),
+                                          None, provider_factory=lambda config: provider,
+                                          workspace=root / "workspace")
+        emit = self.service.events.emit
+
+        def gated(method, params=None, **kwargs):
+            if method == terminal and not self.release.is_set():
+                self.entered.set()
+                self.release.wait(GATE_SECONDS)
+            return emit(method, params, **kwargs)
+
+        self.service.events.emit = gated
+
+    def start(self) -> None:
+        service = self.service
+        service.on_initialize({"clientInfo": {"name": "probe", "version": "1.0"},
+                               "protocolVersion": "0.2.0"})
+        service.on_initialized(None)
+        self.thread_id = service.on_thread_start({})["thread"]["id"]
+        service.sessions.record_turn(self.thread_id, "turn-1", "completed")
+        service.sessions.append(self.thread_id, Entry(type="item", payload={
+            "kind": "userMessage", "text": "你好", "turnId": "turn-1"}))
+        self.job_id = service.on_context_compact_start(
+            {"threadId": self.thread_id, "throughTurnId": "turn-1"})["jobId"]
+
+    def status(self) -> str:
+        return self.service.on_context_compact_read({"jobId": self.job_id})["status"]
+
+    def archived(self) -> object:
+        try:
+            return self.service.on_thread_archive({"threadId": self.thread_id})["thread"]["archived"]
+        except RpcError as error:
+            return f"{error.code} {error}"
+
+    def owner_free(self) -> bool:
+        try:
+            owner = StateDirectoryOwner(self.state)
+        except OSError:
+            return False
+        owner.close()
+        return True
+
+    def logged(self) -> bool:
+        try:
+            lines = (self.state / "events.jsonl").read_bytes().splitlines()
+        except OSError:
+            return False
+        for line in lines:
+            try:
+                record = json.loads(line)
+            except ValueError:
+                continue
+            if (record.get("method") == self.terminal
+                    and (record.get("params") or {}).get("jobId") == self.job_id):
+                return True
+        return False
+
+    def close(self) -> tuple[threading.Thread, dict]:
+        """在另一条线程上关闭内核，并在 close() 返回的那一刻记录落盘与归属状态。"""
+        outcome: dict = {}
+
+        def run() -> None:
+            started = time.monotonic()
+            self.service.close()
+            outcome.update(seconds=time.monotonic() - started, logged=self.logged(),
+                           free=self.owner_free())
+
+        closer = threading.Thread(target=run, name=CLOSER, daemon=True)
+        closer.start()
+        return closer, outcome
+
+    def await_free(self) -> bool:
+        deadline = time.monotonic() + GATE_SECONDS
+        while time.monotonic() < deadline:
+            if self.owner_free():
+                return True
+            time.sleep(0.01)
+        return False
+
+    def shutdown(self) -> None:
+        # 失败路径也要放开全部闸门并等线程退出：临时目录不能在仍有写入者时被清理。
+        for gate in (self.release, self.provider.stream_gate, self.provider.abort_gate):
+            gate.set()
+        try:
+            self.service.close()
+        finally:
+            for thread in threading.enumerate():
+                if thread.name.startswith(("compact-", "compaction-abort", CLOSER)):
+                    thread.join(GATE_SECONDS)
+
+
+def _close_window(outcome: dict) -> str:
+    seconds = outcome.get("seconds")
+    if seconds is None:
+        return "期限后仍未返回"
+    if seconds < 1.5:
+        return f"提前返回（{seconds:.2f} 秒）"
+    return "按期限返回"
+
+
+def _tail_wait_checks() -> int:
+    """收尾在期限内结束：关闭等到终态事件写完才返回，其间会话不被占用。"""
+    checked = 0
+    with TemporaryDirectory(ignore_cleanup_errors=True) as directory, _clean_environment(directory):
+        kernel = _Kernel(directory, "context/compactionCompleted", _SummaryProvider())
+        try:
+            kernel.start()
+            _await(kernel.entered, "摘要终态事件")
+            checked += _expect_value(kernel.status(), "completed", "收尾期间终态已公开")
+            checked += _expect_value(kernel.archived(), True, "收尾不占用会话")
+            closer, outcome = kernel.close()
+            closer.join(0.2)
+            blocked = closer.is_alive()
+            kernel.release.set()
+            closer.join(GATE_SECONDS)
+            checked += _expect_value((blocked, outcome.get("logged")), (True, True),
+                                     "关闭等待收尾且返回前终态已落盘")
+            checked += _expect_value(outcome.get("free"), True, "关闭返回时状态目录已释放")
+        finally:
+            kernel.shutdown()
+    return checked
+
+
+def _tail_deadline_checks() -> int:
+    """收尾超过共享期限：关闭照常返回，状态目录留到收尾结束才释放。"""
+    checked = 0
+    with TemporaryDirectory(ignore_cleanup_errors=True) as directory, _clean_environment(directory):
+        kernel = _Kernel(directory, "context/compactionCompleted", _SummaryProvider())
+        try:
+            kernel.start()
+            _await(kernel.entered, "摘要终态事件")
+            closer, outcome = kernel.close()
+            closer.join(6)
+            checked += _expect_value(_close_window(outcome), "按期限返回", "收尾超过期限")
+            checked += _expect_value(outcome.get("free"), False, "期限后状态目录仍由收尾持有")
+            kernel.release.set()
+            checked += _expect_value(kernel.await_free(), True, "收尾结束后释放状态目录")
+        finally:
+            kernel.shutdown()
+    return checked
+
+
+def _tail_abort_checks() -> int:
+    """中止钩子晚于工作线程结束：终态事件由中止线程写出，关闭同样等待。"""
+    checked = 0
+    with TemporaryDirectory(ignore_cleanup_errors=True) as directory, _clean_environment(directory):
+        provider = _SummaryProvider(hold=True)
+        kernel = _Kernel(directory, "context/compactionFailed", provider)
+        try:
+            kernel.start()
+            _await(provider.streaming, "摘要请求")
+            worker = next((thread for thread in threading.enumerate()
+                           if thread.name == f"compact-{kernel.job_id[:8]}"), None)
+            kernel.service.on_context_compact_abort({"jobId": kernel.job_id})
+            _await(provider.aborting, "中止钩子")
+            # 中止钩子仍挂起时任务无法让出：工作线程先退出，终态事件留给中止线程。
+            provider.stream_gate.set()
+            if worker is None:
+                raise ValueError("关闭等待预算行为变化 摘要工作线程：没有找到 compact- 线程")
+            worker.join(GATE_SECONDS)
+            provider.abort_gate.set()
+            _await(kernel.entered, "中止线程上的终态事件")
+            closer, outcome = kernel.close()
+            closer.join(0.2)
+            blocked = closer.is_alive()
+            kernel.release.set()
+            closer.join(GATE_SECONDS)
+            checked += _expect_value((blocked, outcome.get("logged")), (True, True),
+                                     "关闭等待中止线程上的收尾")
+        finally:
+            kernel.shutdown()
+    return checked
+
+
 def check_shutdown() -> int:
     module = _read(MODULE)
     checked = _expect(CONSTANT_FRAGMENTS, module, MODULE)
@@ -314,6 +589,9 @@ def check_shutdown() -> int:
         application,
         APPLICATION,
     )
+    checked += _expect(TAIL_FRAGMENTS, application, APPLICATION)
+    for name in TAIL_METHODS:
+        checked += _ordered(TAIL_ORDER, _method(application, name), f"{APPLICATION} 的 {name}")
     connections = _read(CONNECTIONS)
     checked += _expect(CONNECTIONS_FRAGMENTS, connections, CONNECTIONS)
     # 启动失败不得同步执行中止钩子，join 不得无期限。
@@ -331,7 +609,8 @@ def check_shutdown() -> int:
 def main() -> int:
     try:
         checked = check_shutdown()
-        scenarios = _behavior_checks()
+        scenarios = sum((_behavior_checks(), _tail_wait_checks(), _tail_deadline_checks(),
+                         _tail_abort_checks()))
     except (ValueError, OSError) as error:
         print(f"关闭等待预算核对失败，{error}", file=sys.stderr)
         return 2
