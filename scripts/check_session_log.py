@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import io
+import json
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
@@ -29,6 +30,7 @@ from boss_harness.session import (  # noqa: E402
 
 CONSTANT_FRAGMENTS = (
     "MAX_SESSION_LINE_BYTES = 32 * 1024 * 1024",
+    "MAX_JSON_RECORD_DEPTH = 256",
     '_THREAD_ID = re.compile(r"[a-f0-9]{12}\\Z")',
     '_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\\Z")',
     '_EVENT_ID = re.compile(r"[a-f0-9]{32}\\Z")',
@@ -45,6 +47,9 @@ ENCODE_FRAGMENTS = (
     'return encoded + b"\\n"',
 )
 DECODE_FRAGMENTS = (
+    "def _json_depth_exceeded(text: str, maximum: int) -> bool:",
+    'if character in "{["',
+    "if _json_depth_exceeded(text, MAX_JSON_RECORD_DEPTH):",
     "record = json.loads(text, object_pairs_hook=_unique_json_object,",
     "parse_constant=_reject_json_constant, parse_float=_finite_json_float)",
     "_validate_json_unicode(record)",
@@ -145,6 +150,16 @@ def _expect_rejected(call, label: str) -> int:
     raise ValueError(f"会话日志应拒绝 {label}")
 
 
+def _nested_payload(depth: int) -> dict:
+    root: dict = {}
+    cursor = root
+    for _ in range(depth - 1):
+        child: dict = {}
+        cursor["x"] = child
+        cursor = child
+    return root
+
+
 def _behavior_checks() -> int:
     encoded = _encode_session_line({"消息": "中文"})
     checked = _expect_value(b"\\u" in encoded, False, "编码保留原始 Unicode")
@@ -225,6 +240,16 @@ def _behavior_checks() -> int:
             '{"type":"item","id":"e1","timestamp":1,"payload":{}}', line_number=1
         ),
         "会话日志第 1 行格式无效，读取已停止", "timestamp 类型",
+    )
+    within = ('{"type":"item","id":"e1","timestamp":"t","payload":'
+              + json.dumps(_nested_payload(255)) + "}")
+    checked += _expect_value(
+        _decode_session_record(within, line_number=1)["type"], "item", "深度边界内")
+    beyond = ('{"type":"item","id":"e1","timestamp":"t","payload":'
+              + json.dumps(_nested_payload(256)) + "}")
+    checked += _expect_error(
+        lambda: _decode_session_record(beyond, line_number=1),
+        "会话日志第 1 行损坏，读取已停止", "深度边界外",
     )
 
     with TemporaryDirectory() as directory:

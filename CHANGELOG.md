@@ -1,3 +1,9 @@
+## 0.2.0-rc.797 - 2026-11-28
+
+- 统一超深 JSONL 记录的读取边界：同一份 990 层嵌套记录在 Python 3.10 / 3.11 上触发 `json.loads` 的 `RecursionError`，整段会话被搜索跳过；3.12+ 正常解码并命中。现在 `_decode_jsonl_object` 在解析前按 JSON 词法检查嵌套括号（字符串与转义内的括号不计数），超过 256 层统一按损坏行拒绝；`_search_tool_text` 把 `RecursionError` 与其余编码失败一样省略参数。[Issue #3719](https://github.com/can4hou6joeng4/boss-harness/issues/3719)
+- 前后对照：rc.796 固定提交在 3.11.15 下对 990 层记录的真实搜索返回 0 条并标记截断，3.12.13 返回 1 条；修复版在 3.10 / 3.11 / 3.12 / 3.14 下 256 层记录均命中、257 层均按损坏跳过。`check_session_log.py` 增加深度边界正反例，`check_search_scan.py` 增加 1000 层参数用例并把技术参考计数更新为 105。
+- 源码候选更新为 npm `0.2.0-rc.797` 和 Python `0.2.0rc797`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.796 - 2026-11-27
 
 - 统一 Python 3.14 下的深度与符号链接边界：3.14 的 `json.dumps` 不再对超深嵌套抛 `RecursionError`，`Path.resolve()` 默认模式也不再对符号链接环抛错，于是审批摘要会「成功」摘要万层参数、导出会产出超深 JSON、私有状态目录解析会返回未解析的环路径。现在审批摘要与导出各自先做不依赖递归的迭代深度检查（根对象深度 0 计，分别至 64 / 256 层），私有路径解析在常规解析后严格复核仍含链接的结果；三类错误继续收敛为固定文案。[Issue #3717](https://github.com/can4hou6joeng4/boss-harness/issues/3717)

@@ -16,6 +16,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
+TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
 from boss_harness.session import SessionStore  # noqa: E402
@@ -85,7 +86,7 @@ TOOL_ORDER = (
     'arguments = item.get("toolArguments")',
     "if isinstance(arguments, dict):",
     'rendered = json.dumps(arguments, ensure_ascii=False, sort_keys=True)',
-    "except (TypeError, ValueError):",
+    "except (TypeError, ValueError, RecursionError):",
     "if rendered and len(rendered) <= _SEARCH_TOOL_ARGS:",
     "parts.append(rendered)",
     'summary = item.get("resultSummary")',
@@ -93,6 +94,19 @@ TOOL_ORDER = (
     "parts.append(summary)",
     'return "\\n".join(parts)[:_SEARCH_TOOL_TEXT]',
 )
+
+
+def _deep_tool_arguments(depth: int = 1000) -> dict:
+    """构造旧解释器会在 json.dumps 中抛 RecursionError 的参数。"""
+    root: dict = {}
+    cursor = root
+    for _ in range(depth):
+        child: dict = {}
+        cursor["x"] = child
+        cursor = child
+    return root
+
+
 TOOL_CASES = (
     ({}, ""),
     ({"toolName": ""}, ""),
@@ -113,6 +127,7 @@ TOOL_CASES = (
      't\nr\n{"a": 1}\ns'),
     ({"toolName": "t", "toolArguments": {"q": "x" * 1991}}, 't\n{"q": "' + "x" * 1991 + '"}'),
     ({"toolName": "t", "toolArguments": {"q": "x" * 1992}}, "t"),
+    ({"toolName": "t", "toolArguments": _deep_tool_arguments()}, "t"),
     ({"toolName": "t", "resultSummary": "x" * 7000}, "t\n" + "x" * 5998),
 )
 
@@ -213,11 +228,12 @@ def check_search_scan() -> int:
     if "raise" in tool:
         raise ValueError(f"{SESSION} 的工具文本不得抛出错误")
     checked += 1
-    # 行为对照：逐用例比较工具投影文本。
-    for item, expected in TOOL_CASES:
+    # 行为对照：逐用例比较工具投影文本；失败只报序号，不打印深层对象。
+    for index, (item, expected) in enumerate(TOOL_CASES):
         actual = TOOL_TEXT(item)
         if actual != expected:
-            raise ValueError(f"{SESSION} 的工具文本变化：{item!r} → {actual!r}")
+            raise ValueError(
+                f"{SESSION} 的工具文本变化：用例 {index}，期望 {expected!r}，实际 {actual!r}")
         checked += 1
     if len(TOOL_TEXT({"toolName": "t", "resultSummary": "x" * 7000})) != 6000:
         raise ValueError(f"{SESSION} 的工具文本上限必须是 6000 字符")
@@ -225,9 +241,18 @@ def check_search_scan() -> int:
     return checked
 
 
+def _documentation_check(checked: int) -> None:
+    reference = _read(TECHNICAL_REFERENCE)
+    phrase = "深层嵌套参数在 Python 3.10–3.14 一致省略"
+    if phrase not in reference or f"共 {checked} 项" not in reference:
+        raise ValueError(
+            f"{TECHNICAL_REFERENCE} 缺少搜索深度边界说明或计数：{phrase}，共 {checked} 项")
+
+
 def main() -> int:
     try:
         checked = check_search_scan()
+        _documentation_check(checked)
     except (ValueError, SyntaxError) as error:
         print(f"搜索扫描核对失败，{error}", file=sys.stderr)
         return 2
