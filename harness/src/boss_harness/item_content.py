@@ -14,6 +14,28 @@ MAX_ITEM_CONTENT_CHARS = 32_768
 
 _REPLACEMENT = "�"
 
+#: 游标载荷的规范形式：urlsafe base64，可带规范填充或省略尾部填充。
+_CURSOR_B64 = re.compile(r"[A-Za-z0-9_-]*={0,2}\Z")
+
+
+def decode_cursor_base64(encoded: str) -> bytes:
+    """解码游标载荷的 urlsafe base64，接受集合固定在 3.10–3.14 的交集。
+
+    ``base64.b64decode(validate=True)`` 的填充校验随版本变化：3.10 接受多余尾部
+    填充，3.11 又接受 ``AAAA====`` 这类 3.12+ 拒绝的写法，畸形游标因此在一个版本上
+    推进分页、在另一个版本上被判无效。游标由本进程生成，规范形式是 urlsafe base64，
+    可带规范填充或全部省略；这里先固定字符集与填充数量，再补齐缺失填充后解码规范
+    形式，多余填充、夹带字符与非法长度在各版本上一致拒绝。
+    """
+    if not isinstance(encoded, str) or _CURSOR_B64.fullmatch(encoded) is None:
+        raise ValueError("游标编码无效")
+    data = encoded.rstrip("=")
+    padding = len(encoded) - len(data)
+    required = (-len(data)) % 4
+    if len(data) % 4 == 1 or padding not in (0, required):
+        raise ValueError("游标编码无效")
+    return base64.b64decode((data + "=" * required).encode("ascii"), altchars=b"-_", validate=True)
+
 
 def wire_text(value: str) -> str:
     """传输文本：把无法编码为 UTF-8 的孤立代理项替换为 U+FFFD。
@@ -134,9 +156,7 @@ def read_item_content(thread_id: str, item: dict, *, part: str, sha256: str,
             if not isinstance(cursor, str) or not cursor.startswith("ic1_") or len(cursor) > 2048:
                 raise ValueError
             encoded = cursor[4:]
-            value = json.loads(base64.b64decode(
-                encoded + "=" * (-len(encoded) % 4), altchars=b"-_", validate=True
-            ))
+            value = json.loads(decode_cursor_base64(encoded))
             expected = [thread_id, str(item["id"]), part, sha256, snapshot_id]
             if (not isinstance(value, list) or len(value) != 6 or value[:5] != expected
                     or type(value[5]) is not int or not 0 <= value[5] < len(text)):

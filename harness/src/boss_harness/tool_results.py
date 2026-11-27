@@ -14,7 +14,7 @@ import json
 import re
 from typing import Any
 
-from boss_harness.item_content import project_item_content, wire_text, wire_value
+from boss_harness.item_content import decode_cursor_base64, project_item_content, wire_text, wire_value
 from boss_harness.models.types import (
     DEFAULT_MODEL_TOOL_RESULT_BYTES, MAX_MODEL_TOOL_RESULT_BYTES, MIN_MODEL_TOOL_RESULT_BYTES,
 )
@@ -407,7 +407,7 @@ def read_result_text_chunk(thread_id: str, item_id: str, text: str, *, sha256: s
             if not isinstance(cursor, str) or not cursor.startswith("tr1_") or len(cursor) > 2048:
                 raise ValueError()
             encoded = cursor[4:]
-            value = json.loads(base64.b64decode(encoded + "=" * (-len(encoded) % 4), altchars=b"-_", validate=True))
+            value = json.loads(decode_cursor_base64(encoded))
             if (not isinstance(value, list) or len(value) != 4
                     or value[:3] != [thread_id, item_id, reference["sha256"]]
                     or type(value[3]) is not int or not 0 <= value[3] < len(text)):

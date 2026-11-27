@@ -2,7 +2,7 @@
 """核对分页游标的编码与解码边界。
 
 `_page_cursor` / `_read_page_cursor` 是会话列表、分支列表等所有分页读取共用的
-游标编解码：游标必须带 `p1_` 前缀、长度受限、urlsafe base64 严格解码，载荷必须
+游标编解码：游标必须带 `p1_` 前缀、长度受限、经共享 urlsafe base64 解码器严格解码，载荷必须
 恰好包含 `kind` / `scope` / `key` 且与本次查询完全一致，`key` 必须是列表；解码
 失败（含深层嵌套触发的递归错误）统一报「游标无效」，范围不符单独报错。这里固定
 这些规则，避免重构后游标跨查询复用、接受额外字段或被篡改输入打崩，并直接调用
@@ -18,6 +18,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
+ITEM_CONTENT = "harness/src/boss_harness/item_content.py"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
 from boss_harness.session import _page_cursor, _read_page_cursor  # noqa: E402
@@ -37,7 +38,7 @@ DECODE_ORDER = (
     'if not isinstance(cursor, str) or not cursor.startswith("p1_") or len(cursor) > 4096:',
     'raise ValueError("分页游标无效")',
     "encoded = cursor[3:]",
-    'raw = base64.b64decode(encoded + "=" * (-len(encoded) % 4), altchars=b"-_", validate=True)',
+    'raw = decode_cursor_base64(encoded)',
     "payload = json.loads(raw)",
     "except (ValueError, UnicodeDecodeError, binascii.Error, RecursionError):",
     'raise ValueError("分页游标无效") from None',
@@ -46,6 +47,16 @@ DECODE_ORDER = (
     'or not isinstance(payload["key"], list)):',
     'raise ValueError("分页游标与查询范围不匹配")',
     'return payload["key"]',
+)
+# 共享解码：游标生成时省略填充，解码器固定字符集与填充规则后统一补齐。
+HELPER_ORDER = (
+    "def decode_cursor_base64(encoded: str) -> bytes:",
+    "_CURSOR_B64.fullmatch(encoded)",
+    "data = encoded.rstrip(\"=\")",
+    "padding = len(encoded) - len(data)",
+    "required = (-len(data)) % 4",
+    "if len(data) % 4 == 1 or padding not in (0, required):",
+    'return base64.b64decode((data + "=" * required).encode("ascii"), altchars=b"-_", validate=True)',
 )
 
 
@@ -161,18 +172,38 @@ def _behavior_checks() -> int:
     checked += _expect_error(
         lambda: _read_page_cursor(_raw_cursor(long_payload), "sessions", scope),
         invalid, "超长游标")
+    # 共享解码器固定填充规则：规范补齐可接受，填充不足、多余填充、只有填充、非法
+    # 长度与标准字母表在各版本上一致拒绝。
+    padded = _payload_cursor({"kind": "sessions", "scope": scope, "key": [1]})
+    checked += _expect_value(
+        _read_page_cursor(padded + "==", "sessions", scope), [1], "规范补齐")
+    checked += _expect_error(
+        lambda: _read_page_cursor(padded + "=", "sessions", scope), invalid, "填充不足")
+    checked += _expect_error(
+        lambda: _read_page_cursor(padded + "===", "sessions", scope), invalid, "多余填充")
+    checked += _expect_error(
+        lambda: _read_page_cursor("p1_=", "sessions", scope), invalid, "只有填充")
+    checked += _expect_error(
+        lambda: _read_page_cursor("p1_A", "sessions", scope), invalid, "非法长度")
+    checked += _expect_error(
+        lambda: _read_page_cursor("p1_+w", "sessions", scope), invalid, "标准字母表")
     return checked
 
 
 def check_page_cursor() -> int:
     source = _read(SESSION)
+    helper = _function(_read(ITEM_CONTENT), "def decode_cursor_base64(")
     encode = _function(source, "def _page_cursor(")
     decode = _function(source, "def _read_page_cursor(")
     checked = _ordered(ENCODE_ORDER, encode, SESSION)
     checked += _ordered(DECODE_ORDER, decode, SESSION)
-    # 严格 base64：必须拒绝非法字符并自行补齐，不能依赖宽松解码。
-    if "validate=True" not in decode or 'altchars=b"-_"' not in decode:
-        raise ValueError(f"{SESSION} 的游标解码必须使用严格 urlsafe base64")
+    checked += _ordered(HELPER_ORDER, helper, ITEM_CONTENT)
+    # 严格 base64：调用点必须复用共享解码，不得自行调用宽松解码。
+    if "decode_cursor_base64(encoded)" not in decode:
+        raise ValueError(f"{SESSION} 的游标解码必须复用共享 urlsafe base64 解码")
+    checked += 1
+    if "validate=True" not in helper or 'altchars=b"-_"' not in helper:
+        raise ValueError(f"{ITEM_CONTENT} 的游标解码必须使用严格 urlsafe base64")
     checked += 1
     # 四类异常必须统一收敛为游标无效，不能让内部异常逃逸成 -32603。
     for error in ("ValueError", "UnicodeDecodeError", "binascii.Error", "RecursionError"):

@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypeVar
 
+from boss_harness.item_content import decode_cursor_base64
 from boss_harness.persistence import PersistenceIndex, SCHEMA_VERSION
 from boss_harness.private_files import ensure_private_directory, open_private_file, restrict_private_file
 from boss_harness.tool_results import MAX_PAGE_BYTES, wire_size
@@ -720,7 +721,7 @@ def _read_page_cursor(cursor: str | None, kind: str, scope: dict) -> list | None
         raise ValueError("分页游标无效")
     encoded = cursor[3:]
     try:
-        raw = base64.b64decode(encoded + "=" * (-len(encoded) % 4), altchars=b"-_", validate=True)
+        raw = decode_cursor_base64(encoded)
         payload = json.loads(raw)
     except (ValueError, UnicodeDecodeError, binascii.Error, RecursionError):
         # 长度上限内可容纳上千层嵌套；json.loads 对这种输入抛 RecursionError，

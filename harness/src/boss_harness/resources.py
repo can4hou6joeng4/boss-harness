@@ -18,7 +18,7 @@ import tempfile
 import uuid
 from typing import Any, Callable
 
-from boss_harness.item_content import wire_text
+from boss_harness.item_content import decode_cursor_base64, wire_text
 from boss_harness.settings import _fsync_directory
 from boss_harness.private_files import ensure_private_directory, open_private_file, restrict_private_file
 from boss_harness.session import Entry, SessionStore
@@ -532,8 +532,7 @@ def _attachment_cursor_offset(cursor: Any, reference: dict, length: int) -> int:
         if not isinstance(cursor, str) or not cursor.startswith("at1_") or len(cursor) > 2048:
             raise ValueError()
         encoded = cursor[4:]
-        value = json.loads(base64.b64decode(encoded + "=" * (-len(encoded) % 4),
-                                            altchars=b"-_", validate=True))
+        value = json.loads(decode_cursor_base64(encoded))
         if (not isinstance(value, list) or len(value) != 4
                 or value[:3] != [reference["threadId"], reference["attachmentId"], reference["sha256"]]
                 or type(value[3]) is not int or not 0 <= value[3] < length):

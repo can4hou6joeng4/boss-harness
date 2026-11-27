@@ -98,8 +98,7 @@ CURSOR_ORDER = (
     "def _attachment_cursor_offset(cursor: Any, reference: dict, length: int) -> int:",
     'if not isinstance(cursor, str) or not cursor.startswith("at1_") or len(cursor) > 2048:',
     "encoded = cursor[4:]",
-    'value = json.loads(base64.b64decode(encoded + "=" * (-len(encoded) % 4),',
-    'altchars=b"-_", validate=True))',
+    'value = json.loads(decode_cursor_base64(encoded))',
     "if (not isinstance(value, list) or len(value) != 4",
     'or value[:3] != [reference["threadId"], reference["attachmentId"], reference["sha256"]]',
     "or type(value[3]) is not int or not 0 <= value[3] < length):",
@@ -241,8 +240,8 @@ def check_attachment_read() -> int:
     if cursor.count('cursor.startswith("at1_")') != 1 or cursor.count("len(cursor) > 2048") != 1:
         raise ValueError(f"{RESOURCES} 的游标必须校验前缀与长度")
     checked += 1
-    if cursor.count('validate=True') != 1 or cursor.count('altchars=b"-_"') != 1:
-        raise ValueError(f"{RESOURCES} 的游标必须严格解码 base64url")
+    if cursor.count("decode_cursor_base64(encoded)") != 1:
+        raise ValueError(f"{RESOURCES} 的游标必须复用共享严格解码")
     checked += 1
     if cursor.count("len(value) != 4") != 1 or "0 <= value[3] < length" not in cursor:
         raise ValueError(f"{RESOURCES} 的游标载荷必须是四元组且偏移严格小于长度")
