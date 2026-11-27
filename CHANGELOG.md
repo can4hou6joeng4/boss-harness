@@ -1,3 +1,9 @@
+## 0.2.0-rc.793 - 2026-11-27
+
+- 修复 `check_approval_stop.py` 的启动标记竞态：假 CLI 先用 `exec 3>>` 创建标记文件、再写入 `started` 行，旧检查以“文件存在”为启动条件，可能读到空文件并误报“审批通过后假招聘 CLI 未启动（实测 0.0 秒、标记存在=True）”。全量检查已自然地复现该签名；现在等待带有效进程号的 `started` 行，文件先创建但内容未写入时继续等待，超时信息同时列出已读标记行。[Issue #3695](https://github.com/can4hou6joeng4/boss-harness/issues/3695)
+- 前后对照：把假 CLI 的创建与写入之间插入 0.5 秒延迟后，rc.792 固定提交的旧脚本稳定 exit 2 并复现上述 0.0 秒签名；修复版同一延迟下 exit 0，未修改夹具时也 exit 0。该改动只影响检查的等待条件，不改变内核、工具桥或审批行为。
+- 源码候选更新为 npm `0.2.0-rc.793` 和 Python `0.2.0rc793`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.792 - 2026-11-27
 
 - 为 README 与 STATUS 的工具计数补上守卫：两份入口文档都登记 14 项 allowlist（13 项只读、`boss_hr_greet` 需逐次审批），但工具检查此前只核对源码元组，把任一文档改成 15 仍 exit 0。现在用实际工具数与只读数核对两份文档的登记片段，不一致时 exit 2 并点名文件与缺失内容。[Issue #3710](https://github.com/can4hou6joeng4/boss-harness/issues/3710)

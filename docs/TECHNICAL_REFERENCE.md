@@ -173,7 +173,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_approval_stop.py`
 
-`scripts/check_approval_stop.py` 核对审批等待与工具运行中停止内核的真实进程行为。`check_termination.py` 用 `--provider none`，回合只会走到只读查询；这里把最小假 `anthropic` 模块写进临时目录并放到 `PYTHONPATH` 上，真实内核以 `--provider anthropic` 启动，第一回合返回一次 `boss_hr_greet` 调用。假模块同时接管 `subprocess.Popen`，只允许启动假招聘 CLI，其余可执行文件一律拒绝；不联网、不调用模型或招聘平台。结构 7 项：工具桥的进程级停止标记（模块级标志、`request_process_stop`、监督循环的合并判断）；入口的 `_on_signal` 先置位该标记、最后打断读取，并保留关闭诊断行。行为 8 项：审批等待中收到 `SIGTERM` 时，已收到 `approval/requested`、假 CLI 从未启动，内核以该信号在 3 秒内结束，stderr 只有一行关闭说明，会话日志含回合终态事件，重启后最后回合为 `interrupted`、工具项为 `CANCELLED` / `not_executed`；审批通过、假 CLI 启动后收到 `SIGTERM` 时，内核以该信号结束，假 CLI 在 2 秒内消失并留下收到 `SIGTERM` 的记录，重启后工具项为 `CANCELLED` / `outcome_unknown`。审批通过后给假 CLI 最多 30 秒写启动标记，超时信息包含实测时长、标记存在与内核存活状态。脚本同时固定技术参考的 4 处口径，运行约四秒；只能在 POSIX 平台运行，Windows 未覆盖。
+`scripts/check_approval_stop.py` 核对审批等待与工具运行中停止内核的真实进程行为。`check_termination.py` 用 `--provider none`，回合只会走到只读查询；这里把最小假 `anthropic` 模块写进临时目录并放到 `PYTHONPATH` 上，真实内核以 `--provider anthropic` 启动，第一回合返回一次 `boss_hr_greet` 调用。假模块同时接管 `subprocess.Popen`，只允许启动假招聘 CLI，其余可执行文件一律拒绝；不联网、不调用模型或招聘平台。结构 7 项：工具桥的进程级停止标记（模块级标志、`request_process_stop`、监督循环的合并判断）；入口的 `_on_signal` 先置位该标记、最后打断读取，并保留关闭诊断行。行为 8 项：审批等待中收到 `SIGTERM` 时，已收到 `approval/requested`、假 CLI 从未启动，内核以该信号在 3 秒内结束，stderr 只有一行关闭说明，会话日志含回合终态事件，重启后最后回合为 `interrupted`、工具项为 `CANCELLED` / `not_executed`；审批通过、假 CLI 启动后收到 `SIGTERM` 时，内核以该信号结束，假 CLI 在 2 秒内消失并留下收到 `SIGTERM` 的记录，重启后工具项为 `CANCELLED` / `outcome_unknown`。审批通过后给假 CLI 最多 30 秒写入带进程号的 `started` 行；标记文件先创建但行未写入时继续等待，不把空文件当成已启动。超时信息包含实测时长、标记存在、已读标记行与内核存活状态。脚本同时固定技术参考的 4 处口径，运行约四秒；只能在 POSIX 平台运行，Windows 未覆盖。
 
 ### `check_quit_close.py`
 

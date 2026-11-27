@@ -331,6 +331,11 @@ def _marker_rows(folder: Path) -> list[tuple[str, int]]:
     return rows
 
 
+def _started_pids(folder: Path) -> list[int]:
+    """标记文件先创建、再写入 started 行；只有有效进程号才算启动完成。"""
+    return [pid for key, pid in _marker_rows(folder) if key == "started" and pid > 0]
+
+
 def _wait_exit(process: subprocess.Popen, seconds: float) -> int | str:
     try:
         return process.wait(timeout=seconds)
@@ -431,16 +436,17 @@ def _approved_stop(folder: Path) -> int:
             raise ValueError(f"审批没有被接受：{answer}")
         began = time.monotonic()
         deadline = began + APPROVAL_TOOL_SECONDS
-        while time.monotonic() < deadline and not marker.exists():
+        pids: list[int] = []
+        while time.monotonic() < deadline and not pids:
+            pids = _started_pids(folder)
             time.sleep(0.01)
-        rows = _marker_rows(folder)
-        pids = [pid for key, pid in rows if key == "started"]
         if not pids:
+            rows = _marker_rows(folder)
             tail = kernel.stderr_path.read_text(encoding="utf-8").strip()[-300:]
             raise ValueError(
                 f"审批通过后假招聘 CLI 未在 {APPROVAL_TOOL_SECONDS:.0f} 秒内启动"
                 f"（实测 {time.monotonic() - began:.1f} 秒、标记存在={marker.exists()}、"
-                f"内核存活={kernel.process.poll() is None}）：{tail}"
+                f"标记行={rows}、内核存活={kernel.process.poll() is None}）：{tail}"
             )
         stub_pid = pids[0]
         time.sleep(0.3)
@@ -467,7 +473,7 @@ def _approved_stop(folder: Path) -> int:
         raise ValueError(f"工具运行中停止后的会话结算不符：turns={turns}、items={items}")
     finally:
         kernel.stop()
-        for pid in [pid for key, pid in _marker_rows(folder) if key == "started"]:
+        for pid in _started_pids(folder):
             try:
                 os.killpg(pid, signal.SIGKILL)
             except OSError:
