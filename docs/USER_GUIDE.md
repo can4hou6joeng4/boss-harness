@@ -34,7 +34,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.812` / Python `0.2.0rc812` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.813` / Python `0.2.0rc813` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。

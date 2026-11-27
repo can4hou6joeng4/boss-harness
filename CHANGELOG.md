@@ -1,3 +1,9 @@
+## 0.2.0-rc.813 - 2026-11-28
+
+- CI 脚本接线守卫补上多行命令：新增解析 `run: |` 块内 `python scripts/check_*.py` 调用与所在步骤名的逻辑，步骤名不以 `Verify ` 开头即点名失败；`env:`、注释与块外文本只算引用，不算执行。[Issue #3751](https://github.com/can4hou6joeng4/boss-harness/issues/3751)
+- `check_ci_script_coverage.py` 新增「每个检查脚本必须被 `run:` 命令执行」的双向核对，现有 298 个脚本全部保留接线；技术参考同步描述与计数（结构 10 → 12 项、行为 14 → 20 项）。rc.812 固定源码探针：旧守卫对 `- name: Build alpha` + 多行 `run:` 返回空列表，新守卫点名 `scripts/check_alpha.py`；非执行位置引用在旧守卫中无对应函数，新守卫返回未执行脚本。探针只留 `/tmp`，不提交测试文件。
+- 源码候选更新为 npm `0.2.0-rc.813` 和 Python `0.2.0rc813`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.812 - 2026-11-28
 
 - Agent 入口补齐内核包说明：`llms.txt` 的「开发与契约」节新增指向 `harness/README.md` 的相对链接，让编码 Agent 从根入口直接读到 Python 内核的依赖、安装、目录结构与发布元数据正文；文件保持无候选号、无本机路径、无外链。[Issue #3749](https://github.com/can4hou6joeng4/boss-harness/issues/3749)
