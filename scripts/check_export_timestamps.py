@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""核对会话导出的时间戳解析、耗时与审批期限展示。
+"""核对会话导出与用量路径的时间戳解析、耗时与审批期限展示。
 
 导出回合头部的 `durationMs` 与审批记录的 `deadline` 直接面向用户，输入却来自可被外部
 改写的持久记录：无时区时间、反转的起止、`10**400` 这类整数都可能在导出路径上抛出
-异常或产生误导性的耗时与期限。这里静态固定三个时间辅助函数的解析、回退与调用点，
+异常或产生误导性的耗时与期限。这里静态固定时间辅助函数的解析、回退与调用点，
 并直接调用它们核对无时区、`Z`、偏移、非法值、倒序、跨时区、布尔、非有限与非正期限
-的边界。不读写导出文件，也不启动模型或招聘平台。
+的边界。`fromisoformat` 的接受集合随 Python 版本扩大，因此导出与用量共用
+`session._parse_iso_timestamp` 的固定文法；本脚本同时核对两条路径对同一写法的结论。
+不读写导出文件，也不启动模型或招聘平台。
 """
 
 from __future__ import annotations
@@ -16,8 +18,10 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/session_export.py"
+SESSION_MODULE = "harness/src/boss_harness/session.py"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
+from boss_harness.session import _valid_timestamp  # noqa: E402
 from boss_harness.session_export import (  # noqa: E402
     _deadline_text,
     _parse_timestamp,
@@ -25,10 +29,18 @@ from boss_harness.session_export import (  # noqa: E402
 )
 
 PARSE_FRAGMENTS = (
-    "if not isinstance(value, str) or not value:",
-    'text = value[:-1] + "+00:00" if value.endswith("Z") else value',
-    "except ValueError:\n        return None",
-    "return parsed if parsed.tzinfo is not None else None",
+    "from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, SessionStore, _parse_iso_timestamp,",
+    "parsed = _parse_iso_timestamp(value)",
+    "return parsed if parsed is not None and parsed.tzinfo is not None else None",
+)
+SESSION_FRAGMENTS = (
+    "_ISO_TIMESTAMP = re.compile(",
+    "r\"(?P<year>[0-9]{4})-(?P<month>[0-9]{2})-(?P<day>[0-9]{2})[T ]\"",
+    "r\"(?P<hour>[01][0-9]|2[0-3]):(?P<minute>[0-5][0-9]):(?P<second>[0-5][0-9])\"",
+    "r\"(?:[.,](?P<fraction>[0-9]{1,6}))?\"",
+    "r\"(?:(?P<zulu>Z)|(?P<sign>[+-])(?P<offset_hour>[01][0-9]|2[0-3])(?::?(?P<offset_minute>[0-9]{2}))?)?\\Z\"",
+    "match = _ISO_TIMESTAMP.fullmatch(value)",
+    "return value if _parse_iso_timestamp(value) is not None else None",
 )
 DURATION_FRAGMENTS = (
     "first, last = _parse_timestamp(start), _parse_timestamp(end)",
@@ -93,6 +105,35 @@ def _behavior_checks() -> int:
     _expect_value(fractional, datetime(2026, 1, 2, 3, 4, 5, 500_000, tzinfo=timezone.utc),
                   "解析毫秒后缀")
     checked += 1
+    # 3.11+ 的 fromisoformat 才接受不补零小数、逗号小数与不补零偏移；固定文法在
+    # 3.10–3.14 上统一接受并补成规范形式，故这些写法必须有同一结论。
+    for value in ("2026-01-02T03:04:05.5Z", "2026-01-02T03:04:05,5Z"):
+        _expect_value(_parse_timestamp(value),
+                      datetime(2026, 1, 2, 3, 4, 5, 500_000, tzinfo=timezone.utc),
+                      f"解析不补零小数 {value!r}")
+        checked += 1
+    for value in ("2026-01-02T03:04:05+08", "2026-01-02T03:04:05+0800",
+                  "2026-01-02 03:04:05+08:00"):
+        _expect_value(_parse_timestamp(value),
+                      datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone(timedelta(hours=8))),
+                      f"解析不补零偏移 {value!r}")
+        checked += 1
+    for value in ("20260102T030405+00:00", "2026-01-02T24:00:00Z",
+                  "2026-01-02T03:04:05.1234567Z", "２０２６-01-02T03:04:05Z"):
+        _expect_value(_parse_timestamp(value), None, f"解析越界写法 {value!r}"[:60])
+        checked += 1
+    # 用量 / 恢复路径只判断可解析并保留原值；与导出共用固定文法，只有无时区值例外。
+    for value in ("2026-01-02T03:04:05Z", "2026-01-02T03:04:05.5Z",
+                  "2026-01-02T03:04:05,5+0800", "2026-01-02T03:04:05+08"):
+        _expect_value(_valid_timestamp(value), value, f"用量接受 {value!r}")
+        checked += 1
+    for value in ("20260102T030405+00:00", "2026-01-02T24:00:00Z",
+                  "2026-01-02T03:04:05.1234567Z", "２０２６-01-02T03:04:05Z"):
+        _expect_value(_valid_timestamp(value), None, f"用量拒绝 {value!r}"[:60])
+        checked += 1
+    _expect_value(_valid_timestamp("2026-01-02T03:04:05"), "2026-01-02T03:04:05",
+                  "用量接受无时区时间")
+    checked += 1
     _expect_value(utc.utcoffset(), timedelta(0), "Z 后缀时区")
     checked += 1
     _expect_value(offset.utcoffset(), timedelta(hours=8), "偏移时区")
@@ -102,6 +143,9 @@ def _behavior_checks() -> int:
     checked += 1
     _expect_value(_timestamp_duration("2026-01-02T03:04:05Z", "2026-01-02T03:04:06.500Z"), 1500,
                   "带毫秒耗时")
+    checked += 1
+    _expect_value(_timestamp_duration("2026-01-02T03:04:05+0800", "2026-01-02T03:04:06,5+08"), 1500,
+                  "不补零偏移耗时")
     checked += 1
     _expect_value(_timestamp_duration("2026-01-02T03:04:05Z", "2026-01-02T03:04:05.001500Z"), 2,
                   "耗时四舍五入")
@@ -133,11 +177,13 @@ def _behavior_checks() -> int:
 
 
 def check_export_timestamps() -> int:
-    module = _read(MODULE)
     checked = 0
-    for label, fragments in (("解析", PARSE_FRAGMENTS), ("耗时", DURATION_FRAGMENTS),
-                             ("期限", DEADLINE_FRAGMENTS), ("调用点", WIRING_FRAGMENTS)):
-        checked += _expect(fragments, module, f"{MODULE}（{label}）")
+    for label, fragments, path in (("解析", PARSE_FRAGMENTS, MODULE),
+                                   ("共用文法", SESSION_FRAGMENTS, SESSION_MODULE),
+                                   ("耗时", DURATION_FRAGMENTS, MODULE),
+                                   ("期限", DEADLINE_FRAGMENTS, MODULE),
+                                   ("调用点", WIRING_FRAGMENTS, MODULE)):
+        checked += _expect(fragments, _read(path), f"{path}（{label}）")
     checked += _behavior_checks()
     return checked + 1
 

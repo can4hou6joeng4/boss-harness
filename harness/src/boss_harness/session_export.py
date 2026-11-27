@@ -30,8 +30,8 @@ from boss_harness.context import tool_execution_status
 from boss_harness.item_content import wire_text
 from boss_harness.models.secret import redact_secrets
 from boss_harness.protocol import PROTOCOL_VERSION
-from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, SessionStore, bounded_skill_ids,
-                                  branch_summary_issue)
+from boss_harness.session import (BRANCH_SUMMARY_ENTRY_TYPE, SessionStore, _parse_iso_timestamp,
+                                  bounded_skill_ids, branch_summary_issue)
 from boss_harness.usage import SOURCE as USAGE_SOURCE, summarize_usage
 
 EXPORT_FORMATS = ("markdown", "json", "html")
@@ -393,14 +393,8 @@ def _duration_text(ms: int) -> str:
 
 def _parse_timestamp(value: Any) -> datetime | None:
     """Parse an ISO timestamp only when it carries a timezone; naive values stay unknown."""
-    if not isinstance(value, str) or not value:
-        return None
-    text = value[:-1] + "+00:00" if value.endswith("Z") else value
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo is not None else None
+    parsed = _parse_iso_timestamp(value)
+    return parsed if parsed is not None and parsed.tzinfo is not None else None
 
 
 def _timestamp_duration(start: Any, end: Any) -> int | None:
