@@ -34,6 +34,7 @@ REQUIRED_LINKS = (
 REQUIRED_PHRASES = (
     "`main` 是开发分支", "桌面从源码构建", "MIT License",
     "数据离开本机只经过两条路径", "不包含遥测、崩溃上报或自动更新检查",
+    "业务 CLI 的浏览器来源可按进程覆盖，`inherit` 表示不覆盖上游配置",
 )
 REQUIRED_URL = "https://github.com/can4hou6joeng4/boss-harness/releases"
 ENGLISH_HEADING = "## English overview"
