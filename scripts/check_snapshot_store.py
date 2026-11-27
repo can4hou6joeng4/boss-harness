@@ -469,7 +469,11 @@ def _behavior_checks() -> int:
     checked += _expect_value(_decode_item('{"id": "a"}'), {"id": "a"}, "条目解码")
     for label, payload in (("非字符串", b'{"id": "a"}'), ("非法 JSON", "not json"),
                            ("数组", "[1]"), ("字符串", '"x"'), ("null", "null"),
-                           ("深嵌套", "[" * 50000 + "]" * 50000)):
+                           ("深嵌套", "[" * 50000 + "]" * 50000),
+                           # 3.10 / 3.11 的 json.loads 在约 995 层抛 RecursionError，
+                           # 3.12+ 能解析；解析前按会话日志同一上限拒绝，结论不随版本变化。
+                           ("可解析深嵌套", '{"id": "a", "payload": '
+                            + "[" * 1200 + "]" * 1200 + "}")):
         checked += _expect_error(lambda: _decode_item(payload), message_corrupt,
                                  f"条目载荷 {label}")
     item = {"id": "a"}

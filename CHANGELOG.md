@@ -1,3 +1,9 @@
+## 0.2.0-rc.802 - 2026-11-28
+
+- 快照条目与会话日志共用同一 JSON 深度上限：`snapshot_store._decode_item` 原先只用 `json.loads` 的 `RecursionError` 判定损坏，而递归余量随 Python 版本变化；同一份 1200 层嵌套的条目载荷在 3.10 / 3.11 上按「会话快照已损坏」拒绝，3.12 / 3.14 正常解析并返回条目。现在解析前复用会话日志的 `_json_depth_exceeded` 与 `MAX_JSON_RECORD_DEPTH`（256 层），五个版本一致拒绝。[Issue #3729](https://github.com/can4hou6joeng4/boss-harness/issues/3729)
+- 真实 `SnapshotStore`（临时目录、手工构造快照库、`store.page` 读取 1200 层载荷）探针：旧源码在 3.10.20 / 3.11.15 拒绝、3.12.13 / 3.14.6 返回 1 条；修复版 3.10–3.14 一致拒绝。检查脚本新增同一用例（76 → 77 个行为场景），探针只留 `/tmp`，不提交测试文件。
+- 源码候选更新为 npm `0.2.0-rc.802` 和 Python `0.2.0rc802`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.801 - 2026-11-28
 
 - 修正启动自检的回环判定：`_is_loopback_host` 把任何以 `127.` 开头的字符串都当作回环，`_insecure_base_url` 因此对 `http://127.evil.example/v1` 不报告 `MODEL_ENDPOINT_INSECURE`，而同样非回环的 `http://api.example.com/v1` 会报告。现在按 IP 字面量判断（`ipaddress.ip_address().is_loopback`），并单独接受 `127.1` / `127.000.000.001` 等 inet_aton 缩写与前导零形式；以 `127.` 开头的域名不算回环。段长上限 3 避免把超长十进制串交给解析上限随版本变化的 `int()`。[Issue #3727](https://github.com/can4hou6joeng4/boss-harness/issues/3727)
