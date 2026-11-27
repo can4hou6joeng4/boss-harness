@@ -511,26 +511,34 @@ def _validate_json_unicode(value: Any) -> None:
             pending.extend(current)
 
 
+_JSON_STRUCTURE = re.compile(r'["{}\[\]]')
+
+
 def _json_depth_exceeded(text: str, maximum: int) -> bool:
-    """按 JSON 词法统计嵌套括号；字符串与转义内的括号不计数，不依赖递归。"""
+    """统计 JSON 容器深度；跳过字符串正文，不依赖递归或逐字符 Python 扫描。"""
     depth = 0
-    in_string = False
-    escaped = False
-    for character in text:
-        if in_string:
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == '"':
-                in_string = False
-        elif character == '"':
-            in_string = True
+    position = 0
+    while match := _JSON_STRUCTURE.search(text, position):
+        character = match[0]
+        position = match.end()
+        if character == '"':
+            while True:
+                quote = text.find('"', position)
+                if quote < 0:
+                    # 字符串未闭合由 json.loads 判定为损坏，词法检查不替代语法校验。
+                    return False
+                backslash = quote
+                while backslash > position and text[backslash - 1] == "\\":
+                    backslash -= 1
+                escaped = (quote - backslash) % 2
+                position = quote + 1
+                if not escaped:
+                    break
         elif character in "{[":
             depth += 1
             if depth > maximum:
                 return True
-        elif character in "}]":
+        else:
             depth -= 1
     return False
 
