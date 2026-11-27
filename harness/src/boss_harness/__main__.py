@@ -32,6 +32,10 @@ class _SignalAwareStdin:
         self.source = source
         self._fd = source.fileno()
         self._wakeup = wakeup
+        # poll 不受 select 的 FD_SETSIZE 限制，也接受重定向 stdin 的普通文件。
+        self._poller = select.poll()
+        self._poller.register(self._fd, select.POLLIN)
+        self._poller.register(wakeup, select.POLLIN)
         self._buffer = bytearray()
 
     def __getattr__(self, name: str) -> Any:
@@ -51,8 +55,8 @@ class _SignalAwareStdin:
                 return raw.decode("utf-8", errors="surrogateescape")
             # 信号处理函数只在主线程执行。set_wakeup_fd 的字节在 C 层写入，
             # 即使信号落到工作线程也会使这里返回，从而运行待处理的 Python handler。
-            ready, _, _ = select.select([self._fd, self._wakeup], [], [])
-            if self._wakeup in ready:
+            ready = {descriptor for descriptor, _events in self._poller.poll()}
+            if self._wakeup.fileno() in ready:
                 self._wakeup.recv(65536)
             if self._fd in ready:
                 size = min(65536, limit - len(self._buffer)) if limit > 0 else 65536

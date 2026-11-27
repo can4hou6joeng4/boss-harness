@@ -1,3 +1,9 @@
+## 0.2.0-rc.787 - 2026-11-27
+
+- 修复标准输入等待的 `FD_SETSIZE` 限制：进程此前打开较多文件、唤醒 socket 编号过高，或嵌入程序把 stdin 设为高编号管道时，rc.785 的 `select.select()` 会在握手前报 `filedescriptor out of range` 并退出。现在改用 `select.poll()`，同时覆盖普通文件重定向；LF 分帧、UTF-8 / surrogateescape、读取预算、唤醒 fd 与信号关闭流程不变。[Issue #3700](https://github.com/can4hou6joeng4/boss-harness/issues/3700)
+- 固定主干 `20428225` 的 Git 归档与修复版运行同一真实 CLI 入口探针：普通管道两边均完成握手与 `thread/list`；打开 1100 个临时描述符或把 stdin 复制到 fd 2048 时，旧版退出 1 且无响应，修复版均成功。另复核空文件、LF、CRLF、末帧无 LF、普通管道、六组工作线程投递终止信号与 15 项输入生命周期边界。探针只留本地，不调用模型、招聘平台或业务 CLI。
+- 源码候选更新为 npm `0.2.0-rc.787` 和 Python `0.2.0rc787`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.786 - 2026-11-27
 
 本节汇总第十六个候选版本的源码与交付内容；实际发布状态以 [GitHub Release](https://github.com/can4hou6joeng4/boss-harness/releases) 为准。聚合范围、验收与产物见 [Issue #3698](https://github.com/can4hou6joeng4/boss-harness/issues/3698)。
