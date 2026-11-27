@@ -35,8 +35,11 @@ ENTRY = "harness/src/boss_harness/__main__.py"
 DOCS = "docs/TECHNICAL_REFERENCE.md"
 
 # 内核通常在 0.05～0.25 秒内结束；上界只放宽调度抖动，不放宽失败。
+# 全量检查套件里假 CLI 的启动曾被调度抖动拖过 10 秒；这里给足安静窗口，
+# 超时信息会同时给出实测时长与进程状态，不把「等待不足」误报成工具桥故障。
 KERNEL_EXIT_SECONDS = 3.0
 CLI_GONE_SECONDS = 2.0
+APPROVAL_TOOL_SECONDS = 30.0
 APPROVAL_TOOL = "boss_hr_greet"
 TOOL_INPUT = {key: "probe-" + key for key in
               ("geek_id", "job_id", "expect_id", "lid", "security_id", "message")}
@@ -426,14 +429,19 @@ def _approved_stop(folder: Path) -> int:
                              {"approvalId": approval["params"]["approvalId"], "approved": True})
         if answer.get("accepted") is not True:
             raise ValueError(f"审批没有被接受：{answer}")
-        deadline = time.monotonic() + 10
+        began = time.monotonic()
+        deadline = began + APPROVAL_TOOL_SECONDS
         while time.monotonic() < deadline and not marker.exists():
             time.sleep(0.01)
         rows = _marker_rows(folder)
         pids = [pid for key, pid in rows if key == "started"]
         if not pids:
             tail = kernel.stderr_path.read_text(encoding="utf-8").strip()[-300:]
-            raise ValueError(f"审批通过后假招聘 CLI 没有被启动：{tail}")
+            raise ValueError(
+                f"审批通过后假招聘 CLI 未在 {APPROVAL_TOOL_SECONDS:.0f} 秒内启动"
+                f"（实测 {time.monotonic() - began:.1f} 秒、标记存在={marker.exists()}、"
+                f"内核存活={kernel.process.poll() is None}）：{tail}"
+            )
         stub_pid = pids[0]
         time.sleep(0.3)
         began = time.monotonic()
@@ -482,7 +490,7 @@ def _check_behaviors() -> int:
 def _check_documentation() -> int:
     docs = _read(DOCS)
     checked = 0
-    for fragment in ("`check_approval_stop.py`", "审批等待中", "假 `anthropic`"):
+    for fragment in ("`check_approval_stop.py`", "审批等待中", "假 `anthropic`", "30 秒"):
         if fragment not in docs:
             raise ValueError(f"{DOCS} 缺少审批停止的说明：{fragment}")
         checked += 1
