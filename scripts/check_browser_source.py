@@ -55,6 +55,7 @@ TOOLS_FRAGMENTS = (
 STARTUP_FRAGMENTS = (
     '"browserSource", "error", "BROWSER_SOURCE_INVALID"',
     "BROWSER_SOURCE_VALID",
+    "将 BOSS_HARNESS_BROWSER_SOURCE 设为 inherit、auto、existing-browser、stored-cookie，或取消设置；",
     ENV,
 )
 APPLICATION_FRAGMENTS = (
@@ -233,7 +234,11 @@ def check_browser_source() -> tuple[int, int]:
         raise ValueError("浏览器来源允许值与文档不一致：" + "、".join(sorted(VALUES - found)))
     checked += 1
 
-    checked += _expect(STARTUP_FRAGMENTS, _read(STARTUP), "startup_check.py")
+    startup = _read(STARTUP)
+    checked += _expect(STARTUP_FRAGMENTS, startup, "startup_check.py")
+    if "inherit 表示不覆盖上游配置" not in startup:
+        raise ValueError("启动自检提示缺少 inherit 不覆盖说明")
+    checked += 1
     checked += _expect(APPLICATION_FRAGMENTS, _read(APPLICATION), "application.py")
     checked += _expect(CONNECTIONS_FRAGMENTS, _read(CONNECTIONS), "connections.py")
     checked += _expect(DESKTOP_FRAGMENTS, _read(REPORT) + _read(SETTINGS), "桌面连接报告")

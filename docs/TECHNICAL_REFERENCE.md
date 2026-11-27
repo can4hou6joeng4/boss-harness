@@ -911,7 +911,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_browser_source.py`
 
-`scripts/check_browser_source.py` 核对 `BOSS_HARNESS_BROWSER_SOURCE` 的严格白名单 `auto` / `existing-browser` / `stored-cookie`、`inherit` 不覆盖别名、空值回退与规范化，要求上游参数以独立 `--browser-source` 值构造且子进程保持 `shell=False`；同时核对启动自检码、连接报告与桌面设置页的来源策略展示。脚本并直接调用 `resolve_browser_source_override`（27 项），覆盖未设置 / 空字符串 / 纯空白回落、显式与环境 `inherit` 均回落且不覆盖上游、大小写与首尾空白归一、三个合法值、环境变量为空串时回落、环境值全大写时归一、环境变量生效与显式值优先（含环境合法而显式非法时仍拒绝）、非法显式值与非法环境变量的固定错误文案、上游允许值集合恰好三个、完整可选值集合为三个上游值加 `inherit`、`inherit` 不进入上游集合，以及解析不写回环境变量。脚本不启动上游、不读取浏览器或 Cookie，也不验证上游是否支持该参数。
+`scripts/check_browser_source.py` 核对 `BOSS_HARNESS_BROWSER_SOURCE` 的严格白名单 `auto` / `existing-browser` / `stored-cookie`、`inherit` 不覆盖别名、空值回退与规范化，要求上游参数以独立 `--browser-source` 值构造且子进程保持 `shell=False`；同时核对启动自检码、连接报告与桌面设置页的来源策略展示；非法取值的启动提示必须列出 `BROWSER_SOURCE_CHOICES` 的全部取值并说明 `inherit` 不覆盖上游配置。脚本并直接调用 `resolve_browser_source_override`（27 项），覆盖未设置 / 空字符串 / 纯空白回落、显式与环境 `inherit` 均回落且不覆盖上游、大小写与首尾空白归一、三个合法值、环境变量为空串时回落、环境值全大写时归一、环境变量生效与显式值优先（含环境合法而显式非法时仍拒绝）、非法显式值与非法环境变量的固定错误文案、上游允许值集合恰好三个、完整可选值集合为三个上游值加 `inherit`、`inherit` 不进入上游集合，以及解析不写回环境变量。脚本不启动上游、不读取浏览器或 Cookie，也不验证上游是否支持该参数。
 
 ### `check_connections.py`
 
