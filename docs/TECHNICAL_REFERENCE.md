@@ -1299,7 +1299,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_ci_script_coverage.py`
 
-`scripts/check_ci_script_coverage.py` 固化 CI 接线不变量：解析 `.github/workflows/build.yml` 中的 `run: python scripts/check_*.py` 引用，与 `scripts/check_*.py` 的实际文件双向核对——遗漏脚本与悬空引用分别列出，且每个引用步骤的上一非空行必须是 `- name: Verify ...` 名称，裸 `run:` 步骤会被判失败。脚本已删除但工作流步骤残留、或新增脚本漏接 CI 时都会在构建前暴露。空工作流无引用与真实工作流核对也由行为用例覆盖。共 10 项结构、14 项行为。
+`scripts/check_ci_script_coverage.py` 固化 CI 接线不变量：解析 `.github/workflows/build.yml` 中的 `python scripts/check_*.py` 引用，与 `scripts/check_*.py` 的实际文件双向核对——遗漏脚本与悬空引用分别列出。每个脚本必须由 `run:` 命令真正执行（单行 `run:` 与 `run: |` 多行块都算，块内注释、`env:` 和文档文本不算），且所在步骤名以 `Verify ` 开头；裸 `- run:` 或非 Verify 名称会点名失败。脚本已删除但工作流步骤残留、新增脚本漏接 CI、只声明不执行或多行块步骤改名都会在构建前暴露。空工作流无引用与真实工作流核对也由行为用例覆盖。共 12 项结构、20 项行为。
 
 ### `check_queue_edit_drafts.py`
 
