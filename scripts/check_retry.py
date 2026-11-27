@@ -2,8 +2,9 @@
 """核对模型重试的退避上限、环境解析与观测事件边界。
 
 retry.py 只决定「等多久、最多几次」：环境变量去空白后按整数解析并在 1–10 与
-非负基数内收敛；网关 Retry-After 优先于指数退避，两者都封顶 8 秒；观测事件
-只带次数、毫秒与错误说明，retry_end 在首个非错误事件补成功、在错误事件补失败。
+非负基数内收敛；网关 Retry-After 优先于指数退避，两者都封顶 8 秒，非有限值与
+负数视为无效并回退指数退避；观测事件只带次数、毫秒与错误说明，retry_end 在首个
+非错误事件补成功、在错误事件补失败。
 任一放宽都会让等待无界或让观测事件与真实尝试次数不符，因此静态固定，并用
 行为对照核对解析、退避与事件补发。不访问网络、模型或招聘平台。
 """
@@ -69,7 +70,9 @@ HEADER_FRAGMENTS = (
     "raw = headers.get(name)",
     "if not raw:",
     "continue",
-    "return float(str(raw).strip()) * scale",
+    "seconds = float(str(raw).strip()) * scale",
+    "if not math.isfinite(seconds) or seconds < 0:",
+    "return seconds",
     "except ValueError:",
     "return None",
 )
@@ -213,6 +216,17 @@ def _behavior_checks() -> int:
     checked += _expect_value(retry_after_seconds(_Error({"retry-after": ""})), None, "空头")
     checked += _expect_value(retry_after_seconds(_Error({"retry-after": "abc"})), None, "非法头")
     checked += _expect_value(retry_after_seconds(_Error({"retry-after": " 2 "})), 2.0, "头去空白")
+    # 非有限值与负数无效：不得变成 0 毫秒立即重试或 8 秒封顶，统一回退指数退避。
+    for raw in ("NaN", "nan", "inf", "-inf", "-5", "1e309", " Infinity "):
+        checked += _expect_value(retry_after_seconds(_Error({"retry-after": raw})), None,
+                                 f"无效秒头 {raw}")
+    checked += _expect_value(retry_after_seconds(_Error({"retry-after-ms": "NaN"})), None,
+                             "无效毫秒头")
+    checked += _expect_value(retry_after_seconds(_Error({"retry-after": "0"})), 0.0, "零秒头")
+    checked += _expect_value(retry_after_seconds(_Error({"retry-after": "2.5"})), 2.5,
+                             "小数秒头")
+    checked += _expect_value(retry_after_seconds(_Error({"retry-after": "1e300"})), 1e300,
+                             "有限大值")
 
     # 观测事件：次数、毫秒取整与错误说明，取消事件说明未发起的尝试。
     start = retry_start_event(2, 3, 0.75, "")
@@ -304,14 +318,16 @@ def check_retry() -> int:
         module,
         MODULE,
     )
-    # 响应头：ms 优先于秒 → 跳过空值 → 解析失败继续 → 无值返回 None。
+    # 响应头：ms 优先于秒 → 跳过空值 → 解析失败继续 → 非有限或负数继续 → 无值返回 None。
     checked += _ordered(
         (
             'for name, scale in (("retry-after-ms", 0.001), ("retry-after", 1.0)):',
             "raw = headers.get(name)",
             "if not raw:",
-            "return float(str(raw).strip()) * scale",
-            "except ValueError:\n            continue\n    return None",
+            "seconds = float(str(raw).strip()) * scale",
+            "except ValueError:\n            continue",
+            "if not math.isfinite(seconds) or seconds < 0:",
+            "        return seconds\n    return None",
         ),
         module,
         MODULE,
@@ -328,6 +344,10 @@ def check_retry() -> int:
         MODULE,
     )
     # 反向断言：模块只计算时长，不睡眠；事件不夹带内容字段。
+    # 非有限网关头依赖 math.isfinite，缺少导入会让 nan / inf 重新进入夹取。
+    if "import math\n" not in module:
+        raise ValueError(f"{MODULE} 必须导入 math 以拒绝非有限网关头")
+    checked += 1
     if "time.sleep(" in module:
         raise ValueError(f"{MODULE} 只计算退避时长，不得在模块内睡眠")
     if "headers[" in module:
