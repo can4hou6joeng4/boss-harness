@@ -963,7 +963,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_readme_stability.py`
 
-`scripts/check_readme_stability.py` 核对项目首页只写稳定事实，把 `CONTRIBUTING.md` 的约定变成 CI 不变量：README 不得出现 `rc.N` / `X.Y.Z-rc` / Python 包写法 `X.Y.ZrcN` 候选号、版本号或更新说明类标题（更新日志 / 更新说明 / 版本更新 / 近期进展 / 发布说明 / What's new / Release notes）与本机绝对路径；必须保留 CHANGELOG、项目状态、发布约定、许可证、安全、支持、贡献、安装、用户指南与桌面指南等稳定链接，以及「`main` 是开发分支」「桌面从源码构建」「MIT License」「数据离开本机只经过两条路径」「不包含遥测、崩溃上报或自动更新检查」与 Releases 链接；首页还必须保留 `## English overview` 章节，且章节内保留 shell 不 import 内核代码、`main` 是开发分支且源码候选不是发布、桌面从源码构建且没有独立安装包、14 个 allowlist 工具中 13 个只读加一个逐次审批动作、数据只经模型线路与本机招聘 CLI 两条路径离开本机、仓库代码不含遥测 / 崩溃上报 / 自动更新检查六条英文稳定表述。近期进展与逐版本变化只留在 CHANGELOG 与 Release。行为侧用合成 Markdown 核对每条规则都会检出、干净样本不误报。共 26 项结构、11 项行为。
+`scripts/check_readme_stability.py` 核对项目首页只写稳定事实，把 `CONTRIBUTING.md` 的约定变成 CI 不变量：README 不得出现 `rc.N` / `X.Y.Z-rc` / Python 包写法 `X.Y.ZrcN` 候选号、版本号或更新说明类标题（更新日志 / 更新说明 / 版本更新 / 近期进展 / 发布说明 / What's new / Release notes）与本机绝对路径；必须保留 CHANGELOG、项目状态、发布约定、许可证、安全、支持、贡献、安装、用户指南与桌面指南等稳定链接，以及「`main` 是开发分支」「桌面从源码构建」「MIT License」「数据离开本机只经过两条路径」「不包含遥测、崩溃上报或自动更新检查」「业务 CLI 的浏览器来源可按进程覆盖，`inherit` 表示不覆盖上游配置」与 Releases 链接；首页还必须保留 `## English overview` 章节，且章节内保留 shell 不 import 内核代码、`main` 是开发分支且源码候选不是发布、桌面从源码构建且没有独立安装包、14 个 allowlist 工具中 13 个只读加一个逐次审批动作、数据只经模型线路与本机招聘 CLI 两条路径离开本机、仓库代码不含遥测 / 崩溃上报 / 自动更新检查六条英文稳定表述。近期进展与逐版本变化只留在 CHANGELOG 与 Release。行为侧用合成 Markdown 核对每条规则都会检出、干净样本不误报。共 27 项结构、11 项行为。
 
 ### `check_issue_forms.py`
 

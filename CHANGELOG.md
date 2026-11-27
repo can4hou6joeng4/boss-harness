@@ -1,3 +1,9 @@
+## 0.2.0-rc.795 - 2026-11-27
+
+- 中文首页补齐浏览器来源的稳定边界：英文概览已写明可按进程覆盖 `BOSS_HARNESS_BROWSER_SOURCE`，中文定位段此前只写「不接收平台 Cookie」。现在中文侧也说明浏览器来源可覆盖、`inherit` 表示不覆盖上游配置，`check_readme_stability.py` 把该表述加入必需片段，结构计数从 26 增至 27。[Issue #3715](https://github.com/can4hou6joeng4/boss-harness/issues/3715)
+- 前后对照：rc.794 固定提交的旧检查在中文侧删去该表述后 exit 0；修复版对同一改动 exit 1 并点名缺失表述，恢复后 exit 0。README 仍不写候选版本或逐版本变化。
+- 源码候选更新为 npm `0.2.0-rc.795` 和 Python `0.2.0rc795`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.794 - 2026-11-27
 
 - 补齐工具计数的其余登记位置：rc.792 只核对 README 与 STATUS，但同一计数还写在 `harness/README.md`（“默认 14 个工具中 13 个只读”）、`docs/TECHNICAL_REFERENCE.md` 的自述段与 `UPSTREAM.md`（“固定 14 项工具 allowlist”）。现在这些位置都用实际工具数与只读数核对，任一漂移即 exit 2 并点名文件。[Issue #3713](https://github.com/can4hou6joeng4/boss-harness/issues/3713)
