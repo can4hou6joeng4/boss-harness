@@ -34,7 +34,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.796` / Python `0.2.0rc796` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.797` / Python `0.2.0rc797` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -341,6 +341,8 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 ## 数据管理
 
 设置 → 数据管理集中管理本机界面偏好和会话索引检查。
+
+单条会话 JSONL 记录最多嵌套 256 层对象或数组（最外层对象计第 1 层；字符串中的括号不计数）。写入超过上限的记录会在追加前拒绝；已有超深记录读取时按损坏行报告位置，搜索会跳过该会话并标注结果不完整。此限制在支持的 Python 版本间一致，原始日志不会因此被修改或删除。
 
 每次打开设置都是一轮新的操作：页脚回到默认说明「界面偏好仅保存在当前设备」，不保留上一轮的「界面偏好已保存」、导出或通知测试结果，「关于」页尚未完成的诊断信息复制回执也随之作废。
 

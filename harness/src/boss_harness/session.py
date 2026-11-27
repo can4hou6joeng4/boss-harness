@@ -257,6 +257,9 @@ MAX_TOOL_BATCH_CALLS = 256
 # raw CLI bytes and decoded/re-encoded JSON need not have the same size.
 MAX_SESSION_LINE_BYTES = 32 * 1024 * 1024
 MAX_SESSION_HEADER_BYTES = 8 * 1024 * 1024
+# 单条持久记录的 JSON 嵌套上限。正常工具参数受 64 层约束，导出文档允许 256 层；
+# 显式拒绝更深的记录，避免 json.loads 的递归上限随 Python 版本改变读取结论。
+MAX_JSON_RECORD_DEPTH = 256
 # Recovery metadata is tiny in normal operation.  Keep a separate whole-file
 # bound so a forged delete marker or repair manifest cannot be materialised
 # before its JSON shape is checked.
@@ -345,7 +348,12 @@ class ApprovalDecisionError(ValueError):
 
 def _encode_session_line(value: dict, *, maximum: int = MAX_SESSION_LINE_BYTES,
                          label: str = "会话日志") -> bytes:
-    encoded = _json(value).encode("utf-8")
+    try:
+        encoded = _json(value).encode("utf-8")
+    except RecursionError:
+        raise ValueError(f"{label}嵌套层级超过上限") from None
+    if _json_depth_exceeded(encoded.decode("utf-8"), MAX_JSON_RECORD_DEPTH):
+        raise ValueError(f"{label}嵌套层级超过上限")
     if len(encoded) > maximum:
         raise ValueError(f"{label}单行超过大小限制")
     return encoded + b"\n"
@@ -503,9 +511,35 @@ def _validate_json_unicode(value: Any) -> None:
             pending.extend(current)
 
 
+def _json_depth_exceeded(text: str, maximum: int) -> bool:
+    """按 JSON 词法统计嵌套括号；字符串与转义内的括号不计数，不依赖递归。"""
+    depth = 0
+    in_string = False
+    escaped = False
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+        elif character == '"':
+            in_string = True
+        elif character in "{[":
+            depth += 1
+            if depth > maximum:
+                return True
+        elif character in "}]":
+            depth -= 1
+    return False
+
+
 def _decode_jsonl_object(line: str | bytes, *, label: str, line_number: int) -> dict:
     try:
         text = line.decode("utf-8") if isinstance(line, bytes) else line
+        if _json_depth_exceeded(text, MAX_JSON_RECORD_DEPTH):
+            raise ValueError
         record = json.loads(text, object_pairs_hook=_unique_json_object,
                             parse_constant=_reject_json_constant, parse_float=_finite_json_float)
         _validate_json_unicode(record)
@@ -2898,6 +2932,8 @@ class SessionStore:
         if isinstance(arguments, dict):
             try:
                 rendered = json.dumps(arguments, ensure_ascii=False, sort_keys=True)
+            except RecursionError:
+                rendered = ""
             except (TypeError, ValueError):
                 rendered = ""
             if rendered and len(rendered) <= _SEARCH_TOOL_ARGS:
