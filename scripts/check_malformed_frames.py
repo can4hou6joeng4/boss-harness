@@ -26,6 +26,8 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = "docs/TECHNICAL_REFERENCE.md"
 DOC_FRAGMENT = "scripts/check_malformed_frames.py` 用真实 stdio 内核进程核对畸形帧后的存活"
+STATUS = "docs/STATUS.md"
+STATUS_FRAGMENT = "真实 stdio 进程还核对畸形帧后的存活、通知静默、超长帧有序退出与信号关闭"
 
 #: 解析失败的帧：错误 id 必须为空，不能猜一个可能属于其他请求的编号。
 PARSE_CASES: tuple[tuple[str, bytes], ...] = (
@@ -162,6 +164,8 @@ def _silent(probe: KernelProbe, notification: bytes, request_id: int, label: str
 def check() -> int:
     docs = (ROOT / DOCS).read_text(encoding="utf-8")
     checked = _expect(DOC_FRAGMENT in docs, f"{DOCS} 需登记真实进程畸形帧核对")
+    status = (ROOT / STATUS).read_text(encoding="utf-8")
+    checked += _expect(STATUS_FRAGMENT in status, f"{STATUS} 需登记真实进程协议核对")
     probe = KernelProbe()
     try:
         probe.send(b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":'

@@ -1,3 +1,9 @@
+## 0.2.0-rc.782 - 2026-11-27
+
+- 状态页协议一行补上真实进程核对范围：畸形帧后存活、通知静默、超长帧有序退出与信号关闭，不再只写静态核对。[Issue #3689](https://github.com/can4hou6joeng4/boss-harness/issues/3689)
+- `check_malformed_frames.py` 增加状态页片段断言，文档口径回退时检查失败；计数由 79 项增至 80 项，技术参考同步。README 保持稳定事实入口，不追加版本说明。
+- 源码候选更新为 npm `0.2.0-rc.782` 和 Python `0.2.0rc782`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.781 - 2026-11-27
 
 - 扩展真实 stdio 内核的畸形帧存活检查：`scripts/check_malformed_frames.py` 新增字符串 id 与 `params: null` 请求、布尔 / 数组 id 与数组批量帧，以及四类不发回包的通知。字符串 id 原样回包，非法 id 与批量帧只回一帧 `-32600` / `id=null`，通知之后的合法请求读到自己的响应；计数由 48 项增至 79 项。[Issue #3687](https://github.com/can4hou6joeng4/boss-harness/issues/3687)
