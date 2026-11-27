@@ -1,3 +1,10 @@
+## 0.2.0-rc.775 - 2026-11-27
+
+- 修复平台登录在归属会话被删除后锁定入口的问题：登录等待期间删除归属会话后，`loginEntry` 找不到 owner，主进程仍托管旧登录并以 `another thread owns this login` 拒绝其他会话，旧会话的取消入口又已不可达，只能等五分钟超时或关闭窗口。现在会话列表已加载且归属会话不存在时，登录入口先取消旧 attempt 再选择目标；错误提示也把「另一会话占用」与「本机连接故障」分开。[Issue #3675](https://github.com/can4hou6joeng4/boss-harness/issues/3675)
+- 修复两个取消 / 截止竞态：五分钟截止在 `saving` 阶段触发时保留「保存已停止，登录态可能已更新，请手动检查」警告；取消请求的内核回执为 `succeeded` / `failed` 时采用终态，不再把已保存的登录显示成已取消。用旧版与当前 `platformLogin.ts` 加载真实类对比：旧版截止只报超时、取消后保持 `cancelled`；当前保留保存警告、取消回执成功后转为 `succeeded`。
+- `check_platform_login.py` 增至 31 项结构、38 项行为：新增另一会话占用时的错误提示行为，以及主进程截止 / 取消终态与 `AppShell` 归属清理的顺序断言；技术参考同步登记。
+- 源码候选更新为 npm `0.2.0-rc.775` 和 Python `0.2.0rc775`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.774 - 2026-11-27
 
 - 修复平台登录视图把 passport 安全验证页误判为扫码页的问题：`isLoginVerificationUrl()` 只匹配 `security-check`、`captcha` 与 `/verify` 后跟 `/` 或结尾，平台实际跳转的 `/web/passport/zp/verify.html`（上游 `auth/login_diagnostics.py` 同时登记 `/web/passport/zp/security.html`）都不命中，登录面板因此提示「切换 APP 扫码登录」并一直等到五分钟 `LOGIN_TIMEOUT`。现在两种地址进入 `confirm` 阶段，提示用户在当前官方页面完成安全验证；`/verify-settings` 与裸 `/security` 不误判。[Issue #3673](https://github.com/can4hou6joeng4/boss-harness/issues/3673)

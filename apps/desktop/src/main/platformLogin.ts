@@ -187,8 +187,11 @@ export class PlatformLogin {
     if (this.deadlineTimer) clearTimeout(this.deadlineTimer);
     this.deadlineTimer = setTimeout(() => {
       if (generation !== this.generation) return;
+      const saving = this.status.state === "saving";
       this.cancel();
-      this.update({ state: "failed", code: "LOGIN_TIMEOUT", summary: "等待已超过五分钟。请重新打开官方页面，选择已有身份并完成页面提示" });
+      this.update({ state: "failed", code: "LOGIN_TIMEOUT", summary: saving
+        ? "等待已超过五分钟，保存已停止，登录态可能已更新，请手动检查后再重新登录"
+        : "等待已超过五分钟。请重新打开官方页面，选择已有身份并完成页面提示" });
     }, 5 * 60_000);
   }
 
@@ -315,7 +318,15 @@ export class PlatformLogin {
     const base = wasSaving ? "保存已停止，登录态可能已更新，请手动检查" : "已取消扫码登录";
     const active = ["opening", "waiting", "saving"].includes(this.status.state);
     ++this.generation;
-    if (this.attempt && this.status.state !== "succeeded") void this.request(ClientMethods.platformLoginCancel, { id: this.attempt }).catch(error => {
+    const generation = this.generation;
+    if (this.attempt && this.status.state !== "succeeded") void this.request(ClientMethods.platformLoginCancel, { id: this.attempt }).then(raw => {
+      // 取消到达内核时保存可能已经结束：终态回执优先，不把已保存的登录显示成已取消。
+      if (generation !== this.generation) return;
+      if (this.status.state !== "cancelled" && !(this.status.state === "failed" && this.status.code === "LOGIN_TIMEOUT")) return;
+      const result = loginAttemptOf(raw);
+      if (!result || result.id !== this.attempt) return;
+      if (result.state === "succeeded" || result.state === "failed") this.update(result);
+    }, error => {
       // 取消请求没送达时内核可能仍持有这次登录：界面若只说「已取消」，再次打开会莫名撞上「登录已被占用」。
       if (this.status.state !== "cancelled" || this.status.summary !== base) return;
       const detail = loginFailureDetail(error).message;

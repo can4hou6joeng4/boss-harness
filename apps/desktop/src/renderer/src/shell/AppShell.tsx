@@ -590,8 +590,14 @@ export function AppShell(props: AppShellProps) {
         setPendingWorkspaceLeave({ kind: "login", direct });
         return;
       }
-      const owner = ["opening", "waiting", "saving"].includes(login.status.state)
+      const activeLogin = ["opening", "waiting", "saving"].includes(login.status.state);
+      const owner = activeLogin
         ? sessions.find(session => session.id === login.status.threadId) : undefined;
+      // 归属会话已删除时，主进程仍托管该登录并拒绝其他会话打开；列表已完整加载后先取消旧
+      // attempt，让本次入口继续，而不是把一个已不存在的会话说成本机连接故障。
+      if (activeLogin && !owner && props.sessionsLoaded === true && login.status.threadId) {
+        await login.cancel(login.status.threadId);
+      }
       const target = owner ?? (!props.isHomeView ? props.activeSession : null) ?? await props.onCreateConnectionSession();
       if (!target) return;
       setSettings(false); setPage("home");

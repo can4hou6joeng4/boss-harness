@@ -6,7 +6,8 @@
 渲染的最小 hook 运行时桩，`./harnessBridge` 替换为桩，`window.boss`、
 `requestAnimationFrame` 与 `document` 用可控桩，由 Node 直接加载真实模块，
 核对迟到回执丢弃、卸载退订、`open` / `cancel` 的锁与失败回落，以及
-`show` / `visibleIn` 的分支。
+`show` / `visibleIn` 的分支。结构侧另核对主进程截止与取消回执的终态优先，
+以及登录入口在归属会话已删除时先取消旧 attempt。
 """
 
 from __future__ import annotations
@@ -20,8 +21,31 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS = "docs/TECHNICAL_REFERENCE.md"
 SOURCE = "apps/desktop/src/renderer/src/data/usePlatformLogin.ts"
 STATE = "apps/desktop/src/renderer/src/data/platformLoginState.ts"
+MAIN = "apps/desktop/src/main/platformLogin.ts"
+SHELL = "apps/desktop/src/renderer/src/shell/AppShell.tsx"
 
-EXPECTED = 37
+EXPECTED = 38
+
+#: 主进程截止：保存阶段超时保留警告。
+DEADLINE_ORDER = (
+    'const saving = this.status.state === "saving";',
+    "this.cancel();",
+    "summary: saving",
+    '"等待已超过五分钟，保存已停止，登录态可能已更新，请手动检查后再重新登录"',
+)
+#: 主进程取消：取消回执的终态优先，不把已保存的登录显示成已取消。
+CANCEL_ORDER = (
+    "const generation = this.generation;",
+    'if (this.status.state !== "cancelled" && !(this.status.state === "failed" && this.status.code === "LOGIN_TIMEOUT")) return;',
+    'if (result.state === "succeeded" || result.state === "failed") this.update(result);',
+)
+#: 登录入口：归属会话已删除时先取消旧 attempt，再选择目标会话。
+SHELL_ORDER = (
+    'const activeLogin = ["opening", "waiting", "saving"].includes(login.status.state);',
+    "if (activeLogin && !owner && props.sessionsLoaded === true && login.status.threadId) {",
+    "await login.cancel(login.status.threadId);",
+    "const target = owner ?? (!props.isHomeView ? props.activeSession : null)",
+)
 
 REACT_STUB = """\
 export interface Slot {
@@ -312,6 +336,19 @@ async function run(): Promise<void> {
   reset();
   boss = installBoss();
   view = render();
+  const ownedElsewhere = view.open("t2");
+  boss.pending[1].reject(new Error("another thread owns this login"));
+  await ownedElsewhere;
+  view = render();
+  expect(
+    "另一会话占用登录时指向该会话",
+    view.error !== null && view.error.message.includes("已有另一个会话在等待登录")
+      && !view.error.message.includes("请检查本机连接后重试"),
+  );
+
+  reset();
+  boss = installBoss();
+  view = render();
   boss.emit({ state: "waiting", summary: "等待扫码", threadId: "t1", browserId: "b1" });
   view = render();
   const active = view.open("t1");
@@ -480,6 +517,16 @@ def _check_source(source: str) -> int:
     return checked + 2
 
 
+def _check_order(fragments: tuple[str, ...], text: str, label: str) -> int:
+    position = -1
+    for fragment in fragments:
+        index = text.find(fragment)
+        if index < 0 or index <= position:
+            raise ValueError(f"{label} 缺少或首次出现顺序变化：{fragment}")
+        position = index
+    return len(fragments)
+
+
 def _check_behaviors() -> int:
     source = _read(SOURCE)
     state = _read(STATE)
@@ -506,14 +553,27 @@ def _check_documentation() -> int:
     docs = _read(DOCS)
     if "`check_platform_login.py`" not in docs:
         raise ValueError(f"{DOCS} 缺少 check_platform_login.py")
-    if "共 20 项结构、37 项行为" not in docs:
-        raise ValueError(f"{DOCS} 需说明 check_platform_login.py 检查 20 项结构、37 项行为")
+    if "共 31 项结构、38 项行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_platform_login.py 检查 31 项结构、38 项行为")
     return 2
+
+
+def _check_main(main: str) -> int:
+    deadline = main.find("private startDeadline")
+    cancel = main.find("cancel(): PlatformLoginStatus {")
+    end = main.find("private closeBrowser", cancel)
+    if deadline < 0 or cancel < 0 or end < 0:
+        raise ValueError(f"{MAIN} 缺少截止、取消或收尾方法")
+    checked = _check_order(DEADLINE_ORDER, main[deadline:cancel], MAIN)
+    checked += _check_order(CANCEL_ORDER, main[cancel:end], MAIN)
+    return checked
 
 
 def check_platform_login() -> tuple[int, int]:
     source = _read(SOURCE)
-    structure = _check_source(source)
+    main = _read(MAIN)
+    shell = _read(SHELL)
+    structure = _check_source(source) + _check_main(main) + _check_order(SHELL_ORDER, shell, SHELL)
     behavior = _check_behaviors()
     _check_documentation()
     return structure, behavior

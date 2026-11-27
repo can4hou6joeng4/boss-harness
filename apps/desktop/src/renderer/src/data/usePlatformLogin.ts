@@ -65,7 +65,12 @@ export function usePlatformLogin() {
       if (!next) throw new Error("登录状态回执无法识别");
       setStatus(next);
     } catch (cause) {
-      setError({ threadId, message: `无法启动登录：${harnessErrorText(cause)}。请检查本机连接后重试；已有账号登录态仍保留。` });
+      const detail = harnessErrorText(cause);
+      // 另一个仍在的会话持有登录时，问题不在本机连接：指向该会话的完成或取消入口。
+      const hint = detail.includes("another thread owns this login")
+        ? "已有另一个会话在等待登录；请先回到该会话完成或取消，再试。"
+        : "请检查本机连接后重试；已有账号登录态仍保留。";
+      setError({ threadId, message: `无法启动登录：${detail}。${hint}` });
       if (before === revision.current) {
         // 主进程可能仍持有其他会话的登录（另一会话等待扫码、宿主断开等）：不能把它的
         // threadId / browserId 覆盖成本会话的失败态，否则那边会失去可见性与取消入口。
