@@ -1,3 +1,9 @@
+## 0.2.0-rc.799 - 2026-11-28
+
+- 统一用量页对 `Z` 结尾时间戳的解析：`_valid_timestamp` 在解析前把结尾 `Z` 改写为 `+00:00`，与导出时间解析同一口径。Python 3.10 的 `fromisoformat` 不接受 `Z`，旧版对同一份外部改写记录在用量页丢弃耗时（`startedAt` / `completedAt` 缺省），3.11–3.14 保留；导出路径此前在 3.10 仍按同一对时间戳算出 5000 ms，两条路径结论相反。[Issue #3723](https://github.com/can4hou6joeng4/boss-harness/issues/3723)
+- 真实 `ApplicationService`（`provider=none`、临时状态目录）探针：旧源码在 3.10 返回两个 `null`、3.12 / 3.14 返回原值；修复版 3.10 / 3.12 / 3.14 均返回原值。非字符串、无法解析与超长值继续为未知；无时区值仍按原样返回，桌面严格解析要求时区，因此不展示耗时。探针只留本地，不新增测试文件。
+- 源码候选更新为 npm `0.2.0-rc.799` 和 Python `0.2.0rc799`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.798 - 2026-11-28
 
 - 降低长消息与工具结果的 JSONL 深度检查开销：结构字符定位和字符串查找跳过普通文本，按引号前连续反斜杠的奇偶性识别转义，继续执行 256 层读写限制与原有 JSON 语法校验。[Issue #3721](https://github.com/can4hou6joeng4/boss-harness/issues/3721)
