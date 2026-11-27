@@ -10,6 +10,11 @@ import { attemptIdOf, loginAttemptOf } from "./loginAttempt";
 
 type Request = <T>(method: string, params?: unknown) => Promise<T>;
 
+/** 这些本地失败都表示保存结果未知：取消回执若带回终态，以内核为准。 */
+const TERMINAL_CANCEL_CODES: ReadonlySet<string> = new Set([
+  "LOGIN_TIMEOUT", "LOGIN_SAVE_FAILED", "LOGIN_CONNECTION_LOST", "LOGIN_READBACK_INVALID",
+]);
+
 /** The official page never receives a preload, Node, IPC or the app session. */
 export class PlatformLogin {
   private view: WebContentsView | null = null;
@@ -263,11 +268,11 @@ export class PlatformLogin {
       if (generation !== this.generation) return;
       const attempt = loginAttemptOf(result);
       if (!attempt) {
-        // 保存回执无法识别：保存结果未知，不能写入状态机；取消内核 attempt 后结束本次登录。
+        // 保存回执无法识别：保存结果未知，不能写入状态机；经 cancel 取消 attempt，
+        // 若内核此时已保存，回执里的终态仍能收敛界面。
         this.update({ state: "failed", code: "LOGIN_SAVE_FAILED",
           summary: "登录保存回执无法识别，保存结果未知，请检查本机登录态" });
-        void this.request(ClientMethods.platformLoginCancel, { id: this.attempt }).catch(() => {});
-        this.closeBrowser();
+        this.cancel();
         return;
       }
       this.update(attempt);
@@ -275,10 +280,9 @@ export class PlatformLogin {
     } catch (error) {
       if (generation === this.generation) {
         const failure = loginFailureDetail(error);
-        this.update({ state: "failed", code: failure.code ?? "LOGIN_SAVE_FAILED",
+        this.update({ state: "failed", code: "LOGIN_SAVE_FAILED",
           summary: `未能完成登录保存${failure.message ? `：${failure.message}` : ""}，请检查本机连接后重新打开官方页面` });
-        void this.request(ClientMethods.platformLoginCancel, { id: this.attempt }).catch(() => {});
-        this.closeBrowser();
+        this.cancel();
       }
     }
   }
@@ -320,9 +324,11 @@ export class PlatformLogin {
     ++this.generation;
     const generation = this.generation;
     if (this.attempt && this.status.state !== "succeeded") void this.request(ClientMethods.platformLoginCancel, { id: this.attempt }).then(raw => {
-      // 取消到达内核时保存可能已经结束：终态回执优先，不把已保存的登录显示成已取消。
+      // 取消到达内核时保存可能已经结束：终态回执优先，不把已保存的登录显示成未知或已取消。
       if (generation !== this.generation) return;
-      if (this.status.state !== "cancelled" && !(this.status.state === "failed" && this.status.code === "LOGIN_TIMEOUT")) return;
+      const settled = this.status.state === "cancelled"
+        || (this.status.state === "failed" && TERMINAL_CANCEL_CODES.has(this.status.code ?? ""));
+      if (!settled) return;
       const result = loginAttemptOf(raw);
       if (!result || result.id !== this.attempt) return;
       if (result.state === "succeeded" || result.state === "failed") this.update(result);
