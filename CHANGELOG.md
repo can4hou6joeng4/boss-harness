@@ -1,3 +1,9 @@
+## 0.2.0-rc.789 - 2026-11-27
+
+- 同步技术参考的行为场景计数：rc.788 给 `check_harness_tools.py` 新增 4 个浏览器来源 `inherit` 用例后，实际执行数已从 81 增至 85，但 `docs/TECHNICAL_REFERENCE.md` 仍写 81，覆盖项也没有提到 `inherit`。现在计数改为 85，覆盖项写明“`inherit` 不覆盖”和“三种上游值”口径。[Issue #3704](https://github.com/can4hou6joeng4/boss-harness/issues/3704)
+- `check_harness_tools.py` 增加文档一致性守卫：在行为场景执行完后核对技术参考中的计数与两个关键词，任一缺失即以 exit 2 失败并点名缺失片段。前后对照：rc.788 固定提交的旧脚本读取写有 81 的同一份文档时 exit 0，只在 stdout 打印 85；修复版把文档临时改回 81 后 exit 2 并输出“技术参考与工具检查不一致：实际执行 85 个行为场景”，恢复后 exit 0。检查只读仓库内文档，不访问模型、招聘平台或真实 CLI。
+- 源码候选更新为 npm `0.2.0-rc.789` 和 Python `0.2.0rc789`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.788 - 2026-11-27
 
 - 接受 `inherit` 作为 `BOSS_HARNESS_BROWSER_SOURCE` 的显式不覆盖别名：连接检查与桌面连接页一直把默认策略公开为 `browserSourcePolicy=inherit`，但把同一词写入环境变量会被解析器拒绝，`--check` 返回 exit 2 / `BROWSER_SOURCE_INVALID`，服务端也在启动前失败。现在 `inherit` 去空白、忽略大小写后归一为“不覆盖”，与未设置、空值、纯空白一致，不向上游添加 `--browser-source`；三个上游值的行为不变，`BROWSER_SOURCE_VALUES` 仍只含它们，错误文案改为列出四个可选值。[Issue #3702](https://github.com/can4hou6joeng4/boss-harness/issues/3702)

@@ -18,6 +18,7 @@ CONTEXT_SOURCE = ROOT / "harness/src/boss_harness/context.py"
 TOOL_RESULTS_SOURCE = ROOT / "harness/src/boss_harness/tool_results.py"
 BUNDLE_SOURCE = ROOT / "harness/src/boss_harness/tools/bundle.py"
 HARNESS_PACKAGE = ROOT / "harness/src/boss_harness"
+TECHNICAL_REFERENCE = ROOT / "docs/TECHNICAL_REFERENCE.md"
 sys.path.insert(0, str(ROOT / "harness/src"))
 
 from boss_harness.toolkit import ToolResult  # noqa: E402
@@ -629,10 +630,23 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _documentation_check(scenarios: int) -> None:
+    """技术参考登记的行为场景数必须与实际执行数一致，浏览器来源口径不能回退。"""
+    try:
+        text = TECHNICAL_REFERENCE.read_text(encoding="utf-8")
+    except OSError:
+        raise ValueError(f"无法读取 {TECHNICAL_REFERENCE.name}") from None
+    fragments = (f"实际执行 {scenarios} 个行为场景", "`inherit` 不覆盖", "三种上游值")
+    missing = [fragment for fragment in fragments if fragment not in text]
+    if missing:
+        raise ValueError("技术参考与工具检查不一致：" + "、".join(missing))
+
+
 def main() -> int:
     try:
         total, read_only, write_sets, bundle, shell, data_dir, binary, output_limits = check_harness_tools()
         scenarios = _behavior_checks()
+        _documentation_check(scenarios)
     except (OSError, SyntaxError, ValueError) as error:
         print(f"内核工具允许清单核对失败，{error}", file=sys.stderr)
         return 2
