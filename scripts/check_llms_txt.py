@@ -27,6 +27,7 @@ STRUCTURE_FRAGMENTS = (
     "## 安全与支持",
     "- [README](README.md)",
     "- [技术参考](docs/TECHNICAL_REFERENCE.md)",
+    "- [内核包说明](harness/README.md)",
     "- [SECURITY.md](SECURITY.md)",
 )
 REQUIRED_TARGETS = (
@@ -36,6 +37,7 @@ REQUIRED_TARGETS = (
     "RELEASING.md",
     "CONTRIBUTING.md",
     "SETUP.md",
+    "harness/README.md",
     "docs/README.md",
     "docs/TECHNICAL_REFERENCE.md",
     "docs/USER_GUIDE.md",

@@ -1,3 +1,9 @@
+## 0.2.0-rc.812 - 2026-11-28
+
+- Agent 入口补齐内核包说明：`llms.txt` 的「开发与契约」节新增指向 `harness/README.md` 的相对链接，让编码 Agent 从根入口直接读到 Python 内核的依赖、安装、目录结构与发布元数据正文；文件保持无候选号、无本机路径、无外链。[Issue #3749](https://github.com/can4hou6joeng4/boss-harness/issues/3749)
+- `check_llms_txt.py` 将该路径列为必需目标并锁定入口片段，删去链接即失败；技术参考同步描述与计数（结构 9 → 10 项）。rc.811 固定源码探针：旧守卫对缺少该入口的 `llms.txt` exit 0，新守卫 exit 2 并点名「缺少必需入口：harness/README.md」。探针只留 `/tmp`，不提交测试文件。
+- 源码候选更新为 npm `0.2.0-rc.812` 和 Python `0.2.0rc812`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.811 - 2026-11-28
 
 - 安全政策与支持范围同步当前事实：`SECURITY.md` 明确受支持的解释器为 Python 3.10–3.14（与 CI 矩阵一致），更早或更新的解释器先按实际运行环境核对；原有候选与发布版本边界、上游职责划分不变。[Issue #3747](https://github.com/can4hou6joeng4/boss-harness/issues/3747)
