@@ -22,10 +22,10 @@ from boss_harness.models.secret import Secret, redact_secrets  # noqa: E402
 
 PATTERN_FRAGMENTS = (
     "_PATTERNS = (",
-    r're.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]{6,}"),',
-    r're.compile(r"\bsk-[A-Za-z0-9._\-]{6,}"),',
-    r're.compile(r"(?i)\b(api[_-]?key|auth[_-]?token|access[_-]?token|token|secret|password)\b"',
-    r'''r"([\"']?\s*[:=]\s*[\"']?)([A-Za-z0-9._\-]{6,})"),''',
+    r're.compile(r"(?i)(?<![A-Za-z0-9_])bearer\s+[A-Za-z0-9._\-]{6,}"),',
+    r're.compile(r"(?<![A-Za-z0-9_])sk-[A-Za-z0-9._\-]{6,}"),',
+    r're.compile(r"(?i)(?<![A-Za-z0-9_])(api[_-]?key|auth[_-]?token|access[_-]?token|token|secret|password)"',
+    r'''(?![A-Za-z0-9_])([\"']?\s*[:=]\s*[\"']?)([A-Za-z0-9._\-]{6,})"),''',
     '_REDACTED = "<redacted>"',
 )
 SECRET_FRAGMENTS = (
@@ -148,6 +148,15 @@ def _behavior_checks() -> int:
     checked += _expect_value(
         redact_secrets(f"Bearer {value} sk-{value} {token_key}={value}"),
         f"Bearer {mark} {mark} {token_key}={mark}", "组合文本")
+    # 词边界固定 ASCII：Unicode 16.0 新增数字（如 U+10D44）在 3.14 属于 \w，
+    # 中文也属于 \w；两者都按非词字符处理，凭据形态在新旧解释器上一致脱敏。
+    for prefix in ("\U00010D44", "中文"):
+        checked += _expect_value(redact_secrets(f"{prefix}Bearer {value}"),
+                                 f"{prefix}Bearer {mark}", f"前缀 Bearer {prefix!r}")
+        checked += _expect_value(redact_secrets(f"{prefix}sk-{value}"),
+                                 f"{prefix}{mark}", f"前缀 sk {prefix!r}")
+        checked += _expect_value(redact_secrets(f"{prefix}token={value}"),
+                                 f"{prefix}token={mark}", f"前缀赋值 {prefix!r}")
 
     secret = Secret("value-123")
     checked += _expect_value(secret.get(), "value-123", "取值")

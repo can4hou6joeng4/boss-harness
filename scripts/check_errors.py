@@ -50,7 +50,7 @@ CONSTANT_FRAGMENTS = (
     r'r"prompt is too long:\s*([0-9]+) tokens\s*>\s*([0-9]+) maximum\.?"',
     r'r"context size has been exceeded\.?"',
     r'r"^litellm\.ContextWindowExceededError:.*?Context Window exceeded for given call\."',
-    r'r".*?\bMax Input Tokens=([0-9]{1,12}),\s*Got=([0-9]{1,12})\b"',
+    r'r".*?(?<![A-Za-z0-9_])Max Input Tokens=([0-9]{1,12}),\s*Got=([0-9]{1,12})(?![A-Za-z0-9_])"',
     r'r"(?:request body|payload) too large\.?"',
 )
 PAYLOAD_FRAGMENTS = (
@@ -299,6 +299,10 @@ def _behavior_checks() -> int:
         (litellm.replace(" Max Input", "\nMax Input"), True),
         (litellm.replace("Tokens=8192", "Tokens=1234567890123"), False),
         ("x" * 2049 + litellm, False),
+        # 词边界固定 ASCII：Unicode 16.0 新增数字在 3.14 属于 \w，旧 \b 会吞掉
+        # 「Max」前的边界；新断言在新增数字与中文前都成立，溢出判定一致。
+        (litellm.replace(" Max Input", " \U00010D44Max Input"), True),
+        (litellm.replace(" Max Input", " 中文Max Input"), True),
     ):
         checked += _expect_value(_litellm_context_window_exceeded({"message": message}),
                                  expected, f"LiteLLM {message[:24]!r}")

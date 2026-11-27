@@ -1,3 +1,9 @@
+## 0.2.0-rc.807 - 2026-11-28
+
+- 脱敏正则的数字类与词边界固定为 ASCII：手机号、身份证与长 token 的 `\d`、邮箱本地部分的 `\w`、凭据与头部的 `\b` 都随 Unicode 版本扩大——3.14 的 Unicode 16.0 新增 Garay 等十进制数字后，`\d` 把非 ASCII 数字串当作手机号 / 身份证，`\b` 又把新增数字视为词字符、吞掉 `Bearer` / `sk-` / `token=` 前的边界。同一份导出内容在不同解释器上有两个方向的差异：3.14 多打码了 Garay 数字构成的「手机号」，同时把紧邻它们的凭据原样留在导出里。现在数字类改为 `[0-9]`，`\b` 换成显式 ASCII 词边界断言，邮箱本地部分改用「非空白、非 `@`」字符类；`models/secret.py` 的三种凭据形态与 `models/errors.py` 的 LiteLLM 溢出文本同样处理。计数、标记与脱敏顺序不变。[Issue #3739](https://github.com/can4hou6joeng4/boss-harness/issues/3739)
+- 真实 `Redactor` / `redact_secrets` / `_litellm_context_window_exceeded` 探针（U+10D44，Python 3.10.20 / 3.11.15 / 3.12.13 / 3.13.15 / 3.14.6）：旧源码在 3.14 上把含新增数字的手机号、身份证与邮箱判为个人信息，同时漏掉紧邻新增数字的长 token、`sk-`、`Bearer` 与 `token=` 赋值，LiteLLM 溢出消息也不再识别；3.10–3.13 对同组输入结论相反。修复版五个版本一致：新增数字构成的串不按手机号 / 身份证处理，邮箱与紧邻新增数字的凭据都完整脱敏，LiteLLM 溢出继续识别；ASCII 输入结论不变。检查脚本补充新增字符用例（导出隐私 189 → 196 项、凭据 63 → 69 项、错误分类 208 → 210 项），五个解释器输出一致。探针只留 `/tmp`，不提交测试文件。
+- 源码候选更新为 npm `0.2.0-rc.807` 和 Python `0.2.0rc807`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.806 - 2026-11-28
 
 - 外部数字参数只接受 ASCII 十进制：`retry_after_seconds`、`retry_settings_from_environment`、`provider._request_timeout_seconds` / `_max_tokens` 与 `approval_timeout_from_environment` 直接调用 `int()` / `float()`，而两者的接受集合随 Unicode 版本扩大——3.14 的 Unicode 16.0 新增 Garay 等十进制数字，`int("\U00010D44") == 4`，3.10–3.13 抛 `ValueError`。同一环境变量或上游响应头在 3.14 上把重试次数、退避基数、输出上限、请求时限与审批期限改写成单个数字字符的数值，其余版本回退默认或拒绝。现在解析前先按 ASCII 十进制文法校验（整数 `[+-]?[0-9]+`，浮点 `[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?`），再交给 `int()` / `float()`；范围夹取与回退语义不变，非 ASCII 数字文本（含各版本都接受的全角数字）统一视为无效。[Issue #3737](https://github.com/can4hou6joeng4/boss-harness/issues/3737)

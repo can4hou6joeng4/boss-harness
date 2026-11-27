@@ -28,9 +28,11 @@ _ANTHROPIC_PROMPT_LIMIT = re.compile(
     re.IGNORECASE,
 )
 _LLAMA_CONTEXT_EXHAUSTED = re.compile(r"context size has been exceeded\.?", re.IGNORECASE)
+#: 词边界固定为 ASCII：``\b`` 的接受集合随 Unicode 版本扩大（3.14 的 Unicode 16.0 新增
+#: Garay 等数字），错误原文里紧邻新增数字的前缀会让同一消息在不同版本上得出不同的溢出判定。
 _LITELLM_CONTEXT_WINDOW = re.compile(
     r"^litellm\.ContextWindowExceededError:.*?Context Window exceeded for given call\."
-    r".*?\bMax Input Tokens=([0-9]{1,12}),\s*Got=([0-9]{1,12})\b",
+    r".*?(?<![A-Za-z0-9_])Max Input Tokens=([0-9]{1,12}),\s*Got=([0-9]{1,12})(?![A-Za-z0-9_])",
     re.DOTALL,
 )
 _MAX_LITELLM_ERROR_MESSAGE = 2048

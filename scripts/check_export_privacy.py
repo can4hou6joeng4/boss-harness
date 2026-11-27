@@ -478,6 +478,21 @@ def _behavior_checks() -> int:
     checked += _expect_value(
         redactor.personal("身份证 110101199003071234 完"),
         f"身份证 {PII_MARK} 完", "身份证号")
+    # Unicode 16.0 新增数字（U+10D44）在 3.14 属于 \d / \w；数字类与词边界固定 ASCII 后，
+    # 新增数字构成的串不再按手机号 / 身份证脱敏，紧邻新增数字的凭据仍完整脱敏。
+    unicode_redactor = Redactor(secrets=[], paths=[])
+    checked += _expect_value(unicode_redactor.personal("13\U00010D4412345678"),
+                             "13\U00010D4412345678", "非 ASCII 手机号")
+    checked += _expect_value(unicode_redactor.personal("\U00010D44" * 18),
+                             "\U00010D44" * 18, "非 ASCII 身份证")
+    checked += _expect_value(unicode_redactor.personal("abc\U00010D44@example.com"),
+                             PII_MARK, "含新增数字的邮箱")
+    checked += _expect_value(unicode_redactor.counts["personalInfo"], 1, "新增字符个人信息计数")
+    checked += _expect_value(unicode_redactor.sensitive("\U00010D44sk-abcdefgh1234"),
+                             f"\U00010D44{SECRET_MARK}", "新增数字前缀 sk")
+    checked += _expect_value(unicode_redactor.sensitive("\U00010D44" + "A" * 39 + "1"),
+                             f"\U00010D44{SECRET_MARK}", "新增数字前缀长 token")
+    checked += _expect_value(unicode_redactor.counts["secrets"], 2, "新增字符凭据计数")
     checked += _expect_value(
         redactor.personal("微信号：abc_12345"), f"微信号：{PII_MARK}", "微信号")
     checked += _expect_value(redactor.counts["personalInfo"], 5, "个人信息计数")
