@@ -1,5 +1,13 @@
 # 上游吸收记录
 
+## 高编号描述符的输入等待（Issue #3700）
+
+对照 Pi MIT 固定提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/rpc.md` 与 `packages/coding-agent/src/modes/rpc/rpc-mode.ts`：RPC 命令由 Node 输入事件读取，`shutdown()` 先 dispose runtime，再 `detachInput()`、`process.stdin.pause()`，不经过文件描述符集合。
+
+适配差异：rc.785 的输入唤醒使用 `select.select()`，受 `FD_SETSIZE` 限制。进程此前打开较多文件、新增唤醒 socket 超过限制，或嵌入程序把 stdin 设为高编号管道时，内核在返回 `initialize` 前以 `ValueError: filedescriptor out of range in select()` 退出。现在改为 `select.poll()`，不受该集合上限约束，也接受重定向 stdin 的普通文件；LF 分帧、UTF-8 / surrogateescape、读取预算、唤醒 fd 与既有信号关闭流程保持不变。不复制源码、不引入依赖。
+
+离线对照从固定主干提交 `204282258d4e7b2d97e5d32c9e810d4ee106ebfa` 导出真实源码，与修复版执行同一真实 CLI 入口探针：打开 1100 个临时描述符或把 stdin 复制到 fd 2048 时，旧版均无法握手并以 select 越界错误退出 1，修复版完成 `initialize`、`thread/list` 与 EOF 退出。另复核普通管道、普通文件重定向、六组工作线程投递终止信号与 15 项输入生命周期边界。探针只留本地，未调用模型、招聘平台或真实 CLI。
+
 ## 工作线程收信后的输入唤醒（Issue #3696）
 
 核对 Pi MIT 固定提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/rpc.md` 与 `packages/coding-agent/src/modes/rpc/rpc-mode.ts`：RPC 输入由 Node 事件读取，`SIGTERM` / `SIGHUP` 的事件处理启动 `shutdown()`，先 dispose runtime、解绑输入并暂停 stdin，再退出。关闭开始后保留处理器，首个信号不打断关闭，重复信号可直接退出。
