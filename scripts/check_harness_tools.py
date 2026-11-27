@@ -19,6 +19,8 @@ TOOL_RESULTS_SOURCE = ROOT / "harness/src/boss_harness/tool_results.py"
 BUNDLE_SOURCE = ROOT / "harness/src/boss_harness/tools/bundle.py"
 HARNESS_PACKAGE = ROOT / "harness/src/boss_harness"
 TECHNICAL_REFERENCE = ROOT / "docs/TECHNICAL_REFERENCE.md"
+README = ROOT / "README.md"
+STATUS = ROOT / "docs/STATUS.md"
 sys.path.insert(0, str(ROOT / "harness/src"))
 
 from boss_harness.toolkit import ToolResult  # noqa: E402
@@ -630,8 +632,8 @@ def _behavior_checks() -> int:
     return checked
 
 
-def _documentation_check(scenarios: int) -> None:
-    """技术参考登记的行为场景数必须与实际执行数一致，浏览器来源口径不能回退。"""
+def _documentation_check(scenarios: int, total: int, read_only: int) -> None:
+    """登记计数必须与实际执行数一致，浏览器来源口径不能回退。"""
     try:
         text = TECHNICAL_REFERENCE.read_text(encoding="utf-8")
     except OSError:
@@ -640,13 +642,24 @@ def _documentation_check(scenarios: int) -> None:
     missing = [fragment for fragment in fragments if fragment not in text]
     if missing:
         raise ValueError("技术参考与工具检查不一致：" + "、".join(missing))
+    registrations = (
+        (README, f"固定 {total} 项工具 allowlist（{read_only} 项只读，招聘者打招呼需逐次审批）"),
+        (STATUS, f"{total} 个 allowlist 工具（{read_only} 个只读工具与需逐次审批的 `boss_hr_greet`）"),
+    )
+    for path, fragment in registrations:
+        try:
+            registered = path.read_text(encoding="utf-8")
+        except OSError:
+            raise ValueError(f"无法读取 {path.name}") from None
+        if fragment not in registered:
+            raise ValueError(f"{path.name} 与工具检查不一致：缺少 {fragment}")
 
 
 def main() -> int:
     try:
         total, read_only, write_sets, bundle, shell, data_dir, binary, output_limits = check_harness_tools()
         scenarios = _behavior_checks()
-        _documentation_check(scenarios)
+        _documentation_check(scenarios, total, read_only)
     except (OSError, SyntaxError, ValueError) as error:
         print(f"内核工具允许清单核对失败，{error}", file=sys.stderr)
         return 2
