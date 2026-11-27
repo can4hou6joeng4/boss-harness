@@ -3,13 +3,16 @@
 
 登录页在隔离分区里访问官方站点，成功后只把官方域的 Cookie 交给内核。域名判定、
 Cookie 具体性选择、主进程与渲染层对登录回执的字段上限、失败诊断的脱敏都必须
-一致：任何一处放宽都可能把非官方页面或无身份会话当成成功登录。
+一致：任何一处放宽都可能把非官方页面或无身份会话当成成功登录。验证页判定另外
+从源码提取正则，对真实 passport 验证地址与近似路径做行为对照。
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import sys
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SECURITY = "apps/desktop/src/main/security.ts"
@@ -24,7 +27,7 @@ SECURITY_FRAGMENTS = (
     '(!parsed.port || parsed.port === "443") &&',
     '(parsed.hostname === "zhipin.com" || parsed.hostname.endsWith(".zhipin.com"));',
     "export function isLoginVerificationUrl(url: string): boolean {",
-    "try { return /(?:security-check|captcha|\\/verify(?:\\/|$))/i.test(new URL(url).pathname); }",
+    "try { return /(?:security-check|captcha|\\/verify(?:\\.html)?(?:\\/|$)|\\/security\\.html(?:\\/|$))/i.test(new URL(url).pathname); }",
     "catch { return true; }",
     "export function loginCaptureReadiness(url: string, cookies: Record<string, string>): {",
     "if (!isOfficialLoginUrl(url) || isLoginVerificationUrl(url)) {",
@@ -88,6 +91,34 @@ FAILURE_FRAGMENTS = (
     "return { ...(code ? { code } : {}), ...(raw ? { message: safeSlice(raw, 200) } : {}) };",
     'if (details?.reason === "clean-exit") return "官方登录页已关闭，请重新打开官方页面";',
 )
+#: 从 `security.ts` 提取验证页正则，避免另写一份副本造成漂移。
+VERIFICATION_PATTERN = re.compile(
+    r"return /(.+?)/i\.test\(new URL\(url\)\.pathname\);")
+#: 上游 `auth/login_diagnostics.py` 登记的真实验证页，以及近似路径的不误判。
+VERIFICATION_CASES = (
+    ("https://www.zhipin.com/web/passport/zp/verify.html?callbackUrl=https%3A%2F%2Fwww.zhipin.com%2F", True),
+    ("https://www.zhipin.com/web/passport/zp/security.html", True),
+    ("https://www.zhipin.com/web/passport/zp/verify", True),
+    ("https://www.zhipin.com/web/passport/zp/verify/step", True),
+    ("https://www.zhipin.com/security-check", True),
+    ("https://www.zhipin.com/captcha", True),
+    ("https://www.zhipin.com/web/geek/job", False),
+    ("https://www.zhipin.com/web/user/", False),
+    ("https://www.zhipin.com/web/user/verify-settings", False),
+    ("https://www.zhipin.com/web/passport/zp/security", False),
+)
+
+
+def _check_verification_urls(security: str) -> int:
+    match = VERIFICATION_PATTERN.search(security)
+    if not match:
+        raise ValueError(f"{SECURITY} 缺少可提取的验证页正则")
+    pattern = re.compile(match.group(1))
+    for url, expected in VERIFICATION_CASES:
+        actual = bool(pattern.search(urlsplit(url).path))
+        if actual != expected:
+            raise ValueError(f"{SECURITY} 验证页判定不符：{url} 期望 {expected}，实际 {actual}")
+    return len(VERIFICATION_CASES)
 
 
 def _read(relative: str) -> str:
@@ -159,6 +190,8 @@ def check_login_security() -> int:
         cookies,
         COOKIES,
     )
+    # 验证页：真实 passport 地址命中，近似路径不误判。
+    checked += _check_verification_urls(security)
     # 反向断言：验证页判定必须失败关闭；Cookie 只能来自官方登录域。
     if "catch { return true; }" not in security:
         raise ValueError(f"{SECURITY} 的验证页判定必须失败关闭")
