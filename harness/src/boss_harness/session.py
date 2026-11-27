@@ -46,6 +46,16 @@ _EVENT_ID = re.compile(r"[a-f0-9]{32}\Z")
 _ATTACHMENT_DIGEST = re.compile(r"[a-f0-9]{64}\Z")
 _ATTACHMENT_TEMP = re.compile(r"tmp-[a-f0-9]{32}\Z")
 _DELETE_INTENT = re.compile(r"\.delete-([a-f0-9]{12})\.json\Z")
+#: 时间戳文法跨版本固定：``fromisoformat`` 的接受集合随版本扩大（3.11+ 基本格式、
+#: 逗号小数与不补零的小数/偏移，3.14 还接受 ``24:00``），持久记录可被外部改写，
+#: 同一输入不能在一个版本上参与耗时、在另一个版本上被丢弃。先按固定文法取字段，
+#: 再补成各版本都接受的规范形式交给 ``fromisoformat`` 校验范围。
+_ISO_TIMESTAMP = re.compile(
+    r"(?P<year>[0-9]{4})-(?P<month>[0-9]{2})-(?P<day>[0-9]{2})[T ]"
+    r"(?P<hour>[01][0-9]|2[0-3]):(?P<minute>[0-5][0-9]):(?P<second>[0-5][0-9])"
+    r"(?:[.,](?P<fraction>[0-9]{1,6}))?"
+    r"(?:(?P<zulu>Z)|(?P<sign>[+-])(?P<offset_hour>[01][0-9]|2[0-3])(?::?(?P<offset_minute>[0-9]{2}))?)?\Z"
+)
 _TERMINAL = frozenset({"completed", "interrupted", "blocked", "error"})
 #: 回合归并自己的顺序记账字段；持久载荷同名键不可信，既不能覆盖内部值，也不随公开回合返回。
 _TURN_INTERNAL_FIELDS = frozenset({"firstOrdinal", "lastOrdinal", "boundaryOrdinal"})
@@ -274,21 +284,46 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _valid_timestamp(value: Any) -> str | None:
-    """只接受可解析的 ISO 时间字符串；非法值不参与耗时统计。
+def _parse_iso_timestamp(value: Any) -> datetime | None:
+    """按固定文法解析扩展格式 ISO 时间；同一输入在 3.10–3.14 上结论一致。
 
-    Python 3.10 的 ``fromisoformat`` 不接受 ``Z`` 结尾；导出路径已按同一口径
-    先改写为 ``+00:00``。这里复用该归一，使同一份外部改写记录在 3.10–3.14 上
-    对「是否参与耗时」给出一致结论。
+    接受 ``YYYY-MM-DD[T ]HH:MM:SS``，可选 1–6 位小数（``.`` 或 ``,``），可选
+    ``Z`` / ``±HH`` / ``±HHMM`` / ``±HH:MM`` 偏移；无偏移时返回朴素时间。小数补齐
+    6 位、偏移补成 ``±HH:MM``、``Z`` 写成 ``+00:00`` 后再交给 ``fromisoformat``
+    校验月日与偏移范围，避免各版本对同一写法给出不同结论。
     """
     if not isinstance(value, str) or not value or len(value) > 64:
         return None
-    text = value[:-1] + "+00:00" if value.endswith("Z") else value
+    match = _ISO_TIMESTAMP.fullmatch(value)
+    if match is None:
+        return None
+    fraction = match.group("fraction")
+    if match.group("zulu"):
+        offset = "+00:00"
+    elif match.group("sign"):
+        offset = (f"{match.group('sign')}{match.group('offset_hour')}:"
+                  f"{match.group('offset_minute') or '00'}")
+    else:
+        offset = ""
+    text = (f"{match.group('year')}-{match.group('month')}-{match.group('day')}T"
+            f"{match.group('hour')}:{match.group('minute')}:{match.group('second')}"
+            + (f".{fraction.ljust(6, '0')}" if fraction else "")
+            + offset)
     try:
-        datetime.fromisoformat(text)
+        return datetime.fromisoformat(text)
     except ValueError:
         return None
-    return value
+
+
+def _valid_timestamp(value: Any) -> str | None:
+    """只接受解析结论稳定的 ISO 时间字符串；非法值不参与耗时统计。
+
+    解析统一走 :func:`_parse_iso_timestamp`：``fromisoformat`` 的接受集合随 Python
+    版本扩大，同一份外部改写记录不能在一个版本上参与耗时、在另一个版本上被丢弃。
+    """
+    if not isinstance(value, str):
+        return None
+    return value if _parse_iso_timestamp(value) is not None else None
 
 
 MAX_SKILL_IDS = 10

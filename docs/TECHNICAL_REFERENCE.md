@@ -449,7 +449,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_export_timestamps.py`
 
-`scripts/check_export_timestamps.py` 核对会话导出的时间戳解析、耗时与审批期限展示：`_parse_timestamp` 只接受非空字符串，`Z` 后缀改写为 `+00:00`，解析结果必须带时区，非法值与朴素时间返回 `None`；`_timestamp_duration` 两端都必须可解析且不倒序，正常差值按毫秒四舍五入，倒序与坏值返回 `None`；`_deadline_text` 只接受 `int` / `float`（布尔按类型排除），非有限、非正与溢出值按「无期限」处理，正常值输出 UTC 秒级 ISO 时间；回合头部只在耗时可用时写入 `durationMs`，审批记录只在期限可用时写入 `deadline`。检查共 55 项，其中 39 项行为对照直接调用三个函数，覆盖无时区、`Z`、显式偏移、毫秒后缀、跨时区同一时刻、倒序、`10**400` 与 `1e300` 溢出等边界，不读写导出文件。
+`scripts/check_export_timestamps.py` 核对会话导出与用量路径的时间戳解析、耗时与审批期限展示：`session._parse_iso_timestamp` 用固定文法接受扩展格式日期时间、可选 1–6 位小数（`.` 或 `,`）与可选 `Z` / `±HH` / `±HHMM` / `±HH:MM` 偏移，统一补成规范形式（6 位小数、`±HH:MM`、`Z` 写成 `+00:00`）后交给 `fromisoformat` 校验月日与偏移范围，使同一输入在 Python 3.10–3.14 上结论一致；`_parse_timestamp` 只保留带时区的结果，`_valid_timestamp` 保留可解析的原值（含无时区时间）。`_timestamp_duration` 两端都必须可解析且不倒序，正常差值按毫秒四舍五入，倒序与坏值返回 `None`；`_deadline_text` 只接受 `int` / `float`（布尔按类型排除），非有限、非正与溢出值按「无期限」处理，正常值输出 UTC 秒级 ISO 时间；回合头部只在耗时可用时写入 `durationMs`，审批记录只在期限可用时写入 `deadline`。检查共 80 项，其中 58 项行为对照直接调用函数，覆盖无时区、`Z`、不补零小数与偏移、逗号小数、基本格式、`24:00`、7 位小数、全角数字、跨时区同一时刻、倒序、`10**400` 与 `1e300` 溢出等边界，不读写导出文件。
 
 ### `check_local_export.py`
 
