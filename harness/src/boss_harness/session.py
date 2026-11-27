@@ -348,7 +348,12 @@ class ApprovalDecisionError(ValueError):
 
 def _encode_session_line(value: dict, *, maximum: int = MAX_SESSION_LINE_BYTES,
                          label: str = "会话日志") -> bytes:
-    encoded = _json(value).encode("utf-8")
+    try:
+        encoded = _json(value).encode("utf-8")
+    except RecursionError:
+        raise ValueError(f"{label}嵌套层级超过上限") from None
+    if _json_depth_exceeded(encoded.decode("utf-8"), MAX_JSON_RECORD_DEPTH):
+        raise ValueError(f"{label}嵌套层级超过上限")
     if len(encoded) > maximum:
         raise ValueError(f"{label}单行超过大小限制")
     return encoded + b"\n"
@@ -2927,7 +2932,9 @@ class SessionStore:
         if isinstance(arguments, dict):
             try:
                 rendered = json.dumps(arguments, ensure_ascii=False, sort_keys=True)
-            except (TypeError, ValueError, RecursionError):
+            except RecursionError:
+                rendered = ""
+            except (TypeError, ValueError):
                 rendered = ""
             if rendered and len(rendered) <= _SEARCH_TOOL_ARGS:
                 parts.append(rendered)
