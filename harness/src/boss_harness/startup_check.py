@@ -7,6 +7,7 @@ import ipaddress
 import os
 import shutil
 import sys
+import unicodedata
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -420,6 +421,7 @@ def startup_report(
         "version": __version__,
         "protocolVersion": PROTOCOL_VERSION,
         "pythonVersion": ".".join(str(part) for part in sys.version_info[:3]),
+        "unicodeVersion": unicodedata.unidata_version,
         "ok": all(check["status"] != "error" for check in checks),
         "checks": checks,
     }
@@ -450,7 +452,8 @@ def render_text(report: dict[str, Any]) -> str:
         conclusion = "通过"
     lines = [
         f"本地配置自检：{conclusion}",
-        f"内核 {report['version']} · 协议 {report['protocolVersion']} · Python {report['pythonVersion']}",
+        f"内核 {report['version']} · 协议 {report['protocolVersion']} · Python {report['pythonVersion']}"
+        f" · Unicode {report['unicodeVersion']}",
     ]
     for check in checks:
         title = _CHECK_TITLES.get(check["name"], check["name"])

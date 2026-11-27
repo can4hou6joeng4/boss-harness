@@ -747,7 +747,7 @@ export interface StartupCheckEntry {
  * 超时（timeout）或输出不合规（invalid）。
  */
 export type StartupDiagnosis =
-  | { kind: "report"; ok: boolean; checks: StartupCheckEntry[]; version?: string; protocolVersion?: string; pythonVersion?: string }
+  | { kind: "report"; ok: boolean; checks: StartupCheckEntry[]; version?: string; protocolVersion?: string; pythonVersion?: string; unicodeVersion?: string }
   | { kind: "unavailable"; reason: "spawn" | "exit" | "timeout" | "invalid" };
 export type ApprovalRespondResponse =
   | { accepted: true }

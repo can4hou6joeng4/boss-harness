@@ -34,7 +34,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.807` / Python `0.2.0rc807` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.808` / Python `0.2.0rc808` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -80,7 +80,7 @@ Anthropic 线路另有三个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 此入口随当前源码提供。可以在命令行运行 `.venv/bin/boss-harness --check`，也可以在桌面内核启动失败后由主进程自动运行；两种方式使用同一套检查。与正常启动一样，可传入 `--provider` 与 `--model`，沿用上文的配置优先级。只核对不使用模型时，可显式传入 `--provider none`。CLI 自动模式在未设置 provider 且没有 Anthropic 凭据时会回退为 `none` 并给出警告；核对桌面默认的 OpenAI 线路时，请显式使用 `--check --provider openai`。若本机另有一条可解析的 OpenAI 线路且 `openai` 包可发现，警告的建议会改为点名该线路，并给出 `--provider openai`（桌面用 `BOSS_HARNESS_PROVIDER=openai`）的启动方式；线路无法解析时保持通用建议，配置可解析但 `openai` 包缺失时改为提示先安装内核依赖。在 `--check` 后加 `--format text` 可输出供终端阅读的分段文本（默认仍是 JSON，桌面解析不受影响），两种格式的退出码一致；文本结论行在存在错误时同时给出警告数量。退出码默认只区分两种结果：全部通过或只有警告为 0，存在错误为 2。脚本或 CI 需要把警告也视为未通过时加 `--strict`：存在错误仍为 2，没有错误但有警告为 1，全部通过为 0；`--strict` 只影响退出码，不改变报告内容，且只能与 `--check` 一起使用。显式 `--provider none` 本身会产生 `MODEL_DISABLED` 警告，因此严格模式适合核对已配置模型线路的环境。内核当前只支持 `--listen stdio://`（默认值）；传入其他端点时，自检、`--repair-state` 与正常启动都在执行任何动作前以退出码 2 结束并给出同一条固定说明，自检不输出报告。`--state-dir` 的值为空或只有空白时（常见于脚本中引用了未设置的变量）同样在三种模式下先以退出码 2 结束，不创建任何文件；省略该参数即使用默认状态目录，确实要用当前工作目录时显式写 `--state-dir .`。
 
-命令向 stdout 输出单份 JSON 报告。`schemaVersion` 固定为 `1`；`version` 是当前内核源码版本，`protocolVersion` 是 JSON-RPC 协议版本（不是发布版本），`pythonVersion` 是实际运行自检的解释器版本；`ok` 表示 `checks` 中没有 `error` 项，`checks` 逐项提供固定检查码、`ok` / `warning` / `error` 状态、说明及处理建议。顶层字段及其含义：
+命令向 stdout 输出单份 JSON 报告。`schemaVersion` 固定为 `1`；`version` 是当前内核源码版本，`protocolVersion` 是 JSON-RPC 协议版本（不是发布版本），`pythonVersion` 是实际运行自检的解释器版本，`unicodeVersion` 是该解释器的 Unicode 数据版本（`unicodedata.unidata_version`）；`ok` 表示 `checks` 中没有 `error` 项，`checks` 逐项提供固定检查码、`ok` / `warning` / `error` 状态、说明及处理建议。顶层字段及其含义：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
@@ -88,6 +88,7 @@ Anthropic 线路另有三个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 | `version` | 字符串 | 内核 `__version__`，与同次源码构建的 npm 候选版本对应；不表示已发布到 npm 或 PyPI。 |
 | `protocolVersion` | 字符串 | 进程边界的 JSON-RPC 协议版本，与桌面和协议包中的常量一致。 |
 | `pythonVersion` | 字符串 | 运行 `--check` 的 Python 主版本、次版本与补丁版本。 |
+| `unicodeVersion` | 字符串 | 解释器内置的 Unicode 数据版本；文本报告的版本行同样展示。 |
 | `ok` | 布尔值 | `checks` 中没有 `error` 时为 `true`；必须与检查项状态相符。 |
 | `checks` | 数组 | 检查项列表；每项含 `name`、`status`、`code`、`message`、`hint`，名称在同一报告中不重复。 |
 
@@ -154,7 +155,7 @@ Anthropic 线路另有三个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 - 自检使用与内核相同的解释器、工作目录与环境（只额外设置输出编码），因此结论与内核实际使用的配置一致；它不调用模型、不执行业务 CLI、不访问招聘平台。
 - 错误项的说明与建议显示在底部提示条，以及「设置 → 模型与连接」的「招聘 Harness」行；后者按「错误 → 警告 → 通过」列出明细与检查码，同类项保留自检报告的原始顺序，方便先找到导致启动失败的原因。命令行报告顺序不变。
-- 报告带 `version` / `protocolVersion` / `pythonVersion` 时，「招聘 Harness」行会在明细前显示「自检报告：内核 … · 协议 … · Python …」，便于核对桌面、内核与解释器是否同源；字段缺失或不合规时不显示，不猜测版本。报告中的协议版本与桌面使用的协议常量不一致时，同一位置会给出「协议版本不一致」提示并列出两侧版本，提示桌面与内核可能来自不同构建。
+- 报告带 `version` / `protocolVersion` / `pythonVersion` / `unicodeVersion` 时，「招聘 Harness」行会在明细前显示「自检报告：内核 … · 协议 … · Python … · Unicode …」，便于核对桌面、内核、解释器与 Unicode 数据是否同源；字段缺失或不合规时不显示，不猜测版本。报告中的协议版本与桌面使用的协议常量不一致时，同一位置会给出「协议版本不一致」提示并列出两侧版本，提示桌面与内核可能来自不同构建。
 - 自检区域提供「复制自检结果」：复制内容为纯文本，包含提示标题、自检报告版本、协议不一致提示（如有）、逐项状态与检查码以及处理建议；只使用界面已展示的静态自检字段，不包含 stderr、异常原文、端点、凭据、本机路径或会话内容。写入成功显示「已复制」，失败显示可读原因。
 - 提示条区分「内核未能完成启动」与「就绪后断开」：前者说明自动重试是否仍会继续；后者保留「结果未确认的对外操作请先核对平台状态」，自动恢复重新就绪后清除。
 - 界面不展示内核 stderr、异常原文、端点、凭据或本机路径，只使用上表的固定检查码与静态建议。

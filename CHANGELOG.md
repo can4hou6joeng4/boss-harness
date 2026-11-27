@@ -1,3 +1,10 @@
+## 0.2.0-rc.808 - 2026-11-28
+
+- 本地配置自检新增 `unicodeVersion` 字段，取解释器自带的 `unicodedata.unidata_version`；`--format text` 的版本行同步展示「内核 · 协议 · Python · Unicode」。桌面主进程按现有纯文本规则校验该可选字段，渲染层只在字段存在时拼接「Unicode …」，旧内核报告缺少字段时保持原展示与行为，不猜测版本。[Issue #3741](https://github.com/can4hou6joeng4/boss-harness/issues/3741)
+- 「设置 → 模型与连接」的自检报告行同时展示 Unicode 版本，便于把搜索归一化、脱敏字符类与数字解析的报告对应到实际 Unicode 数据；Python 3.10–3.14 分别对应 Unicode 13 / 14 / 15 / 15.1 / 16，桌面 Node 24（ICU 78.3）为 Unicode 17。协议版本不一致提示与复制内容仍只用已展示的字段。使用指南与技术参考同步字段说明。
+- 启动自检检查脚本核对内核生成、桌面解析与渲染三处的字段形态，并直接调用 `startup_report()` / `render_text()` 核对字段值与文本版本行（结构 462 → 469 项、行为 19 → 22 个场景）；全量门禁与 TypeScript 类型检查通过。
+- 源码候选更新为 npm `0.2.0-rc.808` 和 Python `0.2.0rc808`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.807 - 2026-11-28
 
 - 脱敏正则的数字类与词边界固定为 ASCII：手机号、身份证与长 token 的 `\d`、邮箱本地部分的 `\w`、凭据与头部的 `\b` 都随 Unicode 版本扩大——3.14 的 Unicode 16.0 新增 Garay 等十进制数字后，`\d` 把非 ASCII 数字串当作手机号 / 身份证，`\b` 又把新增数字视为词字符、吞掉 `Bearer` / `sk-` / `token=` 前的边界。同一份导出内容在不同解释器上有两个方向的差异：3.14 多打码了 Garay 数字构成的「手机号」，同时把紧邻它们的凭据原样留在导出里。现在数字类改为 `[0-9]`，`\b` 换成显式 ASCII 词边界断言，邮箱本地部分改用「非空白、非 `@`」字符类；`models/secret.py` 的三种凭据形态与 `models/errors.py` 的 LiteLLM 溢出文本同样处理。计数、标记与脱敏顺序不变。[Issue #3739](https://github.com/can4hou6joeng4/boss-harness/issues/3739)

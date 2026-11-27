@@ -59,14 +59,17 @@ export function parseStartupReport(output: string): StartupDiagnosis | null {
   const version = report.version;
   const protocolVersion = report.protocolVersion;
   const pythonVersion = report.pythonVersion;
+  const unicodeVersion = report.unicodeVersion;
   if (version !== undefined && !plainText(version)) return null;
   if (protocolVersion !== undefined && !plainText(protocolVersion)) return null;
   if (pythonVersion !== undefined && !plainText(pythonVersion)) return null;
+  if (unicodeVersion !== undefined && !plainText(unicodeVersion)) return null;
   return {
     kind: "report", ok: report.ok, checks,
     ...(version !== undefined ? { version } : {}),
     ...(protocolVersion !== undefined ? { protocolVersion } : {}),
     ...(pythonVersion !== undefined ? { pythonVersion } : {}),
+    ...(unicodeVersion !== undefined ? { unicodeVersion } : {}),
   };
 }
 
