@@ -1,3 +1,9 @@
+## 0.2.0-rc.792 - 2026-11-27
+
+- 为 README 与 STATUS 的工具计数补上守卫：两份入口文档都登记 14 项 allowlist（13 项只读、`boss_hr_greet` 需逐次审批），但工具检查此前只核对源码元组，把任一文档改成 15 仍 exit 0。现在用实际工具数与只读数核对两份文档的登记片段，不一致时 exit 2 并点名文件与缺失内容。[Issue #3710](https://github.com/can4hou6joeng4/boss-harness/issues/3710)
+- 前后对照：rc.791 固定提交的旧脚本在 README 与 STATUS 改成 15 项后仍 exit 0；修复版对同一改动 exit 2 并输出 `README.md 与工具检查不一致`，恢复后 exit 0。检查只读仓库内源码与文档，不启动上游、不访问模型或招聘平台。
+- 源码候选更新为 npm `0.2.0-rc.792` 和 Python `0.2.0rc792`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.791 - 2026-11-27
 
 - 为浏览器来源检查补上自己的计数守卫：`docs/TECHNICAL_REFERENCE.md` 登记 `check_browser_source.py` 实际执行 27 个行为场景，但脚本此前只把数字打印到 stdout。现在执行后核对“`resolve_browser_source_override`（27 项）”与启动提示守卫的描述，任一缺失即以 exit 2 失败。[Issue #3708](https://github.com/can4hou6joeng4/boss-harness/issues/3708)
