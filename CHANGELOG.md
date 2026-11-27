@@ -1,3 +1,9 @@
+## 0.2.0-rc.790 - 2026-11-27
+
+- 为启动自检的浏览器来源提示补上守卫：`BROWSER_SOURCE_INVALID` 的提示在 rc.788 已列出四个可选值并说明 `inherit` 不覆盖，但 `check_browser_source.py` 只核对检查码与变量名，提示漏掉取值时检查仍通过。现在要求提示原文包含“`inherit、auto、existing-browser、stored-cookie`”完整枚举与 `inherit` 不覆盖说明。[Issue #3706](https://github.com/can4hou6joeng4/boss-harness/issues/3706)
+- 前后对照：rc.789 固定提交的旧脚本在提示删去 `inherit` 后仍 exit 0；修复版对同一改动 exit 2 并输出缺失的提示片段，恢复后 exit 0。检查只读仓库内源码，不启动上游、不读取浏览器或 Cookie。
+- 源码候选更新为 npm `0.2.0-rc.790` 和 Python `0.2.0rc790`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.789 - 2026-11-27
 
 - 同步技术参考的行为场景计数：rc.788 给 `check_harness_tools.py` 新增 4 个浏览器来源 `inherit` 用例后，实际执行数已从 81 增至 85，但 `docs/TECHNICAL_REFERENCE.md` 仍写 81，覆盖项也没有提到 `inherit`。现在计数改为 85，覆盖项写明“`inherit` 不覆盖”和“三种上游值”口径。[Issue #3704](https://github.com/can4hou6joeng4/boss-harness/issues/3704)
