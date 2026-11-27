@@ -38,6 +38,8 @@ jobs:
         run: python scripts/check_protocol.py
       - name: Verify JSON-RPC boundaries
         run: python scripts/check_rpc.py
+      - name: Verify malformed frame survival
+        run: python scripts/check_malformed_frames.py
       - name: Verify server request boundaries
         run: python scripts/check_rpc_pending.py
       - name: Verify desktop security settings
@@ -521,6 +523,8 @@ jobs:
         run: python scripts/check_boss_cli_call.py
       - name: Verify termination signal handling
         run: python scripts/check_termination.py
+      - name: Verify malformed frame survival
+        run: python scripts/check_malformed_frames.py
       - name: Verify desktop client close escalation
         run: python scripts/check_client_close.py
       - name: Verify approval stop paths

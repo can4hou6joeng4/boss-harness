@@ -1,3 +1,9 @@
+## 0.2.0-rc.780 - 2026-11-27
+
+- 新增真实 stdio 内核的畸形帧存活检查：`scripts/check_malformed_frames.py` 用临时状态目录与 `--provider none` 启动内核，完成握手后发送截断 JSON、非法 UTF-8、`NaN`、重复键、超深嵌套、孤立代理项、未知方法与非法 `params`，核对每帧只回一条规范错误且之后仍可读取会话；末尾的 8 MiB 超长帧按设计回 `-32600` 后有序退出。共 48 项协议错误与恢复校验，接入 CI 的源码构建与 Python 3.10–3.14 两个作业。[Issue #3685](https://github.com/can4hou6joeng4/boss-harness/issues/3685)
+- 此前 `check_rpc.py` 只在模块层核对解码，`check_termination.py` 只核对信号关闭；单条坏帧让真实进程退出或读乱后续帧没有回归保护。把 `MAX_FRAME_BYTES` 放宽到 9 MiB 的变异会让原检查的结构断言失败，也让新增行为检查报 `超过 8 MiB 的帧 只有错误帧`。技术参考登记覆盖范围；全程不调用模型、招聘平台或真实状态目录。
+- 源码候选更新为 npm `0.2.0-rc.780` 和 Python `0.2.0rc780`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.779 - 2026-11-27
 
 - 修复平台登录在平台风控判定下丢弃取消回执终态的问题：保存阶段截止或读取中断时，主进程先写入 `LOGIN_TIMEOUT` / `LOGIN_CONNECTION_LOST` 等失败态再发送取消；内核 `_save_login` 会把 `ACCOUNT_RISK`、`ENVIRONMENT_RISK_LOCKED`、`LOGIN_RISK_CONTROL`、`CAPTCHA_REQUIRED` 等风控失败判为 `blocked`，而取消回执此前只采用 `succeeded` / `failed`，界面继续显示「保存已停止，登录态可能已更新」或「保存结果未知」，用户看不到风控原因，也不会触发设置页的连接重读。现在取消回执的 `succeeded` / `failed` / `blocked` 三种终态都会收敛界面；`cancelled`、`waiting` 等未完成回执仍不覆盖本地失败。[Issue #3683](https://github.com/can4hou6joeng4/boss-harness/issues/3683)
