@@ -15,6 +15,7 @@ BOSS Harness 是开发中的开源项目；`main` 是开发分支，源码候选
 
 - [CONTRIBUTING.md](CONTRIBUTING.md): 仓库治理、环境、门禁、提交格式与 PR 约定
 - [SETUP.md](SETUP.md): 本机安装、依赖与排障
+- [内核包说明](harness/README.md): Python 内核的依赖、安装、目录结构与发布元数据正文
 - [文档索引](docs/README.md): 设计、建设与运维文档的入口
 - [技术参考](docs/TECHNICAL_REFERENCE.md): 协议、请求预算、失败恢复、上下文、工具与构建前检查
 - [用户指南](docs/USER_GUIDE.md): 内核配置、模型线路与运行方式
