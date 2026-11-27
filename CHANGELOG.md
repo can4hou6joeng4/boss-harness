@@ -1,3 +1,9 @@
+## 0.2.0-rc.776 - 2026-11-27
+
+- 补齐桌面交互指南缺失的平台登录章节：此前 `docs/DESKTOP_GUIDE.md` 没有登录入口，用户需要从 README 的一句话与界面自行推断扫码、passport 安全验证、五分钟等待、保存与取消以及隔离边界。新增章节说明输入框菜单与设置页入口、官方页面扫码与验证、收起浏览器不暂停计时、保存阶段取消的语义、身份只作提示，以及只允许官方域名且 Cookie 不暴露给模型或普通 renderer。[Issue #3677](https://github.com/can4hou6joeng4/boss-harness/issues/3677)
+- `check_platform_login.py` 的文档核对增加桌面指南稳定事实，章节或关键表述缺失时失败；结构 / 行为计数保持 31 项、38 项。技术参考同步登记。
+- 源码候选更新为 npm `0.2.0-rc.776` 和 Python `0.2.0rc776`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.775 - 2026-11-27
 
 - 修复平台登录在归属会话被删除后锁定入口的问题：登录等待期间删除归属会话后，`loginEntry` 找不到 owner，主进程仍托管旧登录并以 `another thread owns this login` 拒绝其他会话，旧会话的取消入口又已不可达，只能等五分钟超时或关闭窗口。现在会话列表已加载且归属会话不存在时，登录入口先取消旧 attempt 再选择目标；错误提示也把「另一会话占用」与「本机连接故障」分开。[Issue #3675](https://github.com/can4hou6joeng4/boss-harness/issues/3675)

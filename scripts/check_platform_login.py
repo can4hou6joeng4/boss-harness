@@ -7,7 +7,8 @@
 `requestAnimationFrame` 与 `document` 用可控桩，由 Node 直接加载真实模块，
 核对迟到回执丢弃、卸载退订、`open` / `cancel` 的锁与失败回落，以及
 `show` / `visibleIn` 的分支。结构侧另核对主进程截止与取消回执的终态优先，
-以及登录入口在归属会话已删除时先取消旧 attempt。
+以及登录入口在归属会话已删除时先取消旧 attempt。文档侧核对技术参考的计数，
+以及桌面指南的平台登录入口、安全验证、五分钟等待、保存终态与隔离边界。
 """
 
 from __future__ import annotations
@@ -19,12 +20,23 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = "docs/TECHNICAL_REFERENCE.md"
+GUIDE = "docs/DESKTOP_GUIDE.md"
 SOURCE = "apps/desktop/src/renderer/src/data/usePlatformLogin.ts"
 STATE = "apps/desktop/src/renderer/src/data/platformLoginState.ts"
 MAIN = "apps/desktop/src/main/platformLogin.ts"
 SHELL = "apps/desktop/src/renderer/src/shell/AppShell.tsx"
 
 EXPECTED = 38
+
+#: 桌面指南必须保留的稳定事实：用户入口、安全验证、等待上限、保存终态与隔离边界。
+GUIDE_FRAGMENTS = (
+    "## 平台登录",
+    "passport 安全验证页时，应用暂停连接",
+    "等待仍从开始起最多保留五分钟",
+    "只有内核回执成功才显示「BOSS 直聘已连接」",
+    "只允许 HTTPS 的官方 `zhipin.com` 与子域名",
+    "候选人功能需要招聘者身份",
+)
 
 #: 主进程截止：保存阶段超时保留警告。
 DEADLINE_ORDER = (
@@ -555,6 +567,10 @@ def _check_documentation() -> int:
         raise ValueError(f"{DOCS} 缺少 check_platform_login.py")
     if "共 31 项结构、38 项行为" not in docs:
         raise ValueError(f"{DOCS} 需说明 check_platform_login.py 检查 31 项结构、38 项行为")
+    guide = _read(GUIDE)
+    missing = [fragment for fragment in GUIDE_FRAGMENTS if fragment not in guide]
+    if missing:
+        raise ValueError(f"{GUIDE} 缺少平台登录稳定事实：" + "、".join(missing))
     return 2
 
 
