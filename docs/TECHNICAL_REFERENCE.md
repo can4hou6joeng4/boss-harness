@@ -193,7 +193,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_boss_cli_call.py`
 
-`scripts/check_boss_cli_call.py` 在临时目录写入假 CLI 脚本，驱动真实 `BossCliTool.call`（不联网、不调用真实 CLI），覆盖上游进程边界：`--json` / `--data-dir`（去空白、空值不传递）/ `--browser-source` / 工具参数的拼接，stdin 写入，开始前取消（不启动 CLI）与中途取消（终止进程组），内核停止时的进程级标记（置位后不启动 CLI，没有绑定取消事件的在途调用同样被终止），总时限收敛为 `TOOL_TIMEOUT`，16 MiB 输出上限收敛为 `CLI_OUTPUT_LIMIT`，非 UTF-8、空输出、坏 JSON 与 NaN 严格 JSON 的固定错误，七键信封与退出码契约（缺键 / 多键 / 版本不是 1.x / 成功退出码非零 / 失败退出码为零 / 失败缺错误消息 / hints 与 pagination 非对象 / 成功携带错误）全部收敛为 `CLI_CONTRACT_ERROR`，合法失败信封保留 error 与原始输出，`hr chat` 的 `summary_sources.last_messages_error_code` 命中暂停码时投影为失败并附带恢复建议、非暂停码 / 命令不匹配 / 工具不匹配保持成功，子进程退出但后代持有管道时排空后正常返回，不可执行二进制收敛为 `CLI_ERROR`。结构部分固定参数拼接、开始前取消、启动的 OSError / ValueError 分支、监督循环的取消 / 溢出 / 失败 / 时限判定、后代排空窗口、输出上限、UTF-8 / 空输出、JSON 解码、七键条件、暂停投影、结果组装与 `_terminate` 的 SIGTERM → SIGKILL 收尾。共 52 项结构、41 项行为。
+`scripts/check_boss_cli_call.py` 在临时目录写入假 CLI 脚本，驱动真实 `BossCliTool.call`（不联网、不调用真实 CLI），覆盖上游进程边界：`--json` / `--data-dir`（去空白、空值不传递）/ `--browser-source` / 工具参数的拼接，stdin 写入，开始前取消（不启动 CLI）与中途取消（终止进程组），内核停止时的进程级标记（置位后不启动 CLI，没有绑定取消事件的在途调用同样被终止），总时限收敛为 `TOOL_TIMEOUT`，16 MiB 输出上限收敛为 `CLI_OUTPUT_LIMIT`，非 UTF-8、空输出、坏 JSON 与 NaN 严格 JSON 的固定错误，七键信封与退出码契约（缺键 / 多键 / 版本不是 1.x / 成功退出码非零 / 失败退出码为零 / 失败缺错误消息 / hints 与 pagination 非对象 / 成功携带错误）全部收敛为 `CLI_CONTRACT_ERROR`，合法失败信封保留 error 与原始输出，`hr chat` 的 `summary_sources.last_messages_error_code` 命中暂停码时投影为失败并附带恢复建议、非暂停码 / 命令不匹配 / 工具不匹配保持成功，子进程退出但后代持有管道时排空后正常返回，不可执行二进制收敛为 `CLI_ERROR`。中途取消的线程等待边界为 35 秒（内层调用上限 30 秒加调度余量），超时先给出明确失败，不再访问未写入的结果列表。结构部分固定参数拼接、开始前取消、启动的 OSError / ValueError 分支、监督循环的取消 / 溢出 / 失败 / 时限判定、后代排空窗口、输出上限、UTF-8 / 空输出、JSON 解码、七键条件、暂停投影、结果组装与 `_terminate` 的 SIGTERM → SIGKILL 收尾。共 52 项结构、41 项行为。
 
 ### `check_tool_schema.py`
 

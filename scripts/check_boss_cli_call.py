@@ -26,6 +26,9 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "harness/src/boss_harness/tools/boss_cli.py"
+#: 中途取消线程内部的 `probe.call` 上限是 30 秒；这里留出调度余量，
+#: 超时先给出明确失败，不访问尚未写入的结果列表。
+CANCEL_JOIN_SECONDS = 35.0
 sys.path.insert(0, str(ROOT / "harness/src"))
 
 from boss_harness.tools import boss_cli  # noqa: E402
@@ -303,7 +306,9 @@ def _cancel_checks(probe: _Probe) -> int:
     worker.start()
     time.sleep(0.5)
     tool.cancel_event.set()
-    worker.join(timeout=10)
+    worker.join(timeout=CANCEL_JOIN_SECONDS)
+    if worker.is_alive():
+        raise ValueError(f"中途取消的 CLI 调用在 {CANCEL_JOIN_SECONDS:.0f} 秒内没有返回")
     result = outcome[0]
     checked += _expect_value((result.ok, result.error["code"]),
                              (False, "CANCELLED"), "中途取消")
