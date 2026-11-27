@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import math
 import os
 from collections.abc import Iterator, Mapping
 
@@ -85,9 +86,15 @@ def retry_after_seconds(exc: object) -> float | None:
         if not raw:
             continue
         try:
-            return float(str(raw).strip()) * scale
+            seconds = float(str(raw).strip()) * scale
         except ValueError:
             continue
+        # 网关头可被上游或代理改写：``float`` 接受 ``nan`` / ``inf`` / ``1e309``，
+        # 非有限值会让 ``min`` / ``max`` 的夹取顺序失真，负数则被夹成 0——两者都会
+        # 变成 0 毫秒或封顶等待。统一视为无效，回退指数退避。
+        if not math.isfinite(seconds) or seconds < 0:
+            continue
+        return seconds
     return None
 
 

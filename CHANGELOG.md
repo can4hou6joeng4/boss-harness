@@ -1,3 +1,9 @@
+## 0.2.0-rc.805 - 2026-11-28
+
+- 拒绝非有限与负数的 Retry-After：`retry_after_seconds` 直接 `float()` 解析网关头，而 `float` 接受 `nan` / `inf` / `Infinity` / `1e309`；`retry_delay` 的 `max(0.0, min(value, 8.0))` 对 `nan` 与负数返回 0，对 `inf` 返回封顶值。上游或代理写入 `Retry-After: NaN` 或负值时，五个 Python 版本都会以 0 毫秒立即重试，而不是回退指数退避。现在解析后要求 `math.isfinite` 且非负，否则视为无效继续；`retry-after-ms` 同样处理。[Issue #3735](https://github.com/can4hou6joeng4/boss-harness/issues/3735)
+- 真实 `retry_after_seconds` / `retry_delay` / `retry_start_event` 探针（10 组秒头与毫秒头，Python 3.10.20 / 3.11.15 / 3.12.13 / 3.13.15 / 3.14.6）：旧源码五个版本一致把 `NaN` / `-5` / `-inf` 变成 0 毫秒、`inf` / `1e309` / `Infinity` 封顶 8000 毫秒；修复版对六类无效输入一致返回 `None`（由调用方回退指数退避），`0` / `2` / `1e300` 等有限非负值结论不变。检查脚本同步非有限与负数用例（126 → 142 项），五个解释器输出一致。探针只留 `/tmp`，不提交测试文件。
+- 源码候选更新为 npm `0.2.0-rc.805` 和 Python `0.2.0rc805`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.804 - 2026-11-28
 
 - 统一五处游标的 base64 解码：会话分页（`p1_`）、条目分页、工具结果（`tr1_`）、条目内容（`ic1_`）与附件（`at1_`）各自调用 `base64.b64decode(..., validate=True)`，而填充校验随版本变化——3.10 接受多余尾部填充，3.11 接受 `AAAA====`，3.12+ 拒绝多余填充。同一游标在一个版本上推进分页、在另一个版本上被判无效。新增共用 `item_content.decode_cursor_base64`：固定 urlsafe 字符集、尾部填充最多两个且必须等于补齐所需，统一补齐后解码规范形式；五处调用点共用，规范游标（带填充或省略填充）继续接受，多余填充、填充不足、只有填充、非法长度与标准字母表在 3.10–3.14 上一致拒绝。[Issue #3733](https://github.com/can4hou6joeng4/boss-harness/issues/3733)
