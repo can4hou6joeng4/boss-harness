@@ -38,7 +38,12 @@ COMPACTION = "harness/src/boss_harness/compaction.py"
 LOOPBACK_ORDER = (
     "def _is_loopback_host(host: str) -> bool:",
     'normalized = host.rstrip(".").lower()',
-    'return normalized in _LOOPBACK_HOSTS or normalized.startswith("127.")',
+    "if normalized in _LOOPBACK_HOSTS:",
+    "return ipaddress.ip_address(normalized).is_loopback",
+    "except ValueError:",
+    'parts = normalized.split(".")',
+    'if 2 <= len(parts) <= 4 and parts[0] == "127":',
+    "return False",
 )
 INSECURE_ORDER = (
     "def _insecure_base_url(base_url: str | None) -> bool:",
@@ -953,6 +958,11 @@ def _boundary_checks() -> int:
     for host, expected in (
         ("127.0.0.1", True),
         ("127.1.2.3", True),
+        ("127.1", True),
+        ("127.000.000.001", True),
+        ("127.evil.example", False),
+        ("127.0.0.1.example.com", False),
+        ("127." + "1" * 5000, False),
         ("localhost", True),
         ("LOCALHOST.", True),
         ("::1", True),
@@ -971,6 +981,7 @@ def _boundary_checks() -> int:
         ("http://127.0.0.1:8000", False),
         ("http://[::1]:8000", False),
         ("http://api.example.com", True),
+        ("http://127.evil.example", True),
         ("  http://example.com  ", True),
         ("HTTP://EXAMPLE.COM", True),
         ("example.com", False),

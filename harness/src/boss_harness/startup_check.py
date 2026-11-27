@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import errno
 import importlib.util
+import ipaddress
 import os
 import shutil
 import sys
@@ -68,8 +69,22 @@ _LOOPBACK_HOSTS = frozenset({"localhost", "::1"})
 
 
 def _is_loopback_host(host: str) -> bool:
+    """按 IP 字面量判断回环；``127.`` 开头的域名并不指向本机。"""
     normalized = host.rstrip(".").lower()
-    return normalized in _LOOPBACK_HOSTS or normalized.startswith("127.")
+    if normalized in _LOOPBACK_HOSTS:
+        return True
+    try:
+        return ipaddress.ip_address(normalized).is_loopback
+    except ValueError:
+        pass
+    # inet_aton 的缩写与前导零形式（``127.1``、``127.000.000.001``）不是合法
+    # IP 字面量，但首段固定为 127 时无论按几段解释都落在 127.0.0.0/8。
+    # 段长上限避免把超长十进制串交给 int()，其解析上限随 Python 版本变化。
+    parts = normalized.split(".")
+    if 2 <= len(parts) <= 4 and parts[0] == "127":
+        return all(part.isascii() and part.isdigit() and len(part) <= 3 and int(part) <= 255
+                   for part in parts[1:])
+    return False
 
 
 def _insecure_base_url(base_url: str | None) -> bool:
