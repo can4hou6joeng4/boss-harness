@@ -153,13 +153,21 @@ def _has_directory_allow_acl(descriptor: int, *, reject_file_inherit: bool = Fal
         acl_free(acl)
 
 
+def _resolve_private_target(path: Path) -> Path:
+    """解析真实路径；Python 3.14 起非严格解析会放过符号链接环，需再严格核对。"""
+    resolved = Path(path).resolve()
+    if any(part.is_symlink() for part in (resolved, *resolved.parents)):
+        return resolved.resolve(strict=True)
+    return resolved
+
+
 def resolve_private_path(path: Path) -> Path:
     """解析真实路径；无法解析（如符号链接环）时按目录规则错误报告。
 
     不展开 `~`：调用方先按正常启动的规则解析为绝对路径，环境变量中的字面 `~` 保持原样。
     """
     try:
-        return Path(path).resolve()
+        return _resolve_private_target(path)
     except RuntimeError as error:
         # pathlib 在解析路径时把 ELOOP 等失败包装成 RuntimeError。
         raise ValueError("状态目录路径无法解析") from error

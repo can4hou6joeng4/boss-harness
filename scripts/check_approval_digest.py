@@ -30,6 +30,8 @@ DIGEST_ORDER = (
     "def approval_parameters_digest(arguments: dict[str, Any]) -> str:",
     "if type(arguments) is not dict:",
     'raise ValueError("审批参数必须是对象")',
+    "if _approval_params_too_deep(arguments):",
+    'raise ValueError("审批参数无法规范化")',
     'encoded = json.dumps(arguments, ensure_ascii=False, separators=(",", ":"),',
     'sort_keys=True, allow_nan=False).encode("utf-8")',
     "except (TypeError, ValueError, RecursionError):",
@@ -216,6 +218,21 @@ def _behavior_checks() -> int:
         cursor = nested
     checked += _expect_error(
         lambda: approval_parameters_digest({"v": deep}), unencodable, "拒绝超深嵌套")
+    within = {"v": []}
+    cursor = within["v"]
+    for _ in range(63):
+        nested: list[object] = []
+        cursor.append(nested)
+        cursor = nested
+    checked += _expect_value(len(approval_parameters_digest(within)), 64, "深度边界内")
+    beyond = {"v": []}
+    cursor = beyond["v"]
+    for _ in range(64):
+        nested = []
+        cursor.append(nested)
+        cursor = nested
+    checked += _expect_error(
+        lambda: approval_parameters_digest(beyond), unencodable, "拒绝深度边界外")
     checked += _expect_error(
         lambda: approval_parameters_digest({"v": [float("nan")]}), unencodable,
         "拒绝嵌套 NaN")

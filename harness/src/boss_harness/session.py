@@ -38,6 +38,7 @@ from boss_harness.models.capabilities import REASONING_EFFORTS
 
 _T = TypeVar("_T")
 _THREAD_ID = re.compile(r"[a-f0-9]{12}\Z")
+APPROVAL_PARAM_MAX_DEPTH = 64
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
 #: 与桌面审批卡片字段的展示上限一致；无法展示工具名或条目 id 的审批不能进入列表或持久计数。
 _APPROVAL_VIEW_FIELD_CHARS = 200
@@ -309,9 +310,25 @@ def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
 
 
+def _approval_params_too_deep(arguments: Any) -> bool:
+    """显式深度上限，不依赖 json.dumps 的递归异常（Python 3.14 起行为不同）。"""
+    pending: list[tuple[Any, int]] = [(arguments, 0)]
+    while pending:
+        value, depth = pending.pop()
+        if depth > APPROVAL_PARAM_MAX_DEPTH:
+            return True
+        if isinstance(value, dict):
+            pending.extend((child, depth + 1) for child in value.values())
+        elif isinstance(value, (list, tuple)):
+            pending.extend((child, depth + 1) for child in value)
+    return False
+
+
 def approval_parameters_digest(arguments: dict[str, Any]) -> str:
     if type(arguments) is not dict:
         raise ValueError("审批参数必须是对象")
+    if _approval_params_too_deep(arguments):
+        raise ValueError("审批参数无法规范化")
     try:
         encoded = json.dumps(arguments, ensure_ascii=False, separators=(",", ":"),
                              sort_keys=True, allow_nan=False).encode("utf-8")

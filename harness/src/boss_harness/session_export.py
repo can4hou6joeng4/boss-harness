@@ -1107,6 +1107,23 @@ def _render_markdown(meta: dict, units: list[tuple[str, dict]], counts: dict, to
     return "\n".join(header) + "\n" + "\n\n".join(body) + "\n" + "\n".join(footer) + "\n"
 
 
+_EXPORT_MAX_DEPTH = 256
+
+
+def _export_json_too_deep(value: Any) -> bool:
+    """显式深度上限，不依赖 json.dumps 的递归异常（Python 3.14 起行为不同）。"""
+    pending: list[tuple[Any, int]] = [(value, 0)]
+    while pending:
+        current, depth = pending.pop()
+        if depth > _EXPORT_MAX_DEPTH:
+            return True
+        if isinstance(current, dict):
+            pending.extend((child, depth + 1) for child in current.values())
+        elif isinstance(current, (list, tuple)):
+            pending.extend((child, depth + 1) for child in current)
+    return False
+
+
 def _render_json(meta: dict, units: list[tuple[str, dict]], counts: dict, total_units: int,
                  max_bytes: int, queue: dict) -> str:
     turns: list[dict] = []
@@ -1125,6 +1142,8 @@ def _render_json(meta: dict, units: list[tuple[str, dict]], counts: dict, total_
                 "beforeFirstTurn": preamble, "turns": turns, "queue": queue,
                 "truncated": len(units) < total_units,
                 "exportedEntries": len(units), "totalEntries": total_units, "maxBytes": max_bytes}
+    if _export_json_too_deep(document):
+        raise ValueError("导出内容嵌套过深，无法编码为 JSON，已停止导出")
     try:
         return json.dumps(document, ensure_ascii=False, indent=2, default=str, allow_nan=False) + "\n"
     except RecursionError:
