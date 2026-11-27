@@ -1,3 +1,9 @@
+## 0.2.0-rc.785 - 2026-11-27
+
+- 修复 POSIX 内核在工作线程收到终止信号后仍阻塞于 stdin 的问题：Python 的信号处理函数只在主线程执行，旧的阻塞读取可能始终不返回，工具停止与五秒强制期限也无法开始。CLI 现在通过非阻塞 socketpair 和 `signal.set_wakeup_fd` 唤醒输入等待，同时保留 LF 分帧、UTF-8 校验、输入预算与既有信号退出方式；结束时恢复 stdin、先前唤醒 fd 并关闭 socket。[Issue #3696](https://github.com/can4hou6joeng4/boss-harness/issues/3696)
+- 从 rc.784 固定提交归档与修复版运行同一真实内核探针：`SIGTERM` / `SIGHUP` / `SIGINT` 各覆盖空闲与半帧输入，旧版六种场景都需补入 stdin 才退出，修复版六种均无需额外输入即可有序退出；另核对 UTF-8 分段、连续帧、EOF、读取上限和唤醒资源恢复。此前审批启动超时的原因继续在 #3695 调查，未将扩大检查等待视为根因修复。探针只留本地，不访问模型、平台或真实 CLI。
+- 源码候选更新为 npm `0.2.0-rc.785` 和 Python `0.2.0rc785`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.784 - 2026-11-27
 
 - 修正 `check_boss_cli_call.py` 中途取消场景的等待竞态：线程等待边界与内层 30 秒调用时限对齐为 35 秒，超时先给出明确失败，不再访问尚未写入的结果列表。[Issue #3693](https://github.com/can4hou6joeng4/boss-harness/issues/3693)

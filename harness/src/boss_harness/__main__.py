@@ -5,6 +5,8 @@ import argparse
 import os
 import json
 import signal
+import select
+import socket
 import sys
 from pathlib import Path
 from typing import Any
@@ -23,6 +25,45 @@ TERMINATION_HARD_LIMIT_SECONDS = 5.0
 _TERMINATION_SIGNALS = ("SIGTERM", "SIGHUP", "SIGINT")
 
 
+class _SignalAwareStdin:
+    """同时等 stdin 与信号唤醒字节，避免信号落到工作线程后主线程一直阻塞。"""
+
+    def __init__(self, source: Any, wakeup: socket.socket) -> None:
+        self.source = source
+        self._fd = source.fileno()
+        self._wakeup = wakeup
+        self._buffer = bytearray()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.source, name)
+
+    def readline(self, limit: int = -1) -> str:
+        if limit == 0:
+            return ""
+        while True:
+            newline = self._buffer.find(b"\n")
+            end = newline + 1 if newline >= 0 else len(self._buffer)
+            if limit > 0:
+                end = min(end, limit)
+            if newline >= 0 or (limit > 0 and len(self._buffer) >= limit):
+                raw = bytes(self._buffer[:end])
+                del self._buffer[:end]
+                return raw.decode("utf-8", errors="surrogateescape")
+            # 信号处理函数只在主线程执行。set_wakeup_fd 的字节在 C 层写入，
+            # 即使信号落到工作线程也会使这里返回，从而运行待处理的 Python handler。
+            ready, _, _ = select.select([self._fd, self._wakeup], [], [])
+            if self._wakeup in ready:
+                self._wakeup.recv(65536)
+            if self._fd in ready:
+                size = min(65536, limit - len(self._buffer)) if limit > 0 else 65536
+                chunk = os.read(self._fd, size)
+                if not chunk:
+                    raw = bytes(self._buffer)
+                    self._buffer.clear()
+                    return raw.decode("utf-8", errors="surrogateescape")
+                self._buffer.extend(chunk)
+
+
 class _TerminationSignals:
     """终止信号与标准输入结束走同一套关闭流程，关闭完成后仍以该信号的默认动作结束。
 
@@ -35,6 +76,9 @@ class _TerminationSignals:
         self._server = server
         self._previous: dict[int, Any] = {}
         self._limit_armed = False
+        self._input: _SignalAwareStdin | None = None
+        self._wakeup: tuple[socket.socket, socket.socket] | None = None
+        self._previous_wakeup_fd = -1
         self.signum: int | None = None
 
     def __enter__(self) -> "_TerminationSignals":
@@ -54,9 +98,39 @@ class _TerminationSignals:
                 # 只有主线程能安装处理器；嵌入到其他线程运行时保持系统默认行为。
                 continue
             self._previous[int(signum)] = previous
+        if self._previous:
+            self._install_input_wakeup()
         return self
 
+    def _install_input_wakeup(self) -> None:
+        reader: socket.socket | None = None
+        writer: socket.socket | None = None
+        try:
+            reader, writer = socket.socketpair()
+            reader.setblocking(False)
+            writer.setblocking(False)
+            source = _SignalAwareStdin(sys.stdin, reader)
+            previous_fd = signal.set_wakeup_fd(writer.fileno(), warn_on_full_buffer=False)
+        except (AttributeError, OSError, TypeError, ValueError):
+            # 注入的内存输入没有 fileno；非主线程也不允许设置信号唤醒 fd。
+            for endpoint in (reader, writer):
+                if endpoint is not None:
+                    endpoint.close()
+            return
+        self._previous_wakeup_fd = previous_fd
+        self._wakeup = (reader, writer)
+        self._input = source
+        sys.stdin = source
+
     def __exit__(self, *_exc_info: object) -> None:
+        if self._wakeup is not None:
+            signal.set_wakeup_fd(self._previous_wakeup_fd)
+            if sys.stdin is self._input:
+                sys.stdin = self._input.source
+            for endpoint in self._wakeup:
+                endpoint.close()
+            self._wakeup = None
+            self._input = None
         # 收到过信号时进程即将结束：保留处理器，重复信号继续被吸收而不是打断收尾。
         if self.signum is not None:
             return

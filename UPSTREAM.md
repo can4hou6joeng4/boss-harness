@@ -1,5 +1,13 @@
 # 上游吸收记录
 
+## 工作线程收信后的输入唤醒（Issue #3696）
+
+核对 Pi MIT 固定提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/docs/rpc.md` 与 `packages/coding-agent/src/modes/rpc/rpc-mode.ts`：RPC 输入由 Node 事件读取，`SIGTERM` / `SIGHUP` 的事件处理启动 `shutdown()`，先 dispose runtime、解绑输入并暂停 stdin，再退出。关闭开始后保留处理器，首个信号不打断关闭，重复信号可直接退出。
+
+适配差异：本项目是同步读取 stdin 的多线程 Python 内核，Python 信号处理函数只在主线程执行。信号落到工作线程时，旧的 `readline()` 可能持续阻塞，停止标记与强制期限都尚未设置。现在由 CLI 用非阻塞 socketpair 配合 `signal.set_wakeup_fd`，同时等待输入与唤醒字节，让主线程执行待处理信号；分帧仍按 LF 和既有字节预算，退出时恢复 stdin、先前的唤醒 fd 并回收 socket。沿用现有停止标记、五秒强制期限与原信号退出方式，不采用 Pi 的重复信号直接退出策略，不复制源码、不引入依赖。
+
+离线对照从固定 rc.784 提交 `b9eeb018b042083e3f86dff5aa07754f2c564f6d` 导出真实源码，与修复版执行同一定向投递探针：三种终止信号各覆盖空闲与半帧输入，旧版六种场景都等待额外 stdin 才退出，修复版均无需额外输入即可有序退出。另核对 UTF-8 分段、连续帧、EOF、读取上限、唤醒 fd 恢复与 socket 回收。探针只留本地，未调用模型、招聘平台或真实 CLI。
+
 ## 附件清理候选摘要收敛（Issue #3215）
 
 重新核对 Pi MIT 固定提交 `b4899f59ef0fba6507c2e619fd804dcde51920ba` 的 `packages/coding-agent/src/core/session-manager.ts`：该文件没有附件内容存储、摘要引用计数或清理函数，也没有会话删除方法；消息中的图片内容随会话 JSONL 内联保存，因此不存在「删除会话后按摘要清理共享附件」这一路径。
