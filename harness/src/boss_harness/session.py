@@ -275,11 +275,17 @@ def _now() -> str:
 
 
 def _valid_timestamp(value: Any) -> str | None:
-    """只接受可解析的 ISO 时间字符串；非法值不参与耗时统计。"""
+    """只接受可解析的 ISO 时间字符串；非法值不参与耗时统计。
+
+    Python 3.10 的 ``fromisoformat`` 不接受 ``Z`` 结尾；导出路径已按同一口径
+    先改写为 ``+00:00``。这里复用该归一，使同一份外部改写记录在 3.10–3.14 上
+    对「是否参与耗时」给出一致结论。
+    """
     if not isinstance(value, str) or not value or len(value) > 64:
         return None
+    text = value[:-1] + "+00:00" if value.endswith("Z") else value
     try:
-        datetime.fromisoformat(value)
+        datetime.fromisoformat(text)
     except ValueError:
         return None
     return value
