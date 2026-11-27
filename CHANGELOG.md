@@ -1,3 +1,10 @@
+## 0.2.0-rc.777 - 2026-11-27
+
+- 修复平台登录在读取中断、回执无法识别或保存请求失败时丢弃内核终态的问题：`poll` 与 `capture` 先写入 `LOGIN_CONNECTION_LOST` / `LOGIN_READBACK_INVALID` / `LOGIN_SAVE_FAILED`，再发送取消；若内核保存已完成，取消回执为 `succeeded`，旧版只接受 `cancelled` 或 `LOGIN_TIMEOUT` 回执，界面继续显示「保存结果未知」。现在四种保存未知失败码都允许 `succeeded` / `failed` 终态收敛；`LOGIN_OPEN_FAILED` 等其他失败不受取消回执影响。`capture` 的两条失败路径复用取消入口，不再单独发送并忽略回执。[Issue #3679](https://github.com/can4hou6joeng4/boss-harness/issues/3679)
+- 用旧版与当前 `platformLogin.ts` 的真实类对比：旧版在三种未知结果失败态收到 `succeeded` 回执后仍保持失败；当前转为 `succeeded`，`LOGIN_OPEN_FAILED` 在两版都保持失败。
+- `check_platform_login.py` 增至 33 项结构、38 项行为，新增取消终态失败码集合与顺序断言；技术参考同步登记。
+- 源码候选更新为 npm `0.2.0-rc.777` 和 Python `0.2.0rc777`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.776 - 2026-11-27
 
 - 补齐桌面交互指南缺失的平台登录章节：此前 `docs/DESKTOP_GUIDE.md` 没有登录入口，用户需要从 README 的一句话与界面自行推断扫码、passport 安全验证、五分钟等待、保存与取消以及隔离边界。新增章节说明输入框菜单与设置页入口、官方页面扫码与验证、收起浏览器不暂停计时、保存阶段取消的语义、身份只作提示，以及只允许官方域名且 Cookie 不暴露给模型或普通 renderer。[Issue #3677](https://github.com/can4hou6joeng4/boss-harness/issues/3677)

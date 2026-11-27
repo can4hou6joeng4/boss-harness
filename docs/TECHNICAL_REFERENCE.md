@@ -1307,7 +1307,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_platform_login.py`
 
-`scripts/check_platform_login.py` 运行时核对登录面板状态机：真实 `usePlatformLogin.ts` 与 `platformLoginState.ts` 复制到临时目录，`react` 替换为可重复渲染的最小 hook 运行时桩，`./harnessBridge` 替换为桩，`window.boss` / `requestAnimationFrame` / `document` 用可控桩，由 Node 加载真实模块驱动。用例覆盖初始状态与默认字段、无 `window.boss` 不订阅、首次订阅与状态读取、合法 / 非法初始回执、读取失败、合法 / 非法广播、迟到初始回执丢弃、卸载退订与停止更新、`show` 的面板 / 选择 / 错误分支、`dismiss` 与 `visibleIn`、`open` 的持锁 / 成功 / 非法回执 / 失败 / 已活跃 / 重复调用、`cancel` 的前置条件 / 成功 / 非法回执 / 失败，以及展开、稍后处理与关闭面板；`open` 遇到另一会话占用时提示回到该会话完成或取消。结构侧另需先自增 revision 再判存活、先持锁再发起登录；`platformLogin.ts` 的截止在保存阶段保留「保存已停止，登录态可能已更新」警告，取消回执的 `succeeded` / `failed` 终态优先；`AppShell` 在会话列表已加载且归属会话不存在时先取消旧 attempt 再选择目标。文档侧另要求 `docs/DESKTOP_GUIDE.md` 保留平台登录的入口、passport 安全验证、五分钟等待、保存与取消终态、身份提示和隔离边界。共 31 项结构、38 项行为。
+`scripts/check_platform_login.py` 运行时核对登录面板状态机：真实 `usePlatformLogin.ts` 与 `platformLoginState.ts` 复制到临时目录，`react` 替换为可重复渲染的最小 hook 运行时桩，`./harnessBridge` 替换为桩，`window.boss` / `requestAnimationFrame` / `document` 用可控桩，由 Node 加载真实模块驱动。用例覆盖初始状态与默认字段、无 `window.boss` 不订阅、首次订阅与状态读取、合法 / 非法初始回执、读取失败、合法 / 非法广播、迟到初始回执丢弃、卸载退订与停止更新、`show` 的面板 / 选择 / 错误分支、`dismiss` 与 `visibleIn`、`open` 的持锁 / 成功 / 非法回执 / 失败 / 已活跃 / 重复调用、`cancel` 的前置条件 / 成功 / 非法回执 / 失败，以及展开、稍后处理与关闭面板；`open` 遇到另一会话占用时提示回到该会话完成或取消。结构侧另需先自增 revision 再判存活、先持锁再发起登录；`platformLogin.ts` 的截止在保存阶段保留「保存已停止，登录态可能已更新」警告，取消回执的 `succeeded` / `failed` 终态在等待超时、保存失败、连接中断与回执无法识别时优先；保存失败与回执无法识别路径复用取消入口，不再单独发送并忽略回执。`AppShell` 在会话列表已加载且归属会话不存在时先取消旧 attempt 再选择目标。文档侧另要求 `docs/DESKTOP_GUIDE.md` 保留平台登录的入口、passport 安全验证、五分钟等待、保存与取消终态、身份提示和隔离边界。共 33 项结构、38 项行为。
 
 ### `check_docs_links.py`
 

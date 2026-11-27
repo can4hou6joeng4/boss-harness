@@ -6,8 +6,9 @@
 渲染的最小 hook 运行时桩，`./harnessBridge` 替换为桩，`window.boss`、
 `requestAnimationFrame` 与 `document` 用可控桩，由 Node 直接加载真实模块，
 核对迟到回执丢弃、卸载退订、`open` / `cancel` 的锁与失败回落，以及
-`show` / `visibleIn` 的分支。结构侧另核对主进程截止与取消回执的终态优先，
-以及登录入口在归属会话已删除时先取消旧 attempt。文档侧核对技术参考的计数，
+`show` / `visibleIn` 的分支。结构侧另核对主进程截止与取消回执的终态优先：
+超时、保存失败、连接中断与回执无法识别都允许内核终态收敛界面；
+登录入口在归属会话已删除时先取消旧 attempt。文档侧核对技术参考的计数，
 以及桌面指南的平台登录入口、安全验证、五分钟等待、保存终态与隔离边界。
 """
 
@@ -45,11 +46,16 @@ DEADLINE_ORDER = (
     "summary: saving",
     '"等待已超过五分钟，保存已停止，登录态可能已更新，请手动检查后再重新登录"',
 )
-#: 主进程取消：取消回执的终态优先，不把已保存的登录显示成已取消。
+#: 主进程取消：取消回执的终态优先，不把已保存的登录显示成未知或已取消。
 CANCEL_ORDER = (
     "const generation = this.generation;",
-    'if (this.status.state !== "cancelled" && !(this.status.state === "failed" && this.status.code === "LOGIN_TIMEOUT")) return;',
+    'const settled = this.status.state === "cancelled"',
+    "if (!settled) return;",
     'if (result.state === "succeeded" || result.state === "failed") this.update(result);',
+)
+#: 这些保存未知结果的失败码都允许取消回执带回内核终态。
+TERMINAL_CODES = (
+    "LOGIN_TIMEOUT", "LOGIN_SAVE_FAILED", "LOGIN_CONNECTION_LOST", "LOGIN_READBACK_INVALID",
 )
 #: 登录入口：归属会话已删除时先取消旧 attempt，再选择目标会话。
 SHELL_ORDER = (
@@ -565,13 +571,25 @@ def _check_documentation() -> int:
     docs = _read(DOCS)
     if "`check_platform_login.py`" not in docs:
         raise ValueError(f"{DOCS} 缺少 check_platform_login.py")
-    if "共 31 项结构、38 项行为" not in docs:
-        raise ValueError(f"{DOCS} 需说明 check_platform_login.py 检查 31 项结构、38 项行为")
+    if "共 33 项结构、38 项行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_platform_login.py 检查 33 项结构、38 项行为")
     guide = _read(GUIDE)
     missing = [fragment for fragment in GUIDE_FRAGMENTS if fragment not in guide]
     if missing:
         raise ValueError(f"{GUIDE} 缺少平台登录稳定事实：" + "、".join(missing))
     return 2
+
+
+def _check_terminal_codes(main: str) -> int:
+    start = main.find("const TERMINAL_CANCEL_CODES")
+    end = main.find("]);", start)
+    if start < 0 or end < 0:
+        raise ValueError(f"{MAIN} 缺少取消终态失败码集合")
+    block = main[start:end]
+    missing = [code for code in TERMINAL_CODES if f'"{code}"' not in block]
+    if missing:
+        raise ValueError(f"{MAIN} 的取消终态失败码缺少：" + "、".join(missing))
+    return 1
 
 
 def _check_main(main: str) -> int:
@@ -582,6 +600,7 @@ def _check_main(main: str) -> int:
         raise ValueError(f"{MAIN} 缺少截止、取消或收尾方法")
     checked = _check_order(DEADLINE_ORDER, main[deadline:cancel], MAIN)
     checked += _check_order(CANCEL_ORDER, main[cancel:end], MAIN)
+    checked += _check_terminal_codes(main)
     return checked
 
 
