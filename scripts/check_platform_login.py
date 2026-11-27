@@ -10,7 +10,7 @@
 超时、保存失败、连接中断与回执无法识别都允许内核终态收敛界面；
 登录入口在归属会话已删除时先取消旧 attempt。主进程行为侧把真实
 `platformLogin.ts` 复制到临时目录，替换 Electron、协议、安全与登录依赖为桩，
-由 Node 加载真实类，覆盖截止警告、四种终态与启动失败分界。文档侧核对技术参考的计数，
+由 Node 加载真实类，覆盖截止警告、成功 / 失败 / 风控终态、未完成回执不覆盖本地失败与启动失败分界。文档侧核对技术参考的计数，
 以及桌面指南的平台登录入口、安全验证、五分钟等待、保存终态与隔离边界。
 """
 
@@ -30,7 +30,7 @@ MAIN = "apps/desktop/src/main/platformLogin.ts"
 SHELL = "apps/desktop/src/renderer/src/shell/AppShell.tsx"
 
 EXPECTED = 38
-MAIN_EXPECTED = 9
+MAIN_EXPECTED = 15
 
 #: 桌面指南必须保留的稳定事实：用户入口、安全验证、等待上限、保存终态与隔离边界。
 GUIDE_FRAGMENTS = (
@@ -49,12 +49,13 @@ DEADLINE_ORDER = (
     "summary: saving",
     '"等待已超过五分钟，保存已停止，登录态可能已更新，请手动检查后再重新登录"',
 )
-#: 主进程取消：取消回执的终态优先，不把已保存的登录显示成未知或已取消。
+#: 主进程取消：取消回执的终态优先，不把已保存的登录显示成未知或已取消；
+#: 平台风控（blocked）同样是终态，不能停留在「保存结果未知」。
 CANCEL_ORDER = (
     "const generation = this.generation;",
     'const settled = this.status.state === "cancelled"',
     "if (!settled) return;",
-    'if (result.state === "succeeded" || result.state === "failed") this.update(result);',
+    'if (result.state === "succeeded" || result.state === "failed" || result.state === "blocked") this.update(result);',
 )
 #: 这些保存未知结果的失败码都允许取消回执带回内核终态。
 TERMINAL_CODES = (
@@ -576,6 +577,20 @@ for (const code of ["LOGIN_CONNECTION_LOST", "LOGIN_SAVE_FAILED", "LOGIN_READBAC
   expect(`${code} 收到成功回执后转为成功`, result.sent === 1 && result.login.status.state === "succeeded");
 }
 
+for (const code of ["LOGIN_CONNECTION_LOST", "LOGIN_SAVE_FAILED", "LOGIN_READBACK_INVALID", "LOGIN_TIMEOUT"]) {
+  const result = await cancelWith("failed", code, { id: "attempt-1", state: "blocked", code: "ENVIRONMENT_RISK_LOCKED", summary: "平台要求恢复登录或处理验证" });
+  expect(`${code} 收到风控回执后转为风控终态`, result.sent === 1 && result.login.status.state === "blocked"
+    && result.login.status.code === "ENVIRONMENT_RISK_LOCKED" && result.login.status.summary === "平台要求恢复登录或处理验证");
+}
+
+const cancelledReply = await cancelWith("failed", "LOGIN_CONNECTION_LOST", { id: "attempt-1", state: "cancelled", summary: "已取消扫码登录" });
+expect("取消回执不覆盖本地失败", cancelledReply.login.status.state === "failed"
+  && cancelledReply.login.status.code === "LOGIN_CONNECTION_LOST");
+
+const pendingReply = await cancelWith("failed", "LOGIN_TIMEOUT", { id: "attempt-1", state: "waiting", summary: "请在官方页面选择已有账号身份" });
+expect("未完成回执不覆盖本地失败", pendingReply.login.status.state === "failed"
+  && pendingReply.login.status.code === "LOGIN_TIMEOUT");
+
 const openFailed = await cancelWith("failed", "LOGIN_OPEN_FAILED", { id: "attempt-1", state: "succeeded", summary: "不应采用" });
 expect("启动失败不因取消回执改变", openFailed.sent === 1 && openFailed.login.status.state === "failed"
   && openFailed.login.status.code === "LOGIN_OPEN_FAILED");
@@ -737,8 +752,8 @@ def _check_documentation() -> int:
     docs = _read(DOCS)
     if "`check_platform_login.py`" not in docs:
         raise ValueError(f"{DOCS} 缺少 check_platform_login.py")
-    if "共 33 项结构、38 项面板行为、9 项主进程行为" not in docs:
-        raise ValueError(f"{DOCS} 需说明 check_platform_login.py 检查 33 项结构、38 项面板行为、9 项主进程行为")
+    if "共 33 项结构、38 项面板行为、15 项主进程行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_platform_login.py 检查 33 项结构、38 项面板行为、15 项主进程行为")
     guide = _read(GUIDE)
     missing = [fragment for fragment in GUIDE_FRAGMENTS if fragment not in guide]
     if missing:
