@@ -16,11 +16,13 @@ from __future__ import annotations
 import re
 
 #: 常见凭据形态：Bearer 令牌、sk- 前缀密钥、以及 key/token/secret/password 的赋值形式。
+#: 词边界固定为 ASCII：``\b`` 的接受集合随 Unicode 版本扩大（3.14 的 Unicode 16.0 新增
+#: Garay 等数字），新增字符会吞掉凭据前的边界，让同一文本在不同解释器上脱敏结果不同。
 _PATTERNS = (
-    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]{6,}"),
-    re.compile(r"\bsk-[A-Za-z0-9._\-]{6,}"),
-    re.compile(r"(?i)\b(api[_-]?key|auth[_-]?token|access[_-]?token|token|secret|password)\b"
-               r"([\"']?\s*[:=]\s*[\"']?)([A-Za-z0-9._\-]{6,})"),
+    re.compile(r"(?i)(?<![A-Za-z0-9_])bearer\s+[A-Za-z0-9._\-]{6,}"),
+    re.compile(r"(?<![A-Za-z0-9_])sk-[A-Za-z0-9._\-]{6,}"),
+    re.compile(r"(?i)(?<![A-Za-z0-9_])(api[_-]?key|auth[_-]?token|access[_-]?token|token|secret|password)"
+               r"(?![A-Za-z0-9_])([\"']?\s*[:=]\s*[\"']?)([A-Za-z0-9._\-]{6,})"),
 )
 
 _REDACTED = "<redacted>"

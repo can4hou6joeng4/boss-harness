@@ -67,25 +67,28 @@ _PII_KEYS = frozenset({
     "idcard", "身份证", "address", "地址", "住址", "contact", "联系方式",
     "geekdesc", "geekdescription", "workcontent",
 })
+#: 词边界与数字类固定为 ASCII。``\b`` / ``\w`` / ``\d`` 的接受集合随 Unicode 版本扩大
+#: （3.14 的 Unicode 16.0 新增 Garay 等十进制数字与一批字母），新增字符会吞掉凭据前的
+#: 词边界或把非 ASCII 数字串当作手机号 / 身份证，同一份导出在不同解释器上脱敏结果不同。
 _PII_PATTERNS = (
-    re.compile(r"[\w.+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+"),
-    re.compile(r"(?<!\d)(?:\+?86[ -]?)?1[3-9]\d(?:[ -]?\d{4}){2}(?!\d)"),
-    re.compile(r"(?<![0-9A-Za-z])\d{17}[\dXx](?![0-9A-Za-z])"),
+    re.compile(r"[^\s@]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+"),
+    re.compile(r"(?<![0-9])(?:\+?86[ -]?)?1[3-9][0-9](?:[ -]?[0-9]{4}){2}(?![0-9])"),
+    re.compile(r"(?<![0-9A-Za-z])[0-9]{17}[0-9Xx](?![0-9A-Za-z])"),
     re.compile(r"(?i)(微信号?|wechat|weixin|vx|wx)(\s*[:：]?\s*)[A-Za-z][-_A-Za-z0-9]{5,19}"),
 )
 _TOKEN_PATTERNS = (
-    re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}"),
+    re.compile(r"(?<![A-Za-z0-9_])eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}"),
     # Header values may be JSON-quoted (`"Authorization": "Basic …"`) or plain `Cookie: …`.
-    re.compile(r"(?i)\b(cookie|set-cookie|authorization|proxy-authorization)\b[\"']?(\s*[:=]\s*)[\"']?[^\n\"']+"),
-    re.compile(r"(?i)\b(__zp_[a-z_]*|wt2|zp_token|bst|wbg)=[^;\s]+"),
-    re.compile(r"\b(?=[A-Za-z0-9_+=/-]*\d)(?=[A-Za-z0-9_+=/-]*[A-Za-z])[A-Za-z0-9_+=/-]{40,}"),
+    re.compile(r"(?i)(?<![A-Za-z0-9_])(cookie|set-cookie|authorization|proxy-authorization)(?![A-Za-z0-9_])[\"']?(\s*[:=]\s*)[\"']?[^\n\"']+"),
+    re.compile(r"(?i)(?<![A-Za-z0-9_])(__zp_[a-z_]*|wt2|zp_token|bst|wbg)=[^;\s]+"),
+    re.compile(r"(?<![A-Za-z0-9_])(?=[A-Za-z0-9_+=/-]*[0-9])(?=[A-Za-z0-9_+=/-]*[A-Za-z])[A-Za-z0-9_+=/-]{40,}"),
 )
 # Vendor key prefixes (case-insensitive) and RFC 3986 userinfo, neither of which the
 # generic long-token rule covers for short keys.
-_KEY_PATTERN = re.compile(r"(?i)\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}")
-_URL_USERINFO = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@")
+_KEY_PATTERN = re.compile(r"(?i)(?<![A-Za-z0-9_])(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}")
+_URL_USERINFO = re.compile(r"(?i)(?<![A-Za-z0-9_])([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@")
 # Any UPPER_CASE assignment, with or without an underscore, quoted or bare.
-_ENV_ASSIGNMENT = re.compile(r"\b([A-Z][A-Z0-9_]{2,})\s*=\s*(\"[^\"]*\"|'[^']*'|\S+)")
+_ENV_ASSIGNMENT = re.compile(r"(?<![A-Za-z0-9_])([A-Z][A-Z0-9_]{2,})\s*=\s*(\"[^\"]*\"|'[^']*'|\S+)")
 _SENSITIVE_ENV = re.compile(r"(?i)(key|token|secret|password|passwd|cookie|auth|credential|session)")
 # 路径段允许括号、方括号与撇号（`/Users/a (机密)/b.pdf`、`O'Brien`、`[2024]`），
 # 否则脱敏会在标点处提前结束，把剩余目录与文件名原样留在导出里。
