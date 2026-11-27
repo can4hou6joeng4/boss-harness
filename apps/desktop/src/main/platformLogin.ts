@@ -331,7 +331,9 @@ export class PlatformLogin {
       if (!settled) return;
       const result = loginAttemptOf(raw);
       if (!result || result.id !== this.attempt) return;
-      if (result.state === "succeeded" || result.state === "failed") this.update(result);
+      // 内核也可能把保存判成平台风控（blocked）：同样是终态，界面上必须显示原因，
+      // 不能继续停留在「保存结果未知」。
+      if (result.state === "succeeded" || result.state === "failed" || result.state === "blocked") this.update(result);
     }, error => {
       // 取消请求没送达时内核可能仍持有这次登录：界面若只说「已取消」，再次打开会莫名撞上「登录已被占用」。
       if (this.status.state !== "cancelled" || this.status.summary !== base) return;

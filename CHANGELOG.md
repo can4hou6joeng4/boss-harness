@@ -1,3 +1,9 @@
+## 0.2.0-rc.779 - 2026-11-27
+
+- 修复平台登录在平台风控判定下丢弃取消回执终态的问题：保存阶段截止或读取中断时，主进程先写入 `LOGIN_TIMEOUT` / `LOGIN_CONNECTION_LOST` 等失败态再发送取消；内核 `_save_login` 会把 `ACCOUNT_RISK`、`ENVIRONMENT_RISK_LOCKED`、`LOGIN_RISK_CONTROL`、`CAPTCHA_REQUIRED` 等风控失败判为 `blocked`，而取消回执此前只采用 `succeeded` / `failed`，界面继续显示「保存已停止，登录态可能已更新」或「保存结果未知」，用户看不到风控原因，也不会触发设置页的连接重读。现在取消回执的 `succeeded` / `failed` / `blocked` 三种终态都会收敛界面；`cancelled`、`waiting` 等未完成回执仍不覆盖本地失败。[Issue #3683](https://github.com/can4hou6joeng4/boss-harness/issues/3683)
+- `check_platform_login.py` 主进程行为用例由 9 项增至 15 项：四种保存未知失败态收到 `blocked` 回执后转为风控终态，`cancelled` 与 `waiting` 回执不覆盖本地失败。结构片段同步要求 `blocked` 终态；旧版源码被结构检查拒绝，加入「未完成回执也写入状态」的变异仍通过结构但被行为检查拒绝（`FAIL 未完成回执不覆盖本地失败`）。
+- 源码候选更新为 npm `0.2.0-rc.779` 和 Python `0.2.0rc779`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.778 - 2026-11-27
 
 - 把平台登录主进程的截止与取消终态固化为检查：`check_platform_login.py` 新增第二段 Node 行为用例，复制真实 `platformLogin.ts`，Electron、协议、安全与登录依赖替换为桩，由 Node 加载真实类。用例覆盖保存阶段超时警告、四种保存未知失败态收到 `succeeded` 回执后转为成功、`LOGIN_OPEN_FAILED` 不被取消回执改变、本地 `cancelled` 收到 `failed` 回执后转为失败，以及请求编号不匹配时保持原状态。[Issue #3681](https://github.com/can4hou6joeng4/boss-harness/issues/3681)
