@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from typing import Literal, Protocol
@@ -27,6 +28,10 @@ DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS = 600
 MAX_MODEL_REQUEST_TIMEOUT_SECONDS = 3600
 
 _FIRST_PARTY_HOST = "api.anthropic.com"
+
+#: 环境变量可被外部改写。``int()`` 的接受集合随 Unicode 版本扩大（3.14 的 Unicode 16.0
+#: 新增 Garay 等十进制数字），同一文本不能在版本间得出不同结论；先固定 ASCII 文法。
+_ASCII_INT = re.compile(r"[+-]?[0-9]+\Z")
 
 
 def _is_first_party_base_url(base_url: str | None) -> bool:
@@ -260,6 +265,8 @@ def _request_timeout_seconds(env: Mapping[str, str]) -> int:
     raw = (env.get("BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS") or "").strip()
     if not raw:
         return DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS
+    if _ASCII_INT.fullmatch(raw) is None:
+        raise ModelConfigError("MODEL_REQUEST_TIMEOUT_INVALID")
     try:
         seconds = int(raw)
     except ValueError:
@@ -274,6 +281,8 @@ def _max_tokens(env: Mapping[str, str]) -> int:
     raw = (env.get("BOSS_HARNESS_MAX_TOKENS") or "").strip()
     if not raw:
         return DEFAULT_MAX_TOKENS
+    if _ASCII_INT.fullmatch(raw) is None:
+        raise ModelConfigError("MODEL_MAX_TOKENS_INVALID")
     try:
         value = int(raw)
     except ValueError:

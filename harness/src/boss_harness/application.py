@@ -68,6 +68,9 @@ from boss_harness.turn_limits import model_request_limit, model_request_limit_fr
 from boss_harness.workspace_instructions import WorkspaceInstructions
 
 DEFAULT_APPROVAL_TIMEOUT_SECONDS = 300.0
+#: 环境变量可被外部改写。``float()`` 的接受集合随 Unicode 版本扩大（3.14 的 Unicode 16.0
+#: 新增 Garay 等十进制数字），同一文本不能在版本间得出不同结论；先固定 ASCII 文法。
+_ASCII_FLOAT = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\Z")
 MAX_RETAINED_COMPACTION_JOBS = 64
 MAX_RUNTIME_RESOURCE_WAITERS = 32
 MAX_RUNTIME_RESOURCE_OWNERS = 32
@@ -167,10 +170,10 @@ def approval_timeout_from_environment(environ: Mapping[str, str] | None = None) 
     raw = source.get("BOSS_HARNESS_APPROVAL_TIMEOUT")
     if raw is None or not raw.strip():
         return DEFAULT_APPROVAL_TIMEOUT_SECONDS, True
-    try:
-        value = float(raw)
-    except ValueError:
+    text = raw.strip()
+    if _ASCII_FLOAT.fullmatch(text) is None:
         return DEFAULT_APPROVAL_TIMEOUT_SECONDS, False
+    value = float(text)
     if math.isfinite(value) and value > 0:
         return value, True
     return DEFAULT_APPROVAL_TIMEOUT_SECONDS, False
