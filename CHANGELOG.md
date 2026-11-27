@@ -1,3 +1,9 @@
+## 0.2.0-rc.778 - 2026-11-27
+
+- 把平台登录主进程的截止与取消终态固化为检查：`check_platform_login.py` 新增第二段 Node 行为用例，复制真实 `platformLogin.ts`，Electron、协议、安全与登录依赖替换为桩，由 Node 加载真实类。用例覆盖保存阶段超时警告、四种保存未知失败态收到 `succeeded` 回执后转为成功、`LOGIN_OPEN_FAILED` 不被取消回执改变、本地 `cancelled` 收到 `failed` 回执后转为失败，以及请求编号不匹配时保持原状态。[Issue #3681](https://github.com/can4hou6joeng4/boss-harness/issues/3681)
+- 行为计数拆分为 38 项面板行为与 9 项主进程行为，结构 33 项不变；此前 rc.775 / rc.777 的竞态只能用临时探针验证。把 `settled` 条件回退为只接受 `cancelled` 的变异仍通过结构检查，但被新增行为用例拒绝。
+- 源码候选更新为 npm `0.2.0-rc.778` 和 Python `0.2.0rc778`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.777 - 2026-11-27
 
 - 修复平台登录在读取中断、回执无法识别或保存请求失败时丢弃内核终态的问题：`poll` 与 `capture` 先写入 `LOGIN_CONNECTION_LOST` / `LOGIN_READBACK_INVALID` / `LOGIN_SAVE_FAILED`，再发送取消；若内核保存已完成，取消回执为 `succeeded`，旧版只接受 `cancelled` 或 `LOGIN_TIMEOUT` 回执，界面继续显示「保存结果未知」。现在四种保存未知失败码都允许 `succeeded` / `failed` 终态收敛；`LOGIN_OPEN_FAILED` 等其他失败不受取消回执影响。`capture` 的两条失败路径复用取消入口，不再单独发送并忽略回执。[Issue #3679](https://github.com/can4hou6joeng4/boss-harness/issues/3679)
