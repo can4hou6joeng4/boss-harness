@@ -1,3 +1,9 @@
+## 0.2.0-rc.801 - 2026-11-28
+
+- 修正启动自检的回环判定：`_is_loopback_host` 把任何以 `127.` 开头的字符串都当作回环，`_insecure_base_url` 因此对 `http://127.evil.example/v1` 不报告 `MODEL_ENDPOINT_INSECURE`，而同样非回环的 `http://api.example.com/v1` 会报告。现在按 IP 字面量判断（`ipaddress.ip_address().is_loopback`），并单独接受 `127.1` / `127.000.000.001` 等 inet_aton 缩写与前导零形式；以 `127.` 开头的域名不算回环。段长上限 3 避免把超长十进制串交给解析上限随版本变化的 `int()`。[Issue #3727](https://github.com/can4hou6joeng4/boss-harness/issues/3727)
+- 真实 `--check --provider openai`（显式端点与占位凭据）探针：旧版对 `http://127.evil.example/v1` 返回 `MODEL_CONFIG_VALID`、无警告，修复版返回 `MODEL_ENDPOINT_INSECURE`；`http://127.0.0.1:8000/v1` 仍无警告，`http://api.example.com/v1` 前后一致。检查脚本的结构片段与 6 项边界用例同步更新（456 → 461 项结构防护、28 → 34 项端点与目录边界），Python 3.10 / 3.12 / 3.14 均通过。
+- 源码候选更新为 npm `0.2.0-rc.801` 和 Python `0.2.0rc801`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.800 - 2026-11-28
 
 - 收紧会话分页游标的时间格式：游标键来自索引 `updated_at`（`isoformat` 写出的 `+00:00` 形式），旧校验只调用 `datetime.fromisoformat`，3.11+ 会接受 `Z` 结尾等 3.10 不接受的写法；SQL 按字符串比较，`Z` 游标把同秒的 `+00:00` 行排除在窗口外，分页重复最新会话并跳过一条。现在解析后要求重新序列化与原值相等，非规范写法在 3.10–3.14 上一律按「会话分页游标无效」拒绝。[Issue #3725](https://github.com/can4hou6joeng4/boss-harness/issues/3725)
