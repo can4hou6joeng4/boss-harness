@@ -1,3 +1,9 @@
+## 0.2.0-rc.806 - 2026-11-28
+
+- 外部数字参数只接受 ASCII 十进制：`retry_after_seconds`、`retry_settings_from_environment`、`provider._request_timeout_seconds` / `_max_tokens` 与 `approval_timeout_from_environment` 直接调用 `int()` / `float()`，而两者的接受集合随 Unicode 版本扩大——3.14 的 Unicode 16.0 新增 Garay 等十进制数字，`int("\U00010D44") == 4`，3.10–3.13 抛 `ValueError`。同一环境变量或上游响应头在 3.14 上把重试次数、退避基数、输出上限、请求时限与审批期限改写成单个数字字符的数值，其余版本回退默认或拒绝。现在解析前先按 ASCII 十进制文法校验（整数 `[+-]?[0-9]+`，浮点 `[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?`），再交给 `int()` / `float()`；范围夹取与回退语义不变，非 ASCII 数字文本（含各版本都接受的全角数字）统一视为无效。[Issue #3737](https://github.com/can4hou6joeng4/boss-harness/issues/3737)
+- 真实入口探针（U+10D44 与全角 `４`，Python 3.10.20 / 3.11.15 / 3.12.13 / 3.13.15 / 3.14.6）：旧源码在 3.14 上把 Retry-After 解析为 4.0 秒、重试次数 4、基数 4ms、max_tokens 4、请求时限 4 秒、审批期限 4 秒，3.10–3.13 分别回退 0.5 秒退避 / 3 次 / 500ms / `MODEL_MAX_TOKENS_INVALID` / `MODEL_REQUEST_TIMEOUT_INVALID` / 默认 300 秒；全角数字在旧源码五个版本上都解析为 4。修复版五个版本对 U+10D44 与全角数字一致拒绝或回退，ASCII 取值结论不变。检查脚本同步 ASCII 文法片段与 Unicode 数字用例（重试 142 → 156 项、模型配置 156 → 163 项、应用辅助 98 → 102 项），五个解释器输出一致。探针只留 `/tmp`，不提交测试文件。
+- 源码候选更新为 npm `0.2.0-rc.806` 和 Python `0.2.0rc806`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.805 - 2026-11-28
 
 - 拒绝非有限与负数的 Retry-After：`retry_after_seconds` 直接 `float()` 解析网关头，而 `float` 接受 `nan` / `inf` / `Infinity` / `1e309`；`retry_delay` 的 `max(0.0, min(value, 8.0))` 对 `nan` 与负数返回 0，对 `inf` 返回封顶值。上游或代理写入 `Retry-After: NaN` 或负值时，五个 Python 版本都会以 0 毫秒立即重试，而不是回退指数退避。现在解析后要求 `math.isfinite` 且非负，否则视为无效继续；`retry-after-ms` 同样处理。[Issue #3735](https://github.com/can4hou6joeng4/boss-harness/issues/3735)

@@ -79,6 +79,8 @@ CACHE_FRAGMENTS = (
 TIMEOUT_FRAGMENTS = (
     'raw = (env.get("BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS") or "").strip()',
     "if not raw:\n        return DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS",
+    'if _ASCII_INT.fullmatch(raw) is None:\n'
+    '        raise ModelConfigError("MODEL_REQUEST_TIMEOUT_INVALID")',
     'except ValueError:\n        raise ModelConfigError("MODEL_REQUEST_TIMEOUT_INVALID") from None',
     'if not 1 <= seconds <= MAX_MODEL_REQUEST_TIMEOUT_SECONDS:\n'
     '        raise ModelConfigError("MODEL_REQUEST_TIMEOUT_INVALID")',
@@ -86,6 +88,8 @@ TIMEOUT_FRAGMENTS = (
 TOKENS_FRAGMENTS = (
     'raw = (env.get("BOSS_HARNESS_MAX_TOKENS") or "").strip()',
     "if not raw:\n        return DEFAULT_MAX_TOKENS",
+    'if _ASCII_INT.fullmatch(raw) is None:\n'
+    '        raise ModelConfigError("MODEL_MAX_TOKENS_INVALID")',
     'except ValueError:\n        raise ModelConfigError("MODEL_MAX_TOKENS_INVALID") from None',
     'if value <= 0:\n        raise ModelConfigError("MODEL_MAX_TOKENS_INVALID")',
 )
@@ -252,7 +256,8 @@ def _model_env_checks() -> int:
                               _request_timeout_seconds({timeout_name: "3600"}),
                               _request_timeout_seconds({timeout_name: " 600 "})),
                              (30, 1, 3600, 600), "时限取值")
-    for raw, absent in (("0", None), ("3601", "3601"), ("-5", "-5"), ("soon", "soon")):
+    for raw, absent in (("0", None), ("3601", "3601"), ("-5", "-5"), ("soon", "soon"),
+                        ("\U00010D44", None), ("４", None)):
         checked += _expect_code(
             lambda raw=raw: _request_timeout_seconds({timeout_name: raw}),
             "MODEL_REQUEST_TIMEOUT_INVALID", f"时限非法 {raw!r}", absent=absent)
@@ -265,7 +270,8 @@ def _model_env_checks() -> int:
     checked += _expect_value((_max_tokens({tokens_name: " 1 "}),
                               _max_tokens({tokens_name: "128000"})),
                              (1, 128000), "上限取值")
-    for raw, absent in (("0", None), ("-1", "-1"), ("lots", "lots")):
+    for raw, absent in (("0", None), ("-1", "-1"), ("lots", "lots"),
+                        ("\U00010D44", None), ("４", None)):
         checked += _expect_code(
             lambda raw=raw: _max_tokens({tokens_name: raw}),
             "MODEL_MAX_TOKENS_INVALID", f"上限非法 {raw!r}", absent=absent)
@@ -396,6 +402,10 @@ def check_provider_config() -> int:
     checked += _expect(CACHE_FRAGMENTS, module, MODULE)
     checked += _expect(TIMEOUT_FRAGMENTS, module, MODULE)
     checked += _expect(TOKENS_FRAGMENTS, module, MODULE)
+    # 环境变量先过 ASCII 数字文法，避免 3.14 的 Unicode 16 新增数字改变接受集合。
+    if "_ASCII_INT = re.compile(" not in module:
+        raise ValueError(f"{MODULE} 必须固定 ASCII 数字文法")
+    checked += 1
     checked += _expect(MODEL_HELPER_FRAGMENTS, module, MODULE)
     checked += _expect(PROVIDER_FRAGMENTS, module, MODULE)
     checked += _expect(OPENAI_FRAGMENTS, module, MODULE)

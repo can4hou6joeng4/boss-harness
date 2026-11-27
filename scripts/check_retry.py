@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """核对模型重试的退避上限、环境解析与观测事件边界。
 
-retry.py 只决定「等多久、最多几次」：环境变量去空白后按整数解析并在 1–10 与
-非负基数内收敛；网关 Retry-After 优先于指数退避，两者都封顶 8 秒，非有限值与
-负数视为无效并回退指数退避；观测事件只带次数、毫秒与错误说明，retry_end 在首个
+retry.py 只决定「等多久、最多几次」：环境变量去空白后按 ASCII 十进制解析并在 1–10 与
+非负基数内收敛；网关 Retry-After 优先于指数退避，两者都封顶 8 秒，非 ASCII 数字、非有限值
+与负数视为无效并回退指数退避；观测事件只带次数、毫秒与错误说明，retry_end 在首个
 非错误事件补成功、在错误事件补失败。
 任一放宽都会让等待无界或让观测事件与真实尝试次数不符，因此静态固定，并用
 行为对照核对解析、退避与事件补发。不访问网络、模型或招聘平台。
@@ -35,6 +35,8 @@ CONSTANT_FRAGMENTS = (
     "DEFAULT_RETRY_BASE_MS = 500\n",
     "_MIN_RETRY_ATTEMPTS = 1\n",
     "_MAX_RETRY_ATTEMPTS = 10\n",
+    "_ASCII_INT = re.compile(",
+    "_ASCII_FLOAT = re.compile(",
 )
 ENV_FRAGMENTS = (
     "def retry_settings_from_environment(",
@@ -43,12 +45,14 @@ ENV_FRAGMENTS = (
     'raw_attempts = source.get("BOSS_HARNESS_RETRY_ATTEMPTS")',
     "if raw_attempts is None or not raw_attempts.strip():",
     "attempts = DEFAULT_RETRY_ATTEMPTS",
+    "if _ASCII_INT.fullmatch(raw_attempts.strip()) is None:",
     "attempts = int(raw_attempts)",
     "except ValueError:",
     "adjusted = True",
     "bounded = max(_MIN_RETRY_ATTEMPTS, min(attempts, _MAX_RETRY_ATTEMPTS))",
     "adjusted = adjusted or bounded != attempts",
     'raw_base_ms = source.get("BOSS_HARNESS_RETRY_BASE_MS")',
+    "if _ASCII_INT.fullmatch(raw_base_ms.strip()) is None:",
     "bounded = max(0, base_ms)",
     "return attempts, base_ms / 1000.0, adjusted",
     "def retry_settings() -> tuple[int, float]:",
@@ -70,7 +74,9 @@ HEADER_FRAGMENTS = (
     "raw = headers.get(name)",
     "if not raw:",
     "continue",
-    "seconds = float(str(raw).strip()) * scale",
+    "text = str(raw).strip()",
+    "if _ASCII_FLOAT.fullmatch(text) is None:",
+    "seconds = float(text) * scale",
     "if not math.isfinite(seconds) or seconds < 0:",
     "return seconds",
     "except ValueError:",
@@ -103,7 +109,7 @@ EVENT_FRAGMENTS = (
 )
 DOC_FRAGMENTS = (
     (USER_GUIDE, "最多尝试次数，含首次；设为 `1` 即不自动重试"),
-    (USER_GUIDE, "未设置、为空或只有空白时使用默认值；不是整数时使用默认值；超出范围时收敛到 1 或 10"),
+    (USER_GUIDE, "未设置、为空或只有空白时使用默认值；不是 ASCII 十进制整数时使用默认值；超出范围时收敛到 1 或 10"),
     (USER_GUIDE, "自动重试的退避基数（毫秒），每次重试翻倍"),
     (USER_GUIDE, "负数按 0 处理"),
 )
@@ -227,6 +233,17 @@ def _behavior_checks() -> int:
                              "小数秒头")
     checked += _expect_value(retry_after_seconds(_Error({"retry-after": "1e300"})), 1e300,
                              "有限大值")
+    # Unicode 16.0 新增的十进制数字（如 U+10D44）在 3.14 的 int/float 上可解析；
+    # 网关头与重试环境变量只接受 ASCII 文法，超集输入在五个版本上一致视为无效。
+    for exotic in ("\U00010D44", "４"):
+        checked += _expect_value(retry_after_seconds(_Error({"retry-after": exotic})), None,
+                                 f"非 ASCII 秒头 {exotic!r}")
+        checked += _expect_value(
+            retry_settings_from_environment({"BOSS_HARNESS_RETRY_ATTEMPTS": exotic}),
+            (3, 0.5, True), f"非 ASCII 次数 {exotic!r}")
+        checked += _expect_value(
+            retry_settings_from_environment({"BOSS_HARNESS_RETRY_BASE_MS": exotic}),
+            (3, 0.5, True), f"非 ASCII 基数 {exotic!r}")
 
     # 观测事件：次数、毫秒取整与错误说明，取消事件说明未发起的尝试。
     start = retry_start_event(2, 3, 0.75, "")
@@ -318,13 +335,15 @@ def check_retry() -> int:
         module,
         MODULE,
     )
-    # 响应头：ms 优先于秒 → 跳过空值 → 解析失败继续 → 非有限或负数继续 → 无值返回 None。
+    # 响应头：ms 优先于秒 → 跳过空值 → 非 ASCII 文法继续 → 解析失败继续 → 非有限或负数继续 → 无值返回 None。
     checked += _ordered(
         (
             'for name, scale in (("retry-after-ms", 0.001), ("retry-after", 1.0)):',
             "raw = headers.get(name)",
             "if not raw:",
-            "seconds = float(str(raw).strip()) * scale",
+            "text = str(raw).strip()",
+            "if _ASCII_FLOAT.fullmatch(text) is None:",
+            "seconds = float(text) * scale",
             "except ValueError:\n            continue",
             "if not math.isfinite(seconds) or seconds < 0:",
             "        return seconds\n    return None",

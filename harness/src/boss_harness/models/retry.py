@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 from collections.abc import Iterator, Mapping
 
 from boss_harness.models.types import StreamEvent
@@ -17,6 +18,12 @@ DEFAULT_RETRY_ATTEMPTS = 3
 DEFAULT_RETRY_BASE_MS = 500
 _MIN_RETRY_ATTEMPTS = 1
 _MAX_RETRY_ATTEMPTS = 10
+
+#: 网关头与环境变量可被外部改写。``int()`` / ``float()`` 的接受集合随 Unicode 版本
+#: 扩大（3.14 的 Unicode 16.0 新增 Garay 等十进制数字，``int("\U00010D44") == 4``），
+#: 同一文本不能在版本间得出不同结论；先按 ASCII 文法固定，再做范围与有限性检查。
+_ASCII_INT = re.compile(r"[+-]?[0-9]+\Z")
+_ASCII_FLOAT = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\Z")
 
 
 def retry_settings_from_environment(
@@ -36,6 +43,8 @@ def retry_settings_from_environment(
         attempts = DEFAULT_RETRY_ATTEMPTS
     else:
         try:
+            if _ASCII_INT.fullmatch(raw_attempts.strip()) is None:
+                raise ValueError
             attempts = int(raw_attempts)
         except ValueError:
             attempts = DEFAULT_RETRY_ATTEMPTS
@@ -50,6 +59,8 @@ def retry_settings_from_environment(
         base_ms = DEFAULT_RETRY_BASE_MS
     else:
         try:
+            if _ASCII_INT.fullmatch(raw_base_ms.strip()) is None:
+                raise ValueError
             base_ms = int(raw_base_ms)
         except ValueError:
             base_ms = DEFAULT_RETRY_BASE_MS
@@ -85,8 +96,11 @@ def retry_after_seconds(exc: object) -> float | None:
         raw = headers.get(name)
         if not raw:
             continue
+        text = str(raw).strip()
+        if _ASCII_FLOAT.fullmatch(text) is None:
+            continue
         try:
-            seconds = float(str(raw).strip()) * scale
+            seconds = float(text) * scale
         except ValueError:
             continue
         # 网关头可被上游或代理改写：``float`` 接受 ``nan`` / ``inf`` / ``1e309``，

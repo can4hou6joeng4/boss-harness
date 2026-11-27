@@ -36,6 +36,8 @@ ENVIRONMENT_FRAGMENTS = (
     "DEFAULT_APPROVAL_TIMEOUT_SECONDS = 300.0",
     'raw = source.get("BOSS_HARNESS_APPROVAL_TIMEOUT")',
     "if raw is None or not raw.strip():",
+    "_ASCII_FLOAT = re.compile(",
+    "if _ASCII_FLOAT.fullmatch(text) is None:",
     "if math.isfinite(value) and value > 0:",
     'raw = os.environ.get("BOSS_HARNESS_STEERING_MODE")',
     'if raw is None or raw == "":',
@@ -112,6 +114,9 @@ def _behavior_checks() -> int:
         ({"BOSS_HARNESS_APPROVAL_TIMEOUT": "nan"}, (default, False)),
         ({"BOSS_HARNESS_APPROVAL_TIMEOUT": "inf"}, (default, False)),
         ({"BOSS_HARNESS_APPROVAL_TIMEOUT": "abc"}, (default, False)),
+        # Unicode 16.0 新增数字（如 U+10D44）在 3.14 的 float 上可解析；只接受 ASCII 文法。
+        ({"BOSS_HARNESS_APPROVAL_TIMEOUT": "\U00010D44"}, (default, False)),
+        ({"BOSS_HARNESS_APPROVAL_TIMEOUT": "４"}, (default, False)),
     ):
         _expect_value(approval_timeout_from_environment(environ), expected, f"审批期限 {environ!r}")
         checked += 1

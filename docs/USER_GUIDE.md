@@ -34,7 +34,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.805` / Python `0.2.0rc805` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.806` / Python `0.2.0rc806` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -125,8 +125,8 @@ Anthropic 线路另有三个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 | `MODEL_CODEX_NOT_FILE` | Codex 配置路径不是普通文件；将 `BOSS_HARNESS_CODEX_CONFIG` 指向文件，或核对 `CODEX_HOME` 下的 `config.toml`。 |
 | `MODEL_CODEX_WIRE_API_UNSUPPORTED` | Codex profile 声明了内核不支持的协议或值类型；选择支持 Responses 的端点并将 `wire_api` 设为 `responses`，或使用完整显式 OpenAI 配置跳过该文件。 |
 | `MODEL_PROVIDER_UNKNOWN` | `BOSS_HARNESS_PROVIDER` 的取值无法识别；设为 `none`、`anthropic`、`openai` 或 `codex`，或取消设置以自动选择。`auto` 与取消设置等价，不视为未知取值。 |
-| `MODEL_MAX_TOKENS_INVALID` | `BOSS_HARNESS_MAX_TOKENS` 不是正整数；设为正整数，或取消设置以使用默认值。 |
-| `MODEL_REQUEST_TIMEOUT_INVALID` | `BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS` 不是 1 到 3600 的整数；修正取值，或取消设置以使用默认值。 |
+| `MODEL_MAX_TOKENS_INVALID` | `BOSS_HARNESS_MAX_TOKENS` 不是 ASCII 十进制正整数；设为正整数，或取消设置以使用默认值。 |
+| `MODEL_REQUEST_TIMEOUT_INVALID` | `BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS` 不是 1 到 3600 的 ASCII 十进制整数；修正取值，或取消设置以使用默认值。 |
 | `MODEL_SERVER_FALLBACK_INVALID` | Anthropic 线路的 `BOSS_HARNESS_SERVER_FALLBACK` 不是可识别的开关写法；设为 `1` / `true` / `yes` / `on` 或 `0` / `false` / `no` / `off`，或取消设置以按端点取默认值。 |
 | `MODEL_PROMPT_CACHE_INVALID` | Anthropic 线路的 `BOSS_HARNESS_PROMPT_CACHE` 不是可识别的开关写法；设为 `0` / `false` / `no` / `off` 以关闭，或 `1` / `true` / `yes` / `on` 以开启，或取消设置以使用默认的开启。 |
 
@@ -165,7 +165,7 @@ Anthropic 线路另有三个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 
 ## 单次模型请求期限
 
-OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 秒，可用 `BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS` 设置为 1–3600 的整数秒。该 wall-clock 总时限覆盖连接建立和流式响应；SDK 原有的 30 秒连接/读取空闲时限仍然生效，周期性 SSE 心跳不会延长总时限。
+OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 秒，可用 `BOSS_HARNESS_MODEL_REQUEST_TIMEOUT_SECONDS` 设置为 1–3600 的 ASCII 十进制整数秒。该 wall-clock 总时限覆盖连接建立和流式响应；SDK 原有的 30 秒连接/读取空闲时限仍然生效，周期性 SSE 心跳不会延长总时限。
 
 超时不会标记为用户取消，也不进入上下文溢出恢复。后台清理在期限内确认完成时，它作为可重试传输错误结束；若清理仍未完成，内核停止自动重试并保留该传输的资源额度。OpenAI 仅在尚无可见输出且清理已确认时遵循既有重试策略，每次 attempt 各自重新计时；Anthropic 不新增自动重试。这不是跨重试或 Agent 自动恢复的共享总预算。
 
@@ -177,11 +177,11 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 
 | 变量 | 作用 | 默认值与范围 | 取值无效时 |
 | --- | --- | --- | --- |
-| `BOSS_HARNESS_MAX_TOKENS` | 单次模型请求的输出上限，同时作为上下文预算中的输出预留。 | 64000；正整数；空值或只有空白时使用默认值。 | 启动失败，自检报 `MODEL_MAX_TOKENS_INVALID`。 |
+| `BOSS_HARNESS_MAX_TOKENS` | 单次模型请求的输出上限，同时作为上下文预算中的输出预留。 | 64000；ASCII 十进制正整数；空值或只有空白时使用默认值。 | 启动失败，自检报 `MODEL_MAX_TOKENS_INVALID`。 |
 | `BOSS_HARNESS_MAX_MODEL_REQUESTS` | 单个回合最多发起的模型请求数；回合自带的上限只能在此基础上收紧。 | 6；去除首尾空白后须为 1–64 的十进制整数，空值或只有空白时使用默认值。 | 启动失败，自检报 `MAX_MODEL_REQUESTS_INVALID`。 |
-| `BOSS_HARNESS_RETRY_ATTEMPTS` | 模型请求在首个输出前遇到可重试失败时的最多尝试次数，含首次；设为 `1` 即不自动重试。 | 3；1–10。 | 未设置、为空或只有空白时使用默认值；不是整数时使用默认值；超出范围时收敛到 1 或 10；自检报 `RETRY_CONFIG_DEFAULTED` 警告。 |
-| `BOSS_HARNESS_RETRY_BASE_MS` | 自动重试的退避基数（毫秒），每次重试翻倍。 | 500；非负整数。 | 未设置、为空或只有空白时使用默认值；不是整数时使用默认值；负数按 0 处理；自检报 `RETRY_CONFIG_DEFAULTED` 警告。 |
-| `BOSS_HARNESS_APPROVAL_TIMEOUT` | 需审批的工具调用等待裁决的期限（秒），到期后该审批按过期处理，不执行调用。 | 300；正数，可带小数。 | 未设置、为空或只有空白时使用默认值；不是数字、非有限值或不大于 0 时使用默认值；自检报 `APPROVAL_TIMEOUT_DEFAULTED` 警告。 |
+| `BOSS_HARNESS_RETRY_ATTEMPTS` | 模型请求在首个输出前遇到可重试失败时的最多尝试次数，含首次；设为 `1` 即不自动重试。 | 3；1–10。 | 未设置、为空或只有空白时使用默认值；不是 ASCII 十进制整数时使用默认值；超出范围时收敛到 1 或 10；自检报 `RETRY_CONFIG_DEFAULTED` 警告。 |
+| `BOSS_HARNESS_RETRY_BASE_MS` | 自动重试的退避基数（毫秒），每次重试翻倍。 | 500；ASCII 十进制非负整数。 | 未设置、为空或只有空白时使用默认值；不是 ASCII 十进制整数时使用默认值；负数按 0 处理；自检报 `RETRY_CONFIG_DEFAULTED` 警告。 |
+| `BOSS_HARNESS_APPROVAL_TIMEOUT` | 需审批的工具调用等待裁决的期限（秒），到期后该审批按过期处理，不执行调用。 | 300；正数，可带小数。 | 未设置、为空或只有空白时使用默认值；不是 ASCII 十进制数字、非有限值或不大于 0 时使用默认值；自检报 `APPROVAL_TIMEOUT_DEFAULTED` 警告。 |
 | `BOSS_HARNESS_PYTHON` | 桌面应用启动内核与运行自检所用的 Python 解释器，需为 3.10 及以上并已安装内核。 | 未设置、为空或只有空白时，优先选仓库的 `.venv/bin/python`；目标不是普通文件或当前进程无权执行时回退到 PATH 上的 `python3`。显式路径去除首尾空白后优先使用。 | 解释器无法启动时桌面提示未能启动 Python 解释器；显式路径失败时不会自动回退。 |
 | `BOSS_HARNESS_STEERING_MODE` | 回合运行中排队的转向消息如何进入当前回合：`all` 在每个投递点注入全部排队转向，`one-at-a-time` 每次只注入最早一条。 | `all`；未设置或为空时取默认值，取值区分大小写且不去除空白。 | 启动失败，自检报 `STEERING_MODE_INVALID`。 |
 | `BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_BYTES`、`BOSS_HARNESS_MAX_ATTACHMENT_STORAGE_OBJECTS` | 状态目录中持久附件的总字节数与文件对象数上限；降低上限不影响读取已有附件，只拒绝新增的唯一内容。 | 512 MiB、4096 个对象；去除首尾空白后须为 1 至 `2^63-1` 的十进制整数，空值或只有空白时使用各自默认值。 | 启动失败，自检报 `ATTACHMENT_STORAGE_LIMIT_INVALID`。 |
