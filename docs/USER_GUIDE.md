@@ -34,14 +34,14 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.799` / Python `0.2.0rc799` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.800` / Python `0.2.0rc800` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
 - `turn/interrupt` 只有省略 `turnId` 才表示停止当前回合；显式目标必须是非空、非纯空白、最多 128 字符的字符串。非法值在设置取消信号前返回 `-32602`，不会悄悄停止其他目标；有效旧目标仍以 `-32004` 拒绝。
 - `queue/add` 的 `autoCompaction` 应省略或使用合法部分覆盖对象，空对象 `{}` 可用，null 不可用。已有请求重试也先校验，非法值不改动原队列项；同一请求编号的不同合法覆盖仍返回冲突。
 - `context/compact/start` 的 `model` 只有省略才继承摘要配置；显式值须为最多 200 字符的非空模型 ID，不含空白。空串、空白、数字、布尔、数组、对象、null 与超长值在创建任务前返回 `-32602`，不会静默改用默认模型。
-- `thread/start` 的 `projectId` 与 `thread/list` 的 `projectId` 筛选须为最多 200 字符的字符串；超长值返回 `-32602`，会话文件不会写入。旧版本留下的超长标识在读取投影中截断为前 200 字符并带 `projectIdTruncated: true`，原始会话头不改写，这类会话可重新读取。
+- `thread/start` 的 `projectId` 与 `thread/list` 的 `projectId` 筛选须为最多 200 字符的字符串；超长值返回 `-32602`，会话文件不会写入。旧版本留下的超长标识在读取投影中截断为前 200 字符并带 `projectIdTruncated: true`，原始会话头不改写，这类会话可重新读取。`thread/list` 的分页游标由内核生成，应原样回传；游标中的时间只接受内核写出的规范 ISO 形式（与索引时间同源），`Z` 结尾等改写返回 `-32602`「会话分页游标无效」，避免字符串比较错位导致重复或跳行。
 - 会话标题（`thread/start.title`、`thread/name/set.name` 与 `thread/fork.title`）须为最多 500 字符的字符串；超长值返回 `-32602`，不会写入会话文件。旧版本通过 `thread/fork` 留下的超长标题在读取投影中截断为前 500 字符并带 `titleTruncated: true`，原始会话头不改写，这类会话可重新读取。
 - 从上述历史会话创建新分支时，分支不保存来源读取投影的 `titleTruncated` / `projectIdTruncated` 标记；来源项目标识已截断时不继承 `projectId`，避免按不完整标识分组。普通会话仍完整继承标题与项目标识；此修正作用于新建分支，已有文件不追溯改写。
 - `context/edit/read` 与编辑成功回执受约 1 MiB 单页响应预算约束，按完整投影编码后的大小计算。超限返回 `-32010` 且本次编辑不写入、不发送编辑通知；传输中断后的提交仍须回读核对。分页可核对长助手原文，但不会绕过该预算，限制与替代做法见[消息的后续模型上下文](#消息的后续模型上下文)。
