@@ -143,7 +143,7 @@ STARTUP_FRAGMENTS = (
     '"schemaVersion": 1,',
     '"ok": all(check["status"] != "error" for check in checks),',
     '"unicodeVersion": unicodedata.unidata_version,',
-    'if "unicodeVersion" in report:',
+    'if "unicodeVersion" in report and report["unicodeVersion"]:',
     "version_line += f\" · Unicode {report['unicodeVersion']}\"",
 )
 
@@ -896,6 +896,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _names_consistency(startup_tree, guide, _read(CONNECTION_NOTICE))
     checked += _conclusion_parity(startup_tree, _read(CONNECTION_NOTICE), _read(CONNECTION_SETTINGS))
     checked += _unicode_version_parity(desktop, _read(CONNECTION_NOTICE), _read(PROTOCOL))
+    checked += _version_line_order(_read(CONNECTION_NOTICE))
     return 9, guards + checked
 
 
@@ -923,6 +924,26 @@ def _unicode_version_parity(desktop: str, notice: str, protocol: str) -> int:
     ), notice, "connectionNotice.ts unicodeVersion")
     checked += _expect(("unicodeVersion?: string",), protocol, "协议 unicodeVersion")
     return checked
+
+
+def _version_line_order(notice: str) -> int:
+    """CLI 与桌面的版本行字段顺序必须一致；任一端增删或调序都要被发现。"""
+    start = notice.find("export function startupReportMeta")
+    if start < 0:
+        raise ValueError("connectionNotice.ts 缺少 startupReportMeta")
+    end = notice.find("\n}\n", start)
+    if end < 0:
+        raise ValueError("startupReportMeta 缺少结束括号")
+    labels = {"version": "内核", "protocolVersion": "协议",
+              "pythonVersion": "Python", "unicodeVersion": "Unicode"}
+    desktop = tuple(labels.get(field, field) for field in
+                    re.findall(r"diagnosis\.([A-Za-z]+) \? `", notice[start:end]))
+    line = render_text(_report([])).splitlines()[1]
+    terminal = tuple(label for label in labels.values() if label in line)
+    expected = ("内核", "协议", "Python", "Unicode")
+    if desktop != expected or terminal != expected:
+        raise ValueError(f"版本行字段顺序不一致：桌面 {desktop}，终端 {terminal}")
+    return 2
 
 
 def _behavior_checks() -> int:
@@ -977,13 +998,16 @@ def _behavior_checks() -> int:
     legacy = _report([checks["ok"]])
     legacy.pop("unicodeVersion")
     _expect_value(render_text(legacy).splitlines()[1], "内核 0.2.0 · 协议 0.2.0 · Python 3.12.0", "旧报告版本行")
+    empty_unicode = _report([checks["ok"]])
+    empty_unicode["unicodeVersion"] = ""
+    _expect_value(render_text(empty_unicode).splitlines()[1], "内核 0.2.0 · 协议 0.2.0 · Python 3.12.0", "空 Unicode 字段")
     with tempfile.TemporaryDirectory() as directory:
         generated = startup_report(lambda: ModelConfig(provider="none"), state_dir=Path(directory))
     _expect_value(generated["unicodeVersion"], unicodedata.unidata_version, "报告的 Unicode 版本")
     _expect_value(f"Unicode {unicodedata.unidata_version}" in render_text(generated), True, "文本 Unicode 版本")
     mixed = render_text(_report([checks["warning"], checks["error"]]))
     _expect_value(mixed.splitlines()[0], "本地配置自检：发现 1 个错误、1 项警告", "错误与警告并存")
-    return len(cases) + 5
+    return len(cases) + 6
 
 
 def _boundary_checks() -> int:

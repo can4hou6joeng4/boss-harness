@@ -1,3 +1,10 @@
+## 0.2.0-rc.810 - 2026-11-28
+
+- 自检版本行的可选字段口径与桌面统一：上一轮只判断 `unicodeVersion` 是否存在，字段存在但为空时终端仍拼接「Unicode 」空段，桌面按非空值展示。现在仅在字段非空时拼接；缺失与空字符串都输出「内核 · 协议 · Python」三段版本行。[Issue #3745](https://github.com/can4hou6joeng4/boss-harness/issues/3745)
+- 检查脚本同时核对终端与桌面版本行的字段顺序，任一端增删或调序都会失败；新增空字段行为用例（结构 471 → 473 项、行为 23 → 24 个场景）。使用指南与技术参考同步口径。
+- 用 rc.809 固定提交的 `git archive` 源码与修复源码跑同一探针：空字段报告在旧版输出「… · Unicode 」，修复版只输出三段版本行；在桌面源码副本交换两个字段顺序后，旧检查脚本仍 exit 0，新脚本 exit 2 并指出「版本行字段顺序不一致」。探针只留 `/tmp`，不提交测试文件。
+- 源码候选更新为 npm `0.2.0-rc.810` 和 Python `0.2.0rc810`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.809 - 2026-11-28
 
 - 文本自检报告容忍旧版字段缺失：rc.808 新增的 `unicodeVersion` 在桌面主进程与渲染层按可选字段处理，但 `render_text()` 直接读取该键，旧报告或缺字段的合成报告会抛 `KeyError`。现在只在字段实际存在时拼接「Unicode …」，缺失时输出原有的「内核 · 协议 · Python」三段版本行，不猜测版本。[Issue #3743](https://github.com/can4hou6joeng4/boss-harness/issues/3743)
