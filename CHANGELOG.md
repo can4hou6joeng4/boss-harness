@@ -1,3 +1,9 @@
+## 0.2.0-rc.783 - 2026-11-27
+
+- 消除 `check_approval_stop.py` 的启动等待抖动：审批通过后假招聘 CLI 的启动标记等待由固定 10 秒改为 30 秒，超时信息给出实测时长、标记存在与内核存活状态，不再把调度抖动误报成工具桥故障。[Issue #3691](https://github.com/can4hou6joeng4/boss-harness/issues/3691)
+- 变异验证：在假 CLI 脚本中人为延迟 11 秒写标记，10 秒边界报 `未在 10 秒内启动（实测 10.0 秒、标记存在=False、内核存活=True）`，30 秒边界通过。技术参考文档口径由 3 处增至 4 处；不启动真实招聘 CLI，不联网。
+- 源码候选更新为 npm `0.2.0-rc.783` 和 Python `0.2.0rc783`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.782 - 2026-11-27
 
 - 状态页协议一行补上真实进程核对范围：畸形帧后存活、通知静默、超长帧有序退出与信号关闭，不再只写静态核对。[Issue #3689](https://github.com/can4hou6joeng4/boss-harness/issues/3689)
