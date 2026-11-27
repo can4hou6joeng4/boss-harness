@@ -17,8 +17,9 @@ from boss_harness.private_files import ensure_private_directory, open_private_fi
 from boss_harness.queue_view import (ACTIVE_QUEUE_STATUSES, MAX_QUEUE_VIEW_ITEMS,
                                      MAX_QUEUE_VIEW_TERMINAL_ITEMS, project_queue, queue_record)
 from boss_harness.rpc import RpcError
-from boss_harness.session import (MAX_SESSION_LINE_BYTES, _ITEM_ID_FIELDS, _decode_session_record,
-                                  _fsync_directory, _record_id)
+from boss_harness.session import (MAX_JSON_RECORD_DEPTH, MAX_SESSION_LINE_BYTES, _ITEM_ID_FIELDS,
+                                  _decode_session_record, _fsync_directory, _json_depth_exceeded,
+                                  _record_id)
 
 MAX_SNAPSHOT_RECORD_BYTES = MAX_SESSION_LINE_BYTES
 MAX_SNAPSHOT_SOURCE_BYTES = 1024 * 1024 * 1024
@@ -70,6 +71,11 @@ def _decode_item(payload: object) -> dict:
     给出与其它损坏场景一致的可读提示。
     """
     if not isinstance(payload, str):
+        raise ValueError("会话快照已损坏；请重新打开会话")
+    # 与会话日志同一层数上限：json.loads 的递归余量随 Python 版本变化，
+    # 3.10 / 3.11 对约 995 层即抛 RecursionError，3.12+ 能解析；同一份快照
+    # 不能因此在一个版本上判损坏、在另一个版本上正常返回。
+    if _json_depth_exceeded(payload, MAX_JSON_RECORD_DEPTH):
         raise ValueError("会话快照已损坏；请重新打开会话")
     try:
         item = json.loads(payload)
