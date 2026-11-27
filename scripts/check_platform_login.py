@@ -8,7 +8,9 @@
 核对迟到回执丢弃、卸载退订、`open` / `cancel` 的锁与失败回落，以及
 `show` / `visibleIn` 的分支。结构侧另核对主进程截止与取消回执的终态优先：
 超时、保存失败、连接中断与回执无法识别都允许内核终态收敛界面；
-登录入口在归属会话已删除时先取消旧 attempt。文档侧核对技术参考的计数，
+登录入口在归属会话已删除时先取消旧 attempt。主进程行为侧把真实
+`platformLogin.ts` 复制到临时目录，替换 Electron、协议、安全与登录依赖为桩，
+由 Node 加载真实类，覆盖截止警告、四种终态与启动失败分界。文档侧核对技术参考的计数，
 以及桌面指南的平台登录入口、安全验证、五分钟等待、保存终态与隔离边界。
 """
 
@@ -28,6 +30,7 @@ MAIN = "apps/desktop/src/main/platformLogin.ts"
 SHELL = "apps/desktop/src/renderer/src/shell/AppShell.tsx"
 
 EXPECTED = 38
+MAIN_EXPECTED = 9
 
 #: 桌面指南必须保留的稳定事实：用户入口、安全验证、等待上限、保存终态与隔离边界。
 GUIDE_FRAGMENTS = (
@@ -481,6 +484,138 @@ async function run(): Promise<void> {
 await run();
 """
 
+ELECTRON_STUB = """\
+export class BrowserWindow {}
+export class WebContentsView {}
+export type Session = unknown;
+export const session = { fromPartition: () => { throw new Error("not used"); } };
+"""
+
+PROTOCOL_STUB = """\
+export type PlatformLoginStatus = any;
+export type PlatformLoginContext = any;
+export const ClientMethods = {
+  platformLoginStart: "platform/login/start",
+  platformLoginCancel: "platform/login/cancel",
+  platformLoginComplete: "platform/login/complete",
+  platformLoginRead: "platform/login/read",
+};
+"""
+
+SECURITY_STUB = """\
+export const isLoginVerificationUrl = () => false;
+export const isOfficialLoginUrl = () => true;
+export const loginCaptureReadiness = () => ({ ready: false, phase: "scan", summary: "", identity: "unknown" });
+export const loginViewBounds = () => null;
+"""
+
+LOGIN_FAILURE_STUB = """\
+export const loginFailureDetail = (error: any) => ({ message: String(error?.message ?? error) });
+export const loginViewGoneSummary = () => "gone";
+"""
+
+LOGIN_COOKIES_STUB = """\
+export const selectLoginCookies = () => ({ cookies: {}, superseded: 0 });
+"""
+
+LOGIN_ATTEMPT_STUB = """\
+export function attemptIdOf(value: any) { return value && typeof value.id === "string" ? value.id : undefined; }
+export function loginAttemptOf(value: any) {
+  if (!value || typeof value.state !== "string") return null;
+  return { id: value.id, state: value.state, summary: value.summary ?? "", code: value.code, phase: value.phase, identity: value.identity };
+}
+"""
+
+MAIN_NODE_SCRIPT = """\
+import { PlatformLogin } from "./platformLogin.ts";
+
+const timers: Array<() => void> = [];
+(globalThis as { setTimeout?: unknown }).setTimeout = (callback: () => void) => { timers.push(callback); return timers.length; };
+(globalThis as { clearTimeout?: unknown }).clearTimeout = () => {};
+
+let passed = 0;
+function expect(label: string, condition: boolean): void {
+  if (!condition) {
+    console.error(`FAIL ${label}`);
+    process.exit(1);
+  }
+  passed += 1;
+}
+
+function instance(state: string, code: string | undefined) {
+  const pending: Array<{ resolve: (value: unknown) => void; reject: (error: unknown) => void }> = [];
+  const request = () => new Promise((resolve, reject) => { pending.push({ resolve, reject }); });
+  const login: any = new PlatformLogin(request, () => {});
+  login.status = { state, code, summary: "保存结果未知，请检查本机登录态", threadId: "t1", browserId: "b1" };
+  login.attempt = "attempt-1";
+  login.generation = 10;
+  return { login, pending };
+}
+
+async function cancelWith(state: string, code: string | undefined, reply: unknown) {
+  const { login, pending } = instance(state, code);
+  login.cancel();
+  const sent = pending.length;
+  if (sent > 0) pending[0]!.resolve(reply);
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  return { login, sent };
+}
+
+const deadlineCase = instance("saving", undefined);
+deadlineCase.login.generation = 1;
+deadlineCase.login.startDeadline(1);
+const deadline = timers.pop();
+if (!deadline) throw new Error("deadline timer missing");
+deadline();
+expect("保存阶段截止保留失败态", deadlineCase.login.status.state === "failed" && deadlineCase.login.status.code === "LOGIN_TIMEOUT");
+expect("保存阶段截止保留保存警告", String(deadlineCase.login.status.summary).includes("保存已停止")
+  && String(deadlineCase.login.status.summary).includes("等待已超过五分钟"));
+
+for (const code of ["LOGIN_CONNECTION_LOST", "LOGIN_SAVE_FAILED", "LOGIN_READBACK_INVALID", "LOGIN_TIMEOUT"]) {
+  const result = await cancelWith("failed", code, { id: "attempt-1", state: "succeeded", summary: "官方账号验证通过，登录态已保存" });
+  expect(`${code} 收到成功回执后转为成功`, result.sent === 1 && result.login.status.state === "succeeded");
+}
+
+const openFailed = await cancelWith("failed", "LOGIN_OPEN_FAILED", { id: "attempt-1", state: "succeeded", summary: "不应采用" });
+expect("启动失败不因取消回执改变", openFailed.sent === 1 && openFailed.login.status.state === "failed"
+  && openFailed.login.status.code === "LOGIN_OPEN_FAILED");
+
+const cancelled = await cancelWith("cancelled", undefined, { id: "attempt-1", state: "failed", code: "LOGIN_SAVE_FAILED", summary: "保存失败" });
+expect("已取消收到失败回执后转为失败", cancelled.login.status.state === "failed" && cancelled.login.status.code === "LOGIN_SAVE_FAILED");
+
+const mismatch = await cancelWith("failed", "LOGIN_CONNECTION_LOST", { id: "other", state: "succeeded", summary: "不应采用" });
+expect("请求编号不匹配时保持原状态", mismatch.login.status.state === "failed" && mismatch.login.status.code === "LOGIN_CONNECTION_LOST");
+
+console.log(`PASS ${passed}`);
+"""
+
+MAIN_IMPORT_REWRITES = (
+    ('from "electron"', 'from "./electronStub.ts"'),
+    ('from "@boss-harness/protocol"', 'from "./protocolStub.ts"'),
+    ('from "./security"', 'from "./securityStub.ts"'),
+    ('from "./loginFailure"', 'from "./loginFailureStub.ts"'),
+    ('from "./loginCookies"', 'from "./loginCookiesStub.ts"'),
+    ('from "./loginAttempt"', 'from "./loginAttemptStub.ts"'),
+)
+MAIN_CONSTRUCTOR = "  constructor(private request: Request, private publish: (status: PlatformLoginStatus) => void) {}"
+MAIN_CONSTRUCTOR_REWRITE = """\
+  private request: Request;
+  private publish: (status: PlatformLoginStatus) => void;
+
+  constructor(request: Request, publish: (status: PlatformLoginStatus) => void) {
+    this.request = request;
+    this.publish = publish;
+  }"""
+
+MAIN_STUBS = (
+    ("electronStub.ts", ELECTRON_STUB),
+    ("protocolStub.ts", PROTOCOL_STUB),
+    ("securityStub.ts", SECURITY_STUB),
+    ("loginFailureStub.ts", LOGIN_FAILURE_STUB),
+    ("loginCookiesStub.ts", LOGIN_COOKIES_STUB),
+    ("loginAttemptStub.ts", LOGIN_ATTEMPT_STUB),
+)
+
 FRAGMENTS = (
     'const [status, setStatus] = useState<PlatformLoginStatus>({ state: "idle", summary: "尚未开始登录" });',
     "const flight = useRef(false), revision = useRef(0);",
@@ -522,6 +657,17 @@ def _rewrite(source: str) -> str:
         if f'from "{expected}"' not in rewritten:
             raise ValueError(f"{SOURCE} 的导入结构已变化，需要更新桩")
     return rewritten
+
+
+def _rewrite_main(source: str) -> str:
+    rewritten = source
+    for old, new in MAIN_IMPORT_REWRITES:
+        if old not in rewritten:
+            raise ValueError(f"{MAIN} 的导入结构已变化，需要更新桩：{old}")
+        rewritten = rewritten.replace(old, new)
+    if MAIN_CONSTRUCTOR not in rewritten:
+        raise ValueError(f"{MAIN} 的构造器结构已变化，需要更新桩")
+    return rewritten.replace(MAIN_CONSTRUCTOR, MAIN_CONSTRUCTOR_REWRITE)
 
 
 def _check_source(source: str) -> int:
@@ -567,12 +713,32 @@ def _check_behaviors() -> int:
     return EXPECTED
 
 
+def _check_main_behaviors() -> int:
+    source = _read(MAIN)
+    with tempfile.TemporaryDirectory() as directory:
+        folder = Path(directory)
+        (folder / "platformLogin.ts").write_text(_rewrite_main(source), encoding="utf-8")
+        for name, content in MAIN_STUBS:
+            (folder / name).write_text(content, encoding="utf-8")
+        harness = folder / "mainHarness.ts"
+        harness.write_text(MAIN_NODE_SCRIPT, encoding="utf-8")
+        result = subprocess.run(
+            ["node", str(harness)], capture_output=True, text=True, timeout=120
+        )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise ValueError("主进程登录行为用例失败：" + detail[:400])
+    if f"PASS {MAIN_EXPECTED}" not in result.stdout:
+        raise ValueError(f"主进程登录行为用例数量不符：{result.stdout.strip()}")
+    return MAIN_EXPECTED
+
+
 def _check_documentation() -> int:
     docs = _read(DOCS)
     if "`check_platform_login.py`" not in docs:
         raise ValueError(f"{DOCS} 缺少 check_platform_login.py")
-    if "共 33 项结构、38 项行为" not in docs:
-        raise ValueError(f"{DOCS} 需说明 check_platform_login.py 检查 33 项结构、38 项行为")
+    if "共 33 项结构、38 项面板行为、9 项主进程行为" not in docs:
+        raise ValueError(f"{DOCS} 需说明 check_platform_login.py 检查 33 项结构、38 项面板行为、9 项主进程行为")
     guide = _read(GUIDE)
     missing = [fragment for fragment in GUIDE_FRAGMENTS if fragment not in guide]
     if missing:
@@ -604,23 +770,24 @@ def _check_main(main: str) -> int:
     return checked
 
 
-def check_platform_login() -> tuple[int, int]:
+def check_platform_login() -> tuple[int, int, int]:
     source = _read(SOURCE)
     main = _read(MAIN)
     shell = _read(SHELL)
     structure = _check_source(source) + _check_main(main) + _check_order(SHELL_ORDER, shell, SHELL)
-    behavior = _check_behaviors()
+    panel_behavior = _check_behaviors()
+    main_behavior = _check_main_behaviors()
     _check_documentation()
-    return structure, behavior
+    return structure, panel_behavior, main_behavior
 
 
 def main() -> int:
     try:
-        structure, behavior = check_platform_login()
+        structure, panel_behavior, main_behavior = check_platform_login()
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"登录面板状态机核对失败，{error}", file=sys.stderr)
         return 2
-    print(f"登录面板状态机一致：{structure} 项结构、{behavior} 项行为")
+    print(f"登录面板状态机一致：{structure} 项结构、{panel_behavior} 项面板行为、{main_behavior} 项主进程行为")
     return 0
 
 
