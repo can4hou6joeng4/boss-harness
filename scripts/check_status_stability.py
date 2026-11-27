@@ -36,7 +36,8 @@ REQUIRED_URLS = (
     "https://github.com/can4hou6joeng4/boss-harness/issues/2312",
     "https://github.com/can4hou6joeng4/boss-harness/releases",
 )
-REQUIRED_PHRASES = ("`main` 是开发分支", "不等同于已发布", "尚未发布到 npm 或 PyPI")
+REQUIRED_PHRASES = ("`main` 是开发分支", "不等同于已发布", "尚未发布到 npm 或 PyPI",
+                    "内核、协议、Python 与 Unicode 版本展示")
 ROLLING_RELEASE_ENTRY = "https://github.com/can4hou6joeng4/boss-harness/issues/2351"
 NEXT_RELEASE_MARKER = "下一次实际预发布"
 RELEASE_TAG = re.compile(

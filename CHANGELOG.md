@@ -1,3 +1,10 @@
+## 0.2.0-rc.811 - 2026-11-28
+
+- 安全政策与支持范围同步当前事实：`SECURITY.md` 明确受支持的解释器为 Python 3.10–3.14（与 CI 矩阵一致），更早或更新的解释器先按实际运行环境核对；原有候选与发布版本边界、上游职责划分不变。[Issue #3747](https://github.com/can4hou6joeng4/boss-harness/issues/3747)
+- 项目状态页的自检能力行补齐 Unicode 版本展示，与自检报告、桌面明细和使用指南一致；不追加候选号或版本更新说明。社区入口与状态页守卫分别锁定这两条稳定表述（社区入口 18 → 19 项结构、状态页 23 → 24 项结构）。
+- 用 rc.810 固定提交的 `git archive` 源码副本做前后对照：旧守卫对缺少解释器矩阵和 Unicode 展示的文档 exit 0，新守卫分别以「稳定表述 Python 3.10–3.14」与「缺少稳定表述 内核、协议、Python 与 Unicode 版本展示」exit 1。探针只留 `/tmp`，不提交测试文件。
+- 源码候选更新为 npm `0.2.0-rc.811` 和 Python `0.2.0rc811`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.810 - 2026-11-28
 
 - 自检版本行的可选字段口径与桌面统一：上一轮只判断 `unicodeVersion` 是否存在，字段存在但为空时终端仍拼接「Unicode 」空段，桌面按非空值展示。现在仅在字段非空时拼接；缺失与空字符串都输出「内核 · 协议 · Python」三段版本行。[Issue #3745](https://github.com/can4hou6joeng4/boss-harness/issues/3745)
