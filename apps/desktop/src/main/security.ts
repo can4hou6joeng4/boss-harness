@@ -52,7 +52,7 @@ export function isOfficialLoginUrl(url: string): boolean {
 }
 
 export function isLoginVerificationUrl(url: string): boolean {
-  try { return /(?:security-check|captcha|\/verify(?:\/|$))/i.test(new URL(url).pathname); }
+  try { return /(?:security-check|captcha|\/verify(?:\.html)?(?:\/|$)|\/security\.html(?:\/|$))/i.test(new URL(url).pathname); }
   catch { return true; }
 }
 

@@ -1,3 +1,10 @@
+## 0.2.0-rc.774 - 2026-11-27
+
+- 修复平台登录视图把 passport 安全验证页误判为扫码页的问题：`isLoginVerificationUrl()` 只匹配 `security-check`、`captcha` 与 `/verify` 后跟 `/` 或结尾，平台实际跳转的 `/web/passport/zp/verify.html`（上游 `auth/login_diagnostics.py` 同时登记 `/web/passport/zp/security.html`）都不命中，登录面板因此提示「切换 APP 扫码登录」并一直等到五分钟 `LOGIN_TIMEOUT`。现在两种地址进入 `confirm` 阶段，提示用户在当前官方页面完成安全验证；`/verify-settings` 与裸 `/security` 不误判。[Issue #3673](https://github.com/can4hou6joeng4/boss-harness/issues/3673)
+- 用旧版与当前 `security.ts` 加载真实函数对比：旧版对 `verify.html` 与 `security.html` 返回 `verification=false`、`phase=scan`，当前返回 `true`、`phase=confirm`；`/verify` 与四条近似路径在两版保持相同结果。
+- `scripts/check_login_security.py` 增至 81 项：从源码提取验证页正则，对上游登记的两个验证地址、`/verify` 与近似路径共 10 个场景做行为对照；技术参考同步登记。
+- 源码候选更新为 npm `0.2.0-rc.774` 和 Python `0.2.0rc774`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.773 - 2026-11-26
 
 - README 英文概览的 Safety boundary 补充与中文段落等价的 Data flow 说明：数据只经模型线路与本机 `boss-agent-cli` 两条路径离开本机，会话记录、附件文件与界面偏好留在本机，仓库代码不含遥测、崩溃上报或自动更新检查。rc.772 只更新了中文入口，英文入口缺少同一组稳定事实。[Issue #3671](https://github.com/can4hou6joeng4/boss-harness/issues/3671)
