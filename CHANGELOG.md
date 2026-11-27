@@ -1,3 +1,9 @@
+## 0.2.0-rc.791 - 2026-11-27
+
+- 为浏览器来源检查补上自己的计数守卫：`docs/TECHNICAL_REFERENCE.md` 登记 `check_browser_source.py` 实际执行 27 个行为场景，但脚本此前只把数字打印到 stdout。现在执行后核对“`resolve_browser_source_override`（27 项）”与启动提示守卫的描述，任一缺失即以 exit 2 失败。[Issue #3708](https://github.com/can4hou6joeng4/boss-harness/issues/3708)
+- 前后对照：rc.790 固定提交的旧脚本在文档计数改为 26 后仍 exit 0；修复版对同一改动 exit 2 并点名缺失的计数片段，恢复后 exit 0。检查只读仓库内源码与文档，不启动上游、不读取浏览器或 Cookie。
+- 源码候选更新为 npm `0.2.0-rc.791` 和 Python `0.2.0rc791`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.790 - 2026-11-27
 
 - 为启动自检的浏览器来源提示补上守卫：`BROWSER_SOURCE_INVALID` 的提示在 rc.788 已列出四个可选值并说明 `inherit` 不覆盖，但 `check_browser_source.py` 只核对检查码与变量名，提示漏掉取值时检查仍通过。现在要求提示原文包含“`inherit、auto、existing-browser、stored-cookie`”完整枚举与 `inherit` 不覆盖说明。[Issue #3706](https://github.com/can4hou6joeng4/boss-harness/issues/3706)

@@ -21,6 +21,7 @@ APPLICATION = "harness/src/boss_harness/application.py"
 CONNECTIONS = "harness/src/boss_harness/connections.py"
 REPORT = "apps/desktop/src/renderer/src/data/connectionReport.ts"
 SETTINGS = "apps/desktop/src/renderer/src/components/ConnectionSettings.tsx"
+TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
 from boss_harness.tools.boss_cli import (  # noqa: E402
@@ -209,6 +210,18 @@ def _behavior_checks() -> int:
     return checked
 
 
+def _documentation_check(scenarios: int) -> None:
+    """技术参考登记的浏览器来源行为场景数必须与实际执行数一致。"""
+    text = _read(TECHNICAL_REFERENCE)
+    fragments = (
+        f"`resolve_browser_source_override`（{scenarios} 项）",
+        "启动提示必须列出 `BROWSER_SOURCE_CHOICES` 的全部取值",
+    )
+    missing = [fragment for fragment in fragments if fragment not in text]
+    if missing:
+        raise ValueError("技术参考与浏览器来源检查不一致：" + "、".join(missing))
+
+
 def check_browser_source() -> tuple[int, int]:
     tools = _read(TOOLS)
     checked = _expect(TOOLS_FRAGMENTS, tools, "boss_cli.py")
@@ -242,7 +255,9 @@ def check_browser_source() -> tuple[int, int]:
     checked += _expect(APPLICATION_FRAGMENTS, _read(APPLICATION), "application.py")
     checked += _expect(CONNECTIONS_FRAGMENTS, _read(CONNECTIONS), "connections.py")
     checked += _expect(DESKTOP_FRAGMENTS, _read(REPORT) + _read(SETTINGS), "桌面连接报告")
-    return 1, checked + _behavior_checks()
+    behaviors = _behavior_checks()
+    _documentation_check(behaviors)
+    return 1, checked + behaviors
 
 
 def main() -> int:
