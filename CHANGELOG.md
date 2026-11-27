@@ -1,3 +1,21 @@
+## 0.2.0-rc.786 - 2026-11-27
+
+本节汇总第十六个候选版本的源码与交付内容；实际发布状态以 [GitHub Release](https://github.com/can4hou6joeng4/boss-harness/releases) 为准。聚合范围、验收与产物见 [Issue #3698](https://github.com/can4hou6joeng4/boss-harness/issues/3698)。
+
+### 本版概览
+
+自 `v0.2.0-rc.15` 以来的 769 个源码候选（`0.2.0-rc.16` 至 `0.2.0-rc.785`，1272 个提交）在本次候选中聚合，逐条行为变化、来源与验证限制保留在下方各候选条目。
+
+内核补充分段摘要与上下文预算、自动压缩与溢出恢复；中断回合续接先做只读预检，已完成工具不重跑；会话索引可在备份后重建；RPC 的帧完整性、请求预算与错误码有真实 stdio 进程核对；POSIX 终止信号落到工作线程时也能唤醒标准输入、开始既有关闭流程。
+
+桌面完善平台登录的安全验证识别与取消 / 风控终态、任务队列的暂停重试与撤回、把排队消息转为当前回合 steering、会话查找、上下文与压缩策略、技能管理以及附件与工具结果的分段读取；删除会话后不再写回迟到的读取结果。
+
+### 兼容与交付
+
+没有协议、状态目录或导出格式的破坏性变化。源码候选更新为 npm `0.2.0-rc.786` 和 Python `0.2.0rc786`，stdio JSON-RPC 协议保持 `0.2.0`。桌面仍从源码构建，没有独立安装包或签名发行。
+
+发布 PR 的检查、主干构建与候选资产核验记录在 [Issue #3698](https://github.com/can4hou6joeng4/boss-harness/issues/3698)。推送 tag、创建 Release、上传资产或发布到注册表仍须对应授权；在此之前 `v0.2.0-rc.15` 仍是实际预发布。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.785 - 2026-11-27
 
 - 修复 POSIX 内核在工作线程收到终止信号后仍阻塞于 stdin 的问题：Python 的信号处理函数只在主线程执行，旧的阻塞读取可能始终不返回，工具停止与五秒强制期限也无法开始。CLI 现在通过非阻塞 socketpair 和 `signal.set_wakeup_fd` 唤醒输入等待，同时保留 LF 分帧、UTF-8 校验、输入预算与既有信号退出方式；结束时恢复 stdin、先前唤醒 fd 并关闭 socket。[Issue #3696](https://github.com/can4hou6joeng4/boss-harness/issues/3696)
