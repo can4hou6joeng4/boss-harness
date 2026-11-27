@@ -1,3 +1,9 @@
+## 0.2.0-rc.784 - 2026-11-27
+
+- 修正 `check_boss_cli_call.py` 中途取消场景的等待竞态：线程等待边界与内层 30 秒调用时限对齐为 35 秒，超时先给出明确失败，不再访问尚未写入的结果列表。[Issue #3693](https://github.com/can4hou6joeng4/boss-harness/issues/3693)
+- 变异验证：把等待边界压到 0 秒后检查报 `中途取消的 CLI 调用在 0 秒内没有返回`（退出码 2），恢复后 52 项结构、41 项行为全部通过。技术参考登记新边界；不启动真实招聘 CLI，不联网。
+- 源码候选更新为 npm `0.2.0-rc.784` 和 Python `0.2.0rc784`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.783 - 2026-11-27
 
 - 消除 `check_approval_stop.py` 的启动等待抖动：审批通过后假招聘 CLI 的启动标记等待由固定 10 秒改为 30 秒，超时信息给出实测时长、标记存在与内核存活状态，不再把调度抖动误报成工具桥故障。[Issue #3691](https://github.com/can4hou6joeng4/boss-harness/issues/3691)
