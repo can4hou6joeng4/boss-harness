@@ -1,3 +1,9 @@
+## 0.2.0-rc.800 - 2026-11-28
+
+- 收紧会话分页游标的时间格式：游标键来自索引 `updated_at`（`isoformat` 写出的 `+00:00` 形式），旧校验只调用 `datetime.fromisoformat`，3.11+ 会接受 `Z` 结尾等 3.10 不接受的写法；SQL 按字符串比较，`Z` 游标把同秒的 `+00:00` 行排除在窗口外，分页重复最新会话并跳过一条。现在解析后要求重新序列化与原值相等，非规范写法在 3.10–3.14 上一律按「会话分页游标无效」拒绝。[Issue #3725](https://github.com/can4hou6joeng4/boss-harness/issues/3725)
+- 真实 `SessionStore`（临时目录、5 个会话、每页 2 条）前后对照：旧源码在 3.10.20 拒绝、3.11.15 / 3.12.13 / 3.13.15 / 3.14.6 接受并返回 `[最新会话, 正确续页首项]`；修复版五个版本一致拒绝，规范游标续页结果不变。探针只留 `/tmp`，不提交测试文件。
+- 源码候选更新为 npm `0.2.0-rc.800` 和 Python `0.2.0rc800`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.799 - 2026-11-28
 
 - 统一用量页对 `Z` 结尾时间戳的解析：`_valid_timestamp` 在解析前把结尾 `Z` 改写为 `+00:00`，与导出时间解析同一口径。Python 3.10 的 `fromisoformat` 不接受 `Z`，旧版对同一份外部改写记录在用量页丢弃耗时（`startedAt` / `completedAt` 缺省），3.11–3.14 保留；导出路径此前在 3.10 仍按同一对时间戳算出 5000 ms，两条路径结论相反。[Issue #3723](https://github.com/can4hou6joeng4/boss-harness/issues/3723)

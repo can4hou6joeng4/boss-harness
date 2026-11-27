@@ -2827,8 +2827,13 @@ class SessionStore:
         if key is not None:
             if len(key) != 2 or not isinstance(key[0], str) or not isinstance(key[1], str) or not _THREAD_ID.fullmatch(key[1]):
                 raise ValueError("会话分页游标无效")
+            # SQL 侧是字符串比较，游标时间必须与索引列同样由 isoformat 写出：
+            # 3.11+ 的 fromisoformat 能接受 ``Z`` 结尾等非规范写法，直接放行会让
+            # 同一时刻的 ``Z`` 游标把 ``+00:00`` 行全部挡在窗口外，分页重复或跳行；
+            # 3.10 则直接拒绝。解析后再序列化回原值，使各版本对同一输入结论一致。
             try:
-                datetime.fromisoformat(key[0])
+                if datetime.fromisoformat(key[0]).isoformat() != key[0]:
+                    raise ValueError
             except ValueError:
                 raise ValueError("会话分页游标无效") from None
             query += " AND (updated_at<? OR (updated_at=? AND id<?))"
