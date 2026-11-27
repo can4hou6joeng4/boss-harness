@@ -1,3 +1,9 @@
+## 0.2.0-rc.781 - 2026-11-27
+
+- 扩展真实 stdio 内核的畸形帧存活检查：`scripts/check_malformed_frames.py` 新增字符串 id 与 `params: null` 请求、布尔 / 数组 id 与数组批量帧，以及四类不发回包的通知。字符串 id 原样回包，非法 id 与批量帧只回一帧 `-32600` / `id=null`，通知之后的合法请求读到自己的响应；计数由 48 项增至 79 项。[Issue #3687](https://github.com/can4hou6joeng4/boss-harness/issues/3687)
+- 把 `_dispatch` 的 id 判定改为只接受整数后，检查报 `字符串 id 原样回包`；把成功回包条件改为无条件回包后，初始化通知多出的一帧让首条畸形帧检查失败。恢复源码后 79 项全部通过。技术参考同步登记覆盖范围；全程不调用模型、招聘平台或真实状态目录。
+- 源码候选更新为 npm `0.2.0-rc.781` 和 Python `0.2.0rc781`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.780 - 2026-11-27
 
 - 新增真实 stdio 内核的畸形帧存活检查：`scripts/check_malformed_frames.py` 用临时状态目录与 `--provider none` 启动内核，完成握手后发送截断 JSON、非法 UTF-8、`NaN`、重复键、超深嵌套、孤立代理项、未知方法与非法 `params`，核对每帧只回一条规范错误且之后仍可读取会话；末尾的 8 MiB 超长帧按设计回 `-32600` 后有序退出。共 48 项协议错误与恢复校验，接入 CI 的源码构建与 Python 3.10–3.14 两个作业。[Issue #3685](https://github.com/can4hou6joeng4/boss-harness/issues/3685)

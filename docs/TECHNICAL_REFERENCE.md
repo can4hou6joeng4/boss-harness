@@ -119,7 +119,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_malformed_frames.py`
 
-`scripts/check_malformed_frames.py` 用真实 stdio 内核进程核对畸形帧后的存活：`--provider none` 与临时状态目录启动内核，先完成 `initialize` 握手，再发送截断 JSON、非法 UTF-8 字节、`NaN`、重复键、超过 64 层嵌套与孤立代理项六类解析错误（各回一帧 `-32700` / `id=null`），以及未知方法与 `params` 非对象两类语义错误（分别回 `-32601` / `-32602` 并保留原 id）。每种错误之后都重新发送合法 `thread/list`，确认同一进程和同一帧边界仍能成功回包。最后发送超过 8 MiB 的帧，核对一帧 `-32600` 后关闭 stdin 时进程以退出码 0 结束且 stderr 无回溯。共 48 项协议错误与恢复校验；检查不调用模型、招聘平台或真实状态目录，也不覆盖 Windows 上的管道行为。
+`scripts/check_malformed_frames.py` 用真实 stdio 内核进程核对畸形帧后的存活：`--provider none` 与临时状态目录启动内核，先完成 `initialize` 握手，再发送截断 JSON、非法 UTF-8 字节、`NaN`、重复键、超过 64 层嵌套与孤立代理项六类解析错误（各回一帧 `-32700` / `id=null`），以及未知方法与 `params` 非对象两类语义错误（分别回 `-32601` / `-32602` 并保留原 id）。每种错误之后都重新发送合法 `thread/list`，确认同一进程和同一帧边界仍能成功回包。字符串 id 与 `params: null` 请求原样回包，布尔 id、数组 id 与数组批量帧只回一帧 `-32600` / `id=null`；四类通知（只读查询、初始化、未知方法、非法 `params`）不写回包，紧随其后的合法请求读到自己的响应。最后发送超过 8 MiB 的帧，核对一帧 `-32600` 后关闭 stdin 时进程以退出码 0 结束且 stderr 无回溯。共 79 项协议错误与恢复校验；检查不调用模型、招聘平台或真实状态目录，也不覆盖 Windows 上的管道行为。
 
 ### `check_rpc_pending.py`
 
