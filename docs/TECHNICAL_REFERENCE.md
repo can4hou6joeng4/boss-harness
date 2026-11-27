@@ -971,11 +971,11 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_status_stability.py`
 
-`scripts/check_status_stability.py` 核对项目状态页只写稳定事实：读取 `package.json` 当前版本，禁止 `docs/STATUS.md` 出现该版本号（npm / Python 两种写法与 `rc.N`）或本机绝对路径；要求保留发布状态、已具备、待完成与待验收、非目标、参与方式五个章节；要求保留 README、`package.json`、CHANGELOG、发布约定、支持、安全、贡献与技术参考的相对链接，Issue #2351 / #2312 与 Releases 入口，以及已发布 tag 链接；要求保留「`main` 是开发分支」「不等同于已发布」「尚未发布到 npm 或 PyPI」三条稳定表述；任何「下一次实际预发布」行都必须同时指向 Issue #2351 的滚动记录。行为侧用合成 Markdown 核对每条规则都会检出、干净样本不误报。共 23 项结构、12 项行为。
+`scripts/check_status_stability.py` 核对项目状态页只写稳定事实：读取 `package.json` 当前版本，禁止 `docs/STATUS.md` 出现该版本号（npm / Python 两种写法与 `rc.N`）或本机绝对路径；要求保留发布状态、已具备、待完成与待验收、非目标、参与方式五个章节；要求保留 README、`package.json`、CHANGELOG、发布约定、支持、安全、贡献与技术参考的相对链接，Issue #2351 / #2312 与 Releases 入口，以及已发布 tag 链接；要求保留「`main` 是开发分支」「不等同于已发布」「尚未发布到 npm 或 PyPI」「内核、协议、Python 与 Unicode 版本展示」四条稳定表述；任何「下一次实际预发布」行都必须同时指向 Issue #2351 的滚动记录。行为侧用合成 Markdown 核对每条规则都会检出、干净样本不误报。共 24 项结构、12 项行为。
 
 ### `check_community_files.py`
 
-`scripts/check_community_files.py` 核对社区入口文件的稳定事实：`SUPPORT.md` 必须恰好各引用一次 `.github/ISSUE_TEMPLATE/` 下的 `bug_report.yml` 与 `feature_request.yml`，引用不存在的模板或重复引用都会失败，并保留 `SECURITY.md` 与 `CODE_OF_CONDUCT.md` 相对链接；`SECURITY.md` 保留 `Security → Report a vulnerability` 私密报告入口、仓库设置「需要单独授权」边界、`boss-agent-cli` 上游职责划分与不承诺固定响应时限；`CONTRIBUTING.md` 保留 `type(scope): 中文描述` 提交格式、`Closes #N` 关联约定与「测试材料仅保留本地」；`CODE_OF_CONDUCT.md` 引用安全政策与贡献约定并保留私密报告渠道表述；四个文件都不得含本机绝对路径。行为侧用合成 Markdown 核对每条规则都会检出、干净样本不误报。共 18 项结构、12 项行为。
+`scripts/check_community_files.py` 核对社区入口文件的稳定事实：`SUPPORT.md` 必须恰好各引用一次 `.github/ISSUE_TEMPLATE/` 下的 `bug_report.yml` 与 `feature_request.yml`，引用不存在的模板或重复引用都会失败，并保留 `SECURITY.md` 与 `CODE_OF_CONDUCT.md` 相对链接；`SECURITY.md` 保留 `Security → Report a vulnerability` 私密报告入口、「受支持的解释器为 Python 3.10–3.14」矩阵、仓库设置「需要单独授权」边界、`boss-agent-cli` 上游职责划分与不承诺固定响应时限；`CONTRIBUTING.md` 保留 `type(scope): 中文描述` 提交格式、`Closes #N` 关联约定与「测试材料仅保留本地」；`CODE_OF_CONDUCT.md` 引用安全政策与贡献约定并保留私密报告渠道表述；四个文件都不得含本机绝对路径。行为侧用合成 Markdown 核对每条规则都会检出、干净样本不误报。共 19 项结构、12 项行为。
 
 ### `check_release_docs.py`
 

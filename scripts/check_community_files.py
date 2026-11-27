@@ -27,6 +27,7 @@ CONDUCT = "CODE_OF_CONDUCT.md"
 
 SECURITY_PHRASES = (
     "Security → Report a vulnerability",
+    "Python 3.10–3.14",
     "需要单独授权",
     "boss-agent-cli",
     "不承诺固定响应时限",
@@ -134,6 +135,7 @@ def _check_structures() -> int:
 
 def _clean_security() -> str:
     return ("# 安全政策\n\n首选 GitHub 的 Security → Report a vulnerability 入口。\n"
+            "受支持的解释器为 Python 3.10–3.14。\n"
             "启用这些入口需要单独授权。\n上游 boss-agent-cli 的问题不属于本仓库。\n"
             "本项目不承诺固定响应时限。\n")
 
