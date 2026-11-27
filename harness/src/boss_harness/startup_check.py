@@ -450,10 +450,14 @@ def render_text(report: dict[str, Any]) -> str:
         conclusion = f"通过，{warnings} 项警告"
     else:
         conclusion = "通过"
+    version_line = (f"内核 {report['version']} · 协议 {report['protocolVersion']}"
+                    f" · Python {report['pythonVersion']}")
+    # 旧版报告可能没有 Unicode 字段；与桌面一样只在字段存在时展示，不猜测版本。
+    if "unicodeVersion" in report:
+        version_line += f" · Unicode {report['unicodeVersion']}"
     lines = [
         f"本地配置自检：{conclusion}",
-        f"内核 {report['version']} · 协议 {report['protocolVersion']} · Python {report['pythonVersion']}"
-        f" · Unicode {report['unicodeVersion']}",
+        version_line,
     ]
     for check in checks:
         title = _CHECK_TITLES.get(check["name"], check["name"])

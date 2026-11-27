@@ -34,7 +34,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.808` / Python `0.2.0rc808` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.809` / Python `0.2.0rc809` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -88,7 +88,7 @@ Anthropic 线路另有三个可选项。`BOSS_HARNESS_SERVER_FALLBACK` 控制请
 | `version` | 字符串 | 内核 `__version__`，与同次源码构建的 npm 候选版本对应；不表示已发布到 npm 或 PyPI。 |
 | `protocolVersion` | 字符串 | 进程边界的 JSON-RPC 协议版本，与桌面和协议包中的常量一致。 |
 | `pythonVersion` | 字符串 | 运行 `--check` 的 Python 主版本、次版本与补丁版本。 |
-| `unicodeVersion` | 字符串 | 解释器内置的 Unicode 数据版本；文本报告的版本行同样展示。 |
+| `unicodeVersion` | 字符串 | 解释器内置的 Unicode 数据版本；文本报告的版本行同样展示，报告缺少该字段时只显示内核 / 协议 / Python 三段。 |
 | `ok` | 布尔值 | `checks` 中没有 `error` 时为 `true`；必须与检查项状态相符。 |
 | `checks` | 数组 | 检查项列表；每项含 `name`、`status`、`code`、`message`、`hint`，名称在同一报告中不重复。 |
 

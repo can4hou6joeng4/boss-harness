@@ -1,3 +1,9 @@
+## 0.2.0-rc.809 - 2026-11-28
+
+- 文本自检报告容忍旧版字段缺失：rc.808 新增的 `unicodeVersion` 在桌面主进程与渲染层按可选字段处理，但 `render_text()` 直接读取该键，旧报告或缺字段的合成报告会抛 `KeyError`。现在只在字段实际存在时拼接「Unicode …」，缺失时输出原有的「内核 · 协议 · Python」三段版本行，不猜测版本。[Issue #3743](https://github.com/can4hou6joeng4/boss-harness/issues/3743)
+- 用 rc.808 固定提交的 `git archive` 源码与修复源码运行同一探针：构造删去 `unicodeVersion` 的 `startup_report()` 报告后，旧版渲染抛 `KeyError: 'unicodeVersion'`，修复版输出「内核 0.2.0rc809 · 协议 0.2.0 · Python 3.14.6」；带字段的报告仍输出四段版本行。检查脚本新增缺字段行为用例（结构 469 → 471 项、行为 22 → 23 个场景），使用指南与技术参考同步降级行为。探针只留 `/tmp`，不提交测试文件。
+- 源码候选更新为 npm `0.2.0-rc.809` 和 Python `0.2.0rc809`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.808 - 2026-11-28
 
 - 本地配置自检新增 `unicodeVersion` 字段，取解释器自带的 `unicodedata.unidata_version`；`--format text` 的版本行同步展示「内核 · 协议 · Python · Unicode」。桌面主进程按现有纯文本规则校验该可选字段，渲染层只在字段存在时拼接「Unicode …」，旧内核报告缺少字段时保持原展示与行为，不猜测版本。[Issue #3741](https://github.com/can4hou6joeng4/boss-harness/issues/3741)
