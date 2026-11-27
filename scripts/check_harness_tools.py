@@ -21,6 +21,8 @@ HARNESS_PACKAGE = ROOT / "harness/src/boss_harness"
 TECHNICAL_REFERENCE = ROOT / "docs/TECHNICAL_REFERENCE.md"
 README = ROOT / "README.md"
 STATUS = ROOT / "docs/STATUS.md"
+HARNESS_README = ROOT / "harness/README.md"
+UPSTREAM = ROOT / "UPSTREAM.md"
 sys.path.insert(0, str(ROOT / "harness/src"))
 
 from boss_harness.toolkit import ToolResult  # noqa: E402
@@ -638,13 +640,20 @@ def _documentation_check(scenarios: int, total: int, read_only: int) -> None:
         text = TECHNICAL_REFERENCE.read_text(encoding="utf-8")
     except OSError:
         raise ValueError(f"无法读取 {TECHNICAL_REFERENCE.name}") from None
-    fragments = (f"实际执行 {scenarios} 个行为场景", "`inherit` 不覆盖", "三种上游值")
+    fragments = (
+        f"实际执行 {scenarios} 个行为场景",
+        "`inherit` 不覆盖",
+        "三种上游值",
+        f"工具名必须恰为 {total} 个已登记名称且不重复，其中 {read_only} 个只读",
+    )
     missing = [fragment for fragment in fragments if fragment not in text]
     if missing:
         raise ValueError("技术参考与工具检查不一致：" + "、".join(missing))
     registrations = (
         (README, f"固定 {total} 项工具 allowlist（{read_only} 项只读，招聘者打招呼需逐次审批）"),
         (STATUS, f"{total} 个 allowlist 工具（{read_only} 个只读工具与需逐次审批的 `boss_hr_greet`）"),
+        (HARNESS_README, f"默认 {total} 个工具中 {read_only} 个只读"),
+        (UPSTREAM, f"固定 {total} 项工具 allowlist"),
     )
     for path, fragment in registrations:
         try:

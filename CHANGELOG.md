@@ -1,3 +1,9 @@
+## 0.2.0-rc.794 - 2026-11-27
+
+- 补齐工具计数的其余登记位置：rc.792 只核对 README 与 STATUS，但同一计数还写在 `harness/README.md`（“默认 14 个工具中 13 个只读”）、`docs/TECHNICAL_REFERENCE.md` 的自述段与 `UPSTREAM.md`（“固定 14 项工具 allowlist”）。现在这些位置都用实际工具数与只读数核对，任一漂移即 exit 2 并点名文件。[Issue #3713](https://github.com/can4hou6joeng4/boss-harness/issues/3713)
+- 前后对照：rc.793 固定提交的旧脚本把上述文档改成 15 项后仍 exit 0；修复版对同一改动 exit 2 并输出缺失片段，恢复后 exit 0。检查只读仓库内源码与文档，不启动上游、不访问模型或招聘平台。
+- 源码候选更新为 npm `0.2.0-rc.794` 和 Python `0.2.0rc794`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.793 - 2026-11-27
 
 - 修复 `check_approval_stop.py` 的启动标记竞态：假 CLI 先用 `exec 3>>` 创建标记文件、再写入 `started` 行，旧检查以“文件存在”为启动条件，可能读到空文件并误报“审批通过后假招聘 CLI 未启动（实测 0.0 秒、标记存在=True）”。全量检查已自然地复现该签名；现在等待带有效进程号的 `started` 行，文件先创建但内容未写入时继续等待，超时信息同时列出已读标记行。[Issue #3695](https://github.com/can4hou6joeng4/boss-harness/issues/3695)
