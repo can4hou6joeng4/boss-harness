@@ -17,6 +17,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPORT = "harness/src/boss_harness/session_export.py"
+TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
 from boss_harness.session_export import (  # noqa: E402
@@ -49,6 +50,11 @@ EXPORT_FRAGMENTS = (
     '"exportedEntries": len(units), "totalEntries": total_units, "maxBytes": max_bytes}',
     # 严格编码：保留中文、两空格缩进、非 JSON 值降级为字符串、拒绝 NaN / Infinity。
     'return json.dumps(document, ensure_ascii=False, indent=2, default=str, allow_nan=False) + "\\n"',
+    # 显式深度上限：不依赖 json.dumps 的递归异常（Python 3.14 起行为不同）。
+    "_EXPORT_MAX_DEPTH = 256",
+    "def _export_json_too_deep(value: Any) -> bool:",
+    "if _export_json_too_deep(document):",
+    'raise ValueError("导出内容嵌套过深，无法编码为 JSON，已停止导出")',
     "except RecursionError:",
     'raise ValueError("导出内容嵌套过深，无法编码为 JSON，已停止导出") from None',
     "except ValueError:\n        # 非有限数值会让严格 JSON 解析器拒绝整份文档",
@@ -199,6 +205,21 @@ def _behavior_checks() -> int:
     checked += _expect_error(
         lambda: _render(_meta(deep=deep)),
         "导出内容嵌套过深，无法编码为 JSON，已停止导出", "深层嵌套拒绝")
+    def _nested(depth: int) -> list:
+        root: list = []
+        cursor = root
+        for _ in range(depth - 1):
+            child: list = []
+            cursor.append(child)
+            cursor = child
+        return root
+
+    checked += _expect_value(
+        json.loads(_render(_meta(value=_nested(256))))["schema"], EXPORT_SCHEMA,
+        "深度边界内")
+    checked += _expect_error(
+        lambda: _render(_meta(value=_nested(257))),
+        "导出内容嵌套过深，无法编码为 JSON，已停止导出", "拒绝深度边界外")
     return checked
 
 
@@ -259,9 +280,17 @@ def check_export_json() -> int:
     return checked + 3 + _behavior_checks()
 
 
+def _documentation_check(checked: int) -> None:
+    reference = _read(TECHNICAL_REFERENCE)
+    if f"总项数 {checked}。" not in reference:
+        raise ValueError(
+            f"{TECHNICAL_REFERENCE} 缺少导出 JSON 检查的计数：总项数 {checked}。")
+
+
 def main() -> int:
     try:
         checked = check_export_json()
+        _documentation_check(checked)
     except ValueError as error:
         print(f"导出 JSON 结构核对失败，{error}", file=sys.stderr)
         return 2

@@ -327,7 +327,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_approval_digest.py`
 
-`scripts/check_approval_digest.py` 核对审批参数摘要的规范化、负载一致与索引往返：`approval_parameters_digest` 必须用精确 `dict` 类型判断，以 `sort_keys=True`、`ensure_ascii=False`、紧凑分隔符与 `allow_nan=False` 规范化，UTF-8 编码后取 SHA-256 十六进制摘要，序列化失败（含递归过深）统一收敛为固定错误；`agent.py` 的 `_prepare_tool` 审批负载必须恰好包含 `approvalId` / `toolName` / `description` / `params` / `paramsDigest` / `consequential` / `deadline` 七个字段，`params` 与摘要都直接引用同名 `arguments`，描述不回显参数，`start_tool_call` 把同一份参数写入条目；`session.py` 的 `_index_thread` 直接持久化必填摘要并把截止时间转为数值，`pending_approvals` 从 `params_digest` 列回读。脚本用 AST 核对负载键集合与摘要调用参数，反向断言禁止第二份摘要实现、宽松类型判断、可选摘要读取与参数拷贝；并直接调用 `approval_parameters_digest`（72 项），覆盖空对象、键序稳定、嵌套键序、紧凑分隔符、非 ASCII 不转义与键排序、数字键转字符串、布尔 / 空值 / 浮点 / 大整数 / 元组转数组、不同参数不同摘要与 64 位小写十六进制，以及 list / None / 字符串 / dict 子类、NaN / Infinity / 不可序列化值 / 字节值 / 混合键 / 循环引用 / 超深嵌套 / 嵌套 NaN 的固定错误收敛。检查不启动审批流程或持久化。
+`scripts/check_approval_digest.py` 核对审批参数摘要的规范化、负载一致与索引往返：`approval_parameters_digest` 必须用精确 `dict` 类型判断，以 `sort_keys=True`、`ensure_ascii=False`、紧凑分隔符与 `allow_nan=False` 规范化，UTF-8 编码后取 SHA-256 十六进制摘要，先用不依赖递归的迭代遍历施加 64 层深度上限（避免 Python 3.14 的 JSON 编码器不再抛 RecursionError 造成跨版本行为分叉），序列化失败（含 NaN、循环引用、超深嵌套）统一收敛为固定错误；`agent.py` 的 `_prepare_tool` 审批负载必须恰好包含 `approvalId` / `toolName` / `description` / `params` / `paramsDigest` / `consequential` / `deadline` 七个字段，`params` 与摘要都直接引用同名 `arguments`，描述不回显参数，`start_tool_call` 把同一份参数写入条目；`session.py` 的 `_index_thread` 直接持久化必填摘要并把截止时间转为数值，`pending_approvals` 从 `params_digest` 列回读。脚本用 AST 核对负载键集合与摘要调用参数，反向断言禁止第二份摘要实现、宽松类型判断、可选摘要读取与参数拷贝；并直接调用 `approval_parameters_digest`（76 项），覆盖空对象、键序稳定、嵌套键序、紧凑分隔符、非 ASCII 不转义与键排序、数字键转字符串、布尔 / 空值 / 浮点 / 大整数 / 元组转数组、不同参数不同摘要与 64 位小写十六进制，以及 list / None / 字符串 / dict 子类、NaN / Infinity / 不可序列化值 / 字节值 / 混合键 / 循环引用 / 超深嵌套 / 嵌套 NaN 的固定错误收敛，并固定根对象深度 0 计、嵌套至 64 层可摘要、第 65 层拒绝的边界。检查不启动审批流程或持久化。
 
 ### `check_pending_approvals.py`
 
@@ -421,7 +421,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_private_files.py`
 
-`scripts/check_private_files.py` 核对私有状态边界：`private_files.py` 必须保留目录 `0o700` / 文件 `0o600` 的创建与限制、`O_NOFOLLOW`、uid 与 inode 校验、ACL 清理和根目录拒绝；`ownership.py`、`persistence.py`、`session.py`、`snapshot_store.py`、`settings.py`、`maintenance.py`、`startup_check.py` 必须保留关键调用点；这些状态模块不得直接使用 `open(..., "w"/"a")`、`write_text(` 或 `write_bytes(` 写盘。`maintenance.py` 的索引修复必须先用 `lstat` 核对状态目录存在并在缺失时以固定说明拒绝，非空且不含任何状态标志（占用锁、`sessions`、`state.sqlite3`）的目录同样拒绝，再获取占用锁与创建备份目录，顺序与标志集合由脚本核对。行为侧用临时目录覆盖路径解析与符号链接环、根目录拒绝、两层目录创建与 `0o700`、已有目录不改权限、末级与父目录可写拒绝、只读核对不创建路径、文件创建 `0o600` 与读取收紧、只读打开不创建、符号链接与目录打开拒绝、收紧拒绝符号链接与目录（64 项）。符号链接竞态与跨平台 ACL 行为仍需按平台核对。
+`scripts/check_private_files.py` 核对私有状态边界：`private_files.py` 必须保留目录 `0o700` / 文件 `0o600` 的创建与限制、`O_NOFOLLOW`、uid 与 inode 校验、ACL 清理和根目录拒绝；`ownership.py`、`persistence.py`、`session.py`、`snapshot_store.py`、`settings.py`、`maintenance.py`、`startup_check.py` 必须保留关键调用点；这些状态模块不得直接使用 `open(..., "w"/"a")`、`write_text(` 或 `write_bytes(` 写盘。`maintenance.py` 的索引修复必须先用 `lstat` 核对状态目录存在并在缺失时以固定说明拒绝，非空且不含任何状态标志（占用锁、`sessions`、`state.sqlite3`）的目录同样拒绝，再获取占用锁与创建备份目录，顺序与标志集合由脚本核对。路径解析在常规 `resolve()` 后严格复核仍含符号链接的结果，避免 Python 3.14 的非严格解析静默放过符号链接环；行为侧用临时目录覆盖路径解析与符号链接环、根目录拒绝、两层目录创建与 `0o700`、已有目录不改权限、末级与父目录可写拒绝、只读核对不创建路径、文件创建 `0o600` 与读取收紧、只读打开不创建、符号链接与目录打开拒绝、收紧拒绝符号链接与目录（68 项）。符号链接竞态与跨平台 ACL 行为仍需按平台核对。
 
 ### `check_secret.py`
 
@@ -445,7 +445,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_export_json.py`
 
-`scripts/check_export_json.py` 核对会话导出 JSON 的分组结构与严格编码：回合前的条目必须进入 `beforeFirstTurn`，后续条目追加到最近回合的 `entries`，不得平铺或重排；文档必须展开 `meta` 并带 `redaction.marks` 的四项脱敏标记、`redaction.counts`、三类 `origins`、`beforeFirstTurn` / `turns` / `queue`、`truncated` / `exportedEntries` / `totalEntries` / `maxBytes`。编码固定为 `ensure_ascii=False`、`indent=2`、`default=str`、`allow_nan=False`，`RecursionError` 与非有限数值分别降级为可读的 `ValueError`。`EXPORT_SCHEMA` 必须固定为 `boss-harness-session-export/1`，采用「名称/整数版本」形式，`meta` 只引用该常量，不得另写 schema 字面量。反向断言不得允许 NaN / Infinity、不得改用 ASCII 转义或绕过参数直接编码。在此之上直接调用 `_render_json` 并解析结果：核对 schema、四项脱敏标记、计数写入、三类来源、回合前 / 回合内 / 无回合分组、截断与条目计数、queue、额外 `meta` 字段、中文不转义、两空格缩进与尾部换行、非 JSON 值转字符串，以及 NaN / Infinity / 深层嵌套的可读错误。总项数 68。
+`scripts/check_export_json.py` 核对会话导出 JSON 的分组结构与严格编码：回合前的条目必须进入 `beforeFirstTurn`，后续条目追加到最近回合的 `entries`，不得平铺或重排；文档必须展开 `meta` 并带 `redaction.marks` 的四项脱敏标记、`redaction.counts`、三类 `origins`、`beforeFirstTurn` / `turns` / `queue`、`truncated` / `exportedEntries` / `totalEntries` / `maxBytes`。编码固定为 `ensure_ascii=False`、`indent=2`、`default=str`、`allow_nan=False`，先用不依赖递归的迭代遍历施加 256 层深度上限（避免 Python 3.14 的 JSON 编码器不再抛 `RecursionError` 造成跨版本分叉），再编码；过深嵌套与非有限数值分别降级为可读的 `ValueError`。`EXPORT_SCHEMA` 必须固定为 `boss-harness-session-export/1`，采用「名称/整数版本」形式，`meta` 只引用该常量，不得另写 schema 字面量。反向断言不得允许 NaN / Infinity、不得改用 ASCII 转义或绕过参数直接编码。在此之上直接调用 `_render_json` 并解析结果：核对 schema、四项脱敏标记、计数写入、三类来源、回合前 / 回合内 / 无回合分组、截断与条目计数、queue、额外 `meta` 字段、中文不转义、两空格缩进与尾部换行、非 JSON 值转字符串，以及 NaN / Infinity / 深层嵌套的可读错误，并固定根文档深度 0 计、嵌套至 256 层可导出、第 257 层拒绝的边界；同时核对文档中的总项数。总项数 74。
 
 ### `check_export_timestamps.py`
 

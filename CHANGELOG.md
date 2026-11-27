@@ -1,3 +1,9 @@
+## 0.2.0-rc.796 - 2026-11-27
+
+- 统一 Python 3.14 下的深度与符号链接边界：3.14 的 `json.dumps` 不再对超深嵌套抛 `RecursionError`，`Path.resolve()` 默认模式也不再对符号链接环抛错，于是审批摘要会「成功」摘要万层参数、导出会产出超深 JSON、私有状态目录解析会返回未解析的环路径。现在审批摘要与导出各自先做不依赖递归的迭代深度检查（根对象深度 0 计，分别至 64 / 256 层），私有路径解析在常规解析后严格复核仍含链接的结果；三类错误继续收敛为固定文案。[Issue #3717](https://github.com/can4hou6joeng4/boss-harness/issues/3717)
+- 三个检查脚本固定新增守卫片段与边界正反例，技术参考同步计数（审批 72 → 76、导出 68 → 74、私有状态 64 → 68）并新增两项文档计数守卫。前后对照：rc.795 固定提交在 3.14.7 下三个脚本分别 exit 2；修复版在 3.14.7 与 3.12.13 下均 exit 0，3.14.7 全量检查 exit 0。
+- 源码候选更新为 npm `0.2.0-rc.796` 和 Python `0.2.0rc796`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.795 - 2026-11-27
 
 - 中文首页补齐浏览器来源的稳定边界：英文概览已写明可按进程覆盖 `BOSS_HARNESS_BROWSER_SOURCE`，中文定位段此前只写「不接收平台 Cookie」。现在中文侧也说明浏览器来源可覆盖、`inherit` 表示不覆盖上游配置，`check_readme_stability.py` 把该表述加入必需片段，结构计数从 26 增至 27。[Issue #3715](https://github.com/can4hou6joeng4/boss-harness/issues/3715)

@@ -30,6 +30,7 @@ from boss_harness.private_files import (  # noqa: E402
 )
 
 PRIVATE_FILES = f"{HARNESS}/private_files.py"
+TECHNICAL_REFERENCE = "docs/TECHNICAL_REFERENCE.md"
 PRIVATE_FRAGMENTS = (
     "def ensure_private_directory(path: Path, mode: int = 0o700)",
     "def check_private_directory(path: Path)",
@@ -41,6 +42,11 @@ PRIVATE_FRAGMENTS = (
     "opened.st_uid != uid",
     "(opened.st_dev, opened.st_ino)",
     "_clear_extended_acl(",
+    # 路径解析：3.14 起非严格 resolve 会放过符号链接环，需严格复核仍含链接的结果。
+    "def _resolve_private_target(path: Path) -> Path:",
+    "resolved = Path(path).resolve()",
+    "if any(part.is_symlink() for part in (resolved, *resolved.parents)):",
+    "return resolved.resolve(strict=True)",
     "状态目录不能是文件系统根目录",
     "if opened.st_mode & 0o022:",
 )
@@ -214,9 +220,17 @@ def check_private_files() -> tuple[int, int, int, int]:
             len(PROTECTED_MODULES), _behavior_checks())
 
 
+def _documentation_check(total: int) -> None:
+    reference = _read(TECHNICAL_REFERENCE)
+    if f"（{total} 项）" not in reference:
+        raise ValueError(
+            f"{TECHNICAL_REFERENCE} 缺少私有状态检查的计数：（{total} 项）")
+
+
 def main() -> int:
     try:
         fragments, calls, modules, behaviors = check_private_files()
+        _documentation_check(fragments + calls + modules + behaviors)
     except (ValueError, OSError) as error:
         print(f"私有状态文件边界核对失败，{error}", file=sys.stderr)
         return 2
