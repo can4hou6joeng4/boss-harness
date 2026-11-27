@@ -10,17 +10,20 @@ from pathlib import Path
 import re
 import sys
 import tempfile
+import unicodedata
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness/src"))
 
+from boss_harness.models import ModelConfig
 from boss_harness.startup_check import (  # noqa: E402
     _directories_overlap,
     _insecure_base_url,
     _is_loopback_host,
     _runtime_check,
     render_text,
+    startup_report,
 )
 
 STARTUP = "harness/src/boss_harness/startup_check.py"
@@ -105,7 +108,7 @@ DOC_TABLES = (
 )
 STATUSES = frozenset({"ok", "warning", "error"})
 # 自检文本会被复制到 Issue 或日志：渲染函数只允许读取已校验的报告字段。
-TEXT_REPORT_KEYS = frozenset({"version", "protocolVersion", "pythonVersion", "checks"})
+TEXT_REPORT_KEYS = frozenset({"version", "protocolVersion", "pythonVersion", "unicodeVersion", "checks"})
 TEXT_CHECK_KEYS = frozenset({"name", "status", "code", "message", "hint"})
 TEXT_FORBIDDEN = ("os", "sys", "open", "Path", "environ", "subprocess", "socket")
 # 与桌面 CONTROL_PATTERN 相同的码位：C0/C1 控制字符与行分隔符。
@@ -139,6 +142,7 @@ STARTUP_FRAGMENTS = (
     'return {"name": name, "status": status, "code": code, "message": message, "hint": hint}',
     '"schemaVersion": 1,',
     '"ok": all(check["status"] != "error" for check in checks),',
+    '"unicodeVersion": unicodedata.unidata_version,',
 )
 
 
@@ -889,6 +893,7 @@ def check_startup_diagnostics() -> tuple[int, int]:
     checked += _strict_exit(_read(ENTRY), guide)
     checked += _names_consistency(startup_tree, guide, _read(CONNECTION_NOTICE))
     checked += _conclusion_parity(startup_tree, _read(CONNECTION_NOTICE), _read(CONNECTION_SETTINGS))
+    checked += _unicode_version_parity(desktop, _read(CONNECTION_NOTICE), _read(PROTOCOL))
     return 9, guards + checked
 
 
@@ -898,7 +903,24 @@ def _expect_value(actual: object, expected: object, label: str) -> None:
 
 
 def _report(checks: list[dict[str, str]]) -> dict:
-    return {"version": "0.2.0", "protocolVersion": "0.2.0", "pythonVersion": "3.12.0", "checks": checks}
+    return {"version": "0.2.0", "protocolVersion": "0.2.0", "pythonVersion": "3.12.0",
+            "unicodeVersion": "15.0.0", "checks": checks}
+
+
+def _unicode_version_parity(desktop: str, notice: str, protocol: str) -> int:
+    """内核生成、桌面解析、渲染展示三处的 Unicode 版本字段必须同名同形。"""
+    checked = _expect((
+        "const unicodeVersion = report.unicodeVersion;",
+        "if (unicodeVersion !== undefined && !plainText(unicodeVersion)) return null;",
+        "...(unicodeVersion !== undefined ? { unicodeVersion } : {}),",
+    ), desktop, "startupCheck.ts unicodeVersion")
+    checked += _expect((
+        'typeof raw.unicodeVersion === "string" && raw.unicodeVersion',
+        "...(unicodeVersion ? { unicodeVersion } : {}),",
+        "diagnosis.unicodeVersion ? `Unicode ${diagnosis.unicodeVersion}` : \"\"",
+    ), notice, "connectionNotice.ts unicodeVersion")
+    checked += _expect(("unicodeVersion?: string",), protocol, "协议 unicodeVersion")
+    return checked
 
 
 def _behavior_checks() -> int:
@@ -948,9 +970,15 @@ def _behavior_checks() -> int:
         if invalid in json.dumps(report, ensure_ascii=False) or invalid in text:
             raise ValueError(f"{label}报告包含无效配置原文")
         checks[status] = check
+    version_line = render_text(_report([checks["ok"]])).splitlines()[1]
+    _expect_value(version_line, "内核 0.2.0 · 协议 0.2.0 · Python 3.12.0 · Unicode 15.0.0", "文本版本行")
+    with tempfile.TemporaryDirectory() as directory:
+        generated = startup_report(lambda: ModelConfig(provider="none"), state_dir=Path(directory))
+    _expect_value(generated["unicodeVersion"], unicodedata.unidata_version, "报告的 Unicode 版本")
+    _expect_value(f"Unicode {unicodedata.unidata_version}" in render_text(generated), True, "文本 Unicode 版本")
     mixed = render_text(_report([checks["warning"], checks["error"]]))
     _expect_value(mixed.splitlines()[0], "本地配置自检：发现 1 个错误、1 项警告", "错误与警告并存")
-    return len(cases) + 1
+    return len(cases) + 4
 
 
 def _boundary_checks() -> int:

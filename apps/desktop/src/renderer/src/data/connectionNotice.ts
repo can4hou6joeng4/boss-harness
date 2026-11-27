@@ -78,11 +78,13 @@ export function startupDiagnosisOf(value: unknown): StartupDiagnosis | undefined
   const version = typeof raw.version === "string" && raw.version ? raw.version : undefined;
   const protocolVersion = typeof raw.protocolVersion === "string" && raw.protocolVersion ? raw.protocolVersion : undefined;
   const pythonVersion = typeof raw.pythonVersion === "string" && raw.pythonVersion ? raw.pythonVersion : undefined;
+  const unicodeVersion = typeof raw.unicodeVersion === "string" && raw.unicodeVersion ? raw.unicodeVersion : undefined;
   return {
     kind: "report", ok: raw.ok, checks,
     ...(version ? { version } : {}),
     ...(protocolVersion ? { protocolVersion } : {}),
     ...(pythonVersion ? { pythonVersion } : {}),
+    ...(unicodeVersion ? { unicodeVersion } : {}),
   };
 }
 
@@ -231,7 +233,8 @@ export function startupReportMeta(diagnosis: StartupDiagnosis | undefined): stri
   if (diagnosis?.kind !== "report") return "";
   return [diagnosis.version ? `内核 ${diagnosis.version}` : "",
     diagnosis.protocolVersion ? `协议 ${diagnosis.protocolVersion}` : "",
-    diagnosis.pythonVersion ? `Python ${diagnosis.pythonVersion}` : ""].filter(Boolean).join(" · ");
+    diagnosis.pythonVersion ? `Python ${diagnosis.pythonVersion}` : "",
+    diagnosis.unicodeVersion ? `Unicode ${diagnosis.unicodeVersion}` : ""].filter(Boolean).join(" · ");
 }
 
 /** 桌面与内核协议不一致的提示；一致、缺少字段或没有报告时为空串。 */
