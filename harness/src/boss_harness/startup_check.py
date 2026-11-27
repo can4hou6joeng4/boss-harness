@@ -254,7 +254,8 @@ def _browser_check() -> dict[str, str]:
     except ValueError:
         return _check(
             "browserSource", "error", "BROWSER_SOURCE_INVALID", "浏览器来源配置无效。",
-            "将 BOSS_HARNESS_BROWSER_SOURCE 设为 auto、existing-browser、stored-cookie，或取消设置。",
+            "将 BOSS_HARNESS_BROWSER_SOURCE 设为 inherit、auto、existing-browser、stored-cookie，或取消设置；"
+            "inherit 表示不覆盖上游配置。",
         )
     return _check(
         "browserSource", "ok", "BROWSER_SOURCE_VALID", "本地浏览器来源选项校验通过。",

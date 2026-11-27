@@ -1,3 +1,9 @@
+## 0.2.0-rc.788 - 2026-11-27
+
+- 接受 `inherit` 作为 `BOSS_HARNESS_BROWSER_SOURCE` 的显式不覆盖别名：连接检查与桌面连接页一直把默认策略公开为 `browserSourcePolicy=inherit`，但把同一词写入环境变量会被解析器拒绝，`--check` 返回 exit 2 / `BROWSER_SOURCE_INVALID`，服务端也在启动前失败。现在 `inherit` 去空白、忽略大小写后归一为“不覆盖”，与未设置、空值、纯空白一致，不向上游添加 `--browser-source`；三个上游值的行为不变，`BROWSER_SOURCE_VALUES` 仍只含它们，错误文案改为列出四个可选值。[Issue #3702](https://github.com/can4hou6joeng4/boss-harness/issues/3702)
+- 固定提交 `f74c0d5e` 的归档与修复版运行同一真实内核探针：旧版解析 `inherit` 抛 `ValueError`、`--check` 退出 2，修复版返回 `None`、`--check` 退出 0；无模型回合下，`inherit` 传给假上游 CLI 的 argv 为 `--json status`，`auto` 仍为 `--json --browser-source auto status`。检查脚本同步覆盖显式与环境 `inherit`、显式优先于环境、完整可选值集合与“`inherit` 不进入上游集合”不变量。探针只留本地，不访问模型、招聘平台或真实 CLI。
+- 源码候选更新为 npm `0.2.0-rc.788` 和 Python `0.2.0rc788`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.787 - 2026-11-27
 
 - 修复标准输入等待的 `FD_SETSIZE` 限制：进程此前打开较多文件、唤醒 socket 编号过高，或嵌入程序把 stdin 设为高编号管道时，rc.785 的 `select.select()` 会在握手前报 `filedescriptor out of range` 并退出。现在改用 `select.poll()`，同时覆盖普通文件重定向；LF 分帧、UTF-8 / surrogateescape、读取预算、唤醒 fd 与信号关闭流程不变。[Issue #3700](https://github.com/can4hou6joeng4/boss-harness/issues/3700)

@@ -128,24 +128,30 @@ PAUSE_CODES = frozenset({
 #: 显式指定上游二进制的环境变量（最高优先级）。
 BINARY_ENV = "BOSS_CLI_BIN"
 BROWSER_SOURCE_ENV = "BOSS_HARNESS_BROWSER_SOURCE"
+#: 只传给上游 `--browser-source` 的取值；`inherit` 是本地“不覆盖”别名，不得进入 argv。
 BROWSER_SOURCE_VALUES = frozenset({"auto", "existing-browser", "stored-cookie"})
+BROWSER_SOURCE_INHERIT = "inherit"
+BROWSER_SOURCE_CHOICES = BROWSER_SOURCE_VALUES | {BROWSER_SOURCE_INHERIT}
 
 
 def resolve_browser_source_override(value: str | None = None) -> str | None:
     """Read an optional, validated per-process upstream browser policy.
 
-    An empty or whitespace-only value is the same as leaving the variable unset:
-    it must not become an invalid explicit policy that blocks startup.
+    Unset, empty, whitespace-only, or the explicit `inherit` alias all mean "do
+    not override": the upstream CLI keeps its own configuration and no
+    `--browser-source` argument is added. Accepting the same word the connection
+    report publishes lets operators pin the displayed default explicitly without
+    being rejected at startup.
     """
     if value is None:
         value = os.environ.get(BROWSER_SOURCE_ENV)
     if value is None:
         return None
     normalized = value.strip().lower()
-    if normalized == "":
+    if normalized in {"", BROWSER_SOURCE_INHERIT}:
         return None
     if normalized not in BROWSER_SOURCE_VALUES:
-        choices = ", ".join(sorted(BROWSER_SOURCE_VALUES))
+        choices = ", ".join(sorted(BROWSER_SOURCE_CHOICES))
         raise ValueError(f"{BROWSER_SOURCE_ENV} 必须是以下值之一：{choices}")
     return normalized
 
@@ -235,6 +241,7 @@ class BossCliTool:
         if self.data_dir:
             argv += ["--data-dir", self.data_dir]
         if self.browser_source is not None:
+            # `inherit` 已在上游参数解析时折叠为 None，不会出现在这里。
             argv += ["--browser-source", self.browser_source]
         argv += list(args)
         def failure(code: str, message: str) -> ToolResult:

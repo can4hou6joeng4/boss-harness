@@ -911,7 +911,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_browser_source.py`
 
-`scripts/check_browser_source.py` 核对 `BOSS_HARNESS_BROWSER_SOURCE` 的严格白名单 `auto` / `existing-browser` / `stored-cookie`、空值回退与规范化，要求上游参数以独立 `--browser-source` 值构造且子进程保持 `shell=False`；同时核对启动自检码、连接报告与桌面设置页的来源策略展示。脚本并直接调用 `resolve_browser_source_override`（48 项），覆盖未设置 / 空字符串 / 纯空白回落、大小写与首尾空白归一、三个合法值、环境变量为空串时回落、环境值全大写时归一、环境变量生效与显式值优先（含环境合法而显式非法时仍拒绝）、非法显式值与非法环境变量的固定错误文案、允许值集合恰好三个，以及解析不写回环境变量。脚本不启动上游、不读取浏览器或 Cookie，也不验证上游是否支持该参数。
+`scripts/check_browser_source.py` 核对 `BOSS_HARNESS_BROWSER_SOURCE` 的严格白名单 `auto` / `existing-browser` / `stored-cookie`、`inherit` 不覆盖别名、空值回退与规范化，要求上游参数以独立 `--browser-source` 值构造且子进程保持 `shell=False`；同时核对启动自检码、连接报告与桌面设置页的来源策略展示。脚本并直接调用 `resolve_browser_source_override`（27 项），覆盖未设置 / 空字符串 / 纯空白回落、显式与环境 `inherit` 均回落且不覆盖上游、大小写与首尾空白归一、三个合法值、环境变量为空串时回落、环境值全大写时归一、环境变量生效与显式值优先（含环境合法而显式非法时仍拒绝）、非法显式值与非法环境变量的固定错误文案、上游允许值集合恰好三个、完整可选值集合为三个上游值加 `inherit`、`inherit` 不进入上游集合，以及解析不写回环境变量。脚本不启动上游、不读取浏览器或 Cookie，也不验证上游是否支持该参数。
 
 ### `check_connections.py`
 
@@ -1337,7 +1337,7 @@ JSON-RPC 输入帧在派发前使用严格 JSON 解码：对象键必须唯一�
 
 招聘 CLI 自行管理部分网络重试、认证刷新和缓存行为；Harness 能依据的是它收到的最终错误或支持的结构化停止元数据，无法从成功结果推断此前是否出现过隐藏响应。更换 `BOSS_CLI_BIN`、业务 CLI 版本或上游配置后，应重新核对这些边界；不要把单次工具派发等同于单次平台请求，也不要据此声称“首次限流即停止”或“没有触碰浏览器”。
 
-Harness 可通过进程环境变量 `BOSS_HARNESS_BROWSER_SOURCE` 显式传递上游支持的来源：`auto` 保留上游默认自动选择，可能探测 CDP 或降级到 headless；`existing-browser` 只复用现有 CDP 浏览器且不读取存储凭据；`stored-cookie` 使用上游存储凭据并只连接显式配置的 CDP，不自动探测或启动浏览器。后二者会改变请求通道和运行前提，不能视为“无重试”或“零平台访问”模式。未设置变量时不添加参数，继续继承上游 `config.json`；显式参数被上游拒绝时只失败一次，不静默删参或重放。该参数只对支持它的业务 CLI 有效，更换 `BOSS_CLI_BIN` 后须重新核验。
+Harness 可通过进程环境变量 `BOSS_HARNESS_BROWSER_SOURCE` 显式传递上游支持的来源：`auto` 保留上游默认自动选择，可能探测 CDP 或降级到 headless；`existing-browser` 只复用现有 CDP 浏览器且不读取存储凭据；`stored-cookie` 使用上游存储凭据并只连接显式配置的 CDP，不自动探测或启动浏览器。另可显式设为 `inherit`，表示不覆盖上游配置，效果与未设置一致，不会添加参数。后二者会改变请求通道和运行前提，不能视为“无重试”或“零平台访问”模式。未设置变量时不添加参数，继续继承上游 `config.json`；显式参数被上游拒绝时只失败一次，不静默删参或重放。该参数只对支持它的业务 CLI 有效，更换 `BOSS_CLI_BIN` 后须重新核验。
 
 `boss-agent-cli --json` 的输出在进入七键集合、退出码和暂停码适配前，先经过严格 JSON 校验：对象键必须唯一，浮点数必须有限，嵌套最多 64 层，字符串不得包含孤立 Unicode 代理项。JSON 语法错误返回 `CLI_ERROR`；可解析但违反这些完整性约束的信封返回 `CLI_CONTRACT_ERROR`，不保存 `data`、不回交模型，且暂停当前回合、后续工具与队列，不自动重试。已派发写工具的该类错误仍记录 `outcome_unknown` 并要求核对外部状态。单次 CLI 派发仍不等于单次平台请求；这项校验只约束 Harness 与上游进程之间的信封边界。
 
@@ -1610,7 +1610,7 @@ Electron 运行时从官方源单独下载和校验，失败后需先恢复安�
 
 工具可执行文件按 `BOSS_CLI_BIN`、并排 `boss-agent-cli/.venv/bin/boss`、PATH 的顺序查找；仅为目录、断链或不可执行的候选会被跳过；指向可执行文件的符号链接仍可使用。显式设置 `BOSS_CLI_BIN` 却回退到其他来源时，`--check` 以 `BOSS_CLI_BIN_IGNORED` 警告说明实际未采用显式配置，不输出路径；最终没有可用 CLI 时仍报 `BOSS_CLI_UNAVAILABLE`。`BOSS_CLI_DATA_DIR` 是上游登录及平台状态目录，`BOSS_HARNESS_DIR` 是本项目的会话目录（默认 `~/.boss-harness/harness`；旧 `BOSS_CLI_HARNESS_DIR` 与 `~/.boss-cli/harness` 仍兼容读取），两者分别管理。环境变量值以 `~` 开头且本次检查使用的正是该字面路径时，`--check` 以 `STATE_DIRECTORY_TILDE` 警告说明内核不展开 `~`；显式 `--state-dir` 指向其他路径时不因残留环境变量报警。旧变量显式非空时，`--check` 以 `LEGACY_STATE_ENV_PRESENT` 警告提示迁移，路径条件失败时仍优先报告目录错误码。状态目录路径检查通过后，`--check` 还读取该目录或最近存在祖先所在文件系统的剩余空间，低于 512 MiB 时以 `STATE_DIRECTORY_LOW_SPACE` 警告建议释放空间；不输出路径或确切字节，读取失败时保持通过。业务 CLI 可执行文件存在时，`--check` 若发现两者解析后相同或互相包含，会以 `BOSS_CLI_DATA_DIR_OVERLAP` 警告；只读路径，不创建目录，也不执行 CLI。数据目录与状态目录不重叠、解析后等于或位于当前 git 工作区内时，`--check` 以 `BOSS_CLI_DATA_DIR_IN_REPO` 警告建议移出仓库，避免登录态与平台缓存被提交；以 `~` 开头的值不展开，也不参与该判断。
 
-启动 Harness 或桌面应用前，可用 `BOSS_HARNESS_BROWSER_SOURCE` 覆盖业务 CLI 的浏览器来源：`auto`、`existing-browser` 或 `stored-cookie`；取值去除首尾空白并忽略字母大小写。未设置、空值或仅含空白时完整继承上游 `config.json`。显式覆盖只传递上游 `--browser-source` 参数，不读取或改写该共享配置；不支持该参数的 CLI 会明确失败，不自动去掉参数重试。连接设置页会显示当前覆盖值或“继承上游 CLI 配置”。
+启动 Harness 或桌面应用前，可用 `BOSS_HARNESS_BROWSER_SOURCE` 覆盖业务 CLI 的浏览器来源：`auto`、`existing-browser` 或 `stored-cookie`；取值去除首尾空白并忽略字母大小写。未设置、空值、仅含空白或显式 `inherit` 时完整继承上游 `config.json`；`inherit` 是连接报告显示的默认策略词，设置它不会向上游传递参数。显式覆盖只传递上游 `--browser-source` 参数，不读取或改写该共享配置；不支持该参数的 CLI 会明确失败，不自动去掉参数重试。连接设置页会显示当前覆盖值或“继承上游 CLI 配置”。
 
 运行中的会话支持把新消息“转向当前回合”或“排到后续回合”。转向消息会在当前工具批次结束后、下一次模型请求前加入；后续消息等当前任务自然结束后再启动。内核声明 `queueSteer` 时，排队中的 follow-up 可经 `queue/steer` 原子改为当前回合 steering：必须存在 active turn 且 `expectedTurnId` 匹配，只接受 `queued` 的 follow-up；带 `skillIds` 或 `autoCompaction` 的项返回 `STEER_UNAVAILABLE` 且不修改记录，成功后沿用现有 steering 领取 / 注入 / 暂停路径。停止任务仍是独立操作。队列显示持久状态，尚未投递的项目可以撤回；未知提交回执会保留原文并使用同一请求编号重试，不会自动重复排队。仅当后续回合项为 `paused / TURN_START_FAILED` 且 `inputPersisted` 明确为 `false` 时，桌面提供“重新排队”：以新的 `clientUserMessageId` 和原输入、`skillIds` 调用 `queue/add`，受理后再 `queue/remove` 撤回旧项；旧项撤回失败时保留为暂停项可手动撤回，不自动重放任何工具、审批或平台操作。重新排队已受理但队列刷新失败时，本地持久总数只按新项增加；撤回只把旧项标记为已取消，不删除持久记录。队列读取有界：`thread/read`、`thread/resume`（含快照）与 `queue/list` 优先保留 `paused` 项，再按最近顺序保留 `queued` / `delivering` 项；待处理项单次最多 200 项，名额允许时另返回最近 50 个已终结项。正文预览截断为 600 字符并标 `inputTruncated`，响应附 `queueTotalItems` / `queueActiveItems` / `queueCounts` / `queueTruncated`（`queue/list` 为 `totalItems` / `activeItems` / `counts` / `truncated`）；总数与分类计数按全部有效持久记录统计，不受条目投影截断影响，旧内核缺省这些字段。完整单项正文经只读 `queue/get` 读取，重新排队使用该结果而不是预览。桌面渲染层对 `queue/list` 与 `thread/resume` 共用同一套元数据校验：已接受的总数或待处理数大于已载入项时按截断处理，截断标记缺失或误报为 `false` 不改变结论；分类计数必须与已接受的待处理总数一致，`thread/list` 会话行的分类计数也以待处理总数通过校验为前提。提交核对因此不会把未载入的消息判为「不存在」，队列面板与驾驶舱也不会把截断投影当成完整队列。驾驶舱的队列摘要优先采用内核持久分类计数，与队列面板、侧栏徽标一致；只有旧内核缺省分类、或分类合计与待处理总数不一致时，才按已载入项统计并在截断时标注「分类按可见项计数」。
 

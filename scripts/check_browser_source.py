@@ -2,8 +2,9 @@
 """核对上游 CLI 浏览器来源覆盖边界，成功时输出核对项数量。
 
 除源码与桌面片段扫描外，脚本直接调用 `resolve_browser_source_override`，
-核对环境读取、去空白与大小写归一、空值与空串回落、显式值优先于环境、
-白名单校验与错误文案，并断言允许值集合恰好三个。
+核对环境读取、去空白与大小写归一、空值与空串回落、显式 `inherit` 不覆盖、
+显式值优先于环境、白名单校验与错误文案；并断言传给上游的集合恰好三个，
+`inherit` 只作为本地别名存在，不会进入 argv。
 """
 
 from __future__ import annotations
@@ -23,25 +24,31 @@ SETTINGS = "apps/desktop/src/renderer/src/components/ConnectionSettings.tsx"
 
 sys.path.insert(0, str(ROOT / "harness/src"))
 from boss_harness.tools.boss_cli import (  # noqa: E402
+    BROWSER_SOURCE_CHOICES,
     BROWSER_SOURCE_ENV,
+    BROWSER_SOURCE_INHERIT,
     BROWSER_SOURCE_VALUES,
     resolve_browser_source_override,
 )
 
 VALUES = frozenset({"auto", "existing-browser", "stored-cookie"})
+CHOICES = VALUES | {"inherit"}
 ENV = "BOSS_HARNESS_BROWSER_SOURCE"
 TOOLS_FRAGMENTS = (
     f'BROWSER_SOURCE_ENV = "{ENV}"',
     'BROWSER_SOURCE_VALUES = frozenset({"auto", "existing-browser", "stored-cookie"})',
+    'BROWSER_SOURCE_INHERIT = "inherit"',
+    "BROWSER_SOURCE_CHOICES = BROWSER_SOURCE_VALUES | {BROWSER_SOURCE_INHERIT}",
     "def resolve_browser_source_override(value: str | None = None) -> str | None:",
     "value = os.environ.get(BROWSER_SOURCE_ENV)",
     "normalized = value.strip().lower()",
-    'if normalized == "":',
+    'if normalized in {"", BROWSER_SOURCE_INHERIT}:',
     "if normalized not in BROWSER_SOURCE_VALUES:",
-    'choices = ", ".join(sorted(BROWSER_SOURCE_VALUES))',
+    'choices = ", ".join(sorted(BROWSER_SOURCE_CHOICES))',
     "raise ValueError(f\"{BROWSER_SOURCE_ENV} 必须是以下值之一：{choices}\")",
     "self.browser_source = resolve_browser_source_override()",
     'self.browser_source_policy = self.browser_source or "inherit"',
+    "if self.browser_source is not None:",
     'argv += ["--browser-source", self.browser_source]',
     "shell=False",
 )
@@ -129,12 +136,21 @@ def _with_env(value: str | None, call):
 
 
 def _behavior_checks() -> int:
-    choices = ", ".join(sorted(BROWSER_SOURCE_VALUES))
+    choices = ", ".join(sorted(BROWSER_SOURCE_CHOICES))
     message = f"{BROWSER_SOURCE_ENV} 必须是以下值之一：{choices}"
     checked = _expect_value(
         _with_env(None, resolve_browser_source_override), None, "未设置")
     checked += _expect_value(resolve_browser_source_override(""), None, "空字符串")
     checked += _expect_value(resolve_browser_source_override("   "), None, "纯空白")
+    checked += _expect_value(
+        resolve_browser_source_override("inherit"), None, "显式 inherit")
+    checked += _expect_value(
+        resolve_browser_source_override(" InHerit "), None, "inherit 大小写与空白")
+    checked += _expect_value(
+        _with_env("inherit", resolve_browser_source_override), None, "环境 inherit")
+    checked += _expect_value(
+        _with_env("auto", lambda: resolve_browser_source_override("inherit")), None,
+        "显式 inherit 覆盖环境")
     checked += _expect_value(resolve_browser_source_override("auto"), "auto", "auto")
     checked += _expect_value(resolve_browser_source_override("AUTO"), "auto", "大写")
     checked += _expect_value(
@@ -181,7 +197,14 @@ def _behavior_checks() -> int:
         message, "显式非法优先于环境")
     checked += _expect_value(
         set(BROWSER_SOURCE_VALUES), {"auto", "existing-browser", "stored-cookie"},
-        "允许值集合")
+        "上游允许值集合")
+    checked += _expect_value(
+        BROWSER_SOURCE_INHERIT, "inherit", "inherit 常量")
+    checked += _expect_value(
+        set(BROWSER_SOURCE_CHOICES), set(VALUES) | {"inherit"}, "完整可选值集合")
+    checked += _expect_value(
+        BROWSER_SOURCE_INHERIT in BROWSER_SOURCE_VALUES, False,
+        "inherit 不得进入上游集合")
     return checked
 
 
