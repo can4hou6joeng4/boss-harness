@@ -143,6 +143,8 @@ STARTUP_FRAGMENTS = (
     '"schemaVersion": 1,',
     '"ok": all(check["status"] != "error" for check in checks),',
     '"unicodeVersion": unicodedata.unidata_version,',
+    'if "unicodeVersion" in report:',
+    "version_line += f\" · Unicode {report['unicodeVersion']}\"",
 )
 
 
@@ -972,13 +974,16 @@ def _behavior_checks() -> int:
         checks[status] = check
     version_line = render_text(_report([checks["ok"]])).splitlines()[1]
     _expect_value(version_line, "内核 0.2.0 · 协议 0.2.0 · Python 3.12.0 · Unicode 15.0.0", "文本版本行")
+    legacy = _report([checks["ok"]])
+    legacy.pop("unicodeVersion")
+    _expect_value(render_text(legacy).splitlines()[1], "内核 0.2.0 · 协议 0.2.0 · Python 3.12.0", "旧报告版本行")
     with tempfile.TemporaryDirectory() as directory:
         generated = startup_report(lambda: ModelConfig(provider="none"), state_dir=Path(directory))
     _expect_value(generated["unicodeVersion"], unicodedata.unidata_version, "报告的 Unicode 版本")
     _expect_value(f"Unicode {unicodedata.unidata_version}" in render_text(generated), True, "文本 Unicode 版本")
     mixed = render_text(_report([checks["warning"], checks["error"]]))
     _expect_value(mixed.splitlines()[0], "本地配置自检：发现 1 个错误、1 项警告", "错误与警告并存")
-    return len(cases) + 4
+    return len(cases) + 5
 
 
 def _boundary_checks() -> int:
