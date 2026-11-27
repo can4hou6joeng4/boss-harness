@@ -649,7 +649,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_attachment_read.py`
 
-`scripts/check_attachment_read.py` 核对附件分页读取的游标绑定与解码边界：`read_chunk` 的 `limit` 只接受 1 到 `MAX_READ_CHARS` 的整数；先经条目投影取记录再按记录的摘要与字节数读取对象；继续读取必须携带匹配当前摘要的 `sha256`，否则返回 `STALE_ATTACHMENT`（`-32011`、`currentRef`）；游标必须带 `at1_` 前缀、长度不超过 2048，载荷是 `threadId` / `attachmentId` / `sha256` / 偏移四元组，偏移严格小于字符长度，base64url 严格解码且捕获五类解析异常；`end` 取 `min(offset + limit, len(text))`，只有未读完时才生成无填充的紧凑 JSON 游标；正文经 `wire_text` 降级，`contentRef` 带字节与字符长度。记录中的摘要格式、名称长度与字节范围按损坏处理，附件正文解码失败转为产品错误。完整读取复制记录，`include_content` 关闭时不读对象。脚本另用临时目录与合成条目实际执行 `read_chunk` 与 `read`，覆盖 56 个行为场景：完整一页与 `contentRef` 五字段、按字符而非字节分页、后续游标的 `at1_` 前缀 / 四元组载荷 / 末页为空、`limit` 的零值 / 上界 +1 / 布尔 / 浮点 / 字符串错误、`sha256` 格式错误与摘要不匹配的 `-32011` 与 `currentRef`、十一类无效游标、未知附件、七类损坏记录、对象缺失 / 内容被替换 / 非 UTF-8、孤立代理项名称降级，以及 `include_content` 开关。
+`scripts/check_attachment_read.py` 核对附件分页读取的游标绑定与解码边界：`read_chunk` 的 `limit` 只接受 1 到 `MAX_READ_CHARS` 的整数；先经条目投影取记录再按记录的摘要与字节数读取对象；继续读取必须携带匹配当前摘要的 `sha256`，否则返回 `STALE_ATTACHMENT`（`-32011`、`currentRef`）；游标必须带 `at1_` 前缀、长度不超过 2048，载荷是 `threadId` / `attachmentId` / `sha256` / 偏移四元组，偏移严格小于字符长度，游标经共享 `decode_cursor_base64` 严格解码且捕获五类解析异常；`end` 取 `min(offset + limit, len(text))`，只有未读完时才生成无填充的紧凑 JSON 游标；正文经 `wire_text` 降级，`contentRef` 带字节与字符长度。记录中的摘要格式、名称长度与字节范围按损坏处理，附件正文解码失败转为产品错误。完整读取复制记录，`include_content` 关闭时不读对象。脚本另用临时目录与合成条目实际执行 `read_chunk` 与 `read`，覆盖 56 个行为场景：完整一页与 `contentRef` 五字段、按字符而非字节分页、后续游标的 `at1_` 前缀 / 四元组载荷 / 末页为空、`limit` 的零值 / 上界 +1 / 布尔 / 浮点 / 字符串错误、`sha256` 格式错误与摘要不匹配的 `-32011` 与 `currentRef`、十一类无效游标、未知附件、七类损坏记录、对象缺失 / 内容被替换 / 非 UTF-8、孤立代理项名称降级，以及 `include_content` 开关。
 
 ### `check_attachment_context.py`
 
@@ -867,7 +867,7 @@ CI 的 Source build 在安装项目依赖前逐个运行同一组脚本。Python
 
 ### `check_page_cursor.py`
 
-`scripts/check_page_cursor.py` 核对分页游标编解码：`_page_cursor` 只写 `kind` / `scope` / `key` 三个字段，编码为 `p1_` 前缀加去掉补齐符的 urlsafe base64；`_read_page_cursor` 对空游标返回 `None`，否则校验字符串、`p1_` 前缀与 4096 字符上限，严格解码并把 `ValueError` / `UnicodeDecodeError` / `binascii.Error` / `RecursionError` 统一收敛为「游标无效」，载荷必须恰好包含三个字段、`kind` 与 `scope` 完全匹配、`key` 为列表，否则报「游标与查询范围不匹配」。反向断言：严格解码参数必须保留；四类异常都必须被捕获；两类错误各出现固定次数。脚本并直接调用 `_page_cursor` / `_read_page_cursor`（45 项），覆盖 `p1_` 前缀与无补齐符、键列表往返、scope 键序无关、`None` 透传、空字符串 / 非字符串 / 错误前缀 / 非法 base64 / 坏 JSON / 顶层非对象 / 缺字段 / 额外字段 / key 非列表 / kind 与 scope 不符 / kind 大小写 / 深层嵌套非对象 / 超长游标。检查不执行 SQL 或分页读取。
+`scripts/check_page_cursor.py` 核对分页游标编解码：`_page_cursor` 只写 `kind` / `scope` / `key` 三个字段，编码为 `p1_` 前缀加去掉补齐符的 urlsafe base64；`_read_page_cursor` 对空游标返回 `None`，否则校验字符串、`p1_` 前缀与 4096 字符上限，复用 `item_content.decode_cursor_base64` 解码并把 `ValueError` / `UnicodeDecodeError` / `binascii.Error` / `RecursionError` 统一收敛为「游标无效」，载荷必须恰好包含三个字段、`kind` 与 `scope` 完全匹配、`key` 为列表，否则报「游标与查询范围不匹配」。共享解码器先固定 urlsafe 字符集与尾部填充数量（最多两个，且必须等于补齐所需），再补齐到 4 的倍数解码规范形式，使多余填充、填充不足、只有填充、非法长度与标准字母表在 3.10–3.14 上一致拒绝。反向断言：调用点必须复用共享解码、共享解码器必须保留严格参数；四类异常都必须被捕获；两类错误各出现固定次数。脚本并直接调用 `_page_cursor` / `_read_page_cursor`（59 项），覆盖 `p1_` 前缀与无补齐符、键列表往返、scope 键序无关、`None` 透传、空字符串 / 非字符串 / 错误前缀 / 非法 base64 / 坏 JSON / 顶层非对象 / 缺字段 / 额外字段 / key 非列表 / kind 与 scope 不符 / kind 大小写 / 深层嵌套非对象 / 超长游标、规范补齐、填充不足 / 多余填充 / 只有填充、非法长度与标准字母表。检查不执行 SQL 或分页读取。
 
 ### `check_entries_snapshot.py`
 

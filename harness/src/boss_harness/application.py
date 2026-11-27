@@ -30,6 +30,7 @@ from boss_harness.agent import TurnRunner
 from boss_harness.bridge_lifecycle import BridgeLifecycle
 from boss_harness.context import ContextBudgetExceeded, ContextService, describe_request, request_fingerprint
 from boss_harness.connections import ConnectionChecks
+from boss_harness.item_content import decode_cursor_base64
 from boss_harness.models import ModelConfig, Provider, has_anthropic_credential, resolve_config
 from boss_harness.models.secret import redact_secrets
 from boss_harness.models.capabilities import ModelCatalog
@@ -1352,7 +1353,7 @@ class ApplicationService:
             try:
                 if not isinstance(cursor, str) or len(cursor) > 2048:
                     raise ValueError()
-                scope, offset = json.loads(base64.b64decode(cursor.encode(), altchars=b"-_", validate=True))
+                scope, offset = json.loads(decode_cursor_base64(cursor))
                 if scope != scope_id or type(offset) is not int or offset < 0:
                     raise ValueError()
             except (ValueError, TypeError, AttributeError, UnicodeDecodeError, binascii.Error, RecursionError):
