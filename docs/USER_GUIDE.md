@@ -34,7 +34,7 @@
 
 ## 当前候选与客户端升级
 
-当前源码使用 npm `0.2.0-rc.787` / Python `0.2.0rc787` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
+当前源码使用 npm `0.2.0-rc.788` / Python `0.2.0rc788` 与 JSON-RPC `0.2.0`；`main` 为开发分支，最新实际预发布见 [GitHub Releases](https://github.com/can4hou6joeng4/boss-harness/releases)。下列客户端约束保持兼容；逐批变更、修复计数与候选准备历史见 [CHANGELOG](../CHANGELOG.md)，不从使用指南重复发布状态。
 
 - 握手的 `protocolVersion` 使用字符串，`capabilities` 使用对象或 null。非法类型返回 `-32602`，同一连接可修正参数后重试握手。
 - `thread/read` 和 `thread/resume` 的 `snapshot` 使用布尔 true / false，不能用字符串或 null。true 返回冻结快照，缺省或 false 返回普通读取。
@@ -400,7 +400,7 @@ OpenAI Responses 与 Anthropic Messages 的单次传输默认最多运行 600 �
 
 业务可执行文件依次从 `BOSS_CLI_BIN`（去除首尾空白，空值或仅含空白时视为未设置）、并排的 `boss-agent-cli/.venv/bin/boss`、PATH 查找；仅为目录、断链或不可执行的候选会被跳过；指向可执行文件的符号链接仍可使用。显式设置 `BOSS_CLI_BIN` 却因不可执行被跳过、回退到其他来源时，自检报 `BOSS_CLI_BIN_IGNORED` 警告，不输出实际路径；最终没有可用 CLI 时仍报 `BOSS_CLI_UNAVAILABLE`。`BOSS_CLI_DATA_DIR` 管理上游登录和平台状态，取值会去除首尾空白，空值或仅含空白时视为未设置，工具桥与自检使用同一个规范化后的路径；`BOSS_HARNESS_DIR` 管理本项目会话（旧 `BOSS_CLI_HARNESS_DIR` 仍兼容），两者应分别配置。
 
-可在启动 Harness 或桌面应用前设置 `BOSS_HARNESS_BROWSER_SOURCE` 为 `auto`、`existing-browser` 或 `stored-cookie`；取值会去除首尾空白并忽略字母大小写。未设置、空值或仅含空白时继承上游配置；显式设置需要上游支持 `--browser-source`，不支持时会明确失败，不会静默重试。取值无效时内核在启动阶段直接失败，错误会点名变量并列出可选值，不会带着错误配置继续运行。该选项不会读取或改写共享上游配置，也不替代单独的请求和认证边界检查。
+可在启动 Harness 或桌面应用前设置 `BOSS_HARNESS_BROWSER_SOURCE` 为 `auto`、`existing-browser` 或 `stored-cookie`；取值会去除首尾空白并忽略字母大小写。也可以显式设为 `inherit`，表示不覆盖上游配置，与未设置等价，不会向上游传递 `--browser-source`；连接报告显示的默认策略就是 `inherit`，需要固定该默认值时可直接使用它。未设置、空值、仅含空白或 `inherit` 时均继承上游配置；显式设置需要上游支持 `--browser-source`，不支持时会明确失败，不会静默重试。取值无效时内核在启动阶段直接失败，错误会点名变量并列出可选值，不会带着错误配置继续运行。该选项不会读取或改写共享上游配置，也不替代单独的请求和认证边界检查。
 
 ## 明确条件搜索
 

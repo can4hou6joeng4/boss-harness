@@ -473,9 +473,18 @@ def _behavior_checks() -> int:
         for value in ("auto", "existing-browser", "stored-cookie"):
             checked += _expect_value(resolve_browser_source_override(value), value,
                                      f"来源 {value}")
+        for value in ("inherit", " INHERIT "):
+            checked += _expect_value(resolve_browser_source_override(value), None,
+                                     "显式 inherit 不覆盖")
+        os.environ[BROWSER_SOURCE_ENV] = "inherit"
+        checked += _expect_value(resolve_browser_source_override(), None,
+                                 "环境 inherit 不覆盖")
+        os.environ[BROWSER_SOURCE_ENV] = "auto"
+        checked += _expect_value(resolve_browser_source_override("inherit"), None,
+                                 "显式 inherit 优先于环境")
         checked += _expect_error(
             lambda: resolve_browser_source_override("cdp"),
-            f"{BROWSER_SOURCE_ENV} 必须是以下值之一：auto, existing-browser, stored-cookie",
+            f"{BROWSER_SOURCE_ENV} 必须是以下值之一：auto, existing-browser, inherit, stored-cookie",
             "来源非法值")
     finally:
         if previous is None:
