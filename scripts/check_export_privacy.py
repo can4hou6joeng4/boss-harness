@@ -395,6 +395,21 @@ def _behavior_checks() -> int:
         redactor.sensitive("/Users/unknown/Job Search/resume.pdf"),
         PATH_MARK, "空格延续路径")
 
+    checked += _expect_value(
+        (_continues_path("Ꟛ Search", previous_upper=True),
+         _continues_path("Ᲊ Search", previous_upper=True)),
+        (False, False), "路径延续只认 ASCII 大写")
+
+    redactor = Redactor(secrets=[], paths=[])
+    checked += _expect_value(
+        redactor.sensitive("/Users/unknown/Job Ꟛ Search"),
+        f"{PATH_MARK} Ꟛ Search", "非 ASCII 大写不延续")
+
+    redactor = Redactor(secrets=[], paths=[])
+    checked += _expect_value(
+        redactor.sensitive("/Users/unknown/Ꟛ Search"),
+        f"{PATH_MARK} Search", "非 ASCII 大写末段不延续")
+
     redactor = Redactor(secrets=[], paths=[])
     checked += _expect_value(
         redactor.sensitive("/Users/unknown/Job search notes"),

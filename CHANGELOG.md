@@ -1,3 +1,9 @@
+## 0.2.0-rc.814 - 2026-11-28
+
+- 导出路径延续只按 ASCII 大写判断：`_continues_path()` 与 `_path_end()` 原用 `str.isupper()`，而大写集合随 Unicode 版本扩大（Python 3.14 的 Unicode 16.0 新增 27 个大写码点，如 `U+A7DA`、`U+1C89` 与 Garay `U+10D50–U+10D65`）。同一份含空格路径在 3.12 上只脱敏首段，在 3.14 上继续吞并后续段；现在改用显式 `A`–`Z` 判断，与注释和文档的 ASCII 口径一致。[Issue #3753](https://github.com/can4hou6joeng4/boss-harness/issues/3753)
+- `check_export_privacy.py` 新增 `U+A7DA` / `U+1C89` 的路径延续与完整 `Redactor.sensitive` 用例（总项数 196 → 199），技术参考同步说明与计数。rc.813 固定源码探针：3.12 对 `/Users/Alice/Job Ꟛ Search` 输出「[已脱敏:本机路径] Ꟛ Search」，3.14 输出「[已脱敏:本机路径]」；修复版两个版本都只脱敏首段，ASCII 路径的 `Job Search/resume.pdf` 仍整段替换。探针只留 `/tmp`，不提交测试文件。
+- 源码候选更新为 npm `0.2.0-rc.814` 和 Python `0.2.0rc814`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.813 - 2026-11-28
 
 - CI 脚本接线守卫补上多行命令：新增解析 `run: |` 块内 `python scripts/check_*.py` 调用与所在步骤名的逻辑，步骤名不以 `Verify ` 开头即点名失败；`env:`、注释与块外文本只算引用，不算执行。[Issue #3751](https://github.com/can4hou6joeng4/boss-harness/issues/3751)

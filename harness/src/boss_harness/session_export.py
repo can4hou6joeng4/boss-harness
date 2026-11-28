@@ -120,6 +120,11 @@ def _last_path_segment(value: str) -> str:
     return re.split(r"[/\\]", value.rstrip("/\\"))[-1]
 
 
+def _ascii_upper_start(value: str) -> bool:
+    """路径延续只认 ASCII 大写开头；`isupper()` 的集合随 Unicode 版本扩大。"""
+    return bool(value) and "A" <= value[0] <= "Z"
+
+
 def _continues_path(token: str, *, previous_upper: bool) -> bool:
     """判断空白后的 token 是否仍是同一条路径，而不是紧邻的普通正文。
 
@@ -132,7 +137,7 @@ def _continues_path(token: str, *, previous_upper: bool) -> bool:
     if _DOTTED_NAME.fullmatch(token) is not None:
         return True
     # `/Users/x/Job Search`：与已匹配末段同为 ASCII 大写开头的目录名。
-    return previous_upper and token[:1].isupper()
+    return previous_upper and _ascii_upper_start(token)
 
 
 def _short_text(value: Any, limit: int) -> str | None:
@@ -149,7 +154,7 @@ def _status_text(value: Any, *, default: str) -> str:
 
 def _path_end(text: str, start: int, end: int) -> int:
     """把已匹配路径延伸到包含空格的后续 token；无法确认是路径时保留原空白。"""
-    upper = _last_path_segment(text[start:end])[:1].isupper()
+    upper = _ascii_upper_start(_last_path_segment(text[start:end]))
     for _ in range(_MAX_PATH_CONTINUATIONS):
         token_start = end
         while token_start < len(text) and text[token_start] in " \t":
@@ -164,7 +169,7 @@ def _path_end(text: str, start: int, end: int) -> int:
         if not token or not _continues_path(token, previous_upper=upper):
             break
         end = token_end
-        upper = _last_path_segment(token)[:1].isupper()
+        upper = _ascii_upper_start(_last_path_segment(token))
     return end
 
 
