@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SESSION = "harness/src/boss_harness/session.py"
 sys.path.insert(0, str(ROOT / "harness/src"))
 
+import boss_harness.session as session_module  # noqa: E402
 from boss_harness.session import (  # noqa: E402
     MAX_SESSION_HEADER_BYTES,
     MAX_SESSION_LINE_BYTES,
@@ -83,6 +84,7 @@ NEW_ORDER = (
     "os.link(temporary, path)",
     "finally:",
     "temporary.unlink(missing_ok=True)",
+    "_fsync_directory(self.root)",
     'self._index_thread(header["id"], connection)',
     'return self.get_thread(header["id"])',
 )
@@ -417,6 +419,16 @@ def _behavior_checks() -> int:
         checked += _expect_value(
             len((sessions / "ffffffffffff.jsonl").read_text(
                 encoding="utf-8").splitlines()), 2, "新建写入头与条目")
+
+        store, thread, sessions = _build(base, "new-fsync")
+        calls: list[Path] = []
+        original_fsync = session_module._fsync_directory
+        session_module._fsync_directory = lambda path: calls.append(Path(path).resolve())
+        try:
+            store.create("目录同步")
+        finally:
+            session_module._fsync_directory = original_fsync
+        checked += _expect_value(sessions.resolve() in calls, True, "新建同步会话目录")
 
         # 附件引用：类型 / 摘要 / 发布器校验，发布先于引用行，失败不留引用。
         store, thread, sessions = _build(base, "attachment")

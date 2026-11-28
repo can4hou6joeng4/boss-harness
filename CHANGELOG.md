@@ -1,3 +1,9 @@
+## 0.2.0-rc.815 - 2026-11-28
+
+- 新建与分叉会话在索引提交前同步会话目录：`_write_new()` 已对临时文件 `fsync`，但 `os.link` 新增的目录项和临时名删除没有同步；索引库位于另一个目录，若索引行先落盘而源 rollout 的目录项未落盘，重启时 `_refresh_threads()` 会把索引行当作源已删除并清掉，刚成功的会话静默消失。现在按删除意图与检查点发布的既有屏障，在 `_index_thread()` 前调用 `_fsync_directory(self.root)`。[Issue #3755](https://github.com/can4hou6joeng4/boss-harness/issues/3755)
+- `check_session_batch.py` 的新建顺序固定目录同步位于临时名清理之后、索引刷新之前，并新增行为用例记录 `create()` 对会话目录的同步调用（结构 99 → 100 项、行为 40 → 41 项）；技术参考同步描述。探针在 rc.814 固定源码上记录 `create()` 的目录同步调用为空，修复版命中会话目录。探针只留 `/tmp`，不提交测试文件。
+- 源码候选更新为 npm `0.2.0-rc.815` 和 Python `0.2.0rc815`。[公开发布记录](https://github.com/can4hou6joeng4/boss-harness/releases)
+
 ## 0.2.0-rc.814 - 2026-11-28
 
 - 导出路径延续只按 ASCII 大写判断：`_continues_path()` 与 `_path_end()` 原用 `str.isupper()`，而大写集合随 Unicode 版本扩大（Python 3.14 的 Unicode 16.0 新增 27 个大写码点，如 `U+A7DA`、`U+1C89` 与 Garay `U+10D50–U+10D65`）。同一份含空格路径在 3.12 上只脱敏首段，在 3.14 上继续吞并后续段；现在改用显式 `A`–`Z` 判断，与注释和文档的 ASCII 口径一致。[Issue #3753](https://github.com/can4hou6joeng4/boss-harness/issues/3753)

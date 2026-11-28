@@ -1047,6 +1047,9 @@ class SessionStore:
                 os.link(temporary, path)
             finally:
                 temporary.unlink(missing_ok=True)
+            # 硬链接新增的目录项与临时名删除也要落盘，否则索引行可能先于源
+            # rollout 持久化；重启后的重建会把这条索引当作源已删除而清掉。
+            _fsync_directory(self.root)
             self._index_thread(header["id"], connection)
         return self.get_thread(header["id"])
 
